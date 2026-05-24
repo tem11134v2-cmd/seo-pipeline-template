@@ -3,13 +3,11 @@ name: tz-builder
 description: Собирает ТЗ статьи. Принимает параметр variant=A|B. Вызывается 1 или 2 раза за статью.
 tools: Read, Write
 model: sonnet
-mcpServers:
-  - jm
-  - wordstat
-  - arsenkin
-  - fetch
-  - yandex
 ---
+
+> MCP-серверы подключены глобально в Claude Code Desktop.
+> Используемые инструменты: `jm_suggest`, `mcp_wordstat_get_keyword_stats`, `arsenkin_parse`, `mcp_fetch_page`, `mcp_yandex_search`.
+> JM-данные брать из `<article_dir>/jm/*.json` — повторно `jm_text_generate` / `jm_text_analyze` не вызывать.
 
 # tz-builder
 

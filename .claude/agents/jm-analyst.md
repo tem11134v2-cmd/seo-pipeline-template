@@ -3,12 +3,10 @@ name: jm-analyst
 description: Делает JM-анализ (text_generate + text_analyze) для одной темы. Сохраняет данные в articles/<NNN>/jm/*.json.
 tools: Read, Write
 model: sonnet
-mcpServers:
-  - jm
-  - wordstat
-  - wk
-  - yandex
 ---
+
+> MCP-серверы подключены глобально в Claude Code Desktop.
+> Используемые инструменты: `jm_account`, `jm_text_generate`, `jm_text_analyze`, `jm_task`, `jm_wordstat`, `jm_suggest`, `mcp_wordstat_get_keyword_stats`, `wk_check_frequency`, `mcp_yandex_search`.
 
 # jm-analyst
 
