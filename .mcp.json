@@ -1,0 +1,41 @@
+{
+  "mcpServers": {
+    "jm": {
+      "type": "http",
+      "url": "https://<vps>/mcp/jm",
+      "headers": { "Authorization": "Bearer ${JM_TOKEN}" }
+    },
+    "wordstat": {
+      "type": "http",
+      "url": "https://<vps>/mcp/wordstat"
+    },
+    "wk": {
+      "type": "http",
+      "url": "https://<vps>/mcp/wk"
+    },
+    "arsenkin": {
+      "type": "http",
+      "url": "https://<vps>/mcp/arsenkin"
+    },
+    "keyso": {
+      "type": "http",
+      "url": "https://<vps>/mcp/keyso"
+    },
+    "webmaster": {
+      "type": "http",
+      "url": "https://<vps>/mcp/webmaster"
+    },
+    "yandex": {
+      "type": "http",
+      "url": "https://<vps>/mcp/yandex"
+    },
+    "fetch": {
+      "type": "http",
+      "url": "https://<vps>/mcp/fetch"
+    },
+    "sheets": {
+      "type": "http",
+      "url": "https://<vps>/mcp/sheets"
+    }
+  }
+}
