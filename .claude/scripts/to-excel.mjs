@@ -22,7 +22,7 @@ if (!existsSync(inputPath)) {
   process.exit(1);
 }
 
-const data = JSON.parse(readFileSync(inputPath, "utf8"));
+const data = JSON.parse(readFileSync(inputPath, "utf8").replace(/^﻿/, ""));
 const topics = Array.isArray(data.topics) ? [...data.topics] : [];
 const competitors = Array.isArray(data.competitors) ? data.competitors : [];
 

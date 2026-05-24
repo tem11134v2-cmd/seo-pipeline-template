@@ -36,18 +36,21 @@ const clientPath = join(projectRoot, "ЗАКАЗЧИК.md");
 const outputPath = join(articleDir, "output.html");
 
 function readIfExists(path) {
-  return existsSync(path) ? readFileSync(path, "utf8") : "";
+  return existsSync(path) ? readFileSync(path, "utf8").replace(/^﻿/, "") : "";
+}
+function readRequired(path) {
+  return readFileSync(path, "utf8").replace(/^﻿/, "");
 }
 
-const articleMd = readFileSync(articleMdPath, "utf8");
+const articleMd = readRequired(articleMdPath);
 const enhancementsHtml = readIfExists(enhancementsPath);
 const faqHtml = readIfExists(faqPath);
 const schemaRaw = readIfExists(schemaPath);
 const photosUrlsRaw = readIfExists(photosUrlsPath);
 const photosPromptsRaw = readIfExists(photosPromptsPath);
 const reportMd = readIfExists(reportPath);
-const templateHtml = readFileSync(templatePath, "utf8");
-const clientMd = readFileSync(clientPath, "utf8");
+const templateHtml = readRequired(templatePath);
+const clientMd = readRequired(clientPath);
 
 // --- 1. Парсинг photos/urls.json и photos/prompts.md (для alt-текстов) ---
 let photosUrls = [];
