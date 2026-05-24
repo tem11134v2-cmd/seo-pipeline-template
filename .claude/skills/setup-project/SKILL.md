@@ -13,6 +13,18 @@ description: Создаёт новый проект клиента. Приним
 
 ## Алгоритм
 
+### 0. Проверка: мы в main (без worktree)?
+
+```bash
+GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo "")
+COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null || echo "")
+```
+
+Если переменные заданы И различны — мы в worktree. Сообщить и отказать:
+> «`/setup-project` создаёт новый проект клиента и работает с общими файлами. Эту команду нужно запускать в main-сессии (без галочки worktree). Закрой текущую сессию и открой template-project без worktree.»
+
+(Если переменные пустые — мы вне git, это нормально для первого запуска в `~/seo-projects/template-project/` где-то на старте; продолжаем.)
+
 ### 1. Парсинг URL и предложение slug
 
 Из URL вычленить домен (без `www.`, без `https://`). Предложить пользователю slug папки (по умолчанию = домен с заменой `.` на `_`). Спросить:
@@ -95,7 +107,17 @@ Windows cross: start template.html
 - Применить через `Edit` или повторно делегировать `template-designer`.
 - Снова открыть в браузере, дождаться подтверждения.
 
-### 8. Финализация
+### 8. Конфигурация git hooks
+
+В новом проекте включить shared hooks (чтобы pre-commit работал во всех будущих worktree автоматически):
+
+```bash
+git -C "<path>" config core.hooksPath .claude/git-hooks
+```
+
+Это разовая настройка нового репозитория клиента.
+
+### 9. Финализация
 
 ```
 node .claude/scripts/finalize-setup.mjs
@@ -103,10 +125,10 @@ node .claude/scripts/finalize-setup.mjs
 
 Это создаёт `.env.example` и делает первый git-коммит.
 
-### 9. Готово
+### 10. Готово
 
 Сообщить пользователю:
-> «Проект `<slug>` готов. Дальше: `/new-topics` для сбора тем.»
+> «Проект `<slug>` готов. Открой `~/seo-projects/<slug>/` в **новой сессии без галочки worktree** для запуска `/new-topics`. Для работы над статьями (`/write-article N`) — каждый раз ставь галочку worktree.»
 
 ## Запреты
 

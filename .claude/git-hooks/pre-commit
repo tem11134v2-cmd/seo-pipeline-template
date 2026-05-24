@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# pre-commit — белый список путей для worktree-режима.
+#
+# Правила:
+#   - В main worktree (где .git — это директория, а не файл-указатель)
+#     разрешено всё. Хук пропускает проверки.
+#   - В дополнительной worktree разрешено менять файлы ТОЛЬКО:
+#       * внутри папки текущей задачи (путь из .claude/tmp/current-task.txt)
+#       * внутри .claude/tmp/  (служебные файлы сессии)
+#       * внутри .claude/handoff-requests/  (запросы от /request-shared-edit)
+#   - Любые другие изменения → exit 1 + список запрещённых файлов.
+#
+# Escape hatch: git commit --no-verify  (использовать только для системных коммитов).
+
+set -u
+
+GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || true)
+GIT_COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null || true)
+
+# Нормализация путей (на Windows git может вернуть . или абсолют)
+case "${GIT_DIR}" in
+  .) GIT_DIR=$(pwd)/.git ;;
+esac
+case "${GIT_COMMON_DIR}" in
+  .) GIT_COMMON_DIR=$(pwd)/.git ;;
+esac
+
+if [ -z "${GIT_DIR}" ] || [ -z "${GIT_COMMON_DIR}" ]; then
+  # Не git-репозиторий или странное состояние — не блокируем
+  exit 0
+fi
+
+# В main worktree git-dir и git-common-dir указывают на ОДНО место.
+# В дополнительной worktree они разные (git-dir = .git/worktrees/<name>, common-dir = основной .git).
+if [ "${GIT_DIR}" = "${GIT_COMMON_DIR}" ]; then
+  exit 0
+fi
+
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+TASK_FILE="${PROJECT_ROOT}/.claude/tmp/current-task.txt"
+
+if [ ! -f "${TASK_FILE}" ]; then
+  cat >&2 <<EOF
+pre-commit: worktree-сессия не объявила текущую задачу.
+
+Файл ${TASK_FILE} не найден. Любой скил, работающий с задачей
+(write-article, fix-article, и др.), должен записать туда путь к папке задачи
+до первого коммита.
+
+Если ты делаешь системный коммит без привязки к задаче:
+  git commit --no-verify
+EOF
+  exit 1
+fi
+
+task_dir=$(head -n 1 "${TASK_FILE}" | tr -d '\r\n')
+
+# Преобразуем task_dir в относительный путь относительно PROJECT_ROOT
+case "${task_dir}" in
+  /*|[a-zA-Z]:*)
+    case "${task_dir}" in
+      "${PROJECT_ROOT}"/*) task_rel="${task_dir#${PROJECT_ROOT}/}" ;;
+      *) task_rel="${task_dir}" ;;
+    esac
+    ;;
+  *) task_rel="${task_dir}" ;;
+esac
+
+# Убираем хвостовой слэш
+task_rel="${task_rel%/}"
+
+if [ -z "${task_rel}" ]; then
+  echo "pre-commit: current-task.txt содержит пустой путь — отказ в коммите" >&2
+  exit 1
+fi
+
+# Список разрешённых префиксов
+allowed_prefixes=(
+  "${task_rel}/"
+  ".claude/tmp/"
+  ".claude/handoff-requests/"
+)
+
+changed=$(git diff --cached --name-only)
+
+violations=""
+while IFS= read -r f; do
+  [ -z "${f}" ] && continue
+  ok=0
+  for p in "${allowed_prefixes[@]}"; do
+    case "${f}" in
+      "${p}"*) ok=1; break ;;
+    esac
+  done
+  if [ "${ok}" != "1" ]; then
+    violations="${violations}
+  - ${f}"
+  fi
+done <<EOF
+${changed}
+EOF
+
+if [ -n "${violations}" ]; then
+  cat >&2 <<EOF
+pre-commit: В worktree запрещено менять файлы вне текущей задачи.
+
+Задача: ${task_rel}
+Разрешённые зоны:
+  - ${task_rel}/      (своя задача)
+  - .claude/tmp/       (служебные файлы сессии)
+  - .claude/handoff-requests/  (запросы для main)
+
+Запрещённые изменения в этом коммите:${violations}
+
+Что делать с общими файлами (ЗАКАЗЧИК.md, template.html, topics.xlsx и т.п.):
+  - В этой сессии: /request-shared-edit "<описание правки>"
+    Запрос уедет в main при /handoff, обработается через /process-handoffs.
+  - Или открой main-сессию (без галочки worktree) и правь напрямую.
+
+Системный обход (не рекомендуется):
+  git commit --no-verify
+EOF
+  exit 1
+fi
+
+exit 0

@@ -13,6 +13,16 @@ description: Собирает темы для блога. Создаёт topics.
 
 ## Алгоритм
 
+### 0. Проверка: мы в main (без worktree)?
+
+```bash
+GIT_DIR=$(git rev-parse --git-dir)
+COMMON_DIR=$(git rev-parse --git-common-dir)
+```
+
+Если разные — отказать:
+> «`/new-topics` правит общий файл `topics.xlsx`. Эту команду нужно запускать в main-сессии (без галочки worktree). Открой основную папку проекта без worktree.»
+
 ### 1. Прочитать `ЗАКАЗЧИК.md`
 
 Извлечь:

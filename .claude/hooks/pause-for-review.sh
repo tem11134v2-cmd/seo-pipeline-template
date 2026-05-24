@@ -10,7 +10,11 @@ set -u
 
 PROJECT_ROOT="$(pwd)"
 TMP_DIR="${PROJECT_ROOT}/.claude/tmp"
-CURRENT_FILE="${TMP_DIR}/current-article.txt"
+CURRENT_FILE="${TMP_DIR}/current-task.txt"
+# fallback на старое имя
+if [ ! -f "${CURRENT_FILE}" ] && [ -f "${TMP_DIR}/current-article.txt" ]; then
+  CURRENT_FILE="${TMP_DIR}/current-article.txt"
+fi
 
 article_dir=""
 if [ -f "${CURRENT_FILE}" ]; then

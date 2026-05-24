@@ -29,7 +29,19 @@ init → jm-done → tz-done → writing-A → sections-done-A
 
 ## Алгоритм
 
-### 0. Parse args
+### 0a. Проверка: мы в worktree?
+
+```bash
+GIT_DIR=$(git rev-parse --git-dir)
+COMMON_DIR=$(git rev-parse --git-common-dir)
+```
+
+Если `GIT_DIR == COMMON_DIR` — мы в main. Предупредить, но не блокировать (вдруг пользователь сознательно хочет писать в main):
+> «⚠️ Ты пишешь статью в main-сессии. Pre-commit hook здесь не блокирует ничего. Для многозадачности рекомендую закрыть и переоткрыть сессию с галочкой worktree.»
+
+Если разные — мы в worktree, всё ок, продолжаем.
+
+### 0b. Parse args
 
 ```
 N = <обязательно>
@@ -66,7 +78,7 @@ resume = true если --resume
   "updated": "<ISO UTC>"
 }
 ```
-- Записать `.claude/tmp/current-article.txt` с путём к `dir/` (используется хуками).
+- Записать `.claude/tmp/current-task.txt` с путём к `dir/` (используется хуками `check-section.sh`, `pause-for-review.sh`, и **критично — pre-commit hook'ом**, который без этого файла откажет в коммите).
 - `state = "init"`.
 
 ### 2. JM-анализ (если state == "init")
@@ -137,7 +149,7 @@ project_root: <...>
 4. Для `i = 1..total_sections`:
    - Если `--resume` и `<dir>/sections/<NN>-*.md` существует — пропустить.
    - Записать маркер: `.claude/tmp/expected-section-writer-<run_id>.txt = <dir>/sections/<NN>-*.md` (паттерн).
-   - Записать `.claude/tmp/current-article.txt = <dir>` (хук check-section.sh смотрит сюда).
+   - Записать `.claude/tmp/current-task.txt = <dir>` (хук check-section.sh смотрит сюда).
    - Обновить `progress.json.current_section = i`.
    - Делегировать `section-writer`:
      ```
@@ -252,12 +264,20 @@ node .claude/scripts/tilda-split.mjs <dir>
 
 `update-meta.sh <dir> completed`
 
+Сделать финальный коммит в worktree-ветку, чтобы все файлы статьи были в истории:
+```
+git add -A
+git commit -m "Article <NNN>: completed"
+```
+
 Вывести:
 ```
 Готово. Статья: <dir>/output.html
 Тильда (если применимо): <dir>/tilda/head.html + <dir>/tilda/t123.html
 Отчёт: <dir>/report.md
 Аудит: <dir>/audit.md
+
+⚠️ НЕ ЗАБУДЬ /handoff перед закрытием сессии — иначе файлы останутся в worktree и не попадут в основную папку проекта.
 ```
 
 ## Параллельная работа
