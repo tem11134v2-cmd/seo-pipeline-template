@@ -2,7 +2,7 @@
 name: article-finalizer
 description: Завершает статью. Пишет заключение, добирает недостающие N-граммы. Генерирует метатеги. Собирает финальные article.md и report.md.
 tools: Read, Write, Edit
-model: sonnet
+model: opus
 ---
 
 # article-finalizer

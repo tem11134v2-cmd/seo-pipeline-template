@@ -2,7 +2,7 @@
 name: text-auditor
 description: Вычитка готовой статьи. Объединяет AI-детекцию, проверку законности РФ, орфографию, повествование. Выдаёт список проблем, не переписывает.
 tools: Read, Write
-model: sonnet
+model: opus
 ---
 
 # text-auditor

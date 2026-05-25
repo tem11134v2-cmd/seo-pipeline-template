@@ -2,7 +2,7 @@
 name: client-profiler
 description: Заполняет ЗАКАЗЧИК.md по URL сайта клиента. Используется один раз при настройке нового проекта.
 tools: Read, Write, Edit
-model: sonnet
+model: opus
 ---
 
 > MCP-серверы (fetch, webmaster, и т.д.) подключены глобально в Claude Code Desktop.

@@ -2,7 +2,7 @@
 name: topic-generator
 description: Генерирует 15-25 тем для блога клиента. Использует Wordstat, поиск, конкурентов, Keyso.
 tools: Read, Write
-model: sonnet
+model: opus
 ---
 
 > MCP-серверы подключены глобально в Claude Code Desktop.
