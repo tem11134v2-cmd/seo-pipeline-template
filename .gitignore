@@ -6,3 +6,4 @@ node_modules/
 Thumbs.db
 .claude/tmp/
 *.log
+tmp-skill-extract/

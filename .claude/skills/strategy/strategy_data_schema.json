@@ -1,0 +1,109 @@
+{
+  "$schema": "Спецификация формата strategy_data.json. Это контракт между growth-strategist (заполняет всё кроме tariffs) и tariff-architect/strategy-writer (читают).",
+  "$version": "2.0",
+
+  "domain": "site.ru",
+  "region": "Санкт-Петербург",
+  "region_id": 2,
+  "niche": "Краткое описание ниши клиента",
+  "date": "Май 2026",
+  "keyso_base": "spb",
+  "path": "А",
+
+  "scan": {
+    "cms": "Tilda",
+    "site_type": "сайт услуг",
+    "sitemap_pages": 45,
+    "region_from_site": "Санкт-Петербург",
+    "region_match": true,
+    "directions": ["направление1", "направление2"],
+    "problems": ["проблема1", "проблема2"]
+  },
+
+  "metrics": {
+    "dr": 5,
+    "iks": 30,
+    "top10": 12,
+    "top50": 89,
+    "pages_keyso": 45,
+    "pages_index": 38,
+    "age_years": 3.5,
+    "traffic_month": 1200,
+    "search_share": 0.42,
+    "yandex_maps": false
+  },
+
+  "dynamics": [
+    {"month": "2025-10", "top10": 8, "top50": 65, "traffic_month": 800},
+    {"month": "2025-11", "top10": 10, "top50": 72, "traffic_month": 950},
+    {"month": "2025-12", "top10": 12, "top50": 89, "traffic_month": 1200}
+  ],
+
+  "competitors": {
+    "direct": [
+      {
+        "domain": "competitor1.ru",
+        "type": "medium",
+        "dr": 15,
+        "top10": 45,
+        "top50": 320,
+        "pages": 120,
+        "growth_model": "контент + ПФ"
+      }
+    ],
+    "leaders": [
+      {
+        "domain": "leader1.ru",
+        "dr": 35,
+        "top50": 1200,
+        "pages": 500,
+        "takeaway": "блог 200+ статей, активные ссылки"
+      }
+    ],
+    "leader_pages_summary": {
+      "common_blocks": ["калькулятор", "FAQ"],
+      "client_missing": ["калькулятора нет"]
+    }
+  },
+
+  "verdict": {
+    "type": "РАСШИРЯЕМ",
+    "text": "В ТОП многостраничники, у клиента 45 страниц — необходимо расширение структуры.",
+    "actions": ["SY в Старт", "расширение до 80+ страниц"]
+  },
+
+  "growth_points": [
+    {
+      "name": "Расширение структуры услуг",
+      "problem": "На сайте 45 страниц, у конкурентов 120-500.",
+      "consequences": "Невозможно конкурировать за СЧ/ВЧ запросы — нет посадочных страниц.",
+      "solution": "Создать 30+ страниц услуг с уникальным контентом.",
+      "evidence": [
+        {"query": "тимбилдинг спб", "ws": 2400, "top": "eventgroup.ru", "client_pos": 34},
+        {"query": "корпоратив спб", "ws": 1800, "top": "prazdnik.ru", "client_pos": null}
+      ],
+      "competitor_facts": [
+        "У eventgroup.ru страница /teambuilding собирает 89 ключей в ТОП-50",
+        "У prazdnik.ru раздел услуг — 45 отдельных страниц"
+      ],
+      "summary": "Расширение до 80+ страниц даст доступ к ~5000 запросов/мес.",
+      "services": ["SY", "NG"]
+    }
+  ],
+
+  "tech_problems": ["нет canonical на 12 страницах", "дубли H1 на 3 страницах"],
+  "quick_wins": [
+    "Исправить title на главной",
+    "Добавить alt к картинкам",
+    "Настроить robots.txt"
+  ],
+
+  "tariffs": {},
+
+  "forecast": [
+    {"period": "сейчас", "top10": 12, "top50": 89, "dr": 5, "traffic_month": 1200, "pages_index": 38},
+    {"period": "3 мес", "top10": 30, "top50": 180, "dr": 8, "traffic_month": 3500, "pages_index": 65},
+    {"period": "6 мес", "top10": 55, "top50": 350, "dr": 12, "traffic_month": 7000, "pages_index": 80},
+    {"period": "12 мес", "top10": 90, "top50": 500, "dr": 18, "traffic_month": 12000, "pages_index": 95}
+  ]
+}
