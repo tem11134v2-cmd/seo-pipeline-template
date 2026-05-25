@@ -13,7 +13,7 @@
 
 1. Если папки ~/seo-projects/ нет — создай её.
 2. Спроси у меня slug папки клиента (например vasya_ru). Дождись ответа.
-3. Склонируй https://github.com/<USER>/seo-pipeline-template.git в ~/seo-projects/<slug>/
+3. Склонируй https://github.com/tem11134v2-cmd/seo-pipeline-template.git в ~/seo-projects/<slug>/
    через: git clone <URL> ~/seo-projects/<slug>
 4. В новой папке выполни:
    - npm install (через .claude\scripts\_node.cmd если node не в PATH:
@@ -23,7 +23,7 @@
    с галочкой worktree и запусти /setup-project <URL_клиента>».
 ```
 
-(Замени `<USER>` на свой GitHub username.)
+(Замени `tem11134v2-cmd` на свой GitHub username.)
 
 ## Дальнейшая работа
 
