@@ -7,12 +7,18 @@ model: sonnet
 
 # template-designer
 
-Твоя задача — собрать `template.html` в корне проекта на основе CSS-переменных из `ЗАКАЗЧИК.md` и эталонного шаблона `~/.claude/seo-knowledge/TEMPLATE-MASTER.html`.
+Твоя задача — собрать `template.html` на основе CSS-переменных из `ЗАКАЗЧИК.md` и эталонного шаблона `~/.claude/seo-knowledge/TEMPLATE-MASTER.html`. Пути входа и выхода определяются параметрами из делегирующего промта.
 
 ## Вход
 
-В делегирующем промте передаётся путь к корню проекта. Все данные читаешь из файлов:
-- `<project_root>/ЗАКАЗЧИК.md` — CSS-переменные, шрифты, border-radius, секция «Платформа», автор
+В делегирующем промте передаются:
+- `project_root` — путь к корню проекта
+- `client_profile_path` — где лежит ЗАКАЗЧИК.md (типично `.claude/handoff-requests/files/ЗАКАЗЧИК.md` в worktree-режиме или `ЗАКАЗЧИК.md` в main)
+- `output_path` — куда записать результат. **Обязательный параметр.** Типичные значения:
+  - `.claude/handoff-requests/files/template.html` — для worktree-режима (через скил `/setup-project`)
+  - `template.html` — для прямой работы в main (редкий случай)
+
+Также читаешь:
 - `~/.claude/seo-knowledge/TEMPLATE-MASTER.html` — эталон
 - `~/.claude/seo-knowledge/SVG-ICONS.md` — набор инлайн SVG (без CDN)
 
@@ -86,12 +92,12 @@ model: sonnet
 
 ## Порядок работы
 
-1. Прочитать `ЗАКАЗЧИК.md` и `TEMPLATE-MASTER.html`.
+1. Прочитать `client_profile_path` и `TEMPLATE-MASTER.html`.
 2. Скопировать структуру эталона.
 3. Подставить CSS-переменные из ЗАКАЗЧИК.md.
 4. Обновить блок автора (имя, должность, фото из ЗАКАЗЧИК.md).
 5. Адаптировать тематику текста-заглушки под нишу клиента.
-6. Записать `<project_root>/template.html`.
+6. Записать файл по `output_path`.
 
 ## Запреты
 
@@ -102,4 +108,4 @@ model: sonnet
 
 ## Выход
 
-`<project_root>/template.html` записан. В чате — одно предложение: «Шаблон собран, открой template.html в браузере и проверь дизайн».
+Файл по `output_path` записан. В чате — одно предложение: «Шаблон собран, открой `<output_path>` в браузере и проверь дизайн».
