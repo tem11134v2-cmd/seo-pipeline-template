@@ -8,11 +8,12 @@
 - `template.html` — шаблон вёрстки финальной статьи
 - `topics.xlsx` — список тем
 - `articles/NNN/` — рабочая папка одной статьи
-- `~/.claude/seo-knowledge/` — общая методология (стиль, жанры, HTML-элементы, SVG)
+- `strategies/NNN/` — рабочая папка SEO-стратегии (если запускался /strategy)
+- `~/.claude/seo-knowledge/` — общая методология (стиль, жанры, HTML-элементы, SVG, TARIFFS, RULES)
 
 ## Модель работы: всё в worktree, единственная main-команда — /handoff-process
 
-**Правило:** каждая задача (`/setup-project`, `/new-topics`, `/write-article`, `/fix-article`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
+**Правило:** каждая задача (`/setup-project`, `/new-topics`, `/write-article`, `/fix-article`, `/strategy`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
 
 **Единственная команда в main:** `/handoff-process` — применяет накопленные handoff-запросы к общим файлам проекта.
 
@@ -26,6 +27,7 @@
 | `/new-topics` | Собирает 15-25 тем | `.claude/handoff-requests/topics-batch.json` |
 | `/write-article <N> [--only-A\|--only-B] [--resume]` | Полный цикл по теме №N | `articles/NNN/` (per-task, попадёт в main через /handoff) |
 | `/fix-article <NNN> "<правка>"` | Точечная правка готовой статьи | `articles/NNN/...` (per-task) |
+| `/strategy <URL> [--resume]` | Скан + конкуренты + точки роста + 3 тарифа → стратегия .docx + смета .xlsx | `strategies/NNN-slug/` (per-task) |
 | `/request-shared-edit "<описание>"` | Запросить правку общего файла | `.claude/handoff-requests/<file>.md` |
 | **`/handoff`** | Финал worktree: commit → merge в main → cleanup | Файлы попадают в main |
 
@@ -38,7 +40,7 @@
 ## Жёсткое правило: worktree трогает только свою задачу
 
 Внутри worktree-сессии разрешено менять файлы **только**:
-- Внутри своей папки задачи (`articles/NNN/`)
+- Внутри своей папки задачи (`articles/NNN/`, `strategies/NNN/`, и т.д. — путь объявляется через `.claude/tmp/current-task.txt`)
 - Внутри `.claude/tmp/` (служебные файлы)
 - Внутри `.claude/handoff-requests/` (запросы для main)
 
@@ -65,7 +67,7 @@
 └───────────────────────────────────────────────────┘
 ```
 
-Для чисто per-task задач (`/write-article` без `/request-shared-edit`) шаг 4 не нужен — файлы уже в main после `/handoff`.
+Для чисто per-task задач (`/write-article`, `/fix-article`, `/strategy` без `/request-shared-edit`) шаг 4 не нужен — файлы уже в main после `/handoff`.
 
 ## Жёсткие правила (общие)
 
@@ -78,9 +80,9 @@
 
 ## Node.js скрипты
 
-Сборка HTML, xlsx и др. — на Node.js (скрипты в `.claude/scripts/`). Все скилы вызывают их через обёртку `.claude\scripts\_node.cmd <script>.mjs ...`, которая находит node даже когда он не в PATH.
+Сборка HTML, xlsx, docx и др. — на Node.js (скрипты в `.claude/scripts/`). Все скилы вызывают их через обёртку `.claude\scripts\_node.cmd <script>.mjs ...`, которая находит node даже когда он не в PATH.
 
-Если обёртка пишет «node.exe not found» — поставь Node: `scoop install nodejs-lts`. Зависимости (exceljs, marked, jsdom) ставятся через `npm install` один раз.
+Если обёртка пишет «node.exe not found» — поставь Node: `scoop install nodejs-lts`. Зависимости (exceljs, marked, jsdom, docx) ставятся через `npm install` один раз.
 
 ## MCP-серверы
 

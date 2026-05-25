@@ -1,6 +1,6 @@
 # SEO Pipeline Template
 
-Шаблон проекта SEO-конвейера на Claude Code Desktop. Покрывает: исследование сайта клиента, сбор тем для блога, написание статей с JM-анализом и контролем N-грамм, сборка HTML, Тильда-фиксы, аудит и правки.
+Шаблон проекта SEO-конвейера на Claude Code Desktop. Покрывает: исследование сайта клиента, сбор тем для блога, написание статей с JM-анализом и контролем N-грамм, сборка HTML, Тильда-фиксы, аудит и правки, а также **формирование SEO-стратегий с тарифами** (стратегия .docx + смета .xlsx).
 
 Архитектура — **worktree-first multi-task**: каждая задача в отдельной git worktree, единственная команда в основной папке — `/handoff-process` (применяет накопленные результаты). Подробности — в [docs/adr/](docs/adr/).
 
@@ -128,7 +128,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── CLAUDE.md                            ← политика, читается каждой сессией
 │   ├── settings.json                        ← Claude Code hooks config
 │   │
-│   ├── agents/                              ← 11 субагентов (см. ниже)
+│   ├── agents/                              ← 16 субагентов (см. ниже)
 │   │   ├── client-profiler.md
 │   │   ├── template-designer.md
 │   │   ├── topic-generator.md
@@ -139,13 +139,22 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── text-auditor.md
 │   │   ├── enhancer.md
 │   │   ├── photo-promter.md
-│   │   └── article-fixer.md
+│   │   ├── article-fixer.md
+│   │   ├── strategy-scanner.md              ← /strategy
+│   │   ├── competitor-analyst.md            ← /strategy
+│   │   ├── growth-strategist.md             ← /strategy
+│   │   ├── tariff-architect.md              ← /strategy
+│   │   └── strategy-writer.md               ← /strategy
 │   │
-│   ├── skills/                              ← 7 скилов
+│   ├── skills/                              ← 8 скилов
 │   │   ├── setup-project/SKILL.md           (worktree, исследование сайта)
 │   │   ├── new-topics/SKILL.md              (worktree, сбор тем)
 │   │   ├── write-article/SKILL.md           (worktree, цикл статьи)
 │   │   ├── fix-article/SKILL.md             (worktree, правка)
+│   │   ├── strategy/                        (worktree, стратегия + тарифы)
+│   │   │   ├── SKILL.md
+│   │   │   ├── MCP_MAP.md
+│   │   │   └── strategy_data_schema.json
 │   │   ├── request-shared-edit/SKILL.md     (worktree, запрос на общий файл)
 │   │   ├── handoff/SKILL.md                 (worktree, финализация)
 │   │   └── handoff-process/SKILL.md         (main, применение запросов)
@@ -166,7 +175,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── finalize-setup.mjs               (git init + первый коммит)
 │   │   ├── to-excel.mjs                     (topics.json → topics.xlsx)
 │   │   ├── assemble-html.mjs                (article.md + ... → output.html)
-│   │   └── tilda-split.mjs                  (output.html → head + t123)
+│   │   ├── tilda-split.mjs                  (output.html → head + t123)
+│   │   ├── build-strategy-docx.mjs          (strategy_content.json → SEO_Strategy.docx)
+│   │   └── build-smeta-xlsx.mjs             (tariffs.json → Smeta.xlsx)
 │   │
 │   ├── handoff-requests/                    ← запросы worktree → main
 │   │   ├── .gitkeep
@@ -198,6 +209,17 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── output.html                          (собранный HTML)
 │   └── tilda/                               (для Тильды, опц.)
 │
+├── strategies/NNN-domain-slug/              ← рабочие папки стратегий
+│   ├── meta.json                            (state machine)
+│   ├── inputs.json                          (домен, ниша, регион, доступы)
+│   ├── scan.json + metrics.json             (от strategy-scanner)
+│   ├── competitors.json + serp.json         (от competitor-analyst)
+│   ├── growth-points.json + strategy_data.json (от growth-strategist)
+│   ├── tariffs.json                         (от tariff-architect)
+│   ├── strategy_content.json                (от strategy-writer)
+│   ├── SEO_Strategy_<domain>.docx           (финал для клиента)
+│   └── Smeta_<domain>.xlsx                  (финал внутренний)
+│
 ├── package.json                             ← exceljs, marked, jsdom
 ├── .gitignore
 ├── .mcp.json.example                        ← документация формата (не активный конфиг)
@@ -213,7 +235,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 ├── ENHANCEMENTS.md                          (HTML-элементы: таблицы, цитаты...)
 ├── SVG-ICONS.md                             (набор инлайн SVG, без CDN)
 ├── TEMPLATE-MASTER.html                     (эталонный шаблон вёрстки)
-└── CLIENT-TEMPLATE.md                       (образец ЗАКАЗЧИК.md)
+├── CLIENT-TEMPLATE.md                       (образец ЗАКАЗЧИК.md)
+├── TARIFFS.md                               (каталог услуг для /strategy)
+└── RULES.md                                 (правила связок тарифов для /strategy)
 ```
 
 См. [ADR-004](docs/adr/004-global-mcp-and-knowledge.md) — почему именно глобально.
@@ -222,7 +246,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ## Компоненты
 
-### 7 скилов (4 для работы, 3 для управления)
+### 8 скилов (5 для работы, 3 для управления)
 
 | Скил | Зона | Назначение |
 |---|---|---|
@@ -230,11 +254,12 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/new-topics` | worktree | Сбор 15-25 тем для блога, батч в handoff-requests |
 | `/write-article N [--only-A\|--only-B] [--resume]` | worktree | Полный цикл статьи (JM → ТЗ → разделы → финал → аудит → улучшения → HTML) |
 | `/fix-article NNN "..."` | worktree | Точечная правка готовой статьи |
+| `/strategy <URL> [--resume]` | worktree | Полный цикл SEO-стратегии: скан → конкуренты → точки роста → 3 тарифа → стратегия .docx + смета .xlsx |
 | `/request-shared-edit "..."` | worktree | Отложенный запрос на правку общего файла |
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
 
-### 11 субагентов (вызываются скилами)
+### 16 субагентов (вызываются скилами)
 
 | Агент | Делает |
 |---|---|
@@ -249,8 +274,13 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `enhancer` | HTML-элементы по меткам + FAQ + Schema.org JSON-LD |
 | `photo-promter` | Промты для фото по меткам `[ФОТО: ...]` |
 | `article-fixer` | Точечная правка статьи (по запросу из `/fix-article`) |
+| `strategy-scanner` | Скан сайта + первичные метрики клиента (для /strategy) |
+| `competitor-analyst` | Конкуренты, типизация, выдача, вердикт (для /strategy) |
+| `growth-strategist` | Точки роста + сборка strategy_data.json (для /strategy) |
+| `tariff-architect` | Подбор трёх тарифов из TARIFFS.md по правилам RULES.md |
+| `strategy-writer` | Проза для 6 разделов стратегии в strategy_content.json |
 
-### 4 Node-скрипта
+### 6 Node-скриптов
 
 | Скрипт | Делает |
 |---|---|
@@ -258,6 +288,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `to-excel.mjs` | topics.json → topics.xlsx (2 листа) |
 | `assemble-html.mjs` | article.md + enhancements + faq + schema + photos + template → output.html |
 | `tilda-split.mjs` | output.html → tilda/head.html + tilda/t123.html (с !important фиксами) |
+| `build-strategy-docx.mjs` | strategy_content.json + tariffs.json + inputs.json → SEO_Strategy_<domain>.docx |
+| `build-smeta-xlsx.mjs` | tariffs.json + inputs.json → Smeta_<domain>.xlsx (3 вкладки + формулы SUM) |
 
 ### 5 Claude Code хуков
 
@@ -343,6 +375,7 @@ git commit -m "Update template from upstream"
 | [004](docs/adr/004-global-mcp-and-knowledge.md) | MCP и `seo-knowledge` — глобально |
 | [005](docs/adr/005-node-wrapper.md) | Обёртка `_node.cmd` для устойчивости PATH |
 | [006](docs/adr/006-github-distribution.md) | Шаблон через публичный GitHub |
+| [007](docs/adr/007-strategy-task-type.md) | Новый тип задачи `strategies/` + порт Python-шаблонов на Node |
 
 ---
 
@@ -390,7 +423,7 @@ git commit -m "Update template from upstream"
   - Webmaster (wm_*)
   - Fetch (mcp_fetch_page)
   - Sheets (опционально, если нужно с Google Sheets)
-- **Node.js LTS** (24+): `scoop install nodejs-lts` или https://nodejs.org/.
+- **Node.js LTS** (24+): `scoop install nodejs-lts` или https://nodejs.org/. Зависимости: `exceljs`, `marked`, `jsdom`, `docx` — ставятся через `npm install`.
 - **Git** с поддержкой `git worktree` (включён по умолчанию в современных версиях).
 - **Глобальная папка** `~/.claude/seo-knowledge/` с авторской методологией. Содержимое — у автора, на новой машине нужно перенести вручную.
 - **Windows / Linux / macOS:** разрабатывалось и тестировалось на Windows. Скрипты кросс-платформенные (`_node.cmd` для Win, `_node.sh` для POSIX), но в реальной работе только Windows проверен.

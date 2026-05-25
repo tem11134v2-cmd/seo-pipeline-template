@@ -14,6 +14,7 @@
 | [004](004-global-mcp-and-knowledge.md) | MCP-серверы и `seo-knowledge/` — глобально, не в проекте | Принято |
 | [005](005-node-wrapper.md) | Обёртка `_node.cmd` для устойчивости к проблемам PATH | Принято |
 | [006](006-github-distribution.md) | Шаблон распространяется как публичный GitHub-репо | Принято |
+| [007](007-strategy-task-type.md) | Новый тип задачи `strategies/` + порт Python-шаблонов на Node | Принято |
 
 ## Как добавить новый ADR
 
