@@ -1,7 +1,6 @@
 ---
 name: client-profiler
 description: Заполняет ЗАКАЗЧИК.md по URL сайта клиента. Используется один раз при настройке нового проекта.
-tools: Read, Write, Edit
 model: opus
 ---
 

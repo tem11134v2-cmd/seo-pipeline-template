@@ -1,7 +1,6 @@
 ---
 name: jm-analyst
 description: Делает JM-анализ (text_generate + text_analyze) для одной темы. Сохраняет данные в articles/<NNN>/jm/*.json.
-tools: Read, Write
 model: opus
 ---
 

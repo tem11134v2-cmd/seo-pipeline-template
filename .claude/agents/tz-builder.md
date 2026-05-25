@@ -1,7 +1,6 @@
 ---
 name: tz-builder
 description: Собирает ТЗ статьи. Принимает параметр variant=A|B. Вызывается 1 или 2 раза за статью.
-tools: Read, Write
 model: opus
 ---
 
