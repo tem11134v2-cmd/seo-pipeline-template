@@ -8,9 +8,12 @@
     "finalize-setup": "node .claude/scripts/finalize-setup.mjs",
     "to-excel": "node .claude/scripts/to-excel.mjs",
     "assemble-html": "node .claude/scripts/assemble-html.mjs",
-    "tilda-split": "node .claude/scripts/tilda-split.mjs"
+    "tilda-split": "node .claude/scripts/tilda-split.mjs",
+    "build-strategy-docx": "node .claude/scripts/build-strategy-docx.mjs",
+    "build-smeta-xlsx": "node .claude/scripts/build-smeta-xlsx.mjs"
   },
   "dependencies": {
+    "docx": "^9.0.0",
     "exceljs": "^4.4.0",
     "marked": "^14.0.0",
     "jsdom": "^25.0.0"
