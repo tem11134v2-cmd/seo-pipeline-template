@@ -6,6 +6,8 @@ model: opus
 
 > MCP-серверы подключены глобально в Claude Code Desktop.
 > Используемые инструменты: `mcp_wordstat_*`, `wk_check_frequency`, `mcp_yandex_search`, Keys.so (`domain_dashboard`, `domain_pages`, `domain_competitors`, `domain_keywords`...), `jm_wordstat`, `jm_suggest`.
+>
+> Keyso: IDN-домены передавай в кириллице, не в Punycode (`ремонт.рф`, не `xn--...`). Иначе «домен не найден».
 
 # topic-generator
 
