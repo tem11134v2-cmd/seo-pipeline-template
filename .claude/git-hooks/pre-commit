@@ -114,7 +114,7 @@ pre-commit: В worktree запрещено менять файлы вне тек
 
 Что делать с общими файлами (ЗАКАЗЧИК.md, template.html, topics.xlsx и т.п.):
   - В этой сессии: /request-shared-edit "<описание правки>"
-    Запрос уедет в main при /handoff, обработается через /process-handoffs.
+    Запрос уедет в main при /handoff, обработается через /handoff-process.
   - Или открой main-сессию (без галочки worktree) и правь напрямую.
 
 Системный обход (не рекомендуется):

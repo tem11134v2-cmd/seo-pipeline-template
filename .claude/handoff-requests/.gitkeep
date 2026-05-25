@@ -1,0 +1,3 @@
+# Папка для handoff-запросов от worktree-задач.
+# Файлы здесь создаются скилами: /setup-project, /new-topics, /request-shared-edit.
+# Обрабатываются в main через /handoff-process.

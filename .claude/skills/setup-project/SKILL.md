@@ -1,142 +1,134 @@
 ---
 name: setup-project
-description: Создаёт новый проект клиента. Принимает URL. Делегирует client-profiler и template-designer, потом склеивает финал.
+description: Исследует сайт клиента и готовит ЗАКАЗЧИК.md + template.html. Запускается в worktree после клонирования template-репо. Файлы выносятся в main через /handoff + /handoff-process.
 ---
 
 # setup-project
 
-Одноразовая настройка проекта клиента.
+Первичное исследование проекта клиента: сбор данных с сайта, генерация профиля и шаблона вёрстки. **Запускается в worktree-сессии** уже клонированного template-репо.
 
 ## Аргументы
 
-`/setup-project <URL>` — URL сайта клиента (обязательно).
+```
+/setup-project <URL_сайта_клиента>
+```
 
 ## Алгоритм
 
-### 0. Проверка: мы в main (без worktree)?
+### 0. Проверка: мы в worktree?
 
 ```bash
-GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo "")
-COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null || echo "")
+GIT_DIR=$(git rev-parse --git-dir)
+COMMON_DIR=$(git rev-parse --git-common-dir)
 ```
 
-Если переменные заданы И различны — мы в worktree. Сообщить и отказать:
-> «`/setup-project` создаёт новый проект клиента и работает с общими файлами. Эту команду нужно запускать в main-сессии (без галочки worktree). Закрой текущую сессию и открой template-project без worktree.»
+Если `GIT_DIR == COMMON_DIR` (мы в main) — сообщить и отказать:
+> «/setup-project работает только в worktree-сессии. Открой текущую папку в новой сессии с галочкой worktree.»
 
-(Если переменные пустые — мы вне git, это нормально для первого запуска в `~/seo-projects/template-project/` где-то на старте; продолжаем.)
+### 1. Записать current-task.txt
 
-### 1. Парсинг URL и предложение slug
-
-Из URL вычленить домен (без `www.`, без `https://`). Предложить пользователю slug папки (по умолчанию = домен с заменой `.` на `_`). Спросить:
-
-> «Создаю проект для `<домен>`. Папка: `~/seo-projects/<slug>/`. Подтверди или предложи другой slug.»
-
-Дождаться ответа.
-
-### 2. Копирование шаблона
-
+Без него pre-commit hook откажет в коммите. Текущая «задача» — настройка проекта:
 ```
-PowerShell (Windows):
-  Copy-Item -Recurse "$env:USERPROFILE\seo-projects\template-project" "$env:USERPROFILE\seo-projects\<slug>"
-
-Bash:
-  cp -r ~/seo-projects/template-project ~/seo-projects/<slug>
+.claude/tmp/current-task.txt = .claude/handoff-requests/setup
 ```
 
-После копирования — переключить рабочую директорию на новую папку (через `cd` или префикс пути ко всем дальнейшим командам).
+(Сама папка `setup` под handoff-requests — это область, куда складываем результаты. Зона разрешена pre-commit хуком.)
 
-### 3. `git init`
+### 2. Делегировать `client-profiler`
 
-В новой папке:
-```
-git init -q
-```
-
-(Полный коммит сделает `finalize-setup.mjs` на шаге 8.)
-
-### 4. Делегирование `client-profiler`
-
-Перед вызовом — записать маркер ожидаемого файла:
-
+Маркер ожидаемого файла:
 ```
 .claude/tmp/expected-client-profiler-<run_id>.txt:
-  ЗАКАЗЧИК.md
+  .claude/handoff-requests/files/ЗАКАЗЧИК.md
 ```
 
-Делегировать субагента `client-profiler` с промтом:
+Промт агенту (переопределить путь — пишем в handoff-requests, не в корень):
 ```
 URL: <URL>
-project_root: <абсолютный путь к ~/seo-projects/<slug>/>
-Заполни ЗАКАЗЧИК.md по шаблону.
+project_root: <current project root>
+output_path: .claude/handoff-requests/files/ЗАКАЗЧИК.md
+Заполни ЗАКАЗЧИК.md по шаблону. Сохрани в указанный output_path (не в корень — корень обновится позже через /handoff-process в main).
 ```
 
-После завершения — прочитать `ЗАКАЗЧИК.md` и вывести в чат краткую сводку. Спросить:
-> «Профиль собран. Что-то поправить или продолжаем?»
+После завершения — прочитать `.claude/handoff-requests/files/ЗАКАЗЧИК.md` и вывести в чат краткую сводку. Спросить:
+> «Профиль собран. Что-то поправить или продолжаем к шаблону вёрстки?»
 
-Ждать ОК или правок. Если правки — применить через `Edit` или повторно делегировать.
+Ждать ОК или правок. Если правки — повторно делегировать или применить через Edit.
 
-### 5. Делегирование `template-designer`
+### 3. Делегировать `template-designer`
 
 Маркер:
 ```
 .claude/tmp/expected-template-designer-<run_id>.txt:
-  template.html
+  .claude/handoff-requests/files/template.html
 ```
 
-Делегировать с промтом:
+Промт:
 ```
-project_root: <путь>
-Прочитай ЗАКАЗЧИК.md, сгенерируй template.html на базе ~/.claude/seo-knowledge/TEMPLATE-MASTER.html.
-```
-
-### 6. Открыть `template.html` в браузере
-
-```
-PowerShell: Start-Process "<путь к template.html>"
-Bash: xdg-open template.html || open template.html
-Windows cross: start template.html
+project_root: <current project root>
+client_profile_path: .claude/handoff-requests/files/ЗАКАЗЧИК.md
+output_path: .claude/handoff-requests/files/template.html
+Прочитай профиль по client_profile_path, сгенерируй template.html на базе ~/.claude/seo-knowledge/TEMPLATE-MASTER.html. Сохрани в output_path.
 ```
 
-Сообщить пользователю:
+### 4. Открыть `template.html` в браузере
+
+```
+PowerShell: Start-Process ".claude\handoff-requests\files\template.html"
+Bash: xdg-open .claude/handoff-requests/files/template.html || open .claude/handoff-requests/files/template.html
+```
+
+Сообщить:
 > «Шаблон открыт в браузере. Проверь дизайн, скажи ОК или попроси правки.»
 
-Ждать.
+Ждать ответа. Если правки — применить через Edit или повторно делегировать template-designer.
 
-### 7. Если есть правки шаблона
+### 5. Создать метаданные для handoff-process
 
-- Применить через `Edit` или повторно делегировать `template-designer`.
-- Снова открыть в браузере, дождаться подтверждения.
-
-### 8. Конфигурация git hooks
-
-В новом проекте включить shared hooks (чтобы pre-commit работал во всех будущих worktree автоматически):
-
-```bash
-git -C "<path>" config core.hooksPath .claude/git-hooks
+Записать `.claude/handoff-requests/setup-meta.json`:
+```json
+{
+  "type": "setup-project",
+  "created": "<ISO UTC>",
+  "files": [
+    {
+      "source": ".claude/handoff-requests/files/ЗАКАЗЧИК.md",
+      "target": "ЗАКАЗЧИК.md",
+      "operation": "create"
+    },
+    {
+      "source": ".claude/handoff-requests/files/template.html",
+      "target": "template.html",
+      "operation": "create"
+    }
+  ],
+  "post_actions": [
+    "git config core.hooksPath .claude/git-hooks"
+  ],
+  "notes": "Первичная инициализация проекта <URL>. После применения main-проект готов к /new-topics и /write-article."
+}
 ```
 
-Это разовая настройка нового репозитория клиента.
-
-### 9. Финализация
-
-```
-.claude\scripts\_node.cmd .claude\scripts\finalize-setup.mjs
-```
-
-Это создаёт `.env.example` и делает первый git-коммит.
-
-### 10. Готово
+### 6. Финал
 
 Сообщить пользователю:
-> «Проект `<slug>` готов. Открой `~/seo-projects/<slug>/` в **новой сессии без галочки worktree** для запуска `/new-topics`. Для работы над статьями (`/write-article N`) — каждый раз ставь галочку worktree.»
+```
+═══ SETUP READY ═══
+Профиль и шаблон собраны в .claude/handoff-requests/.
+
+Дальше:
+  /handoff  — финализирует worktree, мержит в main
+  Затем открой main-сессию (без worktree) → /handoff-process
+              — применит файлы в корень проекта
+═══════════════════
+```
 
 ## Запреты
 
-- Не редактируй `template-project/` — это шаблон.
+- Не пиши `ЗАКАЗЧИК.md` или `template.html` в корень проекта напрямую — только в `.claude/handoff-requests/files/`. Иначе pre-commit hook откажет в коммите.
+- Не запускай `/new-topics`, `/write-article` из этой же сессии — это отдельные worktree-задачи.
 - Не используй длинное тире (—) и среднее (–). Только дефис (-).
-- Не делай git push — это решение пользователя.
-- Не пиши `topics.xlsx` и не запускай агентов фазы 2-4.
 
 ## Состояние
 
-Скил не использует state machine — он одношаговый, без resume. Если что-то сломалось посередине — удалить созданную папку и запустить заново.
+Скил одношаговый, без resume. Если что-то сломалось посередине — откати handoff-requests/setup-meta.json и handoff-requests/files/ и запусти заново.

@@ -1,6 +1,6 @@
 # Проект: {{ домен }}
 
-Ты — SEO-агент для проекта {{ домен }}. Работаешь с конвейером статей (и других задач — аудитов, коммерческих текстов).
+Ты — SEO-агент для проекта {{ домен }}. Работаешь с конвейером статей (и других задач — аудитов, коммерческих текстов в будущем).
 
 ## Стек
 
@@ -10,51 +10,62 @@
 - `articles/NNN/` — рабочая папка одной статьи
 - `~/.claude/seo-knowledge/` — общая методология (стиль, жанры, HTML-элементы, SVG)
 
+## Модель работы: всё в worktree, единственная main-команда — /handoff-process
+
+**Правило:** каждая задача (`/setup-project`, `/new-topics`, `/write-article`, `/fix-article`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
+
+**Единственная команда в main:** `/handoff-process` — применяет накопленные handoff-запросы к общим файлам проекта.
+
 ## Точки входа
+
+### Команды worktree (с галочкой worktree)
+
+| Команда | Что делает | Где результат |
+|---|---|---|
+| `/setup-project <URL>` | Исследует сайт клиента, готовит `ЗАКАЗЧИК.md` и `template.html` | `.claude/handoff-requests/files/` (для /handoff-process) |
+| `/new-topics` | Собирает 15-25 тем | `.claude/handoff-requests/topics-batch.json` |
+| `/write-article <N> [--only-A\|--only-B] [--resume]` | Полный цикл по теме №N | `articles/NNN/` (per-task, попадёт в main через /handoff) |
+| `/fix-article <NNN> "<правка>"` | Точечная правка готовой статьи | `articles/NNN/...` (per-task) |
+| `/request-shared-edit "<описание>"` | Запросить правку общего файла | `.claude/handoff-requests/<file>.md` |
+| **`/handoff`** | Финал worktree: commit → merge в main → cleanup | Файлы попадают в main |
 
 ### Команды main (без worktree)
 
 | Команда | Что делает |
 |---|---|
-| `/setup-project <URL>` | Создаёт новый проект клиента (одноразово). Только в main |
-| `/new-topics` | Собирает 15-25 тем → `topics.xlsx`. Только в main |
-| `/process-handoffs` | Применяет накопившиеся запросы на правку общих файлов. Только в main |
-
-### Команды worktree (с галочкой worktree)
-
-| Команда | Что делает |
-|---|---|
-| `/write-article <N> [--only-A\|--only-B] [--resume]` | Полный цикл по теме №N |
-| `/fix-article <NNN> "<правка>"` | Точечная правка готовой статьи |
-| `/request-shared-edit "<описание>"` | Запросить правку общего файла (применится в main через `/process-handoffs`) |
-| `/handoff [--message "..."]` | Закрыть задачу: merge ветки в main, удалить worktree |
-
-## Модель работы: worktree-first
-
-**Правило:** все задачи (`/write-article`, `/fix-article`, и т.д.) запускаются в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
-
-**Зачем:** каждая задача работает в своей изолированной копии папки + на отдельной git-ветке. Это позволяет:
-- Запускать несколько задач параллельно без конфликтов
-- Откатывать задачу целиком (если что-то пошло не так) без следов в основной папке
-- Иметь чистую историю коммитов: одна задача = одна ветка = один merge
-
-**Где результат:** в worktree файлы лежат в служебной директории Claude Code. Чтобы они попали в основную папку проекта — в конце задачи запусти **`/handoff`**. Эта команда сольёт ветку worktree в main и удалит worktree.
+| **`/handoff-process`** | Применяет накопленные handoff-запросы к общим файлам, переносит в `processed/` |
 
 ## Жёсткое правило: worktree трогает только свою задачу
 
 Внутри worktree-сессии разрешено менять файлы **только**:
-- Внутри своей папки задачи (`articles/NNN/`, в будущем `audits/NNN/`, `commercial/NNN/`)
+- Внутри своей папки задачи (`articles/NNN/`)
 - Внутри `.claude/tmp/` (служебные файлы)
 - Внутри `.claude/handoff-requests/` (запросы для main)
 
-Общие файлы (`ЗАКАЗЧИК.md`, `template.html`, `topics.xlsx`, `.claude/` целиком) — **read-only** в worktree. Защита через pre-commit hook: попытка закоммитить «чужой» файл будет отклонена.
+Общие файлы (`ЗАКАЗЧИК.md`, `template.html`, `topics.xlsx`, `.claude/` целиком, кроме `tmp/` и `handoff-requests/`) — **read-only** в worktree. Защита через pre-commit hook: попытка закоммитить «чужой» файл будет отклонена.
 
-**Если в worktree нужно поправить общий файл:**
-1. Запусти `/request-shared-edit "<описание правки>"` — скил создаст файл-запрос
-2. Когда закончишь задачу — `/handoff` отнесёт запрос в main вместе с merge
-3. В main-сессии запусти `/process-handoffs` — он применит правку
+**Если в worktree нужно изменить общий файл:**
+1. `/request-shared-edit "<описание правки>"` — создаст файл-запрос
+2. В конце задачи: `/handoff` (отнесёт запрос в main)
+3. В main-сессии: `/handoff-process` (применит правку)
 
-Альтернатива (срочно): открой main-сессию (без worktree) и правь напрямую.
+## Workflow: жизненный цикл одной задачи
+
+```
+┌─ worktree-сессия ─────────────────────────────────┐
+│ 1. /setup-project URL  (или /new-topics, или /write-article 1)
+│ 2. (опционально) /request-shared-edit "..."
+│ 3. /handoff
+│       ↓ commit + merge + cleanup
+└───────────────────────────────────────────────────┘
+
+┌─ main-сессия (если задача затронула общие файлы) ─┐
+│ 4. /handoff-process
+│       ↓ apply + commit + перенос в processed/
+└───────────────────────────────────────────────────┘
+```
+
+Для чисто per-task задач (`/write-article` без `/request-shared-edit`) шаг 4 не нужен — файлы уже в main после `/handoff`.
 
 ## Жёсткие правила (общие)
 
@@ -67,19 +78,17 @@
 
 ## Node.js скрипты
 
-Сборка HTML, xlsx и др. — на Node.js (скрипты в `.claude/scripts/`). Все скилы вызывают их через обёртку `.claude\scripts\_node.cmd <script>.mjs ...`, которая находит node даже когда он не в PATH (через scoop / стандартные пути). Это позволяет работать без перезапуска Claude Code Desktop после установки Node.
+Сборка HTML, xlsx и др. — на Node.js (скрипты в `.claude/scripts/`). Все скилы вызывают их через обёртку `.claude\scripts\_node.cmd <script>.mjs ...`, которая находит node даже когда он не в PATH.
 
-Если обёртка пишет «node.exe not found» — нужно поставить Node: `scoop install nodejs-lts` (или с nodejs.org). После установки обёртка подхватит node автоматически.
-
-Зависимости (exceljs, marked, jsdom) ставятся через `npm install` один раз в template-project.
+Если обёртка пишет «node.exe not found» — поставь Node: `scoop install nodejs-lts`. Зависимости (exceljs, marked, jsdom) ставятся через `npm install` один раз.
 
 ## MCP-серверы
 
-MCP-серверы (JM, Wordstat, Keys.so, Arsenkin, Webmaster, Yandex, Fetch, Sheets и пр.) подключены **глобально** в Claude Code Desktop. Проектного `.mcp.json` нет — он не нужен. `.mcp.json.example` — документация формата.
+MCP-серверы (JM, Wordstat, Keys.so, Arsenkin, Webmaster, Yandex, Fetch, Sheets и пр.) подключены **глобально** в Claude Code Desktop. `.mcp.json.example` — документация формата.
 
 ## Что делать, если pre-commit отказал
 
-Сообщение хука выглядит так:
+Сообщение хука:
 ```
 pre-commit: В worktree запрещено менять файлы вне текущей задачи.
 Задача: articles/001-...
@@ -88,6 +97,6 @@ pre-commit: В worktree запрещено менять файлы вне тек
 ```
 
 Варианты:
-1. Откатить изменения: `git checkout -- ЗАКАЗЧИК.md` (если правка не нужна)
-2. Создать handoff-запрос: `/request-shared-edit "что именно поменять в ЗАКАЗЧИК.md"`, затем повторить коммит (без запрещённого файла)
-3. (Не рекомендуется) Обойти: `git commit --no-verify` — нарушает изоляцию, может создать конфликт при merge
+1. Откатить: `git checkout -- ЗАКАЗЧИК.md` (если правка не нужна)
+2. Перенести в handoff-запрос: `/request-shared-edit "..."`, потом коммит без запрещённого файла
+3. (Не рекомендуется) Обход: `git commit --no-verify`
