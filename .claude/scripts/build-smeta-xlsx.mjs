@@ -42,7 +42,9 @@ const inputs = JSON.parse(readFileSync(inputsPath, "utf8").replace(/^﻿/, ""));
 
 const domain = inputs.domain || "site";
 const date = inputs.date || new Date().toLocaleDateString("ru-RU", { year: "numeric", month: "long" });
-const outputPath = join(strategyDir, `Smeta_${domain.replace(/[^a-z0-9.-]/gi, "_")}.xlsx`);
+// Имя файла: используем slug если есть (Latin, безопасно для email/FS), иначе domain без forbidden-chars (Windows).
+const safeName = (inputs.slug || domain).replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
+const outputPath = join(strategyDir, `Smeta_${safeName}.xlsx`);
 
 // ═══ Дизайн-токены ═══
 const COLORS = {

@@ -88,6 +88,7 @@ strategy_dir = strategies/<NNN>-<slug>/
 ```json
 {
   "domain": "site.ru",
+  "slug": "site-ru",
   "url_raw": "https://site.ru/",
   "niche": "...",
   "region": "Санкт-Петербург",
@@ -101,6 +102,8 @@ strategy_dir = strategies/<NNN>-<slug>/
   "date": "Май 2026"
 }
 ```
+
+`slug` — Latin-only kebab-case (для IDN-доменов вроде `сайт.рф` нужен явный slug, иначе генерация имён файлов даст некрасивый результат). Скрипты `build-strategy-docx.mjs` и `build-smeta-xlsx.mjs` используют `slug` для имени файла, иначе fallback на `domain`.
 - Записать `<strategy_dir>/meta.json`:
 ```json
 {
