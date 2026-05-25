@@ -279,6 +279,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ## Расширение системы
 
+> **Если ты адаптируешь старый claude.ai-скил** (с фазами и `Шаг X-Y`) — сначала прочитай [docs/SKILL-ADAPTATION-GUIDE.md](docs/SKILL-ADAPTATION-GUIDE.md). Там методология декомпозиции: когда шаг → субагент, когда → скрипт, когда → hook, когда объединять.
+
 ### Как добавить новый скил
 
 Сценарий: хочешь добавить, например, `/audit-tech` — технический аудит сайта.
