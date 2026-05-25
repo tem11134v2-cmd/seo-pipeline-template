@@ -58,7 +58,7 @@ project_root: <путь>
 ### 4. Конвертация в xlsx
 
 ```
-node .claude/scripts/to-excel.mjs
+.claude\scripts\_node.cmd .claude\scripts\to-excel.mjs
 ```
 
 ### 5. Открыть в Excel / браузере

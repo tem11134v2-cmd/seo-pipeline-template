@@ -120,7 +120,7 @@ git -C "<path>" config core.hooksPath .claude/git-hooks
 ### 9. Финализация
 
 ```
-node .claude/scripts/finalize-setup.mjs
+.claude\scripts\_node.cmd .claude\scripts\finalize-setup.mjs
 ```
 
 Это создаёт `.env.example` и делает первый git-коммит.

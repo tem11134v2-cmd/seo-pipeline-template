@@ -65,6 +65,14 @@
 - Все промежуточные результаты — в файлы, не в чат
 - Перед закрытием worktree-сессии: **`/handoff`**
 
+## Node.js скрипты
+
+Сборка HTML, xlsx и др. — на Node.js (скрипты в `.claude/scripts/`). Все скилы вызывают их через обёртку `.claude\scripts\_node.cmd <script>.mjs ...`, которая находит node даже когда он не в PATH (через scoop / стандартные пути). Это позволяет работать без перезапуска Claude Code Desktop после установки Node.
+
+Если обёртка пишет «node.exe not found» — нужно поставить Node: `scoop install nodejs-lts` (или с nodejs.org). После установки обёртка подхватит node автоматически.
+
+Зависимости (exceljs, marked, jsdom) ставятся через `npm install` один раз в template-project.
+
 ## MCP-серверы
 
 MCP-серверы (JM, Wordstat, Keys.so, Arsenkin, Webmaster, Yandex, Fetch, Sheets и пр.) подключены **глобально** в Claude Code Desktop. Проектного `.mcp.json` нет — он не нужен. `.mcp.json.example` — документация формата.

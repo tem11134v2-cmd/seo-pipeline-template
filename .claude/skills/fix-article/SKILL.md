@@ -58,7 +58,7 @@ project_root: <...>
 
 Прочитать `ЗАКАЗЧИК.md`. Если Платформа = «Тильда» И существует `<dir>/tilda/`:
 ```
-node .claude/scripts/tilda-split.mjs <dir>
+.claude\scripts\_node.cmd .claude\scripts\tilda-split.mjs <dir>
 ```
 
 Сообщить:

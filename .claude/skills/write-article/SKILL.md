@@ -245,7 +245,7 @@ project_root: <...>
 ### 10. Сборка HTML (state → assembled)
 
 ```
-node .claude/scripts/assemble-html.mjs <dir>
+.claude\scripts\_node.cmd .claude\scripts\assemble-html.mjs <dir>
 ```
 
 `update-meta.sh <dir> assembled`
@@ -255,7 +255,7 @@ node .claude/scripts/assemble-html.mjs <dir>
 Если в `ЗАКАЗЧИК.md` Платформа == «Тильда» (искать в секции «Основное» поле «Платформа»):
 
 ```
-node .claude/scripts/tilda-split.mjs <dir>
+.claude\scripts\_node.cmd .claude\scripts\tilda-split.mjs <dir>
 ```
 
 `update-meta.sh <dir> tilda-split`
