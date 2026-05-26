@@ -407,11 +407,27 @@ const workbook = new ExcelJS.Workbook();
 workbook.creator = "TIMUR SEO";
 workbook.created = new Date();
 
-for (const tariffKey of ["start", "growth", "max"]) {
-  if (tariffs[tariffKey]) {
-    writeTariffSheet(workbook, tariffKey, tariffs[tariffKey]);
+// Defensive: tariff-architect (LLM) иногда генерит ключ 'rost' (транслит лейбла «Рост»)
+// вместо канонического 'growth'. Принимаем оба, чтобы не пропустить вкладку silently.
+const KEY_ALIASES = { rost: "growth" };
+const KNOWN_TARIFFS = new Set(["start", "growth", "max"]);
+
+for (const rawKey of Object.keys(tariffs)) {
+  const canonicalKey = KEY_ALIASES[rawKey] || rawKey;
+  if (!KNOWN_TARIFFS.has(canonicalKey)) continue; // skip special, checks и т.п.
+  if (rawKey !== canonicalKey) {
+    console.warn(`[build-smeta-xlsx] legacy tariff key '${rawKey}' detected, normalising to '${canonicalKey}'`);
   }
+  writeTariffSheet(workbook, canonicalKey, tariffs[rawKey]);
+}
+
+// Финальная проверка — все ли три тарифа собрались.
+const sheetTitles = workbook.worksheets.map(ws => ws.name);
+const expected = ["Старт", "Рост", "Максимум"];
+const missing = expected.filter(name => !sheetTitles.includes(name));
+if (missing.length > 0) {
+  console.warn(`[build-smeta-xlsx] WARNING: missing sheets: ${missing.join(", ")}. tariffs.json keys: ${Object.keys(tariffs).join(", ")}`);
 }
 
 await workbook.xlsx.writeFile(outputPath);
-console.log(`[build-smeta-xlsx] wrote ${outputPath}`);
+console.log(`[build-smeta-xlsx] wrote ${outputPath} (sheets: ${sheetTitles.join(", ")})`);
