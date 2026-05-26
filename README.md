@@ -146,7 +146,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── tariff-architect.md              ← /strategy
 │   │   └── strategy-writer.md               ← /strategy
 │   │
-│   ├── skills/                              ← 8 скилов
+│   ├── skills/                              ← 9 скилов
 │   │   ├── setup-project/SKILL.md           (worktree, исследование сайта)
 │   │   ├── new-topics/SKILL.md              (worktree, сбор тем)
 │   │   ├── write-article/SKILL.md           (worktree, цикл статьи)
@@ -155,6 +155,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   │   ├── SKILL.md
 │   │   │   ├── MCP_MAP.md
 │   │   │   └── strategy_data_schema.json
+│   │   ├── share-strategy/SKILL.md          (worktree, загрузка .docx + .xlsx в Drive)
 │   │   ├── request-shared-edit/SKILL.md     (worktree, запрос на общий файл)
 │   │   ├── handoff/SKILL.md                 (worktree, финализация)
 │   │   └── handoff-process/SKILL.md         (main, применение запросов)
@@ -237,7 +238,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 ├── TEMPLATE-MASTER.html                     (эталонный шаблон вёрстки)
 ├── CLIENT-TEMPLATE.md                       (образец ЗАКАЗЧИК.md)
 ├── TARIFFS.md                               (каталог услуг для /strategy)
-└── RULES.md                                 (правила связок тарифов для /strategy)
+├── RULES.md                                 (правила связок тарифов для /strategy)
+└── DRIVE.md                                 (ID Drive-папок для /share-strategy)
 ```
 
 См. [ADR-004](docs/adr/004-global-mcp-and-knowledge.md) — почему именно глобально.
@@ -246,7 +248,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ## Компоненты
 
-### 8 скилов (5 для работы, 3 для управления)
+### 9 скилов (6 для работы, 3 для управления)
 
 | Скил | Зона | Назначение |
 |---|---|---|
@@ -255,6 +257,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/write-article N [--only-A\|--only-B] [--resume]` | worktree | Полный цикл статьи (JM → ТЗ → разделы → финал → аудит → улучшения → HTML) |
 | `/fix-article NNN "..."` | worktree | Точечная правка готовой статьи |
 | `/strategy <URL> [--resume]` | worktree | Полный цикл SEO-стратегии: скан → конкуренты → точки роста → 3 тарифа → стратегия .docx + смета .xlsx |
+| `/share-strategy NNN [--redo]` | worktree | Загружает готовые .docx и .xlsx из `strategies/NNN/` на Google Drive в расшаренные папки-якоря, возвращает публичные ссылки |
 | `/request-shared-edit "..."` | worktree | Отложенный запрос на правку общего файла |
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
@@ -376,6 +379,7 @@ git commit -m "Update template from upstream"
 | [005](docs/adr/005-node-wrapper.md) | Обёртка `_node.cmd` для устойчивости PATH |
 | [006](docs/adr/006-github-distribution.md) | Шаблон через публичный GitHub |
 | [007](docs/adr/007-strategy-task-type.md) | Новый тип задачи `strategies/` + порт Python-шаблонов на Node |
+| [008](docs/adr/008-drive-sharing-anchor-folders.md) | Расшаривание стратегий через Drive + якорь-папки (обход бага addPermission) |
 
 ---
 
