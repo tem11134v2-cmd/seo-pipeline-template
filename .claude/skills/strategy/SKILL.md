@@ -20,7 +20,7 @@ description: Полный цикл SEO-стратегии для клиента.
 
 ```
 init → scan-done → competitors-done → growth-done →
-  tariffs-done → content-done → docx-done → xlsx-done → completed
+  tariffs-done → content-done → docx-done → xlsx-done → shared → completed
 ```
 
 `meta.json` — единственный источник истины. Обновляется через `.claude/hooks/update-meta.sh <strategy_dir> <state>`.
@@ -213,7 +213,87 @@ project_root: <project root>
 
 `bash .claude/hooks/update-meta.sh <strategy_dir> xlsx-done`
 
-### 9. Финал
+### 9. Загрузка в Google Drive (если state == "xlsx-done")
+
+Финальные .docx и .xlsx грузим в Drive с **автоконверсией в Google Workspace** — команда сразу редактирует/комментирует в браузере. Локальные файлы остаются как резерв-оригинал.
+
+**Предусловие:** MCP `gdrive-piotr` подключён глобально, OAuth пройден один раз. См. ADR-008.
+
+#### 9a. Прочитать конфиг папок
+
+`~/.claude/seo-knowledge/DRIVE.md` — извлечь ID двух якорь-папок:
+- `strategies_folder_id` — папка для стратегий (расшарена «anyone with link → reader»)
+- `smety_folder_id` — папка для смет (то же самое)
+
+Если файл DRIVE.md не существует или ID не находятся — пропустить весь шаг 9, перейти к шагу 10 с пометкой в meta `share_skipped: "drive_config_missing"`. Пользователю в финальном выводе сообщить, что Drive-загрузка пропущена.
+
+#### 9b. Загрузить стратегию (.docx → Google Doc)
+
+```
+mcp__gdrive-piotr__uploadFile(
+  localPath: <абсолютный путь к SEO_Strategy_<slug>.docx>,
+  name: SEO_Strategy_<slug>,
+  parentFolderId: <strategies_folder_id>,
+  convertToGoogleFormat: true
+)
+```
+
+**`convertToGoogleFormat: true`** — Google Drive автоматически превратит .docx в нативный Google Doc. Команда открывает в браузере, может комментировать, редактировать совместно, делиться через стандартные Google-механизмы.
+
+Из ответа сохранить: `id`, `link` (viewLink).
+
+#### 9c. Загрузить смету (.xlsx → Google Sheet)
+
+```
+mcp__gdrive-piotr__uploadFile(
+  localPath: <абсолютный путь к Smeta_<slug>.xlsx>,
+  name: Smeta_<slug>,
+  parentFolderId: <smety_folder_id>,
+  convertToGoogleFormat: true
+)
+```
+
+Формулы `=SUM(E5:E10)` корректно конвертируются в Google Sheets. Форматирование Arial и тёмно-синие заголовки сохранятся.
+
+#### 9d. Записать share.json
+
+`<strategy_dir>/share.json`:
+```json
+{
+  "shared_at": "<ISO UTC>",
+  "shared_by": "tem11134v2@gmail.com",
+  "converted": true,
+  "strategy": {
+    "filename": "SEO_Strategy_<slug>",
+    "drive_id": "<id>",
+    "view_link": "<viewLink>",
+    "parent_folder_id": "<strategies_folder_id>",
+    "mime_type": "application/vnd.google-apps.document"
+  },
+  "smeta": {
+    "filename": "Smeta_<slug>",
+    "drive_id": "<id>",
+    "view_link": "<viewLink>",
+    "parent_folder_id": "<smety_folder_id>",
+    "mime_type": "application/vnd.google-apps.spreadsheet"
+  }
+}
+```
+
+#### 9e. Обновить meta
+
+`bash .claude/hooks/update-meta.sh <strategy_dir> shared`
+
+#### Что делать при ошибке Drive-загрузки
+
+Если MCP не отвечает, OAuth протух, или вернулась ошибка — **не блокировать `/strategy`**. Локальные файлы и так готовы. Действия:
+1. Записать в `meta.json` поле `share_error: "<краткое описание>"` (через update-meta или вручную через Edit).
+2. НЕ переходить в `shared` — оставить state `xlsx-done`.
+3. В шаге 10 сообщить пользователю: «Локально готово. Расшаривание в Drive не удалось (причина). Запусти `/share-strategy <NNN>` отдельно после исправления.»
+
+Это даёт устойчивость: даже если Drive временно недоступен, стратегия не теряется.
+
+### 10. Финал
 
 `bash .claude/hooks/update-meta.sh <strategy_dir> completed`
 
@@ -223,16 +303,47 @@ git add -A
 git commit -m "Strategy <NNN> for <domain>: completed"
 ```
 
-Вывести:
+Если шаг 9 прошёл успешно (`state` был `shared` перед `completed`), вывести:
 ```
-Готово.
-  Стратегия (для клиента): <strategy_dir>/SEO_Strategy_<domain>.docx
-  Смета (внутренняя): <strategy_dir>/Smeta_<domain>.xlsx
+═══ СТРАТЕГИЯ ГОТОВА ═══
 
-  Данные анализа: <strategy_dir>/strategy_data.json
-  Тарифы: <strategy_dir>/tariffs.json
+Клиент: <domain>
 
-⚠️ НЕ ЗАБУДЬ /handoff перед закрытием сессии — иначе файлы останутся в worktree и не попадут в основную папку проекта.
+📄 Стратегия (Google Doc, для команды и клиента):
+   <view_link>
+
+📊 Смета (Google Sheet, внутренняя, с ценами):
+   <view_link>
+
+Оба файла доступны по ссылке любому без логина (anyone with link → reader),
+команда может редактировать и комментировать прямо в браузере.
+
+Локальные оригиналы (резерв):
+   <strategy_dir>/SEO_Strategy_<slug>.docx
+   <strategy_dir>/Smeta_<slug>.xlsx
+
+Данные анализа: <strategy_dir>/strategy_data.json
+Тарифы:         <strategy_dir>/tariffs.json
+Ссылки:         <strategy_dir>/share.json
+
+⚠️ НЕ ЗАБУДЬ /handoff перед закрытием сессии — иначе файлы останутся
+   в worktree и не попадут в основную папку проекта.
+═══════════════════════
+```
+
+Если шаг 9 был пропущен (`state` остался `xlsx-done`) — вывести fallback:
+```
+Готово локально. Drive-расшаривание не выполнено.
+Причина: <из meta.share_error / share_skipped>
+
+Локальные файлы:
+   <strategy_dir>/SEO_Strategy_<slug>.docx
+   <strategy_dir>/Smeta_<slug>.xlsx
+
+Когда исправишь Drive (см. README troubleshooting), запусти:
+   /share-strategy <NNN>
+
+⚠️ /handoff также не забыть.
 ```
 
 ## Параллельная работа

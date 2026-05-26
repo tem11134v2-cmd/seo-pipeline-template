@@ -1,11 +1,15 @@
 ---
 name: share-strategy
-description: Загружает финальные docx-стратегию и xlsx-смету из strategies/NNN/ на Google Drive в расшаренные папки-якоря. Возвращает ссылки для передачи клиенту. Аргументы:<NNN> [--redo].
+description: Повторная или отложенная загрузка docx-стратегии и xlsx-сметы из strategies/NNN/ на Google Drive (с автоконверсией в Google Doc/Sheet). По умолчанию `/strategy` сам делает это в шаге 9 — этот скил нужен только если шаг был пропущен или после правок локальных файлов. Аргументы:<NNN> [--redo].
 ---
 
 # share-strategy
 
-Скил поверх MCP `gdrive-piotr`. Берёт уже собранную стратегию (`SEO_Strategy_*.docx` + `Smeta_*.xlsx` из `strategies/NNN-slug/`), загружает в Drive в два якоря-папки (см. `~/.claude/seo-knowledge/DRIVE.md`), записывает результат в `<strategy_dir>/share.json` и обновляет `meta.json`.
+Утилита-помощник для скила `/strategy`. **Основной поток `/strategy` загружает результаты в Drive сам** (шаг 9). Этот скил пригодится в трёх сценариях:
+
+1. **Drive был недоступен** при первом прогоне `/strategy` — стратегия осталась в `state: xlsx-done` без `share.json`. Запускаешь `/share-strategy <NNN>` после восстановления MCP.
+2. **Поправил локальный .docx или .xlsx** вручную или через будущий `/fix-strategy` — нужно перезалить новую версию в Drive: `/share-strategy <NNN> --redo`.
+3. **Legacy-стратегии** (собраны до версии этого скила, когда Drive ещё не был интегрирован в `/strategy`) — догрузить ссылки задним числом: `/share-strategy <NNN>`.
 
 ## Аргументы
 
@@ -14,173 +18,126 @@ description: Загружает финальные docx-стратегию и xl
 ```
 
 - `NNN` - номер стратегии (например `001`). Обязательный позиционный.
-- `--redo` - пересоздать ссылки: удалить старые файлы из Drive по id из `share.json`, загрузить заново. Использовать после правок локальных .docx/.xlsx.
+- `--redo` - пересоздать ссылки: удалить старые файлы в Drive (по `drive_id` из существующего `share.json`), загрузить заново. Использовать после правок локальных файлов.
 
 ## Предусловия
 
-- MCP `gdrive-piotr` подключён глобально, OAuth пройден (см. ADR-008). Если тулы вида `mcp__gdrive-piotr__uploadFile` не появляются - см. README → Troubleshooting.
-- В `<strategy_dir>` существуют **готовые** артефакты: `SEO_Strategy_<slug>.docx` и `Smeta_<slug>.xlsx`. Их создаёт скил `/strategy` (этапы `docx-done` и `xlsx-done`).
+- MCP `gdrive-piotr` подключён, OAuth пройден. Если тулы `mcp__gdrive-piotr__*` недоступны — см. README → Troubleshooting.
+- В `<strategy_dir>` существуют **готовые** артефакты: `SEO_Strategy_<slug>.docx` и `Smeta_<slug>.xlsx`.
 - `~/.claude/seo-knowledge/DRIVE.md` содержит актуальные ID папок Drive.
 
 ## Алгоритм
 
-### 0. Parse args + sanity
+### 0. Parse args
 
 ```
-NNN = <обязательно, форматировать как N или NN или NNN с ведущим нулём>
+NNN = <обязательно>
 redo = true если --redo
 ```
 
-Проверка worktree:
-```bash
-GIT_DIR=$(git rev-parse --git-dir)
-COMMON_DIR=$(git rev-parse --git-common-dir)
-```
-Если в main - предупредить, но не блокировать (расшаривание не пишет в общие файлы проекта).
+Проверка worktree: рекомендуется (расшаривание не пишет в общие файлы), но не блокировать выполнение в main.
 
-### 1. Найти папку стратегии
+### 1. Найти папку стратегии и проверить готовность
 
-`strategy_dir = strategies/<NNN>-*/` - найти существующую по NNN. Если не найдено - стоп: «Стратегия с номером <NNN> не найдена. Запускал ли /strategy для этого клиента?»
+`strategy_dir = strategies/<NNN>-*/` - найти существующую по NNN. Если не найдено - стоп: «Стратегия с номером <NNN> не найдена.»
 
 Прочитать:
-- `<strategy_dir>/meta.json` - убедиться, что `state >= xlsx-done` (стратегия и смета уже собраны). Если нет - стоп: «Стратегия ещё не дособрана локально (state = <X>). Допиши через `/strategy <URL> --resume`, потом расшаривай.»
+- `<strategy_dir>/meta.json` - убедиться, что `state >= xlsx-done` (стратегия и смета собраны). Если нет - стоп с подсказкой запустить `/strategy <URL> --resume`.
 - `<strategy_dir>/inputs.json` - получить `slug`, `domain`.
 
-### 2. Найти артефакты
-
-Локальные файлы:
+Локальные пути:
 - `docx_path = <strategy_dir>/SEO_Strategy_<slug>.docx`
 - `xlsx_path = <strategy_dir>/Smeta_<slug>.xlsx`
 
-Если хотя бы один не существует - стоп с понятным сообщением (какого именно файла нет, где он должен быть).
+Если хотя бы одного нет - стоп с указанием отсутствующего пути.
 
-### 3. Проверить, не расшаривали ли уже
+### 2. Развилка по share.json
 
-Если `<strategy_dir>/share.json` существует **и** `--redo` НЕ передан:
-- Прочитать share.json, вывести существующие ссылки.
-- Сообщить: «Стратегия уже расшарена ранее (<shared_at>). Передай `--redo`, чтобы пересоздать.»
+Случай **A:** `share.json` не существует, `--redo` НЕ передан.
+- Это сценарий «отложенная или legacy-загрузка». Просто грузим, как делает шаг 9 в `/strategy`.
+- Переход к шагу 3.
+
+Случай **B:** `share.json` существует, `--redo` НЕ передан.
+- Прочитать `share.json`, вывести существующие ссылки.
+- Сообщить: «Стратегия уже расшарена (<shared_at>). Передай `--redo`, чтобы перезалить.»
 - Стоп.
 
-Если `--redo`:
-- Прочитать `share.json`, получить старые `drive_id` обоих файлов.
-- Удалить их через `mcp__gdrive-piotr__deleteItem` (для каждого: `itemId: <drive_id>`).
-- Если deleteItem упал (файл уже удалён вручную / нет прав) - предупредить, но продолжать.
-- Удалить локально `share.json` (перед записью нового).
+Случай **C:** `--redo` передан.
+- Прочитать `share.json` (если существует), получить `strategy.drive_id` и `smeta.drive_id`.
+- Удалить старые через `mcp__gdrive-piotr__deleteItem` для каждого. Если deleteItem упал (файл уже удалён руками) — предупредить, но продолжать.
+- Локальный `share.json` оставить — перезапишется на шаге 5.
+- Переход к шагу 3.
 
-### 4. Прочитать DRIVE.md
+### 3. Прочитать DRIVE.md
 
-`~/.claude/seo-knowledge/DRIVE.md` - извлечь два ID:
-- `strategies_folder_id` - папка для .docx
-- `smety_folder_id` - папка для .xlsx
+`~/.claude/seo-knowledge/DRIVE.md` — извлечь `strategies_folder_id` и `smety_folder_id`.
 
-Если файл не существует или ID не парсятся - стоп: «Не найдена конфигурация Drive в ~/.claude/seo-knowledge/DRIVE.md. Создай файл по образцу из ADR-008.»
+Если файл не существует — стоп: «Не найдена конфигурация Drive в `~/.claude/seo-knowledge/DRIVE.md`. Создай по образцу из ADR-008.»
 
-### 5. Загрузить стратегию (.docx)
+### 4. Загрузить с конверсией
+
+**Стратегия (.docx → Google Doc):**
 
 ```
 mcp__gdrive-piotr__uploadFile(
-  localPath: <абсолютный путь к SEO_Strategy_<slug>.docx>,
-  name: SEO_Strategy_<slug>.docx,
+  localPath: <абсолютный docx_path>,
+  name: SEO_Strategy_<slug>,
   parentFolderId: <strategies_folder_id>,
-  convertToGoogleFormat: false
+  convertToGoogleFormat: true
 )
 ```
 
-**Важно:** `convertToGoogleFormat: false` - оставляем как .docx, без конверсии в Google Doc. Так клиент скачивает оригинальный Office-формат.
+Сохранить `id`, `link` из ответа.
 
-Из ответа сохранить: `id`, `link` (viewLink), `name`.
-
-### 6. Загрузить смету (.xlsx)
+**Смета (.xlsx → Google Sheet):**
 
 ```
 mcp__gdrive-piotr__uploadFile(
-  localPath: <абсолютный путь к Smeta_<slug>.xlsx>,
-  name: Smeta_<slug>.xlsx,
+  localPath: <абсолютный xlsx_path>,
+  name: Smeta_<slug>,
   parentFolderId: <smety_folder_id>,
-  convertToGoogleFormat: false
+  convertToGoogleFormat: true
 )
 ```
 
-Тоже без конверсии (формулы SUM сохраняются точно).
+Сохранить `id`, `link`.
 
-Из ответа сохранить: `id`, `link`, `name`.
+### 5. Записать share.json и обновить meta
 
-### 7. Проверить наследование прав (опционально, для уверенности)
+`<strategy_dir>/share.json` — формат как в `/strategy` шаг 9d (включая `mime_type: application/vnd.google-apps.document` / `application/vnd.google-apps.spreadsheet`). Если `--redo` — увеличить `redo_count` (или установить в 1, если поля не было).
 
-Для каждого только что загруженного файла - `mcp__gdrive-piotr__listPermissions`. В ответе должно быть `anyoneWithLink: anyone => reader [inherited]`. Если нет (например, папка случайно потеряла anyone-with-link) - предупредить пользователя с инструкцией поправить.
+`bash .claude/hooks/update-meta.sh <strategy_dir> shared` — обновить state. Если state уже был `completed`, оставить `completed`, просто добавить `shared` в `completed_steps` (update-meta это делает корректно через `unique`).
 
-### 8. Записать `<strategy_dir>/share.json`
-
-```json
-{
-  "shared_at": "<ISO UTC>",
-  "shared_by": "tem11134v2@gmail.com",
-  "redo_count": <0 или +1 если --redo>,
-  "strategy": {
-    "filename": "SEO_Strategy_<slug>.docx",
-    "drive_id": "<id>",
-    "view_link": "https://drive.google.com/file/d/<id>/view",
-    "parent_folder_id": "<strategies_folder_id>"
-  },
-  "smeta": {
-    "filename": "Smeta_<slug>.xlsx",
-    "drive_id": "<id>",
-    "view_link": "https://drive.google.com/file/d/<id>/view",
-    "parent_folder_id": "<smety_folder_id>"
-  }
-}
-```
-
-### 9. Обновить meta.json
-
-```bash
-bash .claude/hooks/update-meta.sh <strategy_dir> shared
-```
-
-(Состояние `shared` добавится в `completed_steps`; `state` обновится.)
-
-### 10. Вывод пользователю
+### 6. Вывод
 
 ```
 ═══ СТРАТЕГИЯ РАСШАРЕНА ═══
 
-Клиент:   <domain>
-Дата:     <ISO UTC>
+Клиент: <domain>
 
-📄 Стратегия (для клиента):
-   <view_link стратегии>
+📄 Стратегия (Google Doc):
+   <view_link>
 
-📊 Смета (внутренняя, с ценами):
-   <view_link сметы>
+📊 Смета (Google Sheet):
+   <view_link>
 
-Оба файла доступны по ссылке любому без логина (anyone with link → reader).
-Локально сохранено в <strategy_dir>/share.json.
-
-⚠️  Файлы в Drive **наследуют** права папок-якорей. Если случайно отозвать
-   расшаривание у папки - файлы тоже потеряют публичность.
+Оба расшарены anyone-with-link → reader (наследуется от папок).
+Локальные оригиналы:
+   <docx_path>
+   <xlsx_path>
 ═══════════════════════════
 ```
 
-Не забыть про worktree:
-```
-ℹ️  Эта сессия в worktree. Не забудь /handoff, чтобы share.json
-   попал в основной репозиторий проекта.
-```
+Если в worktree-сессии — напомнить про `/handoff`.
 
 ## Запреты
 
-- **НЕ грузить файлы в Drive вне якорей-папок.** Только `parentFolderId` из DRIVE.md. Иначе расшаренность не унаследуется.
-- **НЕ конвертировать в Google Doc / Sheets** (`convertToGoogleFormat: false`). Это сохраняет точный Office-формат для клиента и формулы для бухгалтерии.
-- **НЕ вызывать `addPermission`** - известно, что у пакета gdrive-piotr@2.2.0 баг с `type: anyone` (см. ADR-008). Расшаривание идёт через наследование от папки.
-- **НЕ менять файлы в Drive после загрузки** через MCP. Если нужны правки - меняй локальный .docx/.xlsx через `/strategy --resume` (или `/fix-strategy` в будущем), потом `/share-strategy <NNN> --redo`.
-- **Длинное тире (—) и среднее (–) не использовать.** Только дефис (-).
-
-## Resume
-
-Resume не нужен - скил атомарный (создаются два файла подряд, share.json пишется только если оба upload'а успешны). Если падение посередине - запустить с `--redo`, удалит остатки и зальёт заново.
+- НЕ грузить файлы в Drive вне якорей-папок (только `parentFolderId` из DRIVE.md).
+- НЕ оставлять `convertToGoogleFormat: false` — это противоречит решению об автоконверсии (ADR-008 обновлён). Команда не сможет редактировать в браузере.
+- НЕ вызывать `addPermission` — известный баг пакета на `type: anyone`.
+- НЕ менять файлы в Drive после загрузки через MCP. Если нужны правки — править локальный файл (через `/strategy --resume` или вручную), затем `/share-strategy <NNN> --redo`.
+- Длинное тире (—) и среднее (–) не использовать. Только дефис (-).
 
 ## Параллельная работа
 
-Если параллельно с одной стратегией крутится `/strategy --resume` (пользователь дописывает), запуск `/share-strategy` для неё откажет на проверке `state >= xlsx-done`. Норма.
-
-Несколько `/share-strategy` для разных стратегий одновременно - без проблем, каждая в своей папке `strategies/NNN/`, никаких общих файлов не правят.
+Несколько `/share-strategy` для разных стратегий — без проблем, каждая в своей папке `strategies/NNN/`, общих файлов не правят.

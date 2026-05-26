@@ -27,8 +27,8 @@
 | `/new-topics` | Собирает 15-25 тем | `.claude/handoff-requests/topics-batch.json` |
 | `/write-article <N> [--only-A\|--only-B] [--resume]` | Полный цикл по теме №N | `articles/NNN/` (per-task, попадёт в main через /handoff) |
 | `/fix-article <NNN> "<правка>"` | Точечная правка готовой статьи | `articles/NNN/...` (per-task) |
-| `/strategy <URL> [--resume]` | Скан + конкуренты + точки роста + 3 тарифа → стратегия .docx + смета .xlsx | `strategies/NNN-slug/` (per-task) |
-| `/share-strategy <NNN> [--redo]` | Загрузить .docx + .xlsx из `strategies/NNN/` на Google Drive (anyone-with-link reader через якорь-папки), вернуть ссылки | `strategies/NNN/share.json` (per-task) |
+| `/strategy <URL> [--resume]` | Полный цикл стратегии: скан → конкуренты → точки роста → 3 тарифа → docx + xlsx → автозагрузка в Drive (Google Doc + Google Sheet) | `strategies/NNN-slug/` (per-task) |
+| `/share-strategy <NNN> [--redo]` | Утилита-помощник для `/strategy`: перезалить после правок или догрузить если Drive был недоступен | `strategies/NNN/share.json` (per-task) |
 | `/request-shared-edit "<описание>"` | Запросить правку общего файла | `.claude/handoff-requests/<file>.md` |
 | **`/handoff`** | Финал worktree: commit → merge в main → cleanup | Файлы попадают в main |
 

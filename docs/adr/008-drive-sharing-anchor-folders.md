@@ -20,23 +20,27 @@
 
 ## Решение
 
-**Якорь-папки в Drive, расшаренные один раз вручную.**
+**Якорь-папки в Drive, расшаренные один раз вручную. Загрузка интегрирована в шаг 9 скила `/strategy`, с автоконверсией в Google Workspace форматы.**
 
 Заводим в Drive **две папки**, разделение по типу файла:
-- **«Стратегии»** - для `SEO_Strategy_*.docx` (клиентские документы)
-- **«Сметы»** - для `Smeta_*.xlsx` (внутренние, с ценами)
+- **«Стратегии»** - для конвертированных Google Doc (бывших `.docx`)
+- **«Сметы»** - для конвертированных Google Sheet (бывших `.xlsx`)
 
 Каждая папка через Drive Web UI один раз расшаривается «anyone with link → reader». ID папок записаны в `~/.claude/seo-knowledge/DRIVE.md`.
 
-Скил `/share-strategy <NNN>`:
+Шаг 9 скила `/strategy` после `xlsx-done`:
 1. Читает `DRIVE.md`, получает ID обеих папок.
-2. Вызывает `mcp__gdrive-piotr__uploadFile(localPath=..., parentFolderId=<ID папки>, convertToGoogleFormat=false)` для каждого файла.
+2. Вызывает `mcp__gdrive-piotr__uploadFile(localPath=..., parentFolderId=<ID папки>, convertToGoogleFormat=true)` для каждого файла.
 3. **Файл наследует права папки автоматически** - сразу публично-просматриваемый.
-4. Сохраняет ссылки в `<strategy_dir>/share.json`, выводит в чат.
+4. Сохраняет ссылки в `<strategy_dir>/share.json`, обновляет `meta.state = shared`, переходит к `completed`.
 
-`convertToGoogleFormat: false` гарантирует, что `.docx` остаётся `.docx`, а `.xlsx` остаётся `.xlsx` (формулы SUM в Excel сохраняются точно).
+Скил `/share-strategy <NNN> [--redo]` остаётся как утилита-помощник для трёх сценариев: (1) MCP был недоступен при первом прогоне `/strategy`, (2) правка локального файла и перезаливка, (3) legacy-стратегии до этой версии. См. `.claude/skills/share-strategy/SKILL.md`.
 
-Smoke-тест подтвердил: `listPermissions` на загруженном файле показывает `anyoneWithLink: anyone => reader [inherited]` - наследование работает.
+`convertToGoogleFormat: true` (обновлено в ходе обсуждения с пользователем): команда автора работает в Google-интерфейсе, файлы открываются в браузере для редактирования и комментариев. `.docx` конвертируется в Google Doc, `.xlsx` - в Google Sheet. Формулы SUM в простых случаях (как у нас) переносятся точно, форматирование Arial и цветовая палитра тёмно-синих заголовков сохраняются.
+
+Локальные оригиналы `.docx` и `.xlsx` остаются в `strategies/NNN/` как резерв - если в будущем понадобится «настоящий Office-формат» (например, для бухгалтерии клиента), отправляется локальный файл.
+
+Smoke-тест подтвердил: `listPermissions` на загруженном файле показывает `anyoneWithLink: anyone => reader [inherited]` - наследование работает (тест был на `.txt` без конверсии, но механизм наследования прав от папки одинаков для всех mime-types).
 
 ## Альтернативы
 
