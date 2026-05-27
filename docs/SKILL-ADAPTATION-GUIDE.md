@@ -517,7 +517,7 @@ TEMPLATE-MASTER.html, CLIENT-TEMPLATE.md) — в `~/.claude/seo-knowledge/`,
 
 - Этот файл — **методология**
 - [README.md](../README.md) — структура и компоненты системы
-- [docs/adr/](adr/) — все 6 ADR (особенно 001, 002, 003 — про worktree-first)
+- [docs/adr/](adr/) — все 8 ADR (особенно 001, 002, 003 — про worktree-first; 007 — про задачу-стратегию; 008 — про Drive)
 - `.claude/skills/write-article/SKILL.md` — эталонный сложный скил
 - `.claude/skills/setup-project/SKILL.md` — эталонный простой скил с handoff-requests
 - `.claude/agents/section-writer.md` — эталон агента, который вызывается

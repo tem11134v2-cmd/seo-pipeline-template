@@ -57,6 +57,12 @@ slug = slugify(domain)   // vasya.ru → vasya-ru; none → no-site-<timestamp>
 - Бюджет клиента, если озвучен (опц.)
 - Заметки и пожелания (опц.)
 
+**Если `URL == none` (домена нет — нужен запуск с нуля)** — дополнительно спроси:
+- Главный целевой запрос или маркер ниши (1-2 шт., например «ремонт квартир спб»)
+- Известные конкуренты, на которых хочется равняться (1-3 домена, опц.)
+
+Эти данные нужны competitor-analyst для пути Г (генерация маркеров «<услуга> <город>») и growth-strategist для частотных таблиц. Запиши их в `inputs.json` как поля `seed_queries: [...]` и `seed_competitors: [...]`.
+
 Определи `region_id` (Wordstat) и `keyso_base`:
 
 ```
@@ -193,7 +199,7 @@ project_root: <project root>
 После завершения:
 - `bash .claude/hooks/update-meta.sh <strategy_dir> content-done`
 
-### 7. Сборка docx
+### 7. Сборка docx (если state == "content-done")
 
 ```
 .claude\scripts\_node.cmd .claude\scripts\build-strategy-docx.mjs <strategy_dir>
@@ -203,7 +209,7 @@ project_root: <project root>
 
 `bash .claude/hooks/update-meta.sh <strategy_dir> docx-done`
 
-### 8. Сборка xlsx
+### 8. Сборка xlsx (если state == "docx-done")
 
 ```
 .claude\scripts\_node.cmd .claude\scripts\build-smeta-xlsx.mjs <strategy_dir>
@@ -293,7 +299,7 @@ mcp__gdrive-piotr__uploadFile(
 
 Это даёт устойчивость: даже если Drive временно недоступен, стратегия не теряется.
 
-### 10. Финал
+### 10. Финал (если state == "shared" или state == "xlsx-done")
 
 `bash .claude/hooks/update-meta.sh <strategy_dir> completed`
 

@@ -197,7 +197,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── 003-pre-commit-whitelist.md
 │   ├── 004-global-mcp-and-knowledge.md
 │   ├── 005-node-wrapper.md
-│   └── 006-github-distribution.md
+│   ├── 006-github-distribution.md
+│   ├── 007-strategy-task-type.md
+│   └── 008-drive-sharing-anchor-folders.md
 │
 ├── ЗАКАЗЧИК.md                              ← создаётся через /setup-project + /handoff-process
 ├── template.html                            ← аналогично

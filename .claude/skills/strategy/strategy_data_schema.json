@@ -30,7 +30,13 @@
     "age_years": 3.5,
     "traffic_month": 1200,
     "search_share": 0.42,
-    "yandex_maps": false
+    "yandex_maps": false,
+    "bot_traffic_warning": false,
+    "critical_issues_webmaster": [],
+    "indexation_speedyindex": {"checked": 10, "in_index": 8},
+    "tech_check": [
+      {"page": "/services", "issue": "title 78 символов"}
+    ]
   },
 
   "dynamics": [

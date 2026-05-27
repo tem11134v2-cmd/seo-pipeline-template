@@ -106,7 +106,13 @@ mcp__gdrive-piotr__uploadFile(
 
 `<strategy_dir>/share.json` — формат как в `/strategy` шаг 9d (включая `mime_type: application/vnd.google-apps.document` / `application/vnd.google-apps.spreadsheet`). Если `--redo` — увеличить `redo_count` (или установить в 1, если поля не было).
 
-`bash .claude/hooks/update-meta.sh <strategy_dir> shared` — обновить state. Если state уже был `completed`, оставить `completed`, просто добавить `shared` в `completed_steps` (update-meta это делает корректно через `unique`).
+Обновление meta зависит от текущего state:
+
+- **`state == "xlsx-done"`** (Drive не был залит при первом прогоне `/strategy` либо --redo по legacy-стратегии без completed): `bash .claude/hooks/update-meta.sh <strategy_dir> shared`, затем `bash .claude/hooks/update-meta.sh <strategy_dir> completed`.
+- **`state == "shared"`** (был shared, не дошёл до completed): `bash .claude/hooks/update-meta.sh <strategy_dir> completed`.
+- **`state == "completed"`** (типичный --redo): **НЕ вызывать update-meta** — иначе state регрессирует с `completed` обратно на `shared` (скрипт всегда перезаписывает state, не сравнивая «свежее vs текущее»). Вручную через Edit добавь `shared` в `completed_steps` если его там нет.
+
+`updated` timestamp в meta.json в третьем случае не обновится — это сознательная цена за идемпотентность.
 
 ### 6. Вывод
 

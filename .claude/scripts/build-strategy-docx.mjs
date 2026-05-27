@@ -61,9 +61,6 @@ const C = {
   text: "000000",
   muted: "666666",
   verdict_green: "2E7D32",
-  verdict_yellow: "F9A825",
-  verdict_orange: "EF6C00",
-  verdict_red: "C62828",
 };
 const F = {
   family: "Arial",
@@ -72,15 +69,6 @@ const F = {
   size_body: 20,     // 10pt
   size_table: 18,    // 9pt
   size_footer: 16,   // 8pt
-};
-const VERDICT_COLOR = {
-  "ИДЁМ": C.verdict_green,
-  "РАСШИРЯЕМ": C.verdict_orange,
-  "ИНФОКОНТЕНТ": C.verdict_orange,
-  "С_ОГОВОРКАМИ": C.verdict_yellow,
-  "С ОГОВОРКАМИ": C.verdict_yellow,
-  "НОВЫЙ_САЙТ": C.verdict_red,
-  "НОВЫЙ САЙТ": C.verdict_red,
 };
 
 // ═══ Хелперы ═══
@@ -272,17 +260,6 @@ function renderBlock(block) {
         out.push(paragraph([run("Ключевые условия достижения прогноза:", { bold: true })]));
         out.push(...bulletList(block.items));
       }
-      break;
-
-    case "verdict":
-      out.push(new Paragraph({
-        spacing: { before: 120, after: 120 },
-        children: [
-          run("Вердикт: ", { bold: true }),
-          run(block.type || "", { bold: true, color: VERDICT_COLOR[block.type] || C.text }),
-        ],
-      }));
-      if (block.text) out.push(paragraph(block.text));
       break;
 
     default:

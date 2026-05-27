@@ -55,7 +55,16 @@ model: opus
 | `small` | <50 страниц |
 | `landing` | 1-5 страниц |
 
-Тип клиента из `scan.site_type` + `metrics.pages_keyso`.
+**Тип клиента** — выводи по `metrics.pages_keyso` (это объективная цифра), верифицируя по `scan.site_type` (свободный текст):
+
+| Условие на `pages_keyso` | Тип клиента |
+|---|---|
+| `pages_keyso >= 500` И `DR >= 25` | `multipage_leader` |
+| `pages_keyso` в [50; 500) | `medium` |
+| `pages_keyso` в [6; 50) | `small` |
+| `pages_keyso <= 5` | `landing` |
+
+Если `scan.site_type` явно содержит «лендинг» / «landing» / «одностраничник» — `landing` независимо от cтраниц (могут не индексироваться). Если `pages_keyso == null` (нет данных Keyso) — `landing` по умолчанию, плюс пометка в `note`.
 
 ### 4. Отбор: 5-8 прямых + 2-3 ориентира
 
