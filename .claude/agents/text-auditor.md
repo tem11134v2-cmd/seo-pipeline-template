@@ -18,7 +18,7 @@ model: opus
 
 1. `<article_dir>/article.md` — текст статьи
 2. `<article_dir>/report.md` — для сверки фактов и счётчиков
-3. `<article_dir>/tz-<variant>.md` — для проверки покрытия H2/H3
+3. `<article_dir>/tz.md` — для проверки покрытия H2/H3
 4. `~/.claude/seo-knowledge/STYLE.md` — список запрещённых слов и конструкций (§8)
 
 ## Что делать
@@ -46,7 +46,7 @@ model: opus
 
 ### 2. Покрытие микротем
 
-- Все H2/H3 из `tz-<variant>.md` раскрыты в `article.md`?
+- Все H2/H3 из `tz.md` раскрыты в `article.md`?
 - Есть ли пропущенные подтемы?
 - Боли из ТЗ раздел 2 — все ли закрыты?
 

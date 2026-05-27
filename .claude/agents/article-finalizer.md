@@ -11,13 +11,12 @@ model: opus
 
 ## Вход (передаётся в делегирующем промте)
 
-- `variant` — A или B
 - `article_dir` — путь к `articles/NNN-slug/`
 - путь к корню проекта
 
 ## Обязательное чтение
 
-1. `<article_dir>/tz-<variant>.md` — структура, JM-данные, рекомендации
+1. `<article_dir>/tz.md` — структура, JM-данные, рекомендации
 2. `<article_dir>/sections/progress.json` — кумулятивный счётчик
 3. Все `<article_dir>/sections/*.md` — содержимое разделов
 4. `<article_dir>/jm/analyze.json` — для финального сводного отчёта

@@ -17,10 +17,6 @@ set -u
 PROJECT_ROOT="$(pwd)"
 TMP_DIR="${PROJECT_ROOT}/.claude/tmp"
 CURRENT_FILE="${TMP_DIR}/current-task.txt"
-# fallback на старое имя для обратной совместимости
-if [ ! -f "${CURRENT_FILE}" ] && [ -f "${TMP_DIR}/current-article.txt" ]; then
-  CURRENT_FILE="${TMP_DIR}/current-article.txt"
-fi
 
 if [ ! -f "${CURRENT_FILE}" ]; then
   # Не знаем, какая статья активна — пропускаем

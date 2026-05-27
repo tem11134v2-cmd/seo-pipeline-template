@@ -1,6 +1,6 @@
 ---
 name: write-article
-description: Полный цикл написания статьи. Аргументы:N (номер темы), --only-A | --only-B (по умолчанию: только A), --resume.
+description: Полный цикл написания статьи. Аргументы: N (номер темы), --resume.
 ---
 
 # write-article
@@ -10,18 +10,18 @@ description: Полный цикл написания статьи. Аргуме
 ## Аргументы
 
 ```
-/write-article <N> [--only-A | --only-B | --both] [--resume]
+/write-article <N> [--resume]
 ```
 
 - `N` — номер темы в `topics.xlsx` (обязательно).
-- `--only-A` (default) / `--only-B` / `--both` — какие варианты структуры писать.
 - `--resume` — продолжить с того места, где остановилось (по `meta.json`).
+
+Одна тема = один вариант = одна статья. Жанр берётся первым из колонки «Жанры» в `topics.xlsx` (остальные — справочно, не используются автоматически).
 
 ## State machine
 
 ```
-init → jm-done → tz-done → writing-A → sections-done-A
-→ [writing-B → sections-done-B] → finalized → awaiting-review
+init → jm-done → tz-done → writing → sections-done → finalized → awaiting-review
 → audited → enhanced → awaiting-photos → assembled → [tilda-split] → completed
 ```
 
@@ -45,7 +45,6 @@ COMMON_DIR=$(git rev-parse --git-common-dir)
 
 ```
 N = <обязательно>
-variant_set = "AB" если --both, "B" если --only-B, иначе "A" (default)
 resume = true если --resume
 ```
 
@@ -68,9 +67,7 @@ resume = true если --resume
   "topic": "...",
   "query": "...",
   "slug": "...",
-  "genre_A": "<из topics.xlsx, первый>",
-  "genre_B": "<второй, если есть>",
-  "variants": ["A"] | ["B"] | ["A","B"],
+  "genre": "<из topics.xlsx, первый>",
   "state": "init",
   "section_index": 0,
   "completed_steps": [],
@@ -88,7 +85,7 @@ resume = true если --resume
 Делегировать `jm-analyst`:
 ```
 main_query: <...>
-region_code: <код города из ЗАКАЗЧИК.md, не 225 и не области>
+region_code: <значение поля «Код региона JM» из ЗАКАЗЧИК.md, секция «Основное»; типично 213 для Москвы, 2 для СПб>
 article_dir: <dir>
 project_root: <...>
 Пройди пайплайн A→E из PHASE-2 шаг 2-1. Сохрани jm/cluster.json, jm/lsi.json, jm/analyze.json, jm/stop-domains.json.
@@ -100,15 +97,12 @@ project_root: <...>
 
 ### 3. ТЗ (если state == "jm-done")
 
-Для каждого `v` в `variants`:
-
-Маркер: `.claude/tmp/expected-tz-builder-<run_id>.txt = <dir>/tz-<v>.md`
+Маркер: `.claude/tmp/expected-tz-builder-<run_id>.txt = <dir>/tz.md`
 
 Делегировать `tz-builder`:
 ```
-variant: <v>
 article_dir: <dir>
-genre: <genre_A или genre_B из meta.json>
+genre: <genre из meta.json>
 topic: <...>
 main_query: <...>
 ws_freq: <...>
@@ -116,19 +110,16 @@ intent: <...>
 project_root: <...>
 ```
 
-После всех вариантов:
+После завершения:
 - `update-meta.sh <dir> tz-done`
-- ПАУЗА: вывести план структур (субагенты уже вывели), спросить «ОК?». При корректировках — повторно делегировать `tz-builder` с пометкой что менять.
+- ПАУЗА: вывести план структуры (агент уже вывел), спросить «ОК?». При корректировках — повторно делегировать `tz-builder` с пометкой что менять.
 
-### 4. Секции (для каждого варианта по очереди)
+### 4. Секции (если state == "tz-done")
 
-Для каждого `v` в `variants`:
-
-1. Прочитать `<dir>/tz-<v>.md`, выписать список H2-заголовков (по порядку появления `## ` в Разделе 5).
-2. Если `<dir>/sections/progress.json` не существует — создать со структурой:
+1. Прочитать `<dir>/tz.md`, выписать список H2-заголовков (по порядку появления `## ` в Разделе 5).
+2. Создать `<dir>/sections/progress.json` со структурой (если ещё не существует):
 ```json
 {
-  "variant": "<v>",
   "total_sections": <count>,
   "completed_sections": [],
   "current_section": 0,
@@ -145,34 +136,31 @@ project_root: <...>
   "carry_over": {"ngrams_undershoot": []}
 }
 ```
-3. `update-meta.sh <dir> writing-<v>`
+Ответственность за создание `progress.json` — на скиле (один раз перед циклом). Section-writer только мерж-обновляет.
+
+3. `update-meta.sh <dir> writing`
 4. Для `i = 1..total_sections`:
-   - Если `--resume` и `<dir>/sections/<NN>-*.md` существует — пропустить.
-   - Записать маркер: `.claude/tmp/expected-section-writer-<run_id>.txt = <dir>/sections/<NN>-*.md` (паттерн).
-   - Записать `.claude/tmp/current-task.txt = <dir>` (хук check-section.sh смотрит сюда).
+   - Если `--resume` и в `<dir>/sections/` уже есть файл `<NN>-*.md` (где NN — двузначный i) — пропустить.
+   - Записать `.claude/tmp/current-task.txt = <dir>` (хук check-section.sh смотрит сюда — это его единственная проверка, маркер expected-file не нужен).
    - Обновить `progress.json.current_section = i`.
    - Делегировать `section-writer`:
      ```
-     variant: <v>
      section_index: <i>
      article_dir: <dir>
-     tz_path: <dir>/tz-<v>.md
+     tz_path: <dir>/tz.md
      genre: <genre>
      project_root: <...>
      ```
    - Хук `check-section.sh` сработает после возврата — если exit 2 → разобрать ошибку, при необходимости повторить раздел с пометкой.
-   - `update-meta.sh <dir> writing-<v> section_index=<i>`
-5. После всех разделов: `update-meta.sh <dir> sections-done-<v>`
+   - `update-meta.sh <dir> writing section_index=<i>`
+5. После всех разделов: `update-meta.sh <dir> sections-done`
 
-### 5. Финализация
-
-Для каждого `v` в `variants`:
+### 5. Финализация (если state == "sections-done")
 
 Маркер: `.claude/tmp/expected-article-finalizer-<run_id>.txt = <dir>/article.md`
 
 Делегировать `article-finalizer`:
 ```
-variant: <v>
 article_dir: <dir>
 project_root: <...>
 ```
@@ -194,7 +182,7 @@ project_root: <...>
 
 Когда пользователь говорит `/continue` — переход к аудиту.
 
-### 7. Аудит (state → audited)
+### 7. Аудит (если state == "awaiting-review", после `/continue`)
 
 Маркер: `.claude/tmp/expected-text-auditor-<run_id>.txt = <dir>/audit.md`
 
@@ -206,7 +194,7 @@ project_root: <...>
 
 После: `update-meta.sh <dir> audited`. Вывести `audit.md` (резюме), ждать решения. Обычно — «продолжай».
 
-### 8. Улучшения (state → enhanced)
+### 8. Улучшения (если state == "audited")
 
 Маркер: `.claude/tmp/expected-enhancer-<run_id>.txt = <dir>/enhancements.html`
 
@@ -220,7 +208,7 @@ project_root: <...>
 
 `update-meta.sh <dir> enhanced`
 
-### 9. Фото (state → awaiting-photos)
+### 9. Фото (если state == "enhanced")
 
 Маркер: `.claude/tmp/expected-photo-promter-<run_id>.txt = <dir>/photos/prompts.md`
 
@@ -242,7 +230,7 @@ project_root: <...>
 
 **СТОП.** Ждать `/continue`.
 
-### 10. Сборка HTML (state → assembled)
+### 10. Сборка HTML (если state == "awaiting-photos", после `/continue`)
 
 ```
 .claude\scripts\_node.cmd .claude\scripts\assemble-html.mjs <dir>
@@ -250,9 +238,9 @@ project_root: <...>
 
 `update-meta.sh <dir> assembled`
 
-### 11. Тильда (опц.)
+### 11. Тильда (если state == "assembled" И Платформа == Тильда)
 
-Если в `ЗАКАЗЧИК.md` Платформа == «Тильда» (искать в секции «Основное» поле «Платформа»):
+Прочитать `ЗАКАЗЧИК.md`, секция **«Платформа и хостинг»**, поле «Платформа». Если значение содержит «Тильда» (case-insensitive):
 
 ```
 .claude\scripts\_node.cmd .claude\scripts\tilda-split.mjs <dir>
@@ -260,7 +248,9 @@ project_root: <...>
 
 `update-meta.sh <dir> tilda-split`
 
-### 12. Финал
+Если платформа другая — шаг пропустить.
+
+### 12. Финал (если state == "assembled" или state == "tilda-split")
 
 `update-meta.sh <dir> completed`
 

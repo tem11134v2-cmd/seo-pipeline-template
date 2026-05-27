@@ -94,15 +94,25 @@ const enhancementBlocks = [];
   }
 }
 
-// --- 3. ЗАКАЗЧИК.md: извлекаем минимум — домен, URL блога, имя автора ---
+// --- 3. ЗАКАЗЧИК.md: извлекаем минимум — URL блога, имя автора ---
+// Реальный формат CLIENT-TEMPLATE.md — markdown-таблицы вида `| Поле | Значение |`.
+// Старый bullet-формат (`- **Поле:** значение`) оставлен как fallback на случай
+// нестандартных вариантов или ручного редактирования.
 function pickClientField(md, label) {
-  const re = new RegExp("(?:^|\\n)[\\-\\*]\\s*\\*\\*?" + label + "\\*\\*?\\s*:?\\s*([^\\n]+)", "i");
-  const m = md.match(re);
-  return m ? m[1].trim() : "";
+  // 1) Табличный формат: `| <label> | <value> |`
+  const tableRe = new RegExp("\\|\\s*" + label + "\\s*\\|\\s*([^|\\n]+?)\\s*\\|", "i");
+  const tm = md.match(tableRe);
+  if (tm) {
+    const v = tm[1].trim();
+    if (v && !/_не заполнено_/i.test(v)) return v;
+  }
+  // 2) Bullet-формат: `- **<label>:** <value>` или `* <label>: <value>`
+  const bulletRe = new RegExp("(?:^|\\n)[\\-\\*]\\s*\\*\\*?" + label + "\\*\\*?\\s*:?\\s*([^\\n]+)", "i");
+  const bm = md.match(bulletRe);
+  return bm ? bm[1].trim() : "";
 }
-const clientDomain = pickClientField(clientMd, "Домен");
 const clientBlogUrl = pickClientField(clientMd, "URL блога") || "/blog/";
-const clientAuthor = pickClientField(clientMd, "Имя") || pickClientField(clientMd, "Автор") || "Редакция";
+const clientAuthor = pickClientField(clientMd, "Имя автора") || pickClientField(clientMd, "Имя") || pickClientField(clientMd, "Автор") || "Редакция";
 
 // --- 4. Markdown → HTML ---
 // Сначала превращаем метки [ТАБЛИЦА: ...], [ФОТО: ...] и т.п. в placeholders,

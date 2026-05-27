@@ -14,16 +14,15 @@ model: opus
 1. `~/.claude/seo-knowledge/STYLE.md` — правила живого текста, запреты, SEO-интеграция
 2. `~/.claude/seo-knowledge/GENRES.md` — найти секцию нужного жанра, прочитать
 3. `<project_root>/ЗАКАЗЧИК.md` — бренд, перелинковка
-4. `<article_dir>/tz-<variant>.md` — ТЗ варианта
-5. `<article_dir>/sections/progress.json` — текущее состояние счётчика
+4. `<article_dir>/tz.md` — ТЗ статьи
+5. `<article_dir>/sections/progress.json` — текущее состояние счётчика (создан скилом перед первой секцией)
 6. Все предыдущие `<article_dir>/sections/*.md` — для связности (НЕ переписывать)
 
 ## Вход (передаётся в делегирующем промте)
 
-- `variant` — A или B
 - `section_index` — 1-based номер H2-раздела (по порядку из ТЗ)
 - `article_dir` — путь к `articles/NNN-slug/`
-- `tz_path` — путь к `<article_dir>/tz-<variant>.md`
+- `tz_path` — путь к `<article_dir>/tz.md`
 - `genre` — жанр (для выбора секции в GENRES.md)
 - путь к корню проекта
 
@@ -63,7 +62,6 @@ model: opus
 
 ```json
 {
-  "variant": "A",
   "total_sections": 8,
   "completed_sections": [1, 2, 3],
   "current_section": 3,
@@ -94,7 +92,7 @@ model: opus
 ```
 
 Каждый запуск:
-1. Прочитать `progress.json`. Если файла нет — создать пустую структуру с целями из ТЗ.
+1. Прочитать `progress.json`. **Файл должен существовать** — его создаёт скил `write-article` перед циклом секций. Если файла нет — это баг скила, остановиться с сообщением «progress.json не создан скилом».
 2. После написания раздела — обновить `used`, `by_section`, `elements`, `links_inserted`, `pains_closed`, `brand_mentions`, `section_volumes`.
 3. Записать обратно. **Не теряй существующие данные** — мерж, не перезапись.
 
