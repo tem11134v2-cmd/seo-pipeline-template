@@ -60,6 +60,11 @@ resume = true если --resume
 - Если Y — перейти к ветке алгоритма от следующего шага после `state`.
 
 Иначе:
+- **Проверка на повторный запуск той же темы:** если в `articles/` уже есть папка `<NNN>-<slug>` (тот же slug), значит статья по этой теме уже написана. Спросить пользователя:
+  > «По теме №N уже есть статья `articles/<NNN>-<slug>/`. Хочешь написать вторую (например, другого жанра для внешней площадки)? Если да — какой жанр взять? Доступные из topics.xlsx: <список из колонки «Жанры»>.»
+  
+  Если пользователь согласен — продолжить с NNN+1 (новая папка `articles/<NNN+1>-<slug>/`), жанр взять из ответа пользователя. Если отказался — стоп.
+
 - Создать `dir/`, `dir/sections/`, `dir/jm/`, `dir/photos/`.
 - Записать `dir/meta.json`:
 ```json
@@ -67,7 +72,7 @@ resume = true если --resume
   "topic": "...",
   "query": "...",
   "slug": "...",
-  "genre": "<из topics.xlsx, первый>",
+  "genre": "<из ответа пользователя ИЛИ первый из topics.xlsx>",
   "state": "init",
   "section_index": 0,
   "completed_steps": [],
@@ -88,7 +93,7 @@ main_query: <...>
 region_code: <значение поля «Код региона JM» из ЗАКАЗЧИК.md, секция «Основное»; типично 213 для Москвы, 2 для СПб>
 article_dir: <dir>
 project_root: <...>
-Пройди пайплайн A→E из PHASE-2 шаг 2-1. Сохрани jm/cluster.json, jm/lsi.json, jm/analyze.json, jm/stop-domains.json.
+Пройди свой пайплайн (шаги A→E внутри agent-промта). Сохрани jm/cluster.json, jm/lsi.json, jm/analyze.json, jm/stop-domains.json.
 ```
 
 После завершения:
@@ -117,26 +122,17 @@ project_root: <...>
 ### 4. Секции (если state == "tz-done")
 
 1. Прочитать `<dir>/tz.md`, выписать список H2-заголовков (по порядку появления `## ` в Разделе 5).
-2. Создать `<dir>/sections/progress.json` со структурой (если ещё не существует):
+2. Создать `<dir>/sections/progress.json` с **минимальной** структурой (если ещё не существует):
 ```json
 {
   "total_sections": <count>,
   "completed_sections": [],
-  "current_section": 0,
-  "section_volumes_target": {"1": <target>, ...},
-  "ngrams": {...из ТЗ...},
-  "single_words": {...},
-  "lsi_obligatory": {"used": [], "total": 15},
-  "lsi_optional": {"used": []},
-  "elements": {"ТАБЛИЦА": {"target": N, "placed": 0, "by_section": {}}, ...},
-  "links_inserted": [],
-  "pains_closed": {},
-  "brand_mentions": [],
-  "section_volumes": {},
-  "carry_over": {"ngrams_undershoot": []}
+  "current_section": 0
 }
 ```
-Ответственность за создание `progress.json` — на скиле (один раз перед циклом). Section-writer только мерж-обновляет.
+`total_sections` — посчитать по количеству `## ` в Разделе 5 ТЗ.
+
+**Контракт с section-writer:** агент при **первом** вызове (когда `completed_sections` пуст) дочитывает `progress.json`, парсит `tz.md` и **дополняет** структуру полями `ngrams`, `single_words`, `lsi_obligatory`, `lsi_optional`, `elements`, `section_volumes_target`, `links_inserted`, `pains_closed`, `brand_mentions`, `section_volumes`, `carry_over`. На последующих вызовах — только мерж счётчиков. Скил инициализацией контента N-грамм/LSI **не занимается**.
 
 3. `update-meta.sh <dir> writing`
 4. Для `i = 1..total_sections`:
@@ -269,6 +265,27 @@ git commit -m "Article <NNN>: completed"
 
 ⚠️ НЕ ЗАБУДЬ /handoff перед закрытием сессии — иначе файлы останутся в worktree и не попадут в основную папку проекта.
 ```
+
+## Вторая статья на ту же тему
+
+Типичный сценарий: одна и та же тема (например, «теплоизоляция кровли») — две статьи разных жанров:
+- Статья на сайт клиента (жанр из `topics.xlsx` колонка «Жанры», первый)
+- Статья на внешнюю площадку (Дзен, сателлит) — другой жанр (второй из той же колонки)
+
+Технически это два независимых прогона `/write-article` на тот же `N`:
+
+```
+/write-article 1     # создаст articles/001-<slug>/, жанр 1 из topics.xlsx
+/write-article 1     # создаст articles/002-<slug>/, второй прогон
+```
+
+Между прогонами — обычный `/handoff` для каждого (или сделать оба в одном worktree последовательно).
+
+**JM-кеш экономит лимиты:** `jm_text_analyze` кешируется на 4 часа по тем же параметрам, поэтому второй прогон в тот же день не тратит ≥5 лимитов на JM-анализ повторно. По `jm_text_generate` (15 лимитов) кеш не задокументирован — этот вызов может повториться.
+
+**Жанр на второй прогон:** скил спросит «уже есть статья по теме N — какой жанр взять?». Возьми второй из колонки «Жанры» в `topics.xlsx` (там обычно указано 2-3 контрастных жанра, см. `topic-generator`).
+
+Если статьи две — будут две независимые папки (`articles/001-<slug>/` и `articles/002-<slug>/`). Связи «эти две — одна тема» в meta нет; если нужно — фиксируй сам в notes.
 
 ## Параллельная работа
 
