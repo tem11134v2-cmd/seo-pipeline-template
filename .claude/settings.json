@@ -3,7 +3,7 @@
     "SubagentStop": [
       { "matcher": "*", "hooks": [{ "type": "command", "command": ".claude/hooks/check-file.sh" }] },
       { "matcher": "section-writer", "hooks": [{ "type": "command", "command": ".claude/hooks/check-section.sh" }] },
-      { "matcher": "article-finalizer", "hooks": [{ "type": "command", "command": ".claude/hooks/pause-for-review.sh" }] }
+      { "matcher": "article-finalizer", "hooks": [{ "type": "command", "command": ".claude/hooks/mark-finalized.sh" }] }
     ],
     "PreToolUse": [
       { "matcher": "mcp__jm__jm_text_analyze", "hooks": [{ "type": "command", "command": ".claude/hooks/check-jm-balance.sh" }] }
