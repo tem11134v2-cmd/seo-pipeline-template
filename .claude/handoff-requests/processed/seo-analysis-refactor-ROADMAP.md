@@ -1,5 +1,18 @@
 # /seo-analysis — Roadmap рефакторинга
 
+> ✅ **ПРИМЕНЕНО 2026-05-28** в main-сессии. Все три волны закоммичены. Перенесено в `processed/` как audit trail.
+>
+> **Статус по волнам:**
+> - Волна 1 — `seo-analysis: волна 1 — client_pages + slug + ASCII docx + Не проверено`
+> - Волна 2 — `seo-analysis: волна 2 — Drive + state machine + revising-цикл + share-analysis + Executive Summary`
+> - Волна 3 — `seo-analysis: волна 3 — финализация (CLAUDE.md /share-analysis, перенос ROADMAP)`
+>
+> **Что осталось вручную:**
+> - В `~/.claude/seo-knowledge/DRIVE.md` появилась строка `analyses_folder_id: <TODO>` — создай папку `/SEO/Analyses/` в Drive (anyone-with-link → reader) и пропиши её ID.
+> - 3.3 (шум маркеров) и 3.4 (hover-видимость правок) — отложены до первого боевого прогона. Хук `check-file.sh` чист, видимые упоминания маркеров в SKILL.md убраны.
+>
+> ---
+>
 > ⚠️ **Это НЕ автоматический handoff-request.** Файл переезжает в main через `/handoff`, но `/handoff-process` его не применит — это план для ручной реализации в отдельной main-сессии.
 >
 > **Цель:** закрыть систематические косяки скила `/seo-analysis`, выявленные при первом боевом запуске (проект `remont-kvartir-dnr`). После применения — следующий клиент пойдёт по улучшенному алгоритму.
@@ -23,9 +36,9 @@ git commit -m "seo-analysis: волна N — <короткое описание
 
 ## Состояние
 
-- [ ] **Волна 1** — критичные системные фиксы (П1, П4, П6 для brief.slug, П8)
-- [ ] **Волна 2** — Drive + state machine + revising-цикл (П2, П3, П10, П7)
-- [ ] **Волна 3** — UX-улучшения (П9 executive summary, П6 stop_list_detailed.json, П5 шум маркеров)
+- [x] **Волна 1** — критичные системные фиксы (П1, П4, П6 для brief.slug, П8)
+- [x] **Волна 2** — Drive + state machine + revising-цикл (П2, П3, П10, П7) + Executive Summary + stop_list_detailed.json (перенесены из волны 3)
+- [x] **Волна 3** — финализация (CLAUDE.md updated, ROADMAP перенесён). Пункты 3.3/3.4 отложены до прогона.
 
 ## Зависимости и порядок
 
