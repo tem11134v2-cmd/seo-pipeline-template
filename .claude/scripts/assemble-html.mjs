@@ -156,30 +156,51 @@ function nextEnhancement() {
 }
 
 let articleHtml = articleHtmlRaw;
-// Замены идут по ВСЕМ маркерам, но порядок гарантирован порядком appearance в исходнике
-// (marked сохраняет порядок токенов).
+// Замены идут по ВСЕМ маркерам.
+//
+// Для меток ФОТО — два варианта рендера:
+//   - standalone: маркер один на параграф или один между блоками — block-level <figure>
+//   - inline: маркер внутри абзаца с другим текстом — inline <img>
+//
+// Детект inline: маркер находится внутри <p>...</p>, где есть ещё какой-то текст.
+// Для прочих типов меток (table/quote/etc) — рендер всегда block-level.
 for (const [key, info] of markerInfo) {
+  const keyEsc = escapeReg(key);
+  // Inline: маркер находится внутри <p>...</p>, где есть ещё хотя бы один не-пробельный
+  // символ, не являющийся `<` (т.е. реальный текст в том же абзаце).
+  // ВАЖНО: `[^<\s]` — не-`<` и не-whitespace; не использовать `\S`, потому что `\S`
+  // включает `<` и регулярка проскакивает через `</p>` соседних абзацев.
+  const inlineRe = new RegExp(
+    `<p>[^<]*?[^<\\s][^<]*?${keyEsc}|${keyEsc}[^<]*?[^<\\s][^<]*?</p>`,
+    "g"
+  );
+  const isInline = inlineRe.test(articleHtml);
+  inlineRe.lastIndex = 0;
+
   let replacement;
   if (info.kind === "photo") {
     const photo = photosUrls.find((p) => Number(p.photo) === info.n);
     const alt = photoAltByNumber[info.n] || info.raw;
     if (photo && photo.url) {
-      replacement = `<figure class="nx-photo"><img src="${photo.url}" alt="${escapeAttr(alt)}" loading="lazy" /></figure>`;
+      if (isInline) {
+        replacement = `<img src="${photo.url}" alt="${escapeAttr(alt)}" class="nx-photo-inline" loading="lazy" />`;
+      } else {
+        replacement = `<figure class="nx-photo"><img src="${photo.url}" alt="${escapeAttr(alt)}" loading="lazy" /></figure>`;
+      }
     } else {
       replacement = `<!-- TODO: photo ${info.n} (${escapeAttr(info.raw)}) — нет URL в photos/urls.json -->`;
     }
   } else {
     const enh = nextEnhancement();
-    if (enh) {
-      replacement = enh.html;
-    } else {
-      replacement = `<!-- TODO: ${info.kind} «${escapeAttr(info.raw)}» — нет элемента в enhancements.html -->`;
-    }
+    replacement = enh
+      ? enh.html
+      : `<!-- TODO: ${info.kind} «${escapeAttr(info.raw)}» — нет элемента в enhancements.html -->`;
   }
-  // marked мог обернуть наш HTML-коммент в <p>...</p> (если он на отдельной строке).
-  // Заменяем и сам коммент, и его обёртку.
-  const wrappedRe = new RegExp(`<p>\\s*${escapeReg(key)}\\s*</p>`, "g");
-  articleHtml = articleHtml.replace(wrappedRe, replacement);
+
+  // Сначала: <p>(только-маркер)</p> → block замена с обёрткой
+  const onlyMarkerInP = new RegExp(`<p>\\s*${keyEsc}\\s*</p>`, "g");
+  articleHtml = articleHtml.replace(onlyMarkerInP, replacement);
+  // Потом: сам маркер где бы он ни остался (inline в составе <p> или standalone между блоков)
   articleHtml = articleHtml.replace(key, replacement);
 }
 
@@ -210,11 +231,28 @@ const tagsHtml = buildTagsBlock(reportMd, clientMd);
 // --- 8. Автор ---
 const authorBlock = `<div class="nx-author"><div class="nx-author-info"><div class="nx-author-name">${escapeHtml(clientAuthor)}</div></div></div>`;
 
-// --- 9. Schema.org JSON-LD ---
+// --- 9. Social-вариант hero-фото для og:image ---
+// Cloudinary позволяет on-the-fly трансформацию через URL-сегмент. Берём первый фото-URL,
+// вставляем перед `/<public_id>` сегмент `c_fill,w_1200,h_630,g_auto/` → готовый OG-вариант.
+function cloudinarySocialUrl(originalUrl) {
+  if (!originalUrl) return "";
+  // Cloudinary: https://res.cloudinary.com/<cloud>/image/upload/<version>/<public_id>.<ext>
+  // или https://res.cloudinary.com/<cloud>/image/upload/<existing_transformations>/<public_id>.<ext>
+  // Вставляем c_fill,w_1200,h_630,g_auto/ сразу после /upload/.
+  if (!/res\.cloudinary\.com/.test(originalUrl)) return originalUrl;
+  return originalUrl.replace(/\/image\/upload\/(?!c_fill[^\/]*\/)/i, "/image/upload/c_fill,w_1200,h_630,g_auto/");
+}
+const heroPhotoUrl = photosUrls.find((p) => Number(p.photo) === 1)?.url || "";
+const ogImageUrl = heroPhotoUrl ? cloudinarySocialUrl(heroPhotoUrl) : "";
+
+// --- 10. Schema.org JSON-LD (с подмешиванием image в Article, если есть hero) ---
 let schemaScripts = "";
 if (schemaRaw) {
   try {
     const schemaObj = JSON.parse(schemaRaw);
+    if (schemaObj.article && ogImageUrl && !schemaObj.article.image) {
+      schemaObj.article.image = ogImageUrl;
+    }
     for (const key of ["article", "faqPage", "breadcrumbList"]) {
       if (schemaObj[key]) {
         schemaScripts += `<script type="application/ld+json">${JSON.stringify(schemaObj[key])}</script>\n`;
@@ -223,6 +261,17 @@ if (schemaRaw) {
   } catch (e) {
     console.warn("[assemble-html] schema.json invalid:", e.message);
   }
+}
+
+// --- 10b. og:image / twitter:image метатеги ---
+let socialMetaScripts = "";
+if (ogImageUrl) {
+  socialMetaScripts =
+    `<meta property="og:image" content="${escapeAttr(ogImageUrl)}">\n` +
+    `<meta property="og:image:width" content="1200">\n` +
+    `<meta property="og:image:height" content="630">\n` +
+    `<meta name="twitter:card" content="summary_large_image">\n` +
+    `<meta name="twitter:image" content="${escapeAttr(ogImageUrl)}">\n`;
 }
 
 // --- 10. Сборка innerHTML для .nx-article + подмена в template ---
@@ -258,9 +307,10 @@ if (nxArticle) {
   }
 }
 
-// Inject Schema.org в <head>
+// Inject Schema.org + social meta в <head>
 let finalHtml = tDom.serialize();
 finalHtml = injectSchema(finalHtml, schemaScripts);
+finalHtml = injectSocialMeta(finalHtml, socialMetaScripts);
 
 writeFileSync(outputPath, finalHtml, "utf8");
 reportSummary();
@@ -270,6 +320,14 @@ reportSummary();
 function injectSchema(html, scripts) {
   if (!scripts) return html;
   return html.replace(/<\/head>/i, `${scripts}</head>`);
+}
+
+function injectSocialMeta(html, scripts) {
+  if (!scripts) return html;
+  // Удаляем существующие og:image / twitter:image (если template-designer внёс заглушки),
+  // потом вставляем актуальные.
+  let out = html.replace(/<meta\s+(?:property|name)=["'](?:og:image[^"']*|twitter:image|twitter:card)["'][^>]*>\s*/gi, "");
+  return out.replace(/<\/head>/i, `${scripts}</head>`);
 }
 
 function reportSummary() {
