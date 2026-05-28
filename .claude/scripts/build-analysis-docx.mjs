@@ -336,6 +336,7 @@ function renderBlocks(blocks) {
   const out = [];
   let firstH1Seen = false;
   let lastWasHr = false;
+  let afterExecutiveSummary = false;
 
   for (const b of blocks) {
     switch (b.type) {
@@ -357,14 +358,23 @@ function renderBlocks(blocks) {
           }
         } else {
           out.push(heading(b.text, b.level));
+          if (b.level === 2 && /executive summary/i.test(b.text)) {
+            afterExecutiveSummary = true;
+          }
         }
         lastWasHr = false;
         break;
       }
 
       case "hr": {
-        // Используем как мягкий разделитель — добавляем пустую строку
-        out.push(plainParagraph(""));
+        if (afterExecutiveSummary) {
+          // После Executive Summary — разрыв страницы (клиент видит summary отдельно).
+          out.push(new Paragraph({ children: [new PageBreak()] }));
+          afterExecutiveSummary = false;
+        } else {
+          // В остальных случаях — мягкий разделитель.
+          out.push(plainParagraph(""));
+        }
         lastWasHr = true;
         break;
       }

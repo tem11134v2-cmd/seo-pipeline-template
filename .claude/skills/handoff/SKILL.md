@@ -54,6 +54,23 @@ fi
 Сообщить пользователю:
 > «Handoff: `<CURRENT_BRANCH>` → `<BASE_BRANCH>` в `<MAIN_WT>`».
 
+### 1.5. Проверка незавершённых анализов
+
+Если в задаче есть `analyses/NNN-*/meta.json` со state `report-done`, `docx-done`, `shared`, `client-review` или `revising` — это значит анализ не дошёл до одобрения клиентом.
+
+Прочитать `.claude/tmp/current-task.txt`. Если содержит путь `analyses/NNN-*/`, прочитать meta.json. Если state ∈ {report-done, docx-done, shared, client-review, revising}:
+
+> ⚠️ Анализ `analyses/<NNN>-<slug>/` в состоянии `<state>` — не одобрено клиентом.
+>
+> Точно делаешь /handoff? Варианты:
+>   [Y] — да, сдать как есть (клиент потом одобрит / у меня нет связи с ним)
+>   [n] — нет, сначала довести до approved (вернуться в скил)
+>   [skip] — да, и пропустить эту проверку для остальных задач в worktree
+
+Если N — стоп. Если Y или skip — продолжить как обычно.
+
+Если state == `approved` или `completed` — без warning, продолжать.
+
 ### 2. Финальный коммит (auto)
 
 Если `git status --porcelain` непуст:
