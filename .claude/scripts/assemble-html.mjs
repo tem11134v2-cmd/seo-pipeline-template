@@ -228,8 +228,44 @@ const breadcrumbsHtml = `<nav class="nx-breadcrumbs"><a href="/">Главная<
 // --- 7. Плитка тегов из report.md ---
 const tagsHtml = buildTagsBlock(reportMd, clientMd);
 
-// --- 8. Автор ---
-const authorBlock = `<div class="nx-author"><div class="nx-author-info"><div class="nx-author-name">${escapeHtml(clientAuthor)}</div></div></div>`;
+// --- 8. Извлечь <style> блоки из enhancements.html и faq.html (попадут в <head>) ---
+// Иначе scoped стили окажутся внутри <article> и могут не подхватиться нужными правилами.
+function extractStyles(html) {
+  const styles = [];
+  const cleaned = String(html).replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_m, css) => {
+    styles.push(css.trim());
+    return "";
+  });
+  return { styles, cleaned };
+}
+const enhStylesExtract = extractStyles(enhancementsHtml);
+const faqStylesExtract = extractStyles(faqHtml);
+
+// Преобразовать в faq.html: <p>ответ</p> → <div class="nx-faq-a">ответ</div>
+// — так стили template'а (<summary>::after с иконкой +/-, hover) подхватывают.
+const faqHtmlNormalized = faqStylesExtract.cleaned.replace(
+  /(<details[^>]*class="[^"]*nx-faq-item[^"]*"[^>]*>\s*<summary[^>]*>[\s\S]*?<\/summary>\s*)<p>([\s\S]*?)<\/p>(\s*<\/details>)/gi,
+  (_m, head, answer, tail) => `${head}<div class="nx-faq-a">${answer.trim()}</div>${tail}`
+);
+
+const extraHeadStyles =
+  (enhStylesExtract.styles.length ? `<style>\n${enhStylesExtract.styles.join("\n")}\n</style>\n` : "") +
+  (faqStylesExtract.styles.length ? `<style>\n${faqStylesExtract.styles.join("\n")}\n</style>\n` : "");
+
+// --- 8b. Автор из ЗАКАЗЧИК.md + опц. фото/био ---
+const clientAuthorRole = pickClientField(clientMd, "Должность автора") || pickClientField(clientMd, "Должность") || "";
+const clientAuthorBio = pickClientField(clientMd, "Био автора") || pickClientField(clientMd, "Био") || "";
+const authorBlock = [
+  `<div class="nx-author">`,
+  clientAuthorRole || clientAuthorBio
+    ? `<div class="nx-author-info">
+        <div class="nx-author-name">${escapeHtml(clientAuthor)}</div>
+        ${clientAuthorRole ? `<div class="nx-author-role">${escapeHtml(clientAuthorRole)}</div>` : ""}
+        ${clientAuthorBio ? `<div class="nx-author-bio">${escapeHtml(clientAuthorBio)}</div>` : ""}
+      </div>`
+    : `<div class="nx-author-info"><div class="nx-author-name">${escapeHtml(clientAuthor)}</div></div>`,
+  `</div>`,
+].join("");
 
 // --- 9. Social-вариант hero-фото для og:image ---
 // Cloudinary позволяет on-the-fly трансформацию через URL-сегмент. Берём первый фото-URL,
@@ -282,7 +318,7 @@ const innerParts = [
   tocHtml,
   articleBodyHtml,
   tagsHtml,
-  faqHtml,
+  faqHtmlNormalized,
   authorBlock,
 ].filter(Boolean);
 
@@ -307,10 +343,11 @@ if (nxArticle) {
   }
 }
 
-// Inject Schema.org + social meta в <head>
+// Inject Schema.org + social meta + extracted styles в <head>
 let finalHtml = tDom.serialize();
 finalHtml = injectSchema(finalHtml, schemaScripts);
 finalHtml = injectSocialMeta(finalHtml, socialMetaScripts);
+finalHtml = injectExtraStyles(finalHtml, extraHeadStyles);
 
 writeFileSync(outputPath, finalHtml, "utf8");
 reportSummary();
@@ -328,6 +365,11 @@ function injectSocialMeta(html, scripts) {
   // потом вставляем актуальные.
   let out = html.replace(/<meta\s+(?:property|name)=["'](?:og:image[^"']*|twitter:image|twitter:card)["'][^>]*>\s*/gi, "");
   return out.replace(/<\/head>/i, `${scripts}</head>`);
+}
+
+function injectExtraStyles(html, styles) {
+  if (!styles) return html;
+  return html.replace(/<\/head>/i, `${styles}</head>`);
 }
 
 function reportSummary() {
