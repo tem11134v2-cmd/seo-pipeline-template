@@ -53,8 +53,19 @@ if (existsSync(briefPath)) {
 }
 const domain = brief.domain || "site";
 const companyName = brief.company_name || domain;
-// safe name for file system (Windows: <>:"/\|?*)
-const slug = (brief.domain || domain).replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/\./g, "-");
+
+// Slug для имени файла: ASCII-safe Latin kebab-case.
+// 1) Приоритет — brief.slug (его кладёт brief-structurer с шага 1).
+// 2) Fallback — basename папки analyses/NNN-<slug>/ (отрезаем "NNN-").
+// 3) Последний fallback — "site" (если ничего нет).
+function resolveSlug() {
+  if (brief.slug && /^[a-z0-9-]+$/.test(brief.slug)) return brief.slug;
+  const base = analysisDir.split(/[\\/]/).filter(Boolean).pop() || "";
+  const m = base.match(/^\d+-(.+)$/);
+  if (m && m[1]) return m[1];
+  return "site";
+}
+const slug = resolveSlug();
 const outputPath = join(analysisDir, `A2_${slug}.docx`);
 
 // serp.json — для цвета вердикта

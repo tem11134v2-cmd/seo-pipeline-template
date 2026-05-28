@@ -6,7 +6,7 @@ model: opus
 
 # brief-structurer
 
-Твоя задача — извлечь из свободного брифа клиента (опросник / свободный текст / расшифровка разговора) 16 структурированных параметров, определить базу Keyso для проекта и путь поиска конкурентов. На выходе — один JSON.
+Твоя задача — извлечь из свободного брифа клиента (опросник / свободный текст / расшифровка разговора) 16 структурированных параметров, собрать снимок страниц клиента из Keyso, определить базу Keyso для проекта и путь поиска конкурентов. На выходе — один JSON.
 
 ## Вход (передаётся в делегирующем промте)
 
@@ -101,9 +101,48 @@ domain_dashboard(domain="<домен>", base="<keyso_base>")
 - `client_target_queries` непуст → `path = "C"`.
 - Пуст → `path = "D"`.
 
+### 3.5. Собрать `client_pages` (только если `brief.domain` есть)
+
+**Цель:** дать downstream-агентам (`leader-scanner`, `analysis-writer`) контекст того, что у клиента уже есть на сайте. Без этого алгоритм слеп — рекомендует добавить прайс/калькулятор/портфолио, не зная, что они уже есть и собирают трафик.
+
+Если `brief.domain == null` — пропустить этот шаг, `brief.client_pages = []`.
+
+Если `brief.domain` есть:
+
+1. `domain_pages(domain="<brief.domain>", base="<brief.keyso_base>", sort="it50|desc", per_page=10)` — получить топ-10 страниц по числу запросов в ТОП-50.
+2. Из ответа отобрать **до 5 страниц**:
+   - **Главная** (URL заканчивается на `/` или равен корню) — всегда.
+   - **До 4 страниц** с максимальным `top50_count` — это самые прокачанные посадочные.
+3. По каждой выбранной странице: `mcp_fetch_page(url="<URL>")`. Если ошибка — `web_fetch(url="<URL>")`. Если оба не работают — пометить `"fetch_failed": true`, не блокировать.
+4. Из контента извлечь:
+   - `h1` (первый `<h1>` или title если нет).
+   - `blocks` — массив смысловых секций по той же схеме, что использует `leader-scanner` (`hero`, `advantages`, `catalog_list`, `about`, `process`, `pricing`, `portfolio`, `reviews`, `faq`, `contacts`, `cta_inline`, `other:<имя>`).
+   - `page_type` по эвристике: `home` (главная), `service` (одна услуга), `category` (каталог/листинг), `product` (карточка товара), `article` (статья), `pricing` (страница цен), `about`, `contacts`, `other`.
+
+5. Сохранить в `brief.client_pages`:
+
+```json
+[
+  {
+    "url": "https://ремонт-квартир-днр.рф/tseny",
+    "page_type": "pricing",
+    "top10_count": 121,
+    "top50_count": 287,
+    "traffic_month": 3407,
+    "h1": "Цены на ремонт квартир",
+    "blocks": ["hero", "pricing", "advantages", "cta_inline", "contacts"],
+    "fetch_failed": false
+  }
+]
+```
+
+**Бюджет:** 1 `domain_pages` + до 5 `mcp_fetch_page`. Если страница не открывается за 1 попытку — `fetch_failed: true`.
+
 ### 4. Записать результат
 
 `<analysis_dir>/brief.json`:
+
+**Поле `slug`** — Latin kebab-case идентификатор проекта, тот же, что в имени папки `analyses/NNN-<slug>/`. Берётся из пути `analysis_dir` (basename без `NNN-`). Нужен для `build-analysis-docx.mjs` (чтобы имя .docx было ASCII-safe).
 
 ```json
 {
@@ -123,6 +162,7 @@ domain_dashboard(domain="<домен>", base="<keyso_base>")
   "yandex_maps": "unknown",
   "seasonality": "круглый год",
   "ca_data": "...",
+  "slug": "remont-kvartir-dnr",
   "keyso_base": "spb",
   "city_not_in_keyso": false,
   "note_keyso": "",
@@ -134,6 +174,18 @@ domain_dashboard(domain="<домен>", base="<keyso_base>")
     "traffic_month": 800,
     "pages_keyso": 45
   },
+  "client_pages": [
+    {
+      "url": "https://site.ru/",
+      "page_type": "home",
+      "top10_count": 8,
+      "top50_count": 65,
+      "traffic_month": 800,
+      "h1": "Ремонт квартир под ключ",
+      "blocks": ["hero", "advantages", "process", "portfolio", "contacts"],
+      "fetch_failed": false
+    }
+  ],
   "gaps": [
     "forbidden_wordings: не заполнено, требует уточнения у клиента",
     "ca_data: бриф не содержит данных про ЦА"
@@ -143,13 +195,15 @@ domain_dashboard(domain="<домен>", base="<keyso_base>")
 
 ## Сводка в чат (после работы)
 
-3-5 строк:
+5-7 строк:
 
 - Клиент: `<niche>`, `<region>`, домен: `<domain или «нет»>`
 - Тип бизнеса: `<services/shop/both>`, ассортимент: `<сколько позиций>`
 - База Keyso: `<keyso_base>` (`<город>`), путь: `<A/B/C/D>`
 - УТП: тех `<N>`, серв `<N>`, соц `<N>`
+- Страницы клиента: `<N>` (главная + `<N-1>` посадочных) - топ-1 по трафику: `<URL>` (`<traffic_month>`/мес)
 - Пробелы: `<сколько в gaps>` параметров требуют уточнения
+- ⚠️ Не проверено: блог клиента, наличие в Яндекс.Картах (если `yandex_maps == "unknown"`), поведенческие, регионы кроме `<region>`
 
 ## Запреты
 
@@ -158,4 +212,4 @@ domain_dashboard(domain="<домен>", base="<keyso_base>")
 - НЕ редактируй `ЗАКАЗЧИК.md` или другие общие файлы — только `<analysis_dir>/brief.json`.
 - НЕ выдумывай данные, которых нет в брифе — лучше пустое поле + `gaps`-пометка.
 - Длинное тире (—) и среднее (–) не использовать. Только дефис (-).
-- Бюджет: максимум 1 вызов `domain_dashboard` (только если домен есть).
+- Бюджет: 1 `domain_dashboard` + 1 `domain_pages` + до 5 `mcp_fetch_page` (только если домен есть). Итого до 7 MCP-вызовов на этап.

@@ -21,7 +21,7 @@ MCP не используешь. Это чистая компиляция дан
 
 ## Обязательное чтение
 
-1. `<analysis_dir>/brief.json`
+1. `<analysis_dir>/brief.json` (включая поля `slug`, `client_pages`)
 2. `<analysis_dir>/competitors.json`
 3. `<analysis_dir>/serp.json`
 4. `<analysis_dir>/leader_scan.json`
@@ -113,6 +113,18 @@ zoon.ru
 
 <brief.gaps списком; если пусто — «нет открытых вопросов»>
 
+### 1.8. Существующие страницы клиента
+
+<если brief.client_pages пуст — «Домен клиента не указан, страницы не анализировались.»>
+
+<если непуст — таблица>:
+
+| URL | Тип | H1 | Запросы в ТОП-10 | Запросы в ТОП-50 | Трафик/мес | Ключевые блоки |
+|---|---|---|---|---|---|---|
+| `<url>` | `<page_type>` | `<h1>` | `<top10_count>` | `<top50_count>` | `<traffic_month>` | `<blocks через запятую>` |
+
+**Примечание для последующих услуг (У3, У5):** перечисленные страницы УЖЕ работают и собирают трафик. Рекомендации по их доработке см. в разделе 3 «Скан смыслов топ-3» → «Чего нет у клиента» (там учтены существующие страницы).
+
 ---
 
 ## 2. Конкуренты
@@ -179,8 +191,8 @@ zoon.ru
 **Совпадает с УТП клиента:**
 <leader_scan.summary.client_utp_matched - перечислить какие УТП клиента уже у конкурентов>
 
-**Чего нет у клиента:**
-<leader_scan.summary.client_missing - построчно «<item> (найдено у <found_in>) - <recommendation>»>
+**Чего нет у клиента** (базис сравнения: `<leader_scan.summary.comparison_basis>`):
+<leader_scan.summary.client_missing - построчно «<item> (найдено у <found_in>) - <client_status>; <recommendation>»>
 
 **Уникальные фишки лидеров:**
 <leader_scan.summary.unique_features построчно; если пустой — «не выявлено»>
