@@ -9,11 +9,12 @@
 - `topics.xlsx` — список тем
 - `articles/NNN/` — рабочая папка одной статьи
 - `strategies/NNN/` — рабочая папка SEO-стратегии (если запускался /strategy)
+- `analyses/NNN/` — рабочая папка предпроектного анализа (если запускался /seo-analysis)
 - `~/.claude/seo-knowledge/` — общая методология (стиль, жанры, HTML-элементы, SVG, TARIFFS, RULES)
 
 ## Модель работы: всё в worktree, единственная main-команда — /handoff-process
 
-**Правило:** каждая задача (`/setup-project`, `/new-topics`, `/write-article`, `/fix-article`, `/strategy`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
+**Правило:** каждая задача (`/setup-project`, `/new-topics`, `/write-article`, `/fix-article`, `/strategy`, `/seo-analysis`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
 
 **Единственная команда в main:** `/handoff-process` — применяет накопленные handoff-запросы к общим файлам проекта.
 
@@ -29,6 +30,7 @@
 | `/fix-article <NNN> "<правка>"` | Точечная правка готовой статьи | `articles/NNN/...` (per-task) |
 | `/strategy <URL> [--resume]` | Полный цикл стратегии: скан → конкуренты → точки роста → 3 тарифа → docx + xlsx → автозагрузка в Drive (Google Doc + Google Sheet) | `strategies/NNN-slug/` (per-task) |
 | `/share-strategy <NNN> [--redo]` | Утилита-помощник для `/strategy`: перезалить после правок или догрузить если Drive был недоступен | `strategies/NNN/share.json` (per-task) |
+| `/seo-analysis [--resume]` | Предпроектный анализ конкурентов: бриф → структурирование → конкуренты → SERP-вердикт → скан смыслов → A2.md + A3.md + опц. .docx | `analyses/NNN-slug/` (per-task) |
 | `/request-shared-edit "<описание>"` | Запросить правку общего файла | `.claude/handoff-requests/<file>.md` |
 | **`/handoff`** | Финал worktree: commit → merge в main → cleanup | Файлы попадают в main |
 
@@ -41,7 +43,7 @@
 ## Жёсткое правило: worktree трогает только свою задачу
 
 Внутри worktree-сессии разрешено менять файлы **только**:
-- Внутри своей папки задачи (`articles/NNN/`, `strategies/NNN/`, и т.д. — путь объявляется через `.claude/tmp/current-task.txt`)
+- Внутри своей папки задачи (`articles/NNN/`, `strategies/NNN/`, `analyses/NNN/`, и т.д. — путь объявляется через `.claude/tmp/current-task.txt`)
 - Внутри `.claude/tmp/` (служебные файлы)
 - Внутри `.claude/handoff-requests/` (запросы для main)
 

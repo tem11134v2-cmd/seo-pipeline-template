@@ -16,6 +16,7 @@
 | [006](006-github-distribution.md) | Шаблон распространяется как публичный GitHub-репо | Принято |
 | [007](007-strategy-task-type.md) | Новый тип задачи `strategies/` + порт Python-шаблонов на Node | Принято |
 | [008](008-drive-sharing-anchor-folders.md) | Расшаривание стратегий через Drive + якорь-папки (обход бага `addPermission`) | Принято |
+| [009](009-seo-analysis-task-type.md) | Новый тип задачи `analyses/` для предпроектного анализа конкурентов | Принято |
 
 ## Как добавить новый ADR
 
