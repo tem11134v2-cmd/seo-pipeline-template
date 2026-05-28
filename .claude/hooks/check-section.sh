@@ -55,7 +55,31 @@ if grep -qE '[—–]' "${last_section}"; then
   errors="${errors}\n- Найдены длинные/средние тире в ${last_section##*/}:\n${bad_lines}"
 fi
 
-# 3. Объём (грубая оценка по словам)
+# 3. Стоп-слова бренда из ЗАКАЗЧИК.md
+client_md="${PROJECT_ROOT}/ЗАКАЗЧИК.md"
+if [ -f "${client_md}" ]; then
+  # Достаём значение строки таблицы: «| Стоп-слова (запрещённые) | a, b, c |»
+  stop_raw=$(grep -i '^|.*Стоп-слова' "${client_md}" | head -n 1 | awk -F '|' '{print $3}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' || true)
+  if [ -n "${stop_raw}" ] && ! echo "${stop_raw}" | grep -qiE '^_?не заполнено_?$'; then
+    # Разбираем по запятой
+    IFS=',' read -ra stop_words <<< "${stop_raw}"
+    hits=""
+    for raw_word in "${stop_words[@]}"; do
+      word=$(echo "${raw_word}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+      [ -z "${word}" ] && continue
+      # Регистронезависимый поиск, контекст +- 2 слова через grep -i
+      matches=$(grep -in -- "${word}" "${last_section}" 2>/dev/null | head -n 3 || true)
+      if [ -n "${matches}" ]; then
+        hits="${hits}\n  Стоп-слово «${word}»:\n$(echo "${matches}" | sed 's/^/    /')"
+      fi
+    done
+    if [ -n "${hits}" ]; then
+      errors="${errors}\n- Найдены стоп-слова бренда (из ЗАКАЗЧИК.md → Бренд → «Стоп-слова (запрещённые)»):${hits}"
+    fi
+  fi
+fi
+
+# 4. Объём (грубая оценка по словам)
 word_count=$(tr -s '[:space:]' '\n' < "${last_section}" | grep -cE '\S' || true)
 # Ищем ожидаемый минимальный объём в progress.json для текущей секции
 if command -v jq >/dev/null 2>&1 && [ -f "${sections_dir}/progress.json" ]; then
