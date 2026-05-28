@@ -12,7 +12,9 @@
     "build-strategy-docx": "node .claude/scripts/build-strategy-docx.mjs",
     "build-smeta-xlsx": "node .claude/scripts/build-smeta-xlsx.mjs",
     "build-article-docx": "node .claude/scripts/build-article-docx.mjs",
-    "verify-markers": "node .claude/scripts/verify-markers.mjs"
+    "verify-markers": "node .claude/scripts/verify-markers.mjs",
+    "metrics-report": "node .claude/scripts/metrics-report.mjs",
+    "update-index": "node .claude/scripts/update-index.mjs"
   },
   "dependencies": {
     "docx": "^9.0.0",
