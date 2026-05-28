@@ -61,14 +61,18 @@ if [ -f "${client_md}" ]; then
   # Достаём значение строки таблицы: «| Стоп-слова (запрещённые) | a, b, c |»
   stop_raw=$(grep -i '^|.*Стоп-слова' "${client_md}" | head -n 1 | awk -F '|' '{print $3}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' || true)
   if [ -n "${stop_raw}" ] && ! echo "${stop_raw}" | grep -qiE '^_?не заполнено_?$'; then
-    # Разбираем по запятой
-    IFS=',' read -ra stop_words <<< "${stop_raw}"
+    # Разбираем по запятой или точке-с-запятой (унифицированно с _client.mjs)
+    # tr заменяет ; на , для единого разделителя
+    stop_normalized=$(echo "${stop_raw}" | tr ';' ',')
+    IFS=',' read -ra stop_words <<< "${stop_normalized}"
     hits=""
     for raw_word in "${stop_words[@]}"; do
       word=$(echo "${raw_word}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
       [ -z "${word}" ] && continue
-      # Регистронезависимый поиск, контекст +- 2 слова через grep -i
-      matches=$(grep -in -- "${word}" "${last_section}" 2>/dev/null | head -n 3 || true)
+      # Фиксированная подстрока (-F): regex-метасимволы (точки, скобки, дефисы)
+      # в стоп-словах должны интерпретироваться буквально. Регистронезависимо (-i),
+      # с номерами строк (-n), ограничитель опций (--) на случай word с дефисом в начале.
+      matches=$(grep -inF -- "${word}" "${last_section}" 2>/dev/null | head -n 3 || true)
       if [ -n "${matches}" ]; then
         hits="${hits}\n  Стоп-слово «${word}»:\n$(echo "${matches}" | sed 's/^/    /')"
       fi
