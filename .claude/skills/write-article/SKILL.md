@@ -28,7 +28,7 @@ description: Полный цикл написания статьи. Аргуме
 init → jm-done → tz-done → writing → sections-done → finalized →
   [awaiting-review (только в --review)] →
   audited → audit-applied → enhanced → photos-generated → photos-published →
-  assembled → [tilda-split] → completed
+  assembled → [tilda-split] → docx-built → [shared (если gdrive доступен)] → completed
 ```
 
 `meta.json` — единственный источник истины о текущем состоянии. Обновляется через `.claude/hooks/update-meta.sh <article_dir> <state>`.
@@ -332,18 +332,53 @@ project_root: <...>
 
 Если платформа другая — шаг пропустить.
 
-### 12. Финал (если state == "assembled" или state == "tilda-split")
+### 12. Сборка .docx (если state == "assembled" или "tilda-split")
+
+Финальный deliverable — Word-документ с метатегами в шапке, текстом статьи, картинками из Cloudinary (inline) и FAQ. Загружается на Google Drive (см. шаг 13) и попадает к команде клиента.
+
+```
+.claude\scripts\_node.cmd .claude\scripts\build-article-docx.mjs <dir>
+```
+
+Создаст `<dir>/Article_<slug>.docx`. Скрипт сам качает картинки с Cloudinary по URL из `<dir>/photos/urls.json`.
+
+`update-meta.sh <dir> docx-built`
+
+### 13. Загрузка docx на Google Drive (если state == "docx-built")
+
+Внутренний шаг, повторяет логику скила `/share-article` (можно вызвать его напрямую через `Skill share-article <NNN>` или выполнить шаги вручную — результат одинаковый).
+
+1. Прочитать `~/.claude/seo-knowledge/DRIVE.md`, найти Drive folder ID типа «Статьи». Если якоря нет — пропустить шаг, оставить локальный docx, в финальном выводе попросить пользователя добавить якорь в DRIVE.md.
+2. `mcp__gdrive-piotr__uploadFile` с `convertToGoogleFormat: true`, `parentFolderId: <articles_folder_id>`, `name: Article_<slug>`.
+3. Записать `meta.share = { docx_url, drive_id, mime_type: "application/vnd.google-apps.document", shared_at: "<ISO UTC>" }`.
+4. `update-meta.sh <dir> shared`
+
+Если MCP gdrive-piotr недоступен — поймать ошибку, сообщить пользователю и оставить статью в `docx-built`. После восстановления MCP — `/share-article <NNN>` догрузит.
+
+### 14. Финал (если state == "shared" или state == "docx-built")
 
 `update-meta.sh <dir> completed`
 
 Вывести:
 ```
-Готово. Статья: <dir>/output.html
-Тильда (если применимо): <dir>/tilda/head.html + <dir>/tilda/t123.html
-Отчёт: <dir>/report.md
-Аудит: <dir>/audit.md + <dir>/applied.json
+═══ СТАТЬЯ ГОТОВА ═══
+
+Тема: <topic>
+Жанр: <genre>
+
+Deliverables:
+  📄 Google Doc:  <meta.share.docx_url>  (если есть)
+  📄 Локальный docx:  <dir>/Article_<slug>.docx
+  🌐 HTML:  <dir>/output.html
+  🟦 Tilda (если применимо):  <dir>/tilda/head.html + <dir>/tilda/t123.html
+
+Артефакты:
+  📊 Отчёт:  <dir>/report.md
+  🔍 Аудит:  <dir>/audit.md + <dir>/applied.json
+  🎨 Фото:  <dir>/photos/  (URLs в urls.json)
 
 ⚠️ НЕ ЗАБУДЬ /handoff перед закрытием сессии — иначе файлы останутся в worktree и не попадут в основную папку проекта.
+═════════════════════
 ```
 
 Финальный коммит в worktree-ветку делает скил `/handoff`, не сам `/write-article`.
