@@ -92,4 +92,19 @@ PY
   fi
 fi
 
+# Best-effort: обновить articles/_index.json (только для статей, не для стратегий)
+# Определяется по тому, что parent_dir заканчивается на "articles"
+parent_dir=$(dirname "${article_dir}")
+if [ "$(basename "${parent_dir}")" = "articles" ]; then
+  node_cmd=""
+  if command -v node >/dev/null 2>&1; then
+    node_cmd="node"
+  elif [ -f "$(dirname "$0")/../scripts/_node.cmd" ]; then
+    node_cmd="$(dirname "$0")/../scripts/_node.cmd"
+  fi
+  if [ -n "${node_cmd}" ]; then
+    "${node_cmd}" "$(dirname "$0")/../scripts/update-index.mjs" "${article_dir}" 2>/dev/null || true
+  fi
+fi
+
 exit 0
