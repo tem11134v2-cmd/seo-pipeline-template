@@ -1,6 +1,6 @@
 # SEO Pipeline Template
 
-Шаблон проекта SEO-конвейера на Claude Code Desktop. Покрывает: исследование сайта клиента, сбор тем для блога, написание статей с JM-анализом и контролем N-грамм, сборка HTML, Тильда-фиксы, аудит и правки, а также **формирование SEO-стратегий с тарифами** (стратегия .docx + смета .xlsx).
+Шаблон проекта SEO-конвейера на Claude Code Desktop. Покрывает: исследование сайта клиента, сбор тем для блога, написание статей с JM-анализом и контролем N-грамм, сборка HTML, Тильда-фиксы, аудит и правки, **формирование SEO-стратегий с тарифами** (стратегия .docx + смета .xlsx), **предпроектный анализ конкурентов** (A2.md + A3.md) и **построение структуры сайта на базе анализа** (A6.xlsx → клиенту → A6.md в проект).
 
 Архитектура — **worktree-first multi-task**: каждая задача в отдельной git worktree, единственная команда в основной папке — `/handoff-process` (применяет накопленные результаты). Подробности — в [docs/adr/](docs/adr/).
 
@@ -128,7 +128,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── CLAUDE.md                            ← политика, читается каждой сессией
 │   ├── settings.json                        ← Claude Code hooks config
 │   │
-│   ├── agents/                              ← 16 субагентов (см. ниже)
+│   ├── agents/                              ← 26 субагентов (см. ниже)
 │   │   ├── client-profiler.md
 │   │   ├── template-designer.md
 │   │   ├── topic-generator.md
@@ -144,9 +144,19 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── competitor-analyst.md            ← /strategy
 │   │   ├── growth-strategist.md             ← /strategy
 │   │   ├── tariff-architect.md              ← /strategy
-│   │   └── strategy-writer.md               ← /strategy
+│   │   ├── strategy-writer.md               ← /strategy
+│   │   ├── brief-structurer.md              ← /seo-analysis
+│   │   ├── competitor-finder.md             ← /seo-analysis
+│   │   ├── serp-verdict.md                  ← /seo-analysis
+│   │   ├── leader-scanner.md                ← /seo-analysis
+│   │   ├── analysis-writer.md               ← /seo-analysis
+│   │   ├── master-list-builder.md           ← /seo-structure
+│   │   ├── marker-finder.md                 ← /seo-structure
+│   │   ├── semantic-expander.md             ← /seo-structure
+│   │   ├── cannibalization-resolver.md      ← /seo-structure
+│   │   └── structure-writer.md              ← /seo-structure
 │   │
-│   ├── skills/                              ← 10 скилов
+│   ├── skills/                              ← 14 скилов
 │   │   ├── setup-project/SKILL.md           (worktree, исследование сайта)
 │   │   ├── new-topics/SKILL.md              (worktree, сбор тем)
 │   │   ├── write-article/SKILL.md           (worktree, цикл статьи)
@@ -159,6 +169,11 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── seo-analysis/                    (worktree, предпроектный анализ)
 │   │   │   ├── SKILL.md
 │   │   │   └── MCP_MAP.md
+│   │   ├── share-analysis/SKILL.md          (worktree, загрузка A2.docx в Drive)
+│   │   ├── seo-structure/                   (worktree, структура сайта по анализу)
+│   │   │   ├── SKILL.md
+│   │   │   └── MCP_MAP.md
+│   │   ├── share-structure/SKILL.md         (worktree, загрузка A6.xlsx в Drive)
 │   │   ├── request-shared-edit/SKILL.md     (worktree, запрос на общий файл)
 │   │   ├── handoff/SKILL.md                 (worktree, финализация)
 │   │   └── handoff-process/SKILL.md         (main, применение запросов)
@@ -181,7 +196,11 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── assemble-html.mjs                (article.md + ... → output.html)
 │   │   ├── tilda-split.mjs                  (output.html → head + t123)
 │   │   ├── build-strategy-docx.mjs          (strategy_content.json → SEO_Strategy.docx)
-│   │   └── build-smeta-xlsx.mjs             (tariffs.json → Smeta.xlsx)
+│   │   ├── build-smeta-xlsx.mjs             (tariffs.json → Smeta.xlsx)
+│   │   ├── build-analysis-docx.mjs          (A2.md → A2_<slug>.docx)
+│   │   ├── select-top10.mjs                 (semantic_pack.json → top10.json + cannibalization.json)
+│   │   ├── build-structure-xlsx.mjs         (master_list+top10 → A6_<slug>.xlsx)
+│   │   └── import-structure.mjs             (client_filled.xlsx → structure_data.json)
 │   │
 │   ├── handoff-requests/                    ← запросы worktree → main
 │   │   ├── .gitkeep
@@ -238,6 +257,19 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── A3.md                                (финал — стоп-лист)
 │   └── A2_<domain>.docx                     (опц. — для клиента)
 │
+├── structures/NNN-domain-slug/              ← рабочие папки структур сайта
+│   ├── meta.json                            (state machine)
+│   ├── inputs.json                          (analysis_dir + slug + регион)
+│   ├── master_list.json                     (страницы из конкурентов + спаривание)
+│   ├── markers.json                         (маркер + источник + частотность на страницу)
+│   ├── semantic_pack.json                   (топ-30 JM на каждый маркер)
+│   ├── top10.json                           (отфильтрованные топ-10)
+│   ├── cannibalization.json                 (конфликты + разрешения + рекомендации)
+│   ├── A6_<slug>.xlsx                       (для клиента — 4 листа)
+│   ├── client_filled.xlsx                   (правленая клиентом версия)
+│   ├── structure_data.json                  (распарсенная клиентская версия)
+│   └── A6.md                                (финал — для У5/У6/У7/У8)
+│
 ├── package.json                             ← exceljs, marked, jsdom
 ├── .gitignore
 ├── .mcp.json.example                        ← документация формата (не активный конфиг)
@@ -265,7 +297,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ## Компоненты
 
-### 10 скилов (7 для работы, 3 для управления)
+### 14 скилов (11 для работы, 3 для управления)
 
 | Скил | Зона | Назначение |
 |---|---|---|
@@ -276,11 +308,14 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/strategy <URL> [--resume]` | worktree | Полный цикл SEO-стратегии: скан → конкуренты → точки роста → 3 тарифа → стратегия .docx + смета .xlsx → **автозагрузка в Google Drive с конверсией в Google Doc/Sheet** |
 | `/share-strategy NNN [--redo]` | worktree | Утилита: перезалить в Drive после правок локальных файлов, либо догрузить если Drive был недоступен при первом прогоне `/strategy` |
 | `/seo-analysis [--resume]` | worktree | Предпроектный анализ конкурентов: бриф → структурирование → конкуренты → SERP-вердикт → скан смыслов топ-3 → A2.md + A3.md + опц. .docx |
+| `/share-analysis NNN [--redo]` | worktree | Утилита: перезалить A2.docx в Drive после правок, или догрузить если Drive был недоступен |
+| `/seo-structure NNN [--resume] [--review\|--auto] [--import <xlsx>]` | worktree | Построение структуры сайта на базе анализа: мастер-список → маркеры → JM semantic_pack → топ-10 + каннибализация → A6.xlsx → клиент → A6.md |
+| `/share-structure NNN [--redo]` | worktree | Утилита: перезалить A6.xlsx в Drive после правок, или догрузить если Drive был недоступен |
 | `/request-shared-edit "..."` | worktree | Отложенный запрос на правку общего файла |
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
 
-### 21 субагент (вызываются скилами)
+### 26 субагентов (вызываются скилами)
 
 | Агент | Делает |
 |---|---|
@@ -305,8 +340,13 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `serp-verdict` | SERP-анализ по запросам + вердикт совместимости + стоп-лист + смежные (для /seo-analysis) |
 | `leader-scanner` | Скан смыслов Э2-лайт: блоки/посылы/фишки 9-12 страниц топ-3 лидеров (для /seo-analysis) |
 | `analysis-writer` | Сборка A2.md (5 разделов) + A3.md (стоп-лист) из всех JSON-данных (для /seo-analysis) |
+| `master-list-builder` | Мастер-список страниц (типизация + нормализация + спаривание) на базе анализа (для /seo-structure) |
+| `marker-finder` | Маркерные запросы на каждую страницу через каскад Keyso + фолбэки (для /seo-structure) |
+| `semantic-expander` | JM semantic_pack: топ-30 запросов на маркер + проверка баланса (для /seo-structure) |
+| `cannibalization-resolver` | Разрешение конфликтов каннибализации + рекомендации по расширению (для /seo-structure) |
+| `structure-writer` | Финальный A6.md по фиксированному шаблону (для /seo-structure) |
 
-### 7 Node-скриптов
+### 10 Node-скриптов
 
 | Скрипт | Делает |
 |---|---|
@@ -317,6 +357,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `build-strategy-docx.mjs` | strategy_content.json + tariffs.json + inputs.json → SEO_Strategy_<domain>.docx |
 | `build-smeta-xlsx.mjs` | tariffs.json + inputs.json → Smeta_<domain>.xlsx (3 вкладки + формулы SUM) |
 | `build-analysis-docx.mjs` | A2.md (предпроектный анализ) → A2_<domain>.docx (Arial, цветной вердикт, таблицы) |
+| `select-top10.mjs` | semantic_pack.json → top10.json + cannibalization.json (детекция конфликтов) |
+| `build-structure-xlsx.mjs` | master_list + top10 + cannibalization + competitors → A6_<slug>.xlsx (4 листа) |
+| `import-structure.mjs` | client_filled.xlsx → structure_data.json (с exit-кодами 0/3/4 для развилок) |
 
 ### 5 Claude Code хуков
 
@@ -405,6 +448,7 @@ git commit -m "Update template from upstream"
 | [007](docs/adr/007-strategy-task-type.md) | Новый тип задачи `strategies/` + порт Python-шаблонов на Node |
 | [008](docs/adr/008-drive-sharing-anchor-folders.md) | Расшаривание стратегий через Drive + якорь-папки (обход бага addPermission) |
 | [009](docs/adr/009-seo-analysis-task-type.md) | Новый тип задачи `analyses/` для предпроектного анализа (повторное применение паттерна ADR-007) |
+| [010](docs/adr/010-structures-task-type.md) | Новый тип задачи `structures/` для построения структуры сайта на базе анализа (третье повторение паттерна; гибрид «скрипт + агент» на шаге каннибализации) |
 
 ---
 
