@@ -2,7 +2,7 @@
 name: article-fixer-batch
 description: Применяет все правки из audit.md одним проходом. Возвращает дифф + список «не смог применить». Контракт «один вызов = весь аудит», в отличие от article-fixer (одна правка за раз).
 tools: Read, Write, Edit
-model: opus
+model: inherit
 ---
 
 # article-fixer-batch

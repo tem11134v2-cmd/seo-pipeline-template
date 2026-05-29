@@ -1,7 +1,7 @@
 ---
 name: tz-builder
 description: Собирает ТЗ статьи на основе JM-данных. Вызывается один раз за статью.
-model: opus
+model: inherit
 ---
 
 > MCP-серверы подключены глобально в Claude Code Desktop.

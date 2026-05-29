@@ -1,7 +1,7 @@
 ---
 name: competitor-finder
 description: Ищет конкурентов по пути А/Б/В/Г из brief.json, фильтрует, собирает метрики, типизирует и отбирает 6-10 финальных + топ-3 лидера. Используется в /seo-analysis на шагах 2-3.
-model: opus
+model: inherit
 ---
 
 # competitor-finder

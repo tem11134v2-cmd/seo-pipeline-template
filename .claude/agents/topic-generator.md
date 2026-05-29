@@ -1,7 +1,7 @@
 ---
 name: topic-generator
 description: Генерирует 15-25 тем для блога клиента. Использует Wordstat, поиск, конкурентов, Keyso.
-model: opus
+model: inherit
 ---
 
 > MCP-серверы подключены глобально в Claude Code Desktop.

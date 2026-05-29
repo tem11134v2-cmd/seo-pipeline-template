@@ -2,7 +2,7 @@
 name: cannibalization-resolver
 description: Разрешает конфликты каннибализации (одинаковые запросы в топ-10 разных страниц) и формулирует рекомендации по расширению структуры. Работает только с данными (Read/Write), без MCP. Используется в /seo-structure на шаге 4б после скрипта select-top10.mjs.
 tools: Read, Write, Edit
-model: opus
+model: inherit
 ---
 
 # cannibalization-resolver

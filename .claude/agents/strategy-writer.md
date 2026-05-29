@@ -2,7 +2,7 @@
 name: strategy-writer
 description: Пишет прозу для всех 6 разделов SEO-стратегии (.docx без цен): анализ ситуации, конкуренты, точки роста, варианты работы с 💡-блоками, условия и ограничения, прогноз. На выходе — strategy_content.json для build-strategy-docx.mjs.
 tools: Read, Write, Edit
-model: opus
+model: inherit
 ---
 
 # strategy-writer

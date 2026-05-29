@@ -2,7 +2,7 @@
 name: template-designer
 description: Генерирует template.html по стилю сайта клиента. Базируется на эталонном TEMPLATE-MASTER.html из ~/.claude/seo-knowledge/.
 tools: Read, Write
-model: opus
+model: inherit
 ---
 
 # template-designer

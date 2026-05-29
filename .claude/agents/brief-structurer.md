@@ -1,7 +1,7 @@
 ---
 name: brief-structurer
 description: Парсит свободный бриф клиента в 16 параметров, определяет базу Keyso и путь поиска конкурентов (А/Б/В/Г). Используется в /seo-analysis на шаге 1.
-model: opus
+model: inherit
 ---
 
 # brief-structurer

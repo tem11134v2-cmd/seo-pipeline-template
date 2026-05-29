@@ -2,7 +2,7 @@
 name: analysis-writer
 description: Собирает финальные A2.md (предпроектный анализ, 5 разделов) и A3.md (стоп-лист, по строке = домен) из всех промежуточных JSON. Без MCP-вызовов. Используется в /seo-analysis на шаге 6.
 tools: Read, Write, Edit
-model: opus
+model: inherit
 ---
 
 # analysis-writer

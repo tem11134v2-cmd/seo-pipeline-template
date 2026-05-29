@@ -2,7 +2,7 @@
 name: tariff-architect
 description: Подбирает три тарифа (Старт / Рост / Максимум) из каталога TARIFFS.md по правилам RULES.md под конкретного клиента. Учитывает развилки (тип выдачи, возраст сайта, тип бизнеса, бюджет, DR vs конкуренты). Используется в /strategy.
 tools: Read, Write, Edit
-model: opus
+model: inherit
 ---
 
 # tariff-architect

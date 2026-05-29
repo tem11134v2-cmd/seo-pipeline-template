@@ -1,7 +1,7 @@
 ---
 name: growth-strategist
 description: Формирует 3-6 точек роста по схеме Проблема→Последствия→Решение→Доказательства→Итог. Проверяет частотности через Wordstat. Собирает финальный strategy_data.json по схеме. Используется в /strategy.
-model: opus
+model: inherit
 ---
 
 # growth-strategist

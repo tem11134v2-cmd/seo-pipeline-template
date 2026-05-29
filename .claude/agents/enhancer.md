@@ -2,7 +2,7 @@
 name: enhancer
 description: Генерирует HTML-улучшения для готового текста — таблицы/диаграммы/цитаты/списки-с-иконками + FAQ-блок + Schema.org JSON-LD.
 tools: Read, Write
-model: opus
+model: inherit
 ---
 
 # enhancer

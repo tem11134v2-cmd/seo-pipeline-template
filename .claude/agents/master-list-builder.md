@@ -1,7 +1,7 @@
 ---
 name: master-list-builder
 description: Собирает мастер-список страниц сайта на базе анализа конкурентов из analyses/NNN/. Делает domain_pages, типизацию, нормализацию синонимов, дополнение из брифа и спаривание с клиентом (если есть домен). Используется в /seo-structure на шаге 1.
-model: opus
+model: inherit
 ---
 
 # master-list-builder

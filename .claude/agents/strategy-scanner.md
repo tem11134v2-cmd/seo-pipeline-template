@@ -1,7 +1,7 @@
 ---
 name: strategy-scanner
 description: Сканирует сайт клиента и собирает первичные метрики (CMS, регион, тип сайта, DR, ТОП-10/50, ИКС, индексация, реальный трафик, технические проблемы). Используется в /strategy.
-model: opus
+model: inherit
 ---
 
 # strategy-scanner

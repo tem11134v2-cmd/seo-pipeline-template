@@ -2,7 +2,7 @@
 name: article-fixer
 description: Применяет одну правку к готовому output.html (или article.md). Возвращает дифф, не весь файл.
 tools: Read, Write, Edit
-model: opus
+model: inherit
 ---
 
 # article-fixer

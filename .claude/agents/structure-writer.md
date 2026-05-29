@@ -2,7 +2,7 @@
 name: structure-writer
 description: Собирает финальный A6.md (структура сайта) из structure_data.json (правленый клиентом xlsx) + промежуточных JSON. Фиксированный шаблон с шапкой проекта, целевыми, рекомендациями, конкурентами, миграцией и отложенными страницами. Используется в /seo-structure на шаге 6 (после импорта).
 tools: Read, Write, Edit
-model: opus
+model: inherit
 ---
 
 # structure-writer

@@ -2,7 +2,7 @@
 name: photo-promter
 description: Генерирует промты для фото и alt-тексты по меткам [ФОТО: ...] из article.md.
 tools: Read, Write
-model: opus
+model: inherit
 ---
 
 # photo-promter

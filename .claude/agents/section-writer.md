@@ -2,7 +2,7 @@
 name: section-writer
 description: Пишет ОДИН раздел H2 статьи. Получает на вход номер раздела и путь к ТЗ. Обновляет sections/progress.json.
 tools: Read, Write, Edit
-model: opus
+model: inherit
 ---
 
 # section-writer

@@ -1,7 +1,7 @@
 ---
 name: marker-finder
 description: Определяет маркерный запрос (самый частотный целевой) для каждой страницы из мастер-списка. Каскад - domain_keywords лидера → других конкурентов → keyword_info → keyword_similar → ручное. Резерв частотности - jm_wordstat / wk_check_frequency. Используется в /seo-structure на шаге 2.
-model: opus
+model: inherit
 ---
 
 # marker-finder

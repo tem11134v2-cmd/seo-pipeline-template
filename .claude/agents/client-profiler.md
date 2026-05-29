@@ -1,7 +1,7 @@
 ---
 name: client-profiler
 description: Заполняет ЗАКАЗЧИК.md по URL сайта клиента. Используется один раз при настройке нового проекта.
-model: opus
+model: inherit
 ---
 
 > MCP-серверы (fetch, webmaster, и т.д.) подключены глобально в Claude Code Desktop.
