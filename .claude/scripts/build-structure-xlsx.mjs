@@ -159,14 +159,29 @@ for (let i = 2; i <= MAX_QUERIES + 1; i++) {
 }
 const fixedRight = ["У конкурентов", "Приоритет", "Статус", "Примечания"];
 const headers1 = [...fixedLeft, ...queryHeaders, ...fixedRight];
+const totalCols1 = headers1.length;
 
+// Instruction-row для клиента (строка 1, mergeCells по всей ширине).
+ws1.mergeCells(1, 1, 1, totalCols1);
+const instrCell = ws1.getCell(1, 1);
+instrCell.value =
+  "Инструкция клиенту: заполните колонку «Целевая?» одним из значений (да / нет / обсудить) для каждой страницы. " +
+  "«да» = страница нужна, включаем в работу. «нет» = страница не нужна, отложить. «обсудить» = есть вопросы, разберём отдельно. " +
+  "Колонку «URL (ЧПУ)» можно поправить если предложенный URL вам не подходит. Готовый файл пришлите обратно.";
+instrCell.font = { name: FONT_FAMILY, size: FONT_SIZE, italic: true, color: { argb: "FF1F4E79" } };
+instrCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF9E6" } };
+instrCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+instrCell.border = thinBorder;
+ws1.getRow(1).height = 50;
+
+// Шапка таблицы - строка 2.
 ws1.addRow(headers1);
-headers1.forEach((_, i) => applyHeader(ws1.getCell(1, i + 1)));
-ws1.getRow(1).height = 30;
+headers1.forEach((_, i) => applyHeader(ws1.getCell(2, i + 1)));
+ws1.getRow(2).height = 30;
 
 const masterByNum = new Map(masterList.pages.map((p) => [p.n, p]));
 
-let row1 = 2;
+let row1 = 3;
 for (const page of top10.pages) {
   const master = masterByNum.get(page.n);
   const priority = calcPriority(page, master);
@@ -222,8 +237,28 @@ ws1.getColumn(9 + queryHeaders.length).width = 12;
 ws1.getColumn(10 + queryHeaders.length).width = 16;
 ws1.getColumn(11 + queryHeaders.length).width = 28;
 
-ws1.views = [{ state: "frozen", xSplit: 5, ySplit: 1 }];
-ws1.autoFilter = { from: { row: 1, column: 1 }, to: { row: row1 - 1, column: headers1.length } };
+ws1.views = [{ state: "frozen", xSplit: 5, ySplit: 2 }];
+ws1.autoFilter = { from: { row: 2, column: 1 }, to: { row: row1 - 1, column: totalCols1 } };
+
+// Data validation на колонку «Целевая?» (5) для всех data rows.
+const firstDataRow = 3;
+const lastDataRow = row1 - 1;
+if (lastDataRow >= firstDataRow) {
+  for (let r = firstDataRow; r <= lastDataRow; r++) {
+    ws1.getCell(r, 5).dataValidation = {
+      type: "list",
+      allowBlank: true,
+      formulae: ['"да,нет,обсудить"'],
+      showErrorMessage: true,
+      errorStyle: "warning",
+      errorTitle: "Допустимые значения",
+      error: "Используйте: да, нет или обсудить",
+      showInputMessage: true,
+      promptTitle: "Целевая страница?",
+      prompt: "Выбери: да / нет / обсудить",
+    };
+  }
+}
 
 // === Лист 2: РЕКОМЕНДАЦИИ ===
 

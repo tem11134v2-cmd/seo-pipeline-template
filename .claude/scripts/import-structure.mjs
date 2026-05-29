@@ -51,12 +51,27 @@ if (!ws) {
   process.exit(1);
 }
 
-// Достаём заголовки из 1-й строки
-const headerRow = ws.getRow(1);
+// Достаём заголовки. С версии v2 build-structure-xlsx.mjs строка 1 - instruction для клиента,
+// заголовки таблицы в строке 2. Поддерживаем оба формата: ищем первую строку с непустой ячейкой "№".
+let headerRowNum = 0;
+for (let r = 1; r <= 5; r++) {
+  const row = ws.getRow(r);
+  const firstCell = String(row.getCell(1).value || "").trim();
+  if (firstCell === "№") {
+    headerRowNum = r;
+    break;
+  }
+}
+if (headerRowNum === 0) {
+  console.error("[import-structure] не найдена строка заголовков (ожидалась ячейка «№» в первых 5 строках).");
+  process.exit(1);
+}
+const headerRow = ws.getRow(headerRowNum);
 const headers = [];
 headerRow.eachCell((cell, colNumber) => {
   headers[colNumber] = String(cell.value || "").trim();
 });
+const firstDataRow = headerRowNum + 1;
 
 // Индексы колонок (1-based)
 function findCol(name) {
@@ -107,7 +122,7 @@ function normalizeTarget(value) {
 const pages = [];
 let stats = { yes: 0, no: 0, discuss: 0, empty: 0, total: 0 };
 
-for (let r = 2; r <= ws.rowCount; r++) {
+for (let r = firstDataRow; r <= ws.rowCount; r++) {
   const row = ws.getRow(r);
   if (row.cellCount === 0) continue;
 
