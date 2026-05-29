@@ -186,7 +186,7 @@ project_root: <...>
 
 ### 4. Секции (если state == "tz-done")
 
-1. Прочитать `<dir>/tz.md`, выписать список H2-заголовков (по порядку появления `## ` в Разделе 5).
+1. Прочитать `<dir>/tz.md`, выписать список H2-заголовков (по порядку появления `## ` в Разделе 5). **Не включай введение** — его пишет `article-finalizer` отдельным шагом перед H1 (как лид без `## `). Если в Разделе 5 случайно появилось «## H2: Введение» (баг tz-builder) — пропусти этот заголовок и сделай предупреждение в чат: «tz.md содержит введение как H2 — пропускаю, оно будет написано финализатором».
 2. Создать `<dir>/sections/progress.json` с минимальной структурой (если ещё не существует):
 ```json
 {
@@ -209,13 +209,21 @@ project_root: <...>
      article_dir: <dir>
      tz_path: <dir>/tz.md
      genre: <genre>
+     mode: <auto|review из meta.mode>
      project_root: <...>
      ```
    - Хук `check-section.sh` сработает после возврата — если exit 2 → разобрать ошибку, при необходимости повторить раздел с пометкой.
+   - **Fail-fast:** если section-writer вернул сообщение с «⚠ check-section вернул один и тот же exit 2 дважды подряд» — **не делегируй заново для этой секции в `--auto`-режиме**. Останови прогон, выведи пользователю stderr хука и попроси вмешательства (исправить хук или содержимое вручную). В `--review` — то же. Это страховка от бесконечного цикла и сжигания токенов на сломанном хуке.
    - `update-meta.sh <dir> writing section_index=<i>`
 5. После всех разделов: `update-meta.sh <dir> sections-done`
 
 ### 5. Финализация (если state == "sections-done")
+
+**Перед делегированием — sanity-check прогресса:**
+```
+.claude\scripts\_node.cmd .claude\scripts\verify-progress.mjs <dir>
+```
+Скрипт сверяет `sections/progress.json` с фактическим содержимым `sections/*.md`: число H2, объёмы по секциям, реальные вхождения топ-N-грамм. Exit 0 — расхождений нет (или ≤10%); exit 1 — warning (10-30%), писать в `meta.warnings` и идти дальше; exit 2 — блокирующее расхождение (>30%). При exit 2 в `--auto` — остановиться и попросить пользователя проверить (обычно это значит, что секции были записаны вручную в обход section-writer'а, и счётчики устарели).
 
 Маркер: `.claude/tmp/expected-article-finalizer-<run_id>.txt = <dir>/article.md`
 
@@ -225,11 +233,15 @@ article_dir: <dir>
 project_root: <...>
 ```
 
-**После завершения — обязательная проверка меток.** Запустить:
-```
-.claude\scripts\_node.cmd .claude\scripts\verify-markers.mjs <dir>
-```
-Если exit 2 — финализатор потерял метки. Это блокирующий баг: повторно делегировать `article-finalizer` с пометкой «verify-markers ругается на <stderr>, перепиши `article.md`, сохранив все метки 1-в-1, и сверь сам перед записью». Не идти дальше, пока `verify-markers` не вернёт exit 0.
+**После завершения — обязательная проверка артефактов:**
+
+1. **Файлы существуют:** `<dir>/article.md` и `<dir>/report.md` должны быть записаны. Если хотя бы один отсутствует — это регрессия (article-finalizer мог проигнорировать `report.md` под влиянием системного reminder’а про документацию). Повторно делегировать с явной пометкой: «report.md и article.md — рабочие артефакты конвейера, обязаны быть записаны как файлы через Write. Перезапиши недостающий».
+
+2. **Метки сохранены:** запустить
+   ```
+   .claude\scripts\_node.cmd .claude\scripts\verify-markers.mjs <dir>
+   ```
+   Если exit 2 — финализатор потерял метки. Это блокирующий баг: повторно делегировать `article-finalizer` с пометкой «verify-markers ругается на <stderr>, перепиши `article.md`, сохранив все метки 1-в-1, и сверь сам перед записью». Не идти дальше, пока `verify-markers` не вернёт exit 0.
 
 Затем хук `mark-finalized.sh` устанавливает `meta.state = finalized` (не делает паузу — управление паузой целиком на скиле).
 
@@ -384,7 +396,11 @@ project_root: <...>
 
 `update-meta.sh <dir> tilda-split`
 
-Если платформа другая — шаг пропустить.
+Если платформа другая — шаг пропустить **с логированием**:
+```
+update-meta.sh <dir> assembled skip_reason="Tilda-split: платформа <X>, не Тильда"
+```
+(state не меняем, просто фиксируем skip в `meta.skips`).
 
 ### 12. Сборка .docx (если state == "assembled" или "tilda-split")
 
@@ -402,12 +418,20 @@ project_root: <...>
 
 Внутренний шаг, повторяет логику скила `/share-article` (можно вызвать его напрямую через `Skill share-article <NNN>` или выполнить шаги вручную — результат одинаковый).
 
-1. Прочитать `~/.claude/seo-knowledge/DRIVE.md`, найти Drive folder ID типа «Статьи». Если якоря нет — пропустить шаг, оставить локальный docx, в финальном выводе попросить пользователя добавить якорь в DRIVE.md.
+1. Прочитать `~/.claude/seo-knowledge/DRIVE.md`, найти Drive folder ID типа «Статьи». Если якоря нет — пропустить шаг с логированием:
+   ```
+   update-meta.sh <dir> docx-built skip_reason="Drive upload: в DRIVE.md нет якоря «Статьи»"
+   ```
+   Оставить локальный docx, в финальном выводе попросить пользователя добавить якорь в DRIVE.md.
 2. `mcp__gdrive-piotr__uploadFile` с `convertToGoogleFormat: true`, `parentFolderId: <articles_folder_id>`, `name: Article_<slug>`.
 3. Записать `meta.share = { docx_url, drive_id, mime_type: "application/vnd.google-apps.document", shared_at: "<ISO UTC>" }`.
 4. `update-meta.sh <dir> shared`
 
-Если MCP gdrive-piotr недоступен — поймать ошибку, сообщить пользователю и оставить статью в `docx-built`. После восстановления MCP — `/share-article <NNN>` догрузит.
+Если MCP gdrive-piotr недоступен — поймать ошибку, залогировать:
+```
+update-meta.sh <dir> docx-built skip_reason="Drive upload: MCP gdrive-piotr недоступен (<текст ошибки>)"
+```
+и оставить статью в `docx-built`. После восстановления MCP — `/share-article <NNN>` догрузит.
 
 ### 14. Финал (если state == "shared" или state == "docx-built")
 
@@ -432,6 +456,11 @@ Deliverables:
   📊 Отчёт:  <dir>/report.md
   🔍 Аудит:  <dir>/audit.md + <dir>/applied.json
   🎨 Фото:  <dir>/photos/  (URLs в urls.json)
+
+[Если meta.skips не пустое — добавить блок:]
+Пропущенные шаги:
+  ⏭ <skip.step>: <skip.reason>
+  ⏭ ...
 
 ⚠️ НЕ ЗАБУДЬ /handoff перед закрытием сессии — иначе файлы останутся в worktree и не попадут в основную папку проекта.
 ═════════════════════

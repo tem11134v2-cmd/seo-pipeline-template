@@ -211,6 +211,25 @@ const h1El = fragRoot.querySelector("h1");
 const h1Text = h1El ? h1El.textContent.trim() : "";
 if (h1El) h1El.remove();
 
+// Лид: текст между H1 и первым H2 (вводный абзац от article-finalizer).
+// Помечаем первый <p> до первого <h2> классом nx-lead, чтобы template.html
+// мог стилизовать его (крупнее, серый, отступ). Если между ними нет <p>,
+// ничего не делаем.
+{
+  const firstH2 = fragRoot.querySelector("h2");
+  const introNodes = [];
+  for (const child of Array.from(fragRoot.children)) {
+    if (child === firstH2) break;
+    introNodes.push(child);
+  }
+  for (const node of introNodes) {
+    if (node.tagName === "P" && !node.classList.contains("nx-lead")) {
+      node.classList.add("nx-lead");
+      break; // только первый <p>
+    }
+  }
+}
+
 const h2List = Array.from(fragRoot.querySelectorAll("h2"));
 h2List.forEach((h, i) => {
   if (!h.id) h.id = slugify(h.textContent, `section-${i + 1}`);

@@ -10,6 +10,14 @@
 #   - completed_steps += [state] если ещё не было
 #   - произвольные ключи из extra (через jq)
 #
+# Специальные extra-ключи:
+#   skip_reason="<текст>"  — добавит запись в массив skips:
+#                            [{step: <state>, reason: "<текст>", at: "<ISO>"}].
+#                            Используется когда шаг логически пропускается
+#                            (Tilda-split не для этой платформы, gdrive
+#                            недоступен, и т.п.). В финальном выводе скила
+#                            показывается блок «Пропущенные шаги».
+#
 # Если jq не установлен — fallback: перезаписываем только state и updated
 # через простой sed-патч (грубо, но работает для базовых случаев).
 
@@ -41,19 +49,31 @@ EOF
 fi
 
 if command -v jq >/dev/null 2>&1; then
-  extra_jq='.'
+  extra_parts=""
+  skip_reason=""
   for kv in "$@"; do
     k="${kv%%=*}"
     v="${kv#*=}"
-    extra_jq="${extra_jq} | .${k} = \"${v}\""
+    if [ "${k}" = "skip_reason" ]; then
+      skip_reason="${v}"
+    else
+      extra_parts="${extra_parts} | .${k} = \"${v}\""
+    fi
   done
+
+  skip_part=""
+  if [ -n "${skip_reason}" ]; then
+    skip_part="| .skips = ((.skips // []) + [{step: \$s, reason: \$r, at: \$u}])"
+  fi
+
   tmp=$(mktemp)
-  jq --arg s "${new_state}" --arg u "${now}" "
+  jq --arg s "${new_state}" --arg u "${now}" --arg r "${skip_reason}" "
     .state = \$s
     | .updated = \$u
     | (.completed_steps // []) as \$cs
     | .completed_steps = (\$cs + [\$s] | unique)
-    | ${extra_jq#. | }
+    ${skip_part}
+    ${extra_parts}
   " "${meta_file}" > "${tmp}" && mv "${tmp}" "${meta_file}"
 else
   # Грубый sed-фоллбэк — только state и updated.
@@ -64,16 +84,40 @@ else
     python_or_node="python3"
   fi
 
+  # Собираем extra-аргументы для Node: ключ=значение через '\\n' разделитель.
+  # skip_reason обрабатывается особо — пушится в массив skips.
+  extra_args=""
+  for kv in "$@"; do
+    extra_args="${extra_args}${kv}"$'\n'
+  done
+
   if [ "${python_or_node}" = "node" ]; then
+    # На Windows Node при -e начинает argv с первого пользовательского аргумента
+    # (argv[0] = первый arg, без [eval]). Поэтому индексы 0..3, не 2..5.
     node -e "
       const fs = require('fs');
       const f = process.argv[1];
+      const state = process.argv[2];
+      const now = process.argv[3];
+      const extraRaw = process.argv[4] || '';
       const j = JSON.parse(fs.readFileSync(f, 'utf8'));
-      j.state = process.argv[2];
-      j.updated = process.argv[3];
+      j.state = state;
+      j.updated = now;
       j.completed_steps = Array.from(new Set([...(j.completed_steps||[]), j.state]));
+      const extras = extraRaw.split('\n').filter(Boolean);
+      for (const kv of extras) {
+        const eq = kv.indexOf('=');
+        if (eq < 0) continue;
+        const k = kv.slice(0, eq);
+        const v = kv.slice(eq + 1);
+        if (k === 'skip_reason') {
+          j.skips = (j.skips || []).concat([{ step: state, reason: v, at: now }]);
+        } else {
+          j[k] = v;
+        }
+      }
       fs.writeFileSync(f, JSON.stringify(j, null, 2));
-    " "${meta_file}" "${new_state}" "${now}"
+    " "${meta_file}" "${new_state}" "${now}" "${extra_args}"
   elif [ "${python_or_node}" = "python3" ]; then
     python3 - "$meta_file" "$new_state" "$now" <<'PY'
 import json, sys

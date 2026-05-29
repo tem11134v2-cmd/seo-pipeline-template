@@ -12,6 +12,15 @@
 #
 # exit 0 — ОК, exit 2 + stderr — критичное нарушение.
 
+# КРИТИЧНО: UTF-8 локаль для всех grep ниже. В Git Bash на Windows локаль по
+# умолчанию POSIX/C, и `grep -E '[—–]'` интерпретирует символьный класс
+# побайтово — что даёт ложные срабатывания на кириллице Г (\xD0\x93) и Д
+# (\xD0\x94), потому что их вторые байты \x93/\x94 совпадают со вторыми байтами
+# em-dash (\xE2\x80\x94) и en-dash (\xE2\x80\x93). Аналогично страдают grep -F
+# по стоп-словам и поиск H2-заголовков.
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
+
 set -u
 
 PROJECT_ROOT="$(pwd)"
@@ -55,30 +64,37 @@ if grep -qE '[—–]' "${last_section}"; then
   errors="${errors}\n- Найдены длинные/средние тире в ${last_section##*/}:\n${bad_lines}"
 fi
 
-# 3. Стоп-слова бренда из ЗАКАЗЧИК.md
+# 3. Стоп-слова бренда из ЗАКАЗЧИК.md (через единый Node-парсер _client.mjs)
+# Раньше тут был bash+awk парсер, который понимал только табличный формат и ломался
+# на запятых внутри пояснений. Теперь все скрипты (assemble-html, build-docx,
+# check-section) идут через один парсер. См. _client.mjs --stop-words.
 client_md="${PROJECT_ROOT}/ЗАКАЗЧИК.md"
-if [ -f "${client_md}" ]; then
-  # Достаём значение строки таблицы: «| Стоп-слова (запрещённые) | a, b, c |»
-  stop_raw=$(grep -i '^|.*Стоп-слова' "${client_md}" | head -n 1 | awk -F '|' '{print $3}' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' || true)
-  if [ -n "${stop_raw}" ] && ! echo "${stop_raw}" | grep -qiE '^_?не заполнено_?$'; then
-    # Разбираем по запятой или точке-с-запятой (унифицированно с _client.mjs)
-    # tr заменяет ; на , для единого разделителя
-    stop_normalized=$(echo "${stop_raw}" | tr ';' ',')
-    IFS=',' read -ra stop_words <<< "${stop_normalized}"
+node_cmd="${PROJECT_ROOT}/.claude/scripts/_node.cmd"
+client_script="${PROJECT_ROOT}/.claude/scripts/_client.mjs"
+# Если хоть один компонент отсутствует — это, как правило, неправильный PROJECT_ROOT
+# (например, текущая директория вне корня проекта). Печатаем warning, но не блокируем
+# работу: проверка тире и H2 пройдёт, а стоп-слова просто не проверятся в этот раз.
+if [ -f "${client_md}" ] && [ ! -f "${client_script}" ]; then
+  echo "check-section: WARNING — _client.mjs не найден по пути ${client_script}, стоп-слова не проверяю" >&2
+fi
+if [ -f "${client_md}" ] && [ ! -f "${node_cmd}" ]; then
+  echo "check-section: WARNING — _node.cmd не найден по пути ${node_cmd}, стоп-слова не проверяю" >&2
+fi
+if [ -f "${client_md}" ] && [ -f "${client_script}" ] && [ -f "${node_cmd}" ]; then
+  stop_list=$("${node_cmd}" "${client_script}" --stop-words "${client_md}" 2>/dev/null || true)
+  if [ -n "${stop_list}" ]; then
     hits=""
-    for raw_word in "${stop_words[@]}"; do
-      word=$(echo "${raw_word}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+    while IFS= read -r word; do
       [ -z "${word}" ] && continue
-      # Фиксированная подстрока (-F): regex-метасимволы (точки, скобки, дефисы)
-      # в стоп-словах должны интерпретироваться буквально. Регистронезависимо (-i),
-      # с номерами строк (-n), ограничитель опций (--) на случай word с дефисом в начале.
+      # Фиксированная подстрока (-F), регистронезависимо (-i), с номерами строк (-n),
+      # `--` на случай слов, начинающихся с дефиса.
       matches=$(grep -inF -- "${word}" "${last_section}" 2>/dev/null | head -n 3 || true)
       if [ -n "${matches}" ]; then
         hits="${hits}\n  Стоп-слово «${word}»:\n$(echo "${matches}" | sed 's/^/    /')"
       fi
-    done
+    done <<< "${stop_list}"
     if [ -n "${hits}" ]; then
-      errors="${errors}\n- Найдены стоп-слова бренда (из ЗАКАЗЧИК.md → Бренд → «Стоп-слова (запрещённые)»):${hits}"
+      errors="${errors}\n- Найдены стоп-слова бренда (из ЗАКАЗЧИК.md → «Стоп-слова и запреты»):${hits}"
     fi
   fi
 fi
