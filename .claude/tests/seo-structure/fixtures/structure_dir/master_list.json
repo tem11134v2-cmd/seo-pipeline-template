@@ -1,0 +1,69 @@
+{
+  "total_pages": 4,
+  "pairing_performed": false,
+  "client_domain": null,
+  "client_pages_total": null,
+  "unique_features": ["Калькулятор стоимости (3 из 8)"],
+  "pages": [
+    {
+      "n": 1,
+      "name": "Главная",
+      "type": "home",
+      "url_pattern": "/",
+      "coverage": "8 из 8",
+      "coverage_pct": 100,
+      "source": "competitors",
+      "competitors_with_page": ["leader.ru", "comp2.ru"],
+      "client_current_url": null,
+      "client_top50_count": 0,
+      "migration_decision": "new",
+      "migration_target_url": null,
+      "notes": ""
+    },
+    {
+      "n": 2,
+      "name": "Ремонт квартир под ключ",
+      "type": "service",
+      "url_pattern": "/uslugi/remont-pod-klyuch/",
+      "coverage": "7 из 8",
+      "coverage_pct": 88,
+      "source": "competitors",
+      "competitors_with_page": ["leader.ru"],
+      "client_current_url": null,
+      "client_top50_count": 0,
+      "migration_decision": "new",
+      "migration_target_url": null,
+      "notes": ""
+    },
+    {
+      "n": 3,
+      "name": "Ремонт ванной",
+      "type": "service",
+      "url_pattern": "/uslugi/remont-vannoj/",
+      "coverage": "5 из 8",
+      "coverage_pct": 63,
+      "source": "competitors",
+      "competitors_with_page": ["leader.ru"],
+      "client_current_url": null,
+      "client_top50_count": 0,
+      "migration_decision": "new",
+      "migration_target_url": null,
+      "notes": ""
+    },
+    {
+      "n": 4,
+      "name": "Доставка",
+      "type": "info",
+      "url_pattern": "/dostavka/",
+      "coverage": "0 из 8",
+      "coverage_pct": 0,
+      "source": "brief",
+      "competitors_with_page": [],
+      "client_current_url": null,
+      "client_top50_count": 0,
+      "migration_decision": "new",
+      "migration_target_url": null,
+      "notes": "из брифа"
+    }
+  ]
+}

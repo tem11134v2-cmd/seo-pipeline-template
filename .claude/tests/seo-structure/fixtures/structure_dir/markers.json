@@ -1,0 +1,13 @@
+{
+  "total_pages": 4,
+  "pages_with_marker": 3,
+  "pages_info_skipped": 1,
+  "pages_product_inherited": 0,
+  "pages": [
+    {"n": 1, "name": "Главная", "type": "home", "marker": "ремонт квартир москва", "ws_exact": 5400, "marker_source": "keyword_info", "frequency_source": "keyso", "manual_warning": null, "intent_warning": null, "notes": ""},
+    {"n": 2, "name": "Ремонт квартир под ключ", "type": "service", "marker": "ремонт квартир под ключ москва", "ws_exact": 1800, "marker_source": "domain_keywords:leader.ru/uslugi/pod-klyuch", "frequency_source": "keyso", "manual_warning": null, "intent_warning": null, "notes": ""},
+    {"n": 3, "name": "Ремонт ванной", "type": "service", "marker": "ремонт ванной комнаты", "ws_exact": 2800, "marker_source": "domain_keywords:leader.ru/uslugi/vannaya", "frequency_source": "keyso", "manual_warning": null, "intent_warning": null, "notes": ""},
+    {"n": 4, "name": "Доставка", "type": "info", "marker": null, "ws_exact": null, "marker_source": "none (info page)", "frequency_source": null, "manual_warning": null, "intent_warning": null, "notes": ""}
+  ],
+  "budget_used": {"domain_keywords": 3, "keyword_info": 1, "keyword_similar": 0, "jm_wordstat": 0, "wk_check_frequency": 0, "arsenkin_top": 0}
+}

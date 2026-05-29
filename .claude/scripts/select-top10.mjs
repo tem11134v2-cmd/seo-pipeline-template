@@ -106,28 +106,56 @@ function normalizeForDuplicate(query) {
 
 const masterByNum = new Map(masterList.pages.map((p) => [p.n, p]));
 const markerByNum = new Map(markers.pages.map((p) => [p.n, p]));
+const semanticByNum = new Map((semanticPack.pages || []).map((p) => [p.n, p]));
 
 const pagesOutput = [];
 
-for (const sp of semanticPack.pages) {
-  const master = masterByNum.get(sp.n);
-  const mk = markerByNum.get(sp.n);
+// Итерируем по master_list.pages - это полный список (включая info и унаследованные).
+// semantic_pack может содержать только страницы с маркером (коммерческие).
+for (const master of masterList.pages) {
+  const sp = semanticByNum.get(master.n);
+  const mk = markerByNum.get(master.n);
 
-  if (!master || !mk) {
-    // Страница в semantic_pack но не в master_list/markers - пропускаем тихо.
+  if (!mk) {
+    // Нет записи в markers.json - пропускаем (возможно legacy данные).
     continue;
   }
 
   if (!mk.marker) {
-    // Информационная или унаследованная - пустой топ-10.
+    // Информационная или унаследованная - пустой топ-10, но страница в выходе есть.
     pagesOutput.push({
-      n: sp.n,
-      name: sp.name,
+      n: master.n,
+      name: master.name,
       type: master.type,
       marker: null,
       ws_exact: null,
       queries: [],
+      leftover: [],
+      queries_count: 0,
       notes: "no marker (info or inherited page)",
+    });
+    continue;
+  }
+
+  if (!sp) {
+    // Маркер есть, но JM не дал результата - страница попадёт с только маркером.
+    pagesOutput.push({
+      n: master.n,
+      name: master.name,
+      type: master.type,
+      marker: mk.marker,
+      ws_exact: mk.ws_exact,
+      queries: [{
+        query: mk.marker,
+        freq_exact: mk.ws_exact,
+        freq_base: null,
+        source: "marker_from_markers_json",
+        frequency_source: mk.frequency_source,
+        is_marker: true,
+      }],
+      leftover: [],
+      queries_count: 1,
+      notes: "JM returned no results for this marker",
     });
     continue;
   }
@@ -193,8 +221,8 @@ for (const sp of semanticPack.pages) {
   }
 
   pagesOutput.push({
-    n: sp.n,
-    name: sp.name,
+    n: master.n,
+    name: master.name,
     type: master.type,
     marker: mk.marker,
     ws_exact: mk.ws_exact,

@@ -1,0 +1,9 @@
+{
+  "direct": [
+    {"domain": "leader.ru", "type": "shop", "dr": 25, "top10": 80, "top50": 450, "pages_in_base": 200, "traffic_month": 8500, "notes": ""},
+    {"domain": "comp2.ru", "type": "service", "dr": 15, "top10": 30, "top50": 200, "pages_in_base": 80, "traffic_month": 2100, "notes": ""}
+  ],
+  "indirect": [],
+  "leaders_top3": ["leader.ru"],
+  "path": "A"
+}
