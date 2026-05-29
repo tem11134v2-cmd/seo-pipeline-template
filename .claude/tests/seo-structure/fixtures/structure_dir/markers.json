@@ -4,10 +4,71 @@
   "pages_info_skipped": 1,
   "pages_product_inherited": 0,
   "pages": [
-    {"n": 1, "name": "Главная", "type": "home", "marker": "ремонт квартир москва", "ws_exact": 5400, "marker_source": "keyword_info", "frequency_source": "keyso", "manual_warning": null, "intent_warning": null, "notes": ""},
-    {"n": 2, "name": "Ремонт квартир под ключ", "type": "service", "marker": "ремонт квартир под ключ москва", "ws_exact": 1800, "marker_source": "domain_keywords:leader.ru/uslugi/pod-klyuch", "frequency_source": "keyso", "manual_warning": null, "intent_warning": null, "notes": ""},
-    {"n": 3, "name": "Ремонт ванной", "type": "service", "marker": "ремонт ванной комнаты", "ws_exact": 2800, "marker_source": "domain_keywords:leader.ru/uslugi/vannaya", "frequency_source": "keyso", "manual_warning": null, "intent_warning": null, "notes": ""},
-    {"n": 4, "name": "Доставка", "type": "info", "marker": null, "ws_exact": null, "marker_source": "none (info page)", "frequency_source": null, "manual_warning": null, "intent_warning": null, "notes": ""}
+    {
+      "n": 1,
+      "name": "Главная",
+      "type": "home",
+      "marker": "ремонт квартир москва",
+      "ws_exact": 5400,
+      "marker_source": "keyword_info",
+      "frequency_source": "keyso",
+      "manual_warning": null,
+      "commercial_pct": 70,
+      "commerce_note": null,
+      "commerce_warning": null,
+      "original_marker": null,
+      "commerce_top10_sample": ["leader.ru", "comp2.ru", "comp3.ru"],
+      "notes": ""
+    },
+    {
+      "n": 2,
+      "name": "Ремонт квартир под ключ",
+      "type": "service",
+      "marker": "ремонт квартир под ключ москва",
+      "ws_exact": 1800,
+      "marker_source": "domain_keywords:leader.ru/uslugi/pod-klyuch",
+      "frequency_source": "keyso",
+      "manual_warning": null,
+      "commercial_pct": 90,
+      "commerce_note": null,
+      "commerce_warning": null,
+      "original_marker": null,
+      "commerce_top10_sample": ["leader.ru", "comp2.ru"],
+      "notes": ""
+    },
+    {
+      "n": 3,
+      "name": "Ремонт ванной",
+      "type": "service",
+      "marker": "ремонт ванной комнаты",
+      "ws_exact": 2800,
+      "marker_source": "domain_keywords:leader.ru/uslugi/vannaya",
+      "frequency_source": "keyso",
+      "manual_warning": null,
+      "commercial_pct": 25,
+      "commerce_note": "info_dominant",
+      "commerce_warning": "ТОП-10 преимущественно info-сайты (commercial_pct: 25%). Рекомендуется: 1) сменить тип страницы на article и переместить в блог, 2) объединить с соседней коммерческой страницей, 3) исключить из работы. Решение - за клиентом.",
+      "original_marker": null,
+      "commerce_top10_sample": ["dzen.ru", "habr.com", "leader.ru"],
+      "notes": ""
+    },
+    {
+      "n": 4,
+      "name": "Доставка",
+      "type": "info",
+      "marker": null,
+      "ws_exact": null,
+      "marker_source": "none (info page)",
+      "frequency_source": null,
+      "manual_warning": null,
+      "commercial_pct": null,
+      "commerce_note": null,
+      "commerce_warning": null,
+      "original_marker": null,
+      "commerce_top10_sample": [],
+      "notes": ""
+    }
   ],
-  "budget_used": {"domain_keywords": 3, "keyword_info": 1, "keyword_similar": 0, "jm_wordstat": 0, "wk_check_frequency": 0, "arsenkin_top": 0}
+  "budget_used": {"domain_keywords": 3, "keyword_info": 1, "keyword_similar": 1, "jm_wordstat": 0, "wk_check_frequency": 0, "arsenkin_commerce": 2, "arsenkin_top": 0},
+  "commerce_check_summary": {"checked": 3, "ok": 2, "borderline": 0, "replaced": 0, "info_dominant": 1, "not_verified": 0}
 }

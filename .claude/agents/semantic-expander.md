@@ -26,10 +26,15 @@ model: opus
 Из `markers.json.pages[]` собери массив **только маркеров для JM**:
 - Включить: страницы с `marker != null` и `ws_exact > 0`
 - Включить: страницы с `manual_warning != null` если `ws_exact > 0` (ручные с подтверждённой частотностью)
+- **Исключить: страницы с `commerce_note == "info_dominant"`** - выдача нерелевантная, расширять смысла нет, клиент должен сначала принять решение (см. ниже). Это страховка от слива JM-лимитов.
 - Исключить: страницы с `marker == null` (информационные, наследуемые товарные)
 - Исключить: маркеры с `ws_exact == 0` или `null` (бессмысленно расширять)
 
+**Пограничные включаем:** `commerce_note == "borderline"` или `"replaced_marker"` или `"not_verified"` - расширяем как обычно, но не теряем пометку в выходных данных.
+
 Выведи в `<structure_dir>/semantic_pack.json` поле `markers_sent` - финальный массив маркеров. Дедуплицируй.
+
+Дополнительно выведи поле `pages_skipped_info_dominant` - массив объектов `{n, name, marker, commercial_pct, commerce_warning}` со страницами, которые ты пропустил из-за info-выдачи. `semantic_pack.json.pages[]` для таких страниц должен содержать **пустой `queries: []` + поле `skipped_reason: "info_dominant"`**, чтобы downstream-этапы (`select-top10.mjs`, `build-structure-xlsx.mjs`) могли их корректно обработать.
 
 ### 2. Оценка стоимости и баланса
 
@@ -128,8 +133,17 @@ wk_check_frequency(keywords=[...])
   "balance_after_estimate": 437.5,
   "region_yandex": "2",
   "total_queries": 480,
-  "pages_with_results": 16,
-  "pages_without_results": 2,
+  "pages_with_results": 14,
+  "pages_without_results": 1,
+  "pages_skipped_info_dominant": [
+    {
+      "n": 5,
+      "name": "Как выбрать обои",
+      "marker": "как выбрать обои в спальню",
+      "commercial_pct": 20,
+      "commerce_warning": "ТОП-10 преимущественно info-сайты..."
+    }
+  ],
   "pages": [
     {
       "n": 1,
@@ -145,14 +159,24 @@ wk_check_frequency(keywords=[...])
           "frequency_source": "jm_semantic_pack"
         }
       ],
-      "semantic_warning": null
+      "semantic_warning": null,
+      "skipped_reason": null
+    },
+    {
+      "n": 5,
+      "name": "Как выбрать обои",
+      "marker": "как выбрать обои в спальню",
+      "queries": [],
+      "semantic_warning": null,
+      "skipped_reason": "info_dominant"
     },
     {
       "n": 12,
       "name": "Какая-то редкая услуга",
       "marker": "редкая_услуга_спб",
       "queries": [],
-      "semantic_warning": "JM не дал результатов - расширить вручную"
+      "semantic_warning": "JM не дал результатов - расширить вручную",
+      "skipped_reason": null
     }
   ],
   "budget_used": {
@@ -178,19 +202,21 @@ wk_check_frequency(keywords=[...])
 }
 ```
 
-## Сводка в чат (5-7 строк)
+## Сводка в чат (6-8 строк)
 
-- Маркеров отправлено в JM: `<N>`
+- Маркеров отправлено в JM: `<N>` (из `<total>` в markers.json, **пропущено `<S>` info-dominant**)
 - Стоимость: `<X>` руб. (баланс был `<Y>`, после оценки `<Y-X>`)
 - Запросов получено: `<total>`
 - Страниц с результатами: `<A>` из `<N>`
-- ⚠️ Без результатов: `<B>` страниц (`<список>`) - расширить вручную
+- ⚠️ **Пропущены при расширении (info-dominant)**: `<список «название»>` - JM-лимиты сэкономлены, клиент должен решить судьбу страницы перед У5
+- ⚠️ Без JM-результатов: `<B>` страниц (`<список>`) - расширить вручную
 - Запросы без частотности проверены через: `<jm_wordstat / wk>` (`<K>` запросов)
 - MCP-вызовов: jm_account `<2>`, jm_semantic_pack `<1>`, резерв `<X>`
 
 ## Запреты
 
 - НЕ запускай `jm_semantic_pack` **без** проверки баланса. Если баланс не хватает - `state = "blocked_balance"`, остановись.
+- НЕ запускай `jm_semantic_pack` на страницах с `commerce_note == "info_dominant"` - это слив бюджета. Их `marker-finder` уже пометил как «выдача info, страница не выйдет в ТОП», расширение бессмысленно.
 - НЕ дроби `jm_semantic_pack` на отдельные вызовы по одному маркеру - один вызов пакетом.
 - НЕ путай `region_yandex` (код Яндекса для JM) и `keyso_base` (для Keyso). Используй из `inputs.json` `region_yandex`.
 - НЕ редактируй `markers.json` - только Read.

@@ -140,6 +140,36 @@ await step("A6.xlsx has 4 sheets in correct order", async () => {
   return true;
 });
 
+await step("A6.xlsx pipes commerce_warning to «Примечания» (red bold)", async () => {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(join(sandboxDir, "A6_test.xlsx"));
+  const ws = wb.getWorksheet("Структура");
+  // Страница n=3 (Ремонт ванной) с commerce_note=info_dominant - 5-я data row (row 5 в xlsx).
+  // Колонка «Примечания» - последняя.
+  const headerRow = ws.getRow(2);
+  let notesCol = 0;
+  headerRow.eachCell((cell, c) => {
+    if (String(cell.value || "").trim() === "Примечания") notesCol = c;
+  });
+  if (!notesCol) return "не нашёл колонку «Примечания»";
+  // Найдём строку с n=3
+  let rowFound = 0;
+  for (let r = 3; r <= ws.rowCount; r++) {
+    if (Number(ws.getRow(r).getCell(1).value) === 3) {
+      rowFound = r;
+      break;
+    }
+  }
+  if (!rowFound) return "не нашёл строку с n=3";
+  const notesCell = ws.getCell(rowFound, notesCol);
+  const txt = String(notesCell.value || "");
+  if (!txt.includes("info-сайты")) return `ожидал в Примечаниях текст «info-сайты», получил: «${txt.slice(0, 80)}...»`;
+  if (!notesCell.font || notesCell.font.color?.argb !== "FFFF0000") {
+    return `ожидал красный шрифт на ячейке Примечания row=${rowFound}, получил: ${JSON.stringify(notesCell.font)}`;
+  }
+  return true;
+});
+
 await step("A6.xlsx instruction row + headers at row 2 + data validation", async () => {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(join(sandboxDir, "A6_test.xlsx"));

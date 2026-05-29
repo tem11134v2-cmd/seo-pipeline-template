@@ -46,6 +46,9 @@ const inputs = readJson(join(structureDir, "inputs.json"));
 const masterList = readJson(join(structureDir, "master_list.json"));
 const top10 = readJson(join(structureDir, "top10.json"));
 const cannibalization = readJsonOptional(join(structureDir, "cannibalization.json")) || { recommendations: [] };
+// markers.json опционален - может отсутствовать в legacy-папках или smoke-фикстурах
+const markers = readJsonOptional(join(structureDir, "markers.json")) || { pages: [] };
+const markersByNum = new Map((markers.pages || []).map((p) => [p.n, p]));
 
 // inputs.analysis_dir хранится как путь от project root. Скрипт запускается из project root.
 const analysisDir = inputs.analysis_dir ? resolve(inputs.analysis_dir) : null;
@@ -182,8 +185,12 @@ ws1.getRow(2).height = 30;
 const masterByNum = new Map(masterList.pages.map((p) => [p.n, p]));
 
 let row1 = 3;
+// Запомним строки с info_dominant warning - для красного шрифта на «Примечаниях».
+const rowsWithCommerceWarning = [];
+
 for (const page of top10.pages) {
   const master = masterByNum.get(page.n);
+  const markerData = markersByNum.get(page.n);
   const priority = calcPriority(page, master);
   const url = makeUrl(master || page);
   const queries = page.queries || [];
@@ -207,17 +214,43 @@ for (const page of top10.pages) {
     rowData.push(q?.query ?? "-", q?.freq_exact ?? "-");
   }
 
+  // Собираем «Примечания» - комбинируем notes страницы + commerce_warning из markers.json.
+  const notesParts = [];
+  if (page.notes) notesParts.push(String(page.notes).trim());
+  if (markerData?.commerce_warning) {
+    notesParts.push(`⚠ ${markerData.commerce_warning}`);
+  } else if (markerData?.commerce_note === "borderline") {
+    notesParts.push(`⚠ Borderline коммерциализация (${markerData.commercial_pct}%) - выдача mixed-intent, посмотреть ТОП-10 перед запуском`);
+  } else if (markerData?.commerce_note === "replaced_marker") {
+    notesParts.push(`Маркер заменён по коммерциализации: было «${markerData.original_marker}» → стало «${markerData.marker}»`);
+  } else if (markerData?.commerce_note === "not_verified") {
+    notesParts.push(`⚠ Коммерциализация не проверена (arsenkin_commerce был недоступен) - проверить вручную`);
+  }
+  const notesCell = notesParts.join(" | ");
+
   rowData.push(
     master?.coverage ?? "-",
     PRIO_RU[priority],
     page.type === "info" ? "info" : statusRu(master?.migration_decision),
-    page.notes || ""
+    notesCell
   );
 
   ws1.addRow(rowData);
   const r = ws1.getRow(row1);
   r.eachCell((cell) => applyBody(cell, priority));
   r.alignment = { vertical: "top", wrapText: true };
+
+  // Красный шрифт на «Примечания» для серьёзных warning'ов
+  if (markerData?.commerce_note === "info_dominant" || markerData?.commerce_note === "not_verified") {
+    const notesCol = totalCols1; // последняя колонка
+    ws1.getCell(row1, notesCol).font = {
+      name: FONT_FAMILY,
+      size: FONT_SIZE,
+      color: { argb: COLORS.warning },
+      bold: true,
+    };
+    rowsWithCommerceWarning.push(row1);
+  }
   row1++;
 }
 
@@ -235,7 +268,7 @@ for (let i = 8; i < 8 + queryHeaders.length; i++) {
 ws1.getColumn(8 + queryHeaders.length).width = 14;
 ws1.getColumn(9 + queryHeaders.length).width = 12;
 ws1.getColumn(10 + queryHeaders.length).width = 16;
-ws1.getColumn(11 + queryHeaders.length).width = 28;
+ws1.getColumn(11 + queryHeaders.length).width = 50; // «Примечания» шире — здесь commerce_warning
 
 ws1.views = [{ state: "frozen", xSplit: 5, ySplit: 2 }];
 ws1.autoFilter = { from: { row: 2, column: 1 }, to: { row: row1 - 1, column: totalCols1 } };
@@ -395,6 +428,9 @@ console.log(`   Pages on Structure sheet: ${top10.pages.length}`);
 console.log(`   Recommendations: ${cannibalization.recommendations?.length || 0}`);
 console.log(`   Competitors: ${directList.length}`);
 console.log(`   Migration: ${masterList.pairing_performed ? "yes" : "n/a"}`);
+if (rowsWithCommerceWarning.length > 0) {
+  console.log(`   ⚠ Pages with commerce warning (highlighted red): ${rowsWithCommerceWarning.length} (rows: ${rowsWithCommerceWarning.join(", ")})`);
+}
 
 // === Локали ===
 function typeRu(type) {
