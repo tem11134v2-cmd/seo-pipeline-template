@@ -240,6 +240,7 @@ mcp__gdrive-piotr__uploadFile(
   localPath: <абсолютный путь к SEO_Strategy_<slug>.docx>,
   name: SEO_Strategy_<slug>,
   parentFolderId: <strategies_folder_id>,
+  mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   convertToGoogleFormat: true
 )
 ```
@@ -255,6 +256,7 @@ mcp__gdrive-piotr__uploadFile(
   localPath: <абсолютный путь к Smeta_<slug>.xlsx>,
   name: Smeta_<slug>,
   parentFolderId: <smety_folder_id>,
+  mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   convertToGoogleFormat: true
 )
 ```

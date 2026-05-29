@@ -19,7 +19,7 @@ import { join, resolve } from "node:path";
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType, HeadingLevel, BorderStyle,
-  WidthType, ShadingType, PageBreak, LevelFormat,
+  WidthType, ShadingType, PageBreak, LevelFormat, TableLayoutType,
 } from "docx";
 
 const strategyDirArg = process.argv[2];
@@ -149,6 +149,7 @@ function tableBlock(columns, rows) {
   );
   return new Table({
     columnWidths,
+    layout: TableLayoutType.FIXED,
     rows: [headerRow, ...dataRows],
     width: { size: contentWidth, type: WidthType.DXA },
   });

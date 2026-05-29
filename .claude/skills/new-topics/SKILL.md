@@ -185,6 +185,7 @@ mcp__gdrive-piotr__uploadFile(
   localPath: <abs>/topics/NNN-<slug>/Topics_<slug>.xlsx,
   name: Topics_<slug>,
   parentFolderId: <topics_folder_id>,
+  mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   convertToGoogleFormat: true
 )
 ```

@@ -19,6 +19,11 @@
 //
 // Использование:
 //   node .claude/scripts/build-article-docx.mjs <article_dir>
+//
+// Exit codes:
+//   0 — docx собран, все фото встроены
+//   1 — ошибка ввода (нет обязательного файла)
+//   3 — docx собран, но встроено меньше фото чем ожидалось (неполный) — не заливать в Drive
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -26,7 +31,7 @@ import { marked } from "marked";
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   AlignmentType, BorderStyle, WidthType, ShadingType, ImageRun, ExternalHyperlink,
-  HeadingLevel,
+  HeadingLevel, TableLayoutType,
 } from "docx";
 
 const articleDirArg = process.argv[2];
@@ -143,18 +148,29 @@ if (photosPromptsRaw) {
 }
 
 // ═══ Скачивание изображений с Cloudinary ═══
-async function downloadImage(url) {
+const DOWNLOAD_DELAYS = [0, 2000, 5000]; // ретраи: 0с, 2с, 5с
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+async function downloadImage(url, attempt = 0) {
   if (!url) return null;
   try {
     const res = await fetch(url);
     if (!res.ok) {
-      console.warn(`[build-article-docx] download failed (${res.status}): ${url}`);
+      console.warn(`[build-article-docx] download failed (${res.status}, попытка ${attempt + 1}): ${url}`);
+      if (attempt < DOWNLOAD_DELAYS.length - 1) {
+        await sleep(DOWNLOAD_DELAYS[attempt + 1]);
+        return downloadImage(url, attempt + 1);
+      }
       return null;
     }
-    const buf = Buffer.from(await res.arrayBuffer());
-    return buf;
+    return Buffer.from(await res.arrayBuffer());
   } catch (e) {
-    console.warn(`[build-article-docx] download error: ${e.message}`);
+    console.warn(`[build-article-docx] download error (попытка ${attempt + 1}): ${e.message}`);
+    if (attempt < DOWNLOAD_DELAYS.length - 1) {
+      await sleep(DOWNLOAD_DELAYS[attempt + 1]);
+      return downloadImage(url, attempt + 1);
+    }
     return null;
   }
 }
@@ -289,7 +305,7 @@ function photoImageRun(n) {
   const buf = photoBuffers[n];
   const alt = photoAltByNumber[n] || `Фото ${n}`;
   if (!buf) {
-    return para([run(`[Фото ${n}: ${alt} — не загрузилось]`, { italics: true, color: C.muted })]);
+    return para([run(`[Фото ${n}: ${alt} - не загрузилось]`, { italics: true, color: C.muted })]);
   }
   return new Paragraph({
     alignment: AlignmentType.CENTER,
@@ -306,6 +322,7 @@ function photoImageRun(n) {
 function renderMarkdownToDocx(md) {
   const tokens = marked.lexer(md);
   const out = [];
+  let photoCounter = 0; // сквозной номер фото в порядке появления (совпадает с photo-promter / urls.json)
 
   for (const t of tokens) {
     switch (t.type) {
@@ -314,21 +331,26 @@ function renderMarkdownToDocx(md) {
         break;
 
       case "paragraph": {
-        // Ищем в тексте метки [ФОТО:N], [ТАБЛИЦА:...], [ЦИТАТА], [ИКОНКИ:...], [ТАБЫ:...]
-        // и разрезаем абзац на куски.
+        // Метки [ФОТО: ...] — как целый абзац ИЛИ инлайн внутри текста.
+        // Нумерация — сквозной счётчик в порядке появления (надёжнее, чем поиск по indexOf,
+        // и совпадает с нумерацией photo-promter и записями в photos/urls.json).
         const text = t.text || "";
-        const photoMatch = text.match(/^\[ФОТО:\s*([^\]]+)\]\s*$/);
-        if (photoMatch) {
-          // Идём дальше — нужен номер по очерёдности появления.
-          // Считаем фото-метки в исходном md до этой позиции (грубо).
-          const upto = md.indexOf(text) === -1 ? "" : md.slice(0, md.indexOf(text));
-          const n = (upto.match(/\[ФОТО:/g) || []).length + 1;
-          out.push(photoImageRun(n));
+        const PHOTO_RE = /\[ФОТО:\s*[^\]]+\]/g;
+        if (PHOTO_RE.test(text)) {
+          PHOTO_RE.lastIndex = 0;
+          let lastIdx = 0;
+          let pm;
+          while ((pm = PHOTO_RE.exec(text)) !== null) {
+            const before = text.slice(lastIdx, pm.index).trim();
+            if (before) out.push(para([run(before)]));
+            out.push(photoImageRun(++photoCounter));
+            lastIdx = pm.index + pm[0].length;
+          }
+          const after = text.slice(lastIdx).trim();
+          if (after) out.push(para([run(after)]));
           break;
         }
-        // Если в тексте есть inline метка фото — пока выводим в текст с пометкой
-        const inlineRuns = renderInline(t.tokens);
-        out.push(para(inlineRuns));
+        out.push(para(renderInline(t.tokens)));
         break;
       }
 
@@ -383,6 +405,8 @@ function renderMarkdownToDocx(md) {
         out.push(new Table({
           rows: [headerRow, ...dataRows],
           width: { size: 9638, type: WidthType.DXA },
+          layout: TableLayoutType.FIXED,
+          columnWidths: Array(colCount).fill(colWidth),
         }));
         out.push(para(run("")));
         break;
@@ -436,6 +460,8 @@ docChildren.push(new Paragraph({
 }));
 docChildren.push(new Table({
   width: { size: 9638, type: WidthType.DXA },
+  layout: TableLayoutType.FIXED,
+  columnWidths: [1800, 7838],
   rows: [
     metaTableRow("Title", metaTitle),
     metaTableRow("Description", metaDescription),
@@ -490,9 +516,16 @@ const doc = new Document({
 
 const buffer = await Packer.toBuffer(doc);
 writeFileSync(outputPath, buffer);
+const embeddedCount = Object.values(photoBuffers).filter(Boolean).length;
+const expectedCount = photosUrls.filter((p) => p && p.url).length;
 console.log(`[build-article-docx] wrote ${outputPath}`);
-console.log(`  Photos embedded: ${Object.values(photoBuffers).filter(Boolean).length}/${photosUrls.length}`);
+console.log(`  Photos embedded: ${embeddedCount}/${expectedCount}`);
 console.log(`  FAQ items: ${faqItems.length}`);
+if (embeddedCount < expectedCount) {
+  console.error(`[build-article-docx] ВНИМАНИЕ: встроено ${embeddedCount} из ${expectedCount} фото - docx неполный.`);
+  console.error("Перезапустите скрипт (ретраи скачивания уже встроены) или проверьте Cloudinary URL в photos/urls.json вручную. Не заливайте этот файл в Drive.");
+  process.exit(3);
+}
 
 // ═══ helpers ═══
 function extractH1(md) {

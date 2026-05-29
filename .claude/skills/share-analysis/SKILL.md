@@ -64,11 +64,14 @@ mcp__gdrive-piotr__uploadFile(
   localPath: <абсолютный docx_path>,
   name: A2_<slug>,
   parentFolderId: <analyses_folder_id>,
+  mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   convertToGoogleFormat: true
 )
 ```
 
 Если упало — fallback `convertToGoogleFormat: false`.
+
+**Sanity-check (баг #7):** записывай `share.json` только если ответ uploadFile содержит непустой `id`/`link` (у Google Doc `Size: 1 bytes` - норма, не ошибка). Пустой ответ = битый аплоад, повтори.
 
 ### 5. Записать share.json
 

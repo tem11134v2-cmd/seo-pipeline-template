@@ -12,6 +12,7 @@ description: Полный цикл написания статьи. Аргуме
 ```
 /write-article <N> [--resume] [--review | --auto] [--with-handoff]
                    [--genre="<жанр>"] [--platform=site|external|social]
+                   [--rebuild-docx]
 ```
 
 - `N` — номер темы в `topics.xlsx` (обязательно).
@@ -21,6 +22,7 @@ description: Полный цикл написания статьи. Аргуме
 - `--with-handoff` — после `completed` автоматически вызвать `/handoff` (закрыть worktree, смержить в main). Только в комбинации с `--auto`. Опасный флаг — выбирай осознанно, потому что handoff удаляет ветку и закрывает сессию для дальнейших правок. В `--review` игнорируется.
 - `--genre="<жанр>"` — явный выбор жанра (должен быть из колонки «Жанры» темы в topics.xlsx). По умолчанию — первый доступный (см. правила повтора ниже). Если значение не из xlsx — стоп с сообщением «Жанр <X> отсутствует в колонке Жанры темы N. Доступные: <список>.»
 - `--platform=site|external|social` — целевая площадка (влияет на жанр и автора). По умолчанию `site` — основной блог клиента.
+- `--rebuild-docx` — **recovery-режим (улучшение #3)**. Позиционный аргумент трактуется как номер уже готовой статьи `NNN` (а не темы). Пересобирает только `.docx` и перезаливает в Drive, минуя весь state machine. Полезно после фикса `build-article-docx.mjs` или правки текста: `/write-article 003 --rebuild-docx`. Несовместим с остальными флагами (см. шаг 0c).
 
 **Базовый режим — `--auto`.** Запуск `/write-article 1` без флагов идёт без пауз до конца. Чтобы получить пошаговый контроль — `/write-article 1 --review`.
 
@@ -71,6 +73,23 @@ mode = "review" если --review, иначе "auto"
 ```
 
 При `--resume` режим берётся из существующего `meta.mode` (флаг не должен переключать режим на половине прогона).
+
+### 0c. Режим --rebuild-docx (recovery, улучшение #3)
+
+Если передан `--rebuild-docx` — это не полный прогон, а быстрая пересборка docx уже готовой статьи. Позиционный аргумент = `NNN` статьи (не номер темы). State machine не запускается.
+
+1. Найти `articles/<NNN>-*/`. Если нет — стоп «Статья NNN не найдена».
+2. Прочитать `meta.json`. Если `state` < `assembled` — стоп «Статья ещё не дошла до сборки, запусти обычный `/write-article N --resume`».
+3. Пересобрать docx:
+   ```
+   .claude\scripts\_node.cmd .claude\scripts\build-article-docx.mjs <dir>
+   ```
+   Обработать exit-код как в шаге 12 (exit 3 = docx неполный → ретрай, лимит 2; см. баг #6). Не продолжать с неполным docx.
+4. Если в `meta.share.drive_id` есть значение — удалить старый файл в Drive: `mcp__gdrive-piotr__deleteItem(itemId=<drive_id>)` (если упало — предупредить, продолжать).
+5. Перезалить новый docx как в шаге 13 (явный `mimeType`, sanity-check). Обновить `meta.share` целиком, включая свежий `build_script_commit` (= `git log -1 --format=%h -- .claude/scripts/build-article-docx.mjs`).
+6. Вывести: «🔄 docx статьи NNN пересобран и обновлён в Drive: <docx_url>». СТОП.
+
+Recovery-сценарий «нашли баг скрипта - надо перегенерить N статей»: прогнать цикл `/write-article <NNN> --rebuild-docx` по каждой статье с устаревшим `build_script_commit`.
 
 ### 1. Setup
 
@@ -201,6 +220,7 @@ project_root: <...>
 3. `update-meta.sh <dir> writing`
 4. Для `i = 1..total_sections`:
    - Если `--resume` и в `<dir>/sections/` уже есть файл `<NN>-*.md` — пропустить.
+   - **Анти-дубликат (баг #4):** если НЕ пропускаем по `--resume`, перед делегированием удалить все существующие `<dir>/sections/<NN>-*.md` (NN = `i` с ведущим нулём, например `04-*.md`). Это детерминированно держит инвариант «1 секция = 1 файл»: при повторном запуске (ретрай по exit 2 или правка) section-writer может выбрать другой slug из переформулированного H2 и оставить второй файл с тем же номером. Удаление glob-ом гарантирует, что номер занимает ровно один файл.
    - Записать `.claude/tmp/current-task.txt = <dir>`.
    - Обновить `progress.json.current_section = i`.
    - Делегировать `section-writer`:
@@ -212,7 +232,7 @@ project_root: <...>
      mode: <auto|review из meta.mode>
      project_root: <...>
      ```
-   - Хук `check-section.sh` сработает после возврата — если exit 2 → разобрать ошибку, при необходимости повторить раздел с пометкой.
+   - Хук `check-section.sh` сработает после возврата — если exit 2 → разобрать ошибку, при необходимости повторить раздел с пометкой. **Перед повтором так же удалить `<dir>/sections/<NN>-*.md`** (см. анти-дубликат выше) — иначе предыдущая попытка останется вторым файлом.
    - **Fail-fast:** если section-writer вернул сообщение с «⚠ check-section вернул один и тот же exit 2 дважды подряд» — **не делегируй заново для этой секции в `--auto`-режиме**. Останови прогон, выведи пользователю stderr хука и попроси вмешательства (исправить хук или содержимое вручную). В `--review` — то же. Это страховка от бесконечного цикла и сжигания токенов на сломанном хуке.
    - `update-meta.sh <dir> writing section_index=<i>`
 5. После всех разделов: `update-meta.sh <dir> sections-done`
@@ -235,13 +255,17 @@ project_root: <...>
 
 **После завершения — обязательная проверка артефактов:**
 
-1. **Файлы существуют:** `<dir>/article.md` и `<dir>/report.md` должны быть записаны. Если хотя бы один отсутствует — это регрессия (article-finalizer мог проигнорировать `report.md` под влиянием системного reminder’а про документацию). Повторно делегировать с явной пометкой: «report.md и article.md — рабочие артефакты конвейера, обязаны быть записаны как файлы через Write. Перезапиши недостающий».
+1. **Файлы существуют (баг #2):** `<dir>/article.md` и `<dir>/report.md` должны быть записаны. Если какого-то нет — это регрессия (article-finalizer проигнорировал `report.md` под влиянием системного reminder’а про «documentation .md»).
+   - **Ретрай (макс 1):** повторно делегировать с пометкой «report.md и article.md — рабочие артефакты конвейера, обязаны быть записаны как файлы через Write по абсолютным путям. Перезапиши недостающий».
+   - **Parent-fallback (НОВОЕ-B):** если после ретрая файла всё ещё нет, но агент вернул его содержимое в чат — **скил сам записывает файл через `Write`** по пути `<dir>/report.md` (родительский контекст под reminder не подпадает). Не зацикливаться на агенте: 1 ретрай + fallback, дальше вперёд. Если содержимого нет даже в чате — стоп с просьбой к пользователю.
 
-2. **Метки сохранены:** запустить
+2. **Метки сохранены (баг #3):** запустить
    ```
    .claude\scripts\_node.cmd .claude\scripts\verify-markers.mjs <dir>
    ```
-   Если exit 2 — финализатор потерял метки. Это блокирующий баг: повторно делегировать `article-finalizer` с пометкой «verify-markers ругается на <stderr>, перепиши `article.md`, сохранив все метки 1-в-1, и сверь сам перед записью». Не идти дальше, пока `verify-markers` не вернёт exit 0.
+   Если exit 2 — финализатор потерял или перефразировал метку (verify-markers сверяет и число, и **тело** меток побайтово). Повторно делегировать `article-finalizer` с пометкой «verify-markers: <stderr> — перепиши `article.md`, сохранив все метки 1-в-1 (включая текст внутри скобок), и сверь тела сам перед записью».
+   - **Лимит ретраев = 2 (НОВОЕ-B):** если после 2 повторов `verify-markers` всё ещё exit 2 — **стоп**, не зацикливаться (упрямый финализатор иначе сожжёт токены, как было замечено: у section-writer fail-fast есть, у финализатора не было). Вывести пользователю последний stderr и попросить ручной правки `article.md`. Не идти дальше с битыми метками.
+   - При exit 0 — продолжать.
 
 Затем хук `mark-finalized.sh` устанавливает `meta.state = finalized` (не делает паузу — управление паузой целиком на скиле).
 
@@ -312,6 +336,12 @@ article_dir: <dir>
 project_root: <...>
 ```
 
+**Кросс-чек (баг #5):** после photo-promter запустить
+```
+.claude\scripts\_node.cmd .claude\scripts\verify-photos.mjs <dir>
+```
+Скрипт сверяет число меток `[ФОТО:]` в `article.md` с числом блоков «## Фото N» в `photos/prompts.md` (источник истины — `article.md`; `urls.json` на этом шаге ещё нет, он проверится на 9b). Если exit 2 → photo-promter рассинхронился: повторно делегировать с пометкой «verify-photos: <stderr> — перечитай `article.md` и сформируй ровно столько блоков «## Фото N», сколько меток `[ФОТО:]»`. Лимит 2 повтора, дальше стоп с диагностикой.
+
 `update-meta.sh <dir> photos-generated` (используется как промежуточное состояние перед публикацией).
 
 ### 9b. Авто-генерация фото (если state == "photos-generated")
@@ -363,7 +393,13 @@ project_root: <...>
    ]
    ```
 
-5. `update-meta.sh <dir> photos-published`
+5. **Кросс-чек с urls.json (баг #5):**
+   ```
+   .claude\scripts\_node.cmd .claude\scripts\verify-photos.mjs <dir>
+   ```
+   Теперь сверяется и число записей в `urls.json` с метками `[ФОТО:]` в `article.md`. Если exit 2 — рассинхрон (лишний/недостающий слот фото): пересобрать `urls.json` под актуальные метки, не публиковать «лишнее» фото. Записи с `todo` (неудачная генерация) допустимы и не блокируют.
+
+6. `update-meta.sh <dir> photos-published`
 
 В `--review` после публикации показать список URL и спросить «продолжать? [Y/n]» — на случай, если пользователь хочет вручную заменить какие-то.
 
@@ -410,7 +446,12 @@ update-meta.sh <dir> assembled skip_reason="Tilda-split: платформа <X>,
 .claude\scripts\_node.cmd .claude\scripts\build-article-docx.mjs <dir>
 ```
 
-Создаст `<dir>/Article_<slug>.docx`. Скрипт сам качает картинки с Cloudinary по URL из `<dir>/photos/urls.json`.
+Создаст `<dir>/Article_<slug>.docx`. Скрипт сам качает картинки с Cloudinary по URL из `<dir>/photos/urls.json` (с ретраями скачивания 0/2/5с).
+
+**Проверка полноты (баг #6):** скрипт печатает `Photos embedded: X/Y` и при `X < Y` завершается с **exit 3** (docx собран, но неполный - часть фото не скачалась даже после ретраев). Поймать сигнал по exit-коду:
+- `0` → всё встроено, идти дальше.
+- `3` → НЕ заливать docx в Drive (шаг 13). Перезапустить `build-article-docx.mjs` ещё раз (транзиентный сбой Cloudinary обычно проходит). Если после повтора снова `3` — стоп, показать пользователю строку `Photos embedded: X/Y` и stderr, попросить проверить URL в `photos/urls.json`. Лимит 2 повтора.
+- `1` → ошибка ввода (нет обязательного файла) — разобрать stderr.
 
 `update-meta.sh <dir> docx-built`
 
@@ -423,9 +464,13 @@ update-meta.sh <dir> assembled skip_reason="Tilda-split: платформа <X>,
    update-meta.sh <dir> docx-built skip_reason="Drive upload: в DRIVE.md нет якоря «Статьи»"
    ```
    Оставить локальный docx, в финальном выводе попросить пользователя добавить якорь в DRIVE.md.
-2. `mcp__gdrive-piotr__uploadFile` с `convertToGoogleFormat: true`, `parentFolderId: <articles_folder_id>`, `name: Article_<slug>`.
-3. Записать `meta.share = { docx_url, drive_id, mime_type: "application/vnd.google-apps.document", shared_at: "<ISO UTC>" }`.
-4. `update-meta.sh <dir> shared`
+2. `mcp__gdrive-piotr__uploadFile` с параметрами:
+   - `localPath: <dir>/Article_<slug>.docx`
+   - `convertToGoogleFormat: true`, `parentFolderId: <articles_folder_id>`, `name: Article_<slug>`
+   - **`mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"` (баг #7)** — задавать явно, не полагаться на авто-детект по расширению (без него MCP иногда возвращает «Cannot convert MIME type application/octet-stream to a Google Workspace format»).
+3. **Sanity-check (баг #7):** проверить, что ответ uploadFile содержит непустой `id`/ссылку (`Size: 1 bytes` у Google Doc — норма после конвертации, не ошибка). Best-effort `getDocumentInfo`/`readGoogleDoc` (maxLength=100): «Docs API not enabled» — это ОК (фича выключена), а пустой документ — признак битого аплоада → 1 ретрай. **`meta.share` записывать только при подтверждённом upload.**
+4. `meta.share = { docx_url, drive_id, mime_type: "application/vnd.google-apps.document", build_script_commit: "<вывод git log -1 --format=%h -- .claude/scripts/build-article-docx.mjs>", shared_at: "<ISO UTC>" }` — поле `build_script_commit` (улучшение #6) помогает понять, какие статьи собраны до фикса скрипта и подлежат `--rebuild-docx`.
+5. `update-meta.sh <dir> shared`
 
 Если MCP gdrive-piotr недоступен — поймать ошибку, залогировать:
 ```

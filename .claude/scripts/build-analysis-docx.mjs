@@ -25,7 +25,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-  Footer, AlignmentType, BorderStyle, WidthType, ShadingType, PageBreak,
+  Footer, AlignmentType, BorderStyle, WidthType, ShadingType, PageBreak, TableLayoutType,
 } from "docx";
 
 const analysisDirArg = process.argv[2];
@@ -223,6 +223,7 @@ function tableBlock(columns, rows) {
   });
   return new Table({
     columnWidths,
+    layout: TableLayoutType.FIXED,
     rows: [headerRow, ...dataRows],
     width: { size: contentWidth, type: WidthType.DXA },
   });

@@ -83,6 +83,7 @@ mcp__gdrive-piotr__uploadFile(
   localPath: <абсолютный docx_path>,
   name: SEO_Strategy_<slug>,
   parentFolderId: <strategies_folder_id>,
+  mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   convertToGoogleFormat: true
 )
 ```
@@ -96,11 +97,14 @@ mcp__gdrive-piotr__uploadFile(
   localPath: <абсолютный xlsx_path>,
   name: Smeta_<slug>,
   parentFolderId: <smety_folder_id>,
+  mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   convertToGoogleFormat: true
 )
 ```
 
 Сохранить `id`, `link`.
+
+**Sanity-check (баг #7):** записывай `share.json` только при подтверждённом аплоаде каждого файла (непустой `id`/`link`; `Size: 1 bytes` у Google Doc/Sheet - норма). Пустой ответ = битый аплоад, повтори загрузку этого файла.
 
 ### 5. Записать share.json и обновить meta
 

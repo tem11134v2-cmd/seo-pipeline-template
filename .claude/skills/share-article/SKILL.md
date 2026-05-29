@@ -73,11 +73,14 @@ mcp__gdrive-piotr__uploadFile(
   localPath: <абсолютный docx_path>,
   name: Article_<slug>,
   parentFolderId: <articles_folder_id из DRIVE.md>,
+  mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   convertToGoogleFormat: true
 )
 ```
 
 Сохранить `id` и `link` из ответа.
+
+**Sanity-check (баг #7):** записывай `meta.share` только если ответ uploadFile содержит непустой `id`/`link`. У готового Google Doc `Size: 1 bytes` - это норма (у нативного формата нет бинарного размера), не путать с ошибкой. Пустой ответ или ошибка = битый аплоад, повтори загрузку.
 
 ### 5. Записать meta.share
 

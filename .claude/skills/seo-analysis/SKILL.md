@@ -247,6 +247,7 @@ mcp__gdrive-piotr__uploadFile(
   localPath: <абсолютный путь к A2_<slug>.docx>,
   name: A2_<slug>,
   parentFolderId: <analyses_folder_id>,
+  mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   convertToGoogleFormat: true
 )
 ```

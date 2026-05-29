@@ -4,29 +4,32 @@
 
 Архитектура — **worktree-first multi-task**: каждая задача в отдельной git worktree, единственная команда в основной папке — `/handoff-process` (применяет накопленные результаты). Подробности — в [docs/adr/](docs/adr/).
 
-## Естественный workflow клиента
+## Рабочий процесс: два трека
+
+`/new-project` всегда первым (создаёт проект клиента из шаблона). Дальше - один из двух треков по стадии сделки.
 
 ```
-1. /setup-project URL          → ЗАКАЗЧИК.md + template.html
-        ↓
-2. /seo-analysis (бриф)        → A2.md + A3.md (предпроектный анализ, У1)
-        ↓
-3. /seo-structure NNN          → A6.xlsx → клиент → A6.md (структура сайта, У3)
-        ↓
-4. /strategy URL               → SEO_Strategy.docx + Smeta.xlsx (тарифы)
-        ↓
-5. /new-topics                 → topics.xlsx (15-25 тем для блога)
-        ↓
-6. /write-article N            → Article.docx + output.html (на каждую тему)
+ТРЕК А - пресейл (нужна стратегия продвижения)
+  /new-project -> /strategy URL   -> SEO_Strategy.docx + Smeta.xlsx (КП клиенту)
+
+ТРЕК Б - согласованная работа (клиент принял предложение)
+  1. /setup-project URL  -> ЗАКАЗЧИК.md + template.html (профиль клиента)
+  2. /seo-analysis       -> A2.md + A3.md (предпроектный анализ конкурентов)
+  3. /seo-structure NNN  -> A6.xlsx -> клиент -> A6.md (структура сайта)
+  4. /new-topics         -> topics.xlsx (15-25 тем для блога)
+     /write-article N    -> Article.docx + output.html (на каждую тему)
+  5. [планируется: технический аудит и другие услуги]
 ```
 
 Каждый шаг читает артефакты предыдущих:
-- `/seo-structure` читает `analyses/NNN/brief.json + competitors.json + serp.json + leader_scan.json` — обязательная стыковка
-- `/strategy` читает `ЗАКАЗЧИК.md`
-- `/new-topics` читает `ЗАКАЗЧИК.md`
-- `/write-article` читает `topics.xlsx + ЗАКАЗЧИК.md + template.html`
+- `/seo-structure` читает `analyses/NNN/brief.json + competitors.json + serp.json + leader_scan.json` - обязательная стыковка
+- `/new-topics` и `/write-article` читают `ЗАКАЗЧИК.md` (поэтому до контента нужен `/setup-project`)
+- `/write-article` дополнительно читает `topics.xlsx + template.html`
+- `/strategy` читает `ЗАКАЗЧИК.md` если он есть, иначе спрашивает нишу/регион напрямую (работает в пресейле без профиля)
 
-Шаги 2 и 3 можно пропустить если работаешь только со статьями (не делаешь полный пресейл). Шаги 4-6 независимы от 2-3 — стратегию и статьи можно делать без формального анализа структуры.
+Заметки:
+- Шаги 2-3 (анализ + структура) можно пропустить, если занимаешься только контентом.
+- `/strategy` не привязан жёстко к пресейлу - его можно запускать и внутри трека Б (например, переутвердить тарифы).
 
 ---
 
@@ -45,7 +48,7 @@
 
 ## Установка нового клиента
 
-Открой Claude Code Desktop в любой папке и вставь промт ниже целиком в сообщение:
+Самый простой путь - скил `/new-project [slug] [URL]` (запускается из `~/seo-projects/`): он делает всё описанное ниже автоматически и в финале подсказывает следующий шаг. Промт ниже - ручной эквивалент на случай, если скил недоступен. Вставь его целиком в сообщение:
 
 ````
 Подключаю нового SEO-клиента. Действуй по шагам, никаких импровизаций.
@@ -93,8 +96,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
   Дальше:
     1. Открой ~/seo-projects/<slug>/ в новой сессии Claude Code Desktop
        с ВКЛЮЧЁННОЙ галочкой worktree.
-    2. В этой новой сессии запусти:
-       /setup-project <URL_клиента>
+    2. В этой новой сессии запусти, в зависимости от стадии:
+       - пресейл (нужна стратегия): /strategy <URL_клиента>
+       - согласованная работа:      /setup-project <URL_клиента>
 
   Эту установочную сессию можно закрыть.
   ═════════════════════════════
@@ -152,7 +156,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── CLAUDE.md                            ← политика, читается каждой сессией
 │   ├── settings.json                        ← Claude Code hooks config
 │   │
-│   ├── agents/                              ← 26 субагентов (см. ниже)
+│   ├── agents/                              ← 27 субагентов (см. ниже)
 │   │   ├── client-profiler.md
 │   │   ├── template-designer.md
 │   │   ├── topic-generator.md
@@ -164,6 +168,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── enhancer.md
 │   │   ├── photo-promter.md
 │   │   ├── article-fixer.md
+│   │   ├── article-fixer-batch.md
 │   │   ├── strategy-scanner.md              ← /strategy
 │   │   ├── competitor-analyst.md            ← /strategy
 │   │   ├── growth-strategist.md             ← /strategy
@@ -180,11 +185,15 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── cannibalization-resolver.md      ← /seo-structure
 │   │   └── structure-writer.md              ← /seo-structure
 │   │
-│   ├── skills/                              ← 14 скилов
+│   ├── skills/                              ← 17 скилов
+│   │   ├── guide/SKILL.md                   (любая зона, справочник процесса)
 │   │   ├── setup-project/SKILL.md           (worktree, исследование сайта)
 │   │   ├── new-topics/SKILL.md              (worktree, сбор тем)
+│   │   ├── share-topics/SKILL.md            (worktree, загрузка Topics.xlsx в Drive)
 │   │   ├── write-article/SKILL.md           (worktree, цикл статьи)
-│   │   ├── fix-article/SKILL.md             (worktree, правка)
+│   │   ├── fix-article/SKILL.md             (worktree, точечная правка)
+│   │   ├── rewrite-section/SKILL.md         (worktree, переписать один H2)
+│   │   ├── share-article/SKILL.md           (worktree, загрузка Article.docx в Drive)
 │   │   ├── strategy/                        (worktree, стратегия + тарифы)
 │   │   │   ├── SKILL.md
 │   │   │   ├── MCP_MAP.md
@@ -206,23 +215,31 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── check-file.sh                    (SubagentStop, проверка вывода)
 │   │   ├── check-section.sh                 (SubagentStop section-writer)
 │   │   ├── check-jm-balance.sh              (PreToolUse jm_text_analyze)
-│   │   ├── pause-for-review.sh              (SubagentStop article-finalizer)
+│   │   ├── mark-finalized.sh                (SubagentStop article-finalizer)
 │   │   └── update-meta.sh                   (helper)
 │   │
 │   ├── git-hooks/                           ← git hooks (НЕ Claude Code)
 │   │   └── pre-commit                       (whitelist путей в worktree)
 │   │
-│   ├── scripts/                             ← Node-скрипты
-│   │   ├── _node.cmd                        (обёртка, ищет node)
-│   │   ├── _node.sh                         (POSIX обёртка)
+│   ├── scripts/                             ← обёртки + 19 .mjs
+│   │   ├── _node.cmd / _node.sh             (обёртки, ищут node)
+│   │   ├── _client.mjs                      (общий helper)
 │   │   ├── finalize-setup.mjs               (git init + первый коммит)
-│   │   ├── to-excel.mjs                     (topics.json → topics.xlsx)
+│   │   ├── to-excel.mjs                     (legacy: topics.json → корневой topics.xlsx)
+│   │   ├── topics-to-excel.mjs              (батч → Topics_<slug>.xlsx, актуальный)
+│   │   ├── from-excel-topics.mjs            (xlsx → topics-batch.json, правки клиента)
+│   │   ├── read-topics-xlsx.mjs             (чтение topics.xlsx для дедупа)
+│   │   ├── update-index.mjs                 (articles/_index.json)
 │   │   ├── assemble-html.mjs                (article.md + ... → output.html)
+│   │   ├── metrics-report.mjs              (метрики читаемости → report.md)
+│   │   ├── verify-progress.mjs              (сверка progress.json с секциями)
+│   │   ├── verify-markers.mjs               (проверка сохранности меток)
+│   │   ├── build-article-docx.mjs           (article + фото → Article_<slug>.docx)
 │   │   ├── tilda-split.mjs                  (output.html → head + t123)
 │   │   ├── build-strategy-docx.mjs          (strategy_content.json → SEO_Strategy.docx)
 │   │   ├── build-smeta-xlsx.mjs             (tariffs.json → Smeta.xlsx)
 │   │   ├── build-analysis-docx.mjs          (A2.md → A2_<slug>.docx)
-│   │   ├── select-top10.mjs                 (semantic_pack.json → top10.json + cannibalization.json)
+│   │   ├── select-top10.mjs                 (semantic_pack.json → top10 + cannibalization)
 │   │   ├── build-structure-xlsx.mjs         (master_list+top10 → A6_<slug>.xlsx)
 │   │   └── import-structure.mjs             (client_filled.xlsx → structure_data.json)
 │   │
@@ -245,17 +262,23 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── 005-node-wrapper.md
 │   ├── 006-github-distribution.md
 │   ├── 007-strategy-task-type.md
-│   └── 008-drive-sharing-anchor-folders.md
+│   ├── 008-drive-sharing-anchor-folders.md
+│   ├── 009-seo-analysis-task-type.md
+│   └── 010-structures-task-type.md
 │
 ├── ЗАКАЗЧИК.md                              ← создаётся через /setup-project + /handoff-process
 ├── template.html                            ← аналогично
 ├── topics.xlsx                              ← создаётся через /new-topics + /handoff-process
+├── articles/_index.json                     ← индекс статей (topic_id, жанр, state)
 ├── articles/NNN-slug/                       ← рабочие папки статей
 │   ├── meta.json                            (state machine)
 │   ├── jm/                                  (JM-анализ данные)
-│   ├── sections/                            (поразделам)
+│   ├── sections/                            (по разделам)
 │   ├── article.md                           (финальный markdown)
+│   ├── report.md + audit.md                 (отчёт + аудит)
+│   ├── photos/                              (фото + urls.json от Cloudinary)
 │   ├── output.html                          (собранный HTML)
+│   ├── Article_<slug>.docx                  (финал для клиента)
 │   └── tilda/                               (для Тильды, опц.)
 │
 ├── strategies/NNN-domain-slug/              ← рабочие папки стратегий
@@ -266,8 +289,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── growth-points.json + strategy_data.json (от growth-strategist)
 │   ├── tariffs.json                         (от tariff-architect)
 │   ├── strategy_content.json                (от strategy-writer)
-│   ├── SEO_Strategy_<domain>.docx           (финал для клиента)
-│   └── Smeta_<domain>.xlsx                  (финал внутренний)
+│   ├── SEO_Strategy_<domain>.docx           (финал для клиента, без цен)
+│   ├── Smeta_<domain>.xlsx                  (финал внутренний, с ценами)
+│   └── share.json                           (ссылки Drive: Doc + Sheet)
 │
 ├── analyses/NNN-domain-slug/                ← рабочие папки предпроектных анализов
 │   ├── meta.json                            (state machine)
@@ -277,9 +301,12 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── competitors.json                     (6-10 + топ-3 лидера)
 │   ├── serp.json                            (SERP-анализ + вердикт + стоп-лист)
 │   ├── leader_scan.json                     (блоки/посылы/фишки топ-3)
-│   ├── A2.md                                (финал — markdown-отчёт)
-│   ├── A3.md                                (финал — стоп-лист)
-│   └── A2_<domain>.docx                     (опц. — для клиента)
+│   ├── A2.md                                (финал - markdown-отчёт)
+│   ├── A3.md                                (финал - стоп-лист)
+│   ├── recommendations.json                 (рекомендации для /strategy, /write-article)
+│   ├── stop_list_detailed.json              (стоп-лист с причинами)
+│   ├── A2_<domain>.docx                     (для клиента, кроме --no-share)
+│   └── share.json                           (ссылка Drive + ревизии)
 │
 ├── structures/NNN-domain-slug/              ← рабочие папки структур сайта
 │   ├── meta.json                            (state machine)
@@ -292,7 +319,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── A6_<slug>.xlsx                       (для клиента — 4 листа)
 │   ├── client_filled.xlsx                   (правленая клиентом версия)
 │   ├── structure_data.json                  (распарсенная клиентская версия)
-│   └── A6.md                                (финал — для У5/У6/У7/У8)
+│   ├── A6.md                                (финал - для У5/У6/У7/У8)
+│   └── share.json                           (ссылка Drive)
 │
 ├── package.json                             ← exceljs, marked, jsdom
 ├── .gitignore
@@ -312,7 +340,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 ├── CLIENT-TEMPLATE.md                       (образец ЗАКАЗЧИК.md)
 ├── TARIFFS.md                               (каталог услуг для /strategy)
 ├── RULES.md                                 (правила связок тарифов для /strategy)
-└── DRIVE.md                                 (ID Drive-папок для /share-strategy)
+└── DRIVE.md                                 (ID Drive-папок для всех /share-*)
 ```
 
 См. [ADR-004](docs/adr/004-global-mcp-and-knowledge.md) — почему именно глобально.
@@ -321,14 +349,18 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ## Компоненты
 
-### 14 скилов (11 для работы, 3 для управления)
+### 17 скилов (8 рабочих, 5 share-утилит, 3 управляющих, 1 справочный)
 
 | Скил | Зона | Назначение |
 |---|---|---|
+| `/guide [тема]` | любая | Справочник рабочего процесса: вход/вопросы/опции/выход по каждой команде, связки артефактов, роли MCP, ступоры. Ничего не выполняет |
 | `/setup-project <URL>` | worktree | Исследование сайта, генерация `ЗАКАЗЧИК.md` и `template.html` в handoff-requests |
-| `/new-topics` | worktree | Сбор 15-25 тем для блога, батч в handoff-requests |
+| `/new-topics` | worktree | Сбор 15-25 тем для блога, батч в `topics/NNN/` + автозагрузка в Google Sheet |
+| `/share-topics NNN [--redo]` | worktree | Утилита: перезалить Topics.xlsx в Drive после правок, или догрузить если Drive был недоступен |
 | `/write-article N [--resume]` | worktree | Полный цикл статьи (JM → ТЗ → разделы → финал → аудит → улучшения → HTML) |
 | `/fix-article NNN "..."` | worktree | Точечная правка готовой статьи |
+| `/rewrite-section NNN idx "..."` | worktree | Переписать один H2-раздел статьи заново |
+| `/share-article NNN [--redo]` | worktree | Утилита: перезалить Article.docx в Drive после правок, или догрузить если Drive был недоступен |
 | `/strategy <URL> [--resume]` | worktree | Полный цикл SEO-стратегии: скан → конкуренты → точки роста → 3 тарифа → стратегия .docx + смета .xlsx → **автозагрузка в Google Drive с конверсией в Google Doc/Sheet** |
 | `/share-strategy NNN [--redo]` | worktree | Утилита: перезалить в Drive после правок локальных файлов, либо догрузить если Drive был недоступен при первом прогоне `/strategy` |
 | `/seo-analysis [--resume]` | worktree | Предпроектный анализ конкурентов: бриф → структурирование → конкуренты → SERP-вердикт → скан смыслов топ-3 → A2.md + A3.md + опц. .docx |
@@ -339,7 +371,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
 
-### 26 субагентов (вызываются скилами)
+### 27 субагентов (вызываются скилами)
 
 | Агент | Делает |
 |---|---|
@@ -354,6 +386,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `enhancer` | HTML-элементы по меткам + FAQ + Schema.org JSON-LD |
 | `photo-promter` | Промты для фото по меткам `[ФОТО: ...]` |
 | `article-fixer` | Точечная правка статьи (по запросу из `/fix-article`) |
+| `article-fixer-batch` | Массовое применение правок аудита одним проходом (для `/write-article`) |
 | `strategy-scanner` | Скан сайта + первичные метрики клиента (для /strategy) |
 | `competitor-analyst` | Конкуренты, типизация, выдача, вердикт (для /strategy) |
 | `growth-strategist` | Точки роста + сборка strategy_data.json (для /strategy) |
@@ -370,20 +403,29 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `cannibalization-resolver` | Разрешение конфликтов каннибализации + рекомендации по расширению (для /seo-structure) |
 | `structure-writer` | Финальный A6.md по фиксированному шаблону (для /seo-structure) |
 
-### 10 Node-скриптов
+### 19 Node-скриптов
 
 | Скрипт | Делает |
 |---|---|
-| `finalize-setup.mjs` | git init + `.env.example` + первый коммит (используется в `/handoff-process` для setup) |
-| `to-excel.mjs` | topics.json → topics.xlsx (2 листа) |
+| `_client.mjs` | Общий helper, импортируется другими скриптами |
+| `finalize-setup.mjs` | git init + `.env.example` + первый коммит (для setup в `/handoff-process`) |
+| `to-excel.mjs` | legacy: topics.json → корневой topics.xlsx (темы теперь собирает topics-to-excel.mjs) |
+| `topics-to-excel.mjs` | батч тем → `Topics_<slug>.xlsx` в topics/NNN/ (актуальный для `/new-topics`) |
+| `from-excel-topics.mjs` | обратное чтение: `Topics_<slug>.xlsx` → topics-batch.json (правки клиента) |
+| `read-topics-xlsx.mjs` | чтение корневого topics.xlsx для дедупа тем |
+| `update-index.mjs` | поддержка `articles/_index.json` |
 | `assemble-html.mjs` | article.md + enhancements + faq + schema + photos + template → output.html |
+| `metrics-report.mjs` | метрики читаемости (слова, H2/H3, Flesch-RU) → раздел в report.md |
+| `verify-progress.mjs` | сверка sections/progress.json с фактическими секциями (exit 0/1/2) |
+| `verify-markers.mjs` | проверка, что финализатор сохранил все метки в article.md |
+| `build-article-docx.mjs` | article + фото из Cloudinary → `Article_<slug>.docx` |
 | `tilda-split.mjs` | output.html → tilda/head.html + tilda/t123.html (с !important фиксами) |
 | `build-strategy-docx.mjs` | strategy_content.json + tariffs.json + inputs.json → SEO_Strategy_<domain>.docx |
 | `build-smeta-xlsx.mjs` | tariffs.json + inputs.json → Smeta_<domain>.xlsx (3 вкладки + формулы SUM) |
-| `build-analysis-docx.mjs` | A2.md (предпроектный анализ) → A2_<domain>.docx (Arial, цветной вердикт, таблицы) |
+| `build-analysis-docx.mjs` | A2.md → A2_<domain>.docx (Arial, цветной вердикт, таблицы) |
 | `select-top10.mjs` | semantic_pack.json → top10.json + cannibalization.json (детекция конфликтов) |
 | `build-structure-xlsx.mjs` | master_list + top10 + cannibalization + competitors → A6_<slug>.xlsx (4 листа) |
-| `import-structure.mjs` | client_filled.xlsx → structure_data.json (с exit-кодами 0/3/4 для развилок) |
+| `import-structure.mjs` | client_filled.xlsx → structure_data.json (exit-коды 0/3/4 для развилок) |
 
 ### 5 Claude Code хуков
 
@@ -392,7 +434,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `check-file.sh` | SubagentStop * | Проверяет создан ли ожидаемый выходной файл |
 | `check-section.sh` | SubagentStop section-writer | Один H2, нет длинных тире, объём в допуске |
 | `check-jm-balance.sh` | PreToolUse jm_text_analyze | Отказ если баланс JM < 5 |
-| `pause-for-review.sh` | SubagentStop article-finalizer | Останавливает скил для review пользователем |
+| `mark-finalized.sh` | SubagentStop article-finalizer | Ставит meta.state=finalized (паузой для review управляет сам скил в режиме --review) |
 | `update-meta.sh` | helper | Обновляет meta.json статьи |
 
 ### 1 git-хук
@@ -511,7 +553,7 @@ git commit -m "Update template from upstream"
 ## Требования
 
 - **Claude Code Desktop** с глобально подключёнными MCP-серверами:
-  - JM (jm_account, jm_text_generate, jm_text_analyze, jm_suggest, jm_wordstat, jm_task)
+  - JM (jm_account, jm_text_generate, jm_text_analyze, jm_semantic_pack, jm_suggest, jm_wordstat, jm_task)
   - Wordstat (mcp_wordstat_*)
   - Yandex (mcp_yandex_search, mcp_yandex_get_position)
   - Keys.so (domain_dashboard, domain_pages, domain_competitors, ...)
@@ -519,7 +561,9 @@ git commit -m "Update template from upstream"
   - WK (wk_check_frequency, ...)
   - Webmaster (wm_*)
   - Fetch (mcp_fetch_page)
-  - Sheets (опционально, если нужно с Google Sheets)
+  - Google Drive (gdrive-piotr: uploadFile с конверсией в Google Doc/Sheet) - ядро для всех `/share-*` и финальных заливок
+  - Cloudinary + OpenRouter (скилы image-generation / image-publishing) - фото в `/write-article`
+  - Sheets (опционально, прямое чтение/запись Google Sheets)
 - **Node.js LTS** (24+): `scoop install nodejs-lts` или https://nodejs.org/. Зависимости: `exceljs`, `marked`, `jsdom`, `docx` — ставятся через `npm install`.
 - **Git** с поддержкой `git worktree` (включён по умолчанию в современных версиях).
 - **Глобальная папка** `~/.claude/seo-knowledge/` с авторской методологией. Содержимое — у автора, на новой машине нужно перенести вручную.

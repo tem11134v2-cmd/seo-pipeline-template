@@ -65,6 +65,7 @@ mcp__gdrive-piotr__uploadFile(
   localPath: <абсолютный xlsx_path>,
   name: A6_<slug>,
   parentFolderId: <structures_folder_id>,
+  mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   convertToGoogleFormat: true
 )
 ```

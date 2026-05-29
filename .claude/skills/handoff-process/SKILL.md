@@ -28,13 +28,19 @@ COMMON_DIR=$(git rev-parse --git-common-dir)
 Если разные — отказать:
 > «/handoff-process работает только в main. Открой основную папку проекта в новой сессии (без галочки worktree).»
 
-### 1. Подчистить зомби-worktree
+### 1. Подчистить зомби-worktree (баг #9)
 
 ```bash
 git worktree prune
 ```
 
-(Если предыдущий `/handoff` не смог удалить worktree из-за file lock на Windows — здесь добиваем.)
+`git worktree prune` убирает только админ-записи worktree, чья рабочая папка уже исчезла. На Windows бывает обратная ситуация: `/handoff` де-регистрировал worktree и удалил ветку, а сама папка осталась на диске из-за file lock индексатора. Такие осиротевшие папки prune не трогает - добиваем вручную:
+
+1. Получить пути живых worktree: `git worktree list --porcelain` (строки `worktree <path>`).
+2. Просканировать `.claude/worktrees/` (если папка существует). Для каждой подпапки, пути которой НЕТ среди живых worktree:
+   - Попытаться удалить: `rm -rf .claude/worktrees/<name>` (PowerShell: `Remove-Item -Recurse -Force`).
+   - Если удаление упало (file lock) - **не блокировать прогон**, вывести предупреждение: «зомби-worktree <name> не удалён (file lock). Повтори /handoff-process позже или удали папку вручную после перезапуска проводника/IDE».
+3. Идти дальше независимо от результата чистки - это best-effort уборка, не критичный шаг.
 
 ### 2. Собрать список pending запросов
 

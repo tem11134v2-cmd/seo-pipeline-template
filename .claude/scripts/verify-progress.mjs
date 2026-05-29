@@ -68,6 +68,7 @@ const err = (msg) => issues.push({ severity: "error", msg });
 let realH2Count = 0;
 const realVolumes = {}; // {section_id (1-based): word_count}
 const realText = [];
+const seenNN = {}; // {NN: filename} - для отлова дублей секций (баг #4)
 
 for (const file of sectionFiles) {
   const content = readFileSync(join(sectionsDir, file), "utf8").replace(/^﻿/, "");
@@ -78,6 +79,11 @@ for (const file of sectionFiles) {
   const m = file.match(/^(\d+)-/);
   if (m) {
     const idx = Number(m[1]);
+    if (seenNN[idx]) {
+      err(`Дубликат секции NN=${m[1]}: «${seenNN[idx]}» и «${file}» - на одну секцию записаны два файла (section-writer переименовал slug при повторе). Удали лишний.`);
+    } else {
+      seenNN[idx] = file;
+    }
     const words = content.split(/\s+/).filter((w) => /\S/.test(w)).length;
     realVolumes[idx] = words;
     realText.push(content);
@@ -121,31 +127,43 @@ for (const [idxStr, realWords] of Object.entries(realVolumes)) {
 }
 
 // ─── 4. Топ-5 N-грамм по target ─────────────────────────────────────────────
+// ВАЖНО: расхождение по N-граммам НИКОГДА не эскалируется в error (exit 2). Скрипт
+// считает точные (нормализованные) вхождения, а progress.json накапливает леммы и
+// словоформы через анализатор JM - структурное расхождение неизбежно и не должно
+// блокировать пайплайн. Только warning + пояснение в выводе.
+function normalizeForCount(s) {
+  return String(s)
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[-–—]/g, " ") // дефис и тире -> пробел (костюма-тройки == костюма тройки)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 const ngrams = progress.ngrams || {};
-const allText = realText.join("\n").toLowerCase();
+const normalizedText = normalizeForCount(realText.join("\n"));
 const topNgrams = Object.entries(ngrams)
   .filter(([, v]) => Number(v?.target) > 0)
   .sort((a, b) => Number(b[1].target) - Number(a[1].target))
   .slice(0, 5);
 
+let hadNgramWarn = false;
 for (const [phrase, data] of topNgrams) {
   const target = Number(data.target) || 0;
   const declaredUsed = Number(data.used) || 0;
-  // Считаем реальные вхождения как фиксированные подстроки (lowercase)
-  const needle = phrase.toLowerCase();
+  const needle = normalizeForCount(phrase);
   if (!needle) continue;
   let realUsed = 0;
   let pos = 0;
-  while ((pos = allText.indexOf(needle, pos)) !== -1) {
+  while ((pos = normalizedText.indexOf(needle, pos)) !== -1) {
     realUsed++;
     pos += needle.length;
   }
-  // Допускаем расхождение в 1, если target ≤ 5; иначе 20% от target
+  // Допускаем расхождение в 1, если target ≤ 5; иначе 20% от target.
   const tol = target <= 5 ? 1 : Math.ceil(target * 0.2);
   if (Math.abs(realUsed - declaredUsed) > tol) {
-    const sev = Math.abs(realUsed - declaredUsed) > tol * 2 ? "error" : "warn";
-    const fn = sev === "error" ? err : warn;
-    fn(`N-грамма «${phrase}»: progress.json used=${declaredUsed}, факт=${realUsed} (target=${target})`);
+    warn(`N-грамма «${phrase}»: progress.json used=${declaredUsed}, факт=${realUsed} (target=${target})`);
+    hadNgramWarn = true;
   }
 }
 
@@ -166,6 +184,10 @@ if (errors.length) {
 if (warnings.length) {
   console.error(`  ⚠ Предупреждения (${warnings.length}):`);
   for (const i of warnings) console.error(`    - ${i.msg}`);
+}
+if (hadNgramWarn) {
+  console.error("  ℹ По N-граммам: скрипт считает точные (нормализованные) вхождения, а progress.json");
+  console.error("    учитывает леммы и словоформы. Небольшое расхождение нормально и не блокирует прогон.");
 }
 
 if (errors.length) process.exit(2);
