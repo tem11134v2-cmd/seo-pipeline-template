@@ -417,6 +417,13 @@ git commit -m "Analysis <NNN> for <slug или domain>: completed (<N> revisions
    <analysis_dir>/stop_list_detailed.json   - стоп-лист с причинами
 
 ✅ Готово к /handoff (перенесёт в main).
+
+➡️ Следующий шаг конвейера (У3 - структура сайта):
+   В новой worktree-сессии запусти:
+     /seo-structure <NNN>
+   Скил прочитает analyses/<NNN>-<slug>/ (brief.json, competitors.json, serp.json,
+   leader_scan.json), соберёт мастер-список страниц, маркеры через каскад
+   Keyso → JM, проверит каннибализацию, сгенерирует A6.xlsx → клиенту → A6.md.
 ═════════════════════════════════════════
 ```
 

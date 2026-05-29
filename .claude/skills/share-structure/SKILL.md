@@ -55,8 +55,8 @@ redo = true если --redo
 
 ### 3. Прочитать DRIVE.md
 
-`~/.claude/seo-knowledge/DRIVE.md` -> `structures_folder_id`. Если ключа нет ИЛИ значение равно `TODO_СОЗДАЙ_ПАПКУ_В_DRIVE` - стоп с инструкцией:
-> В DRIVE.md ключ `structures_folder_id` ещё не настроен. Создай в Google Drive папку «Структуры» с правами `anyone with link -> reader`, скопируй её ID и подставь в DRIVE.md вместо `TODO_СОЗДАЙ_ПАПКУ_В_DRIVE`. Затем запусти `/share-structure <NNN>` ещё раз.
+`~/.claude/seo-knowledge/DRIVE.md` -> `structures_folder_id`. Если ключа нет ИЛИ значение начинается с `TODO_` - стоп с инструкцией:
+> В DRIVE.md ключ `structures_folder_id` ещё не настроен. Создай в Google Drive папку «Структуры» с правами `anyone with link -> reader`, скопируй её ID и подставь в DRIVE.md. Затем запусти `/share-structure <NNN>` ещё раз.
 
 ### 4. Загрузить
 
