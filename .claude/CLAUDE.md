@@ -10,11 +10,12 @@
 - `articles/NNN/` — рабочая папка одной статьи
 - `strategies/NNN/` — рабочая папка SEO-стратегии (если запускался /strategy)
 - `analyses/NNN/` — рабочая папка предпроектного анализа (если запускался /seo-analysis)
+- `topics/NNN/` — рабочая папка батча тем (если запускался /new-topics)
 - `~/.claude/seo-knowledge/` — общая методология (стиль, жанры, HTML-элементы, SVG, TARIFFS, RULES)
 
 ## Модель работы: всё в worktree, единственная main-команда — /handoff-process
 
-**Правило:** каждая задача (`/setup-project`, `/new-topics`, `/write-article`, `/fix-article`, `/strategy`, `/seo-analysis`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
+**Правило:** каждая задача (`/setup-project`, `/new-topics`, `/write-article`, `/fix-article`, `/strategy`, `/seo-analysis`, `/share-topics`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
 
 **Единственная команда в main:** `/handoff-process` — применяет накопленные handoff-запросы к общим файлам проекта.
 
@@ -25,7 +26,8 @@
 | Команда | Что делает | Где результат |
 |---|---|---|
 | `/setup-project <URL>` | Исследует сайт клиента, готовит `ЗАКАЗЧИК.md` и `template.html` | `.claude/handoff-requests/files/` (для /handoff-process) |
-| `/new-topics` | Собирает 15-25 тем | `.claude/handoff-requests/topics-batch.json` |
+| `/new-topics [--resume]` | Полный цикл: собирает 15-25 тем → xlsx → автозагрузка в Drive (Google Sheet). Полная таблица в чат + ссылка | `topics/NNN-slug/` (per-task) |
+| `/share-topics <NNN> [--redo]` | Утилита-помощник для `/new-topics`: перезалить после правок или догрузить если Drive был недоступен | `topics/NNN/share.json` (per-task) |
 | `/write-article <N> [--resume]` | Полный цикл по теме №N | `articles/NNN/` (per-task, попадёт в main через /handoff) |
 | `/fix-article <NNN> "<правка>"` | Точечная правка готовой статьи | `articles/NNN/...` (per-task) |
 | `/strategy <URL> [--resume]` | Полный цикл стратегии: скан → конкуренты → точки роста → 3 тарифа → docx + xlsx → автозагрузка в Drive (Google Doc + Google Sheet) | `strategies/NNN-slug/` (per-task) |
@@ -44,7 +46,7 @@
 ## Жёсткое правило: worktree трогает только свою задачу
 
 Внутри worktree-сессии разрешено менять файлы **только**:
-- Внутри своей папки задачи (`articles/NNN/`, `strategies/NNN/`, `analyses/NNN/`, и т.д. — путь объявляется через `.claude/tmp/current-task.txt`)
+- Внутри своей папки задачи (`articles/NNN/`, `strategies/NNN/`, `analyses/NNN/`, `topics/NNN/`, и т.д. — путь объявляется через `.claude/tmp/current-task.txt`)
 - Внутри `.claude/tmp/` (служебные файлы)
 - Внутри `.claude/handoff-requests/` (запросы для main)
 

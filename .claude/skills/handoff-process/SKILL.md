@@ -38,13 +38,14 @@ git worktree prune
 
 ### 2. Собрать список pending запросов
 
-Pending = всё в `.claude/handoff-requests/` (кроме `processed/`):
+Pending = всё в `.claude/handoff-requests/` (кроме `processed/`) **плюс** новые батчи тем из `topics/NNN-*/` со state `shared`/`completed`, темы которых ещё не применены в корневой `topics.xlsx`:
 
-| Файл/папка | Тип |
+| Источник | Тип |
 |---|---|
-| `setup-meta.json` + `files/ЗАКАЗЧИК.md` + `files/template.html` | setup-project |
-| `topics-meta.json` + `topics-batch.json` | new-topics |
-| `<timestamp>-<task>.md` (произвольные .md) | shared-edit (от /request-shared-edit) |
+| `.claude/handoff-requests/setup-meta.json` + `files/ЗАКАЗЧИК.md` + `files/template.html` | setup-project |
+| `topics/NNN-*/meta.json` (state >= `shared`, без флага `applied_to_root_xlsx: true`) | new-topics |
+| `.claude/handoff-requests/topics-meta.json` + `topics-batch.json` (legacy путь) | new-topics-legacy |
+| `.claude/handoff-requests/<timestamp>-<task>.md` (произвольные .md) | shared-edit (от /request-shared-edit) |
 
 Если pending пусто:
 > «Нет ожидающих handoff-запросов. Все применённые лежат в `.claude/handoff-requests/processed/`.»
@@ -58,9 +59,10 @@ Pending = всё в `.claude/handoff-requests/` (кроме `processed/`):
   Создать: ЗАКАЗЧИК.md, template.html
   Post-actions: git config core.hooksPath .claude/git-hooks
 
-[new-topics]  <timestamp>  N=25 тем, M=3 конкурента
-  Цель: topics.xlsx
-  Операция: append-or-create (через to-excel.mjs)
+[new-topics]  topics/001-example/  N=25 тем
+  Источник: topics/001-example/topics-batch.json
+  Цель: topics.xlsx (merge с дедупом по main_query)
+  После применения: meta.json получит applied_to_root_xlsx: true
 
 [shared-edit]  <timestamp> Article 003
   Файл: ЗАКАЗЧИК.md
@@ -84,18 +86,33 @@ Pending = всё в `.claude/handoff-requests/` (кроме `processed/`):
 3. Выполнить `post_actions` (например `git config core.hooksPath .claude/git-hooks`).
 4. Запомнить файлы для финального коммита.
 
-#### 4.2 new-topics
+#### 4.2 new-topics (основной путь - из topics/NNN/)
 
-1. Прочитать `.claude/handoff-requests/topics-meta.json` и `topics-batch.json`.
-2. Если `topics.xlsx` не существует:
-   - Скопировать `topics-batch.json` в корень как `topics.json` (временно).
-   - Запустить `.claude\scripts\_node.cmd .claude\scripts\to-excel.mjs .` (рабочая папка = корень проекта).
-   - Удалить временный `topics.json`.
-3. Если `topics.xlsx` уже существует:
-   - **Интеллектуальный merge:** прочитать существующий xlsx (через node или показать пользователю), сравнить main_query с batch, отфильтровать дубли.
-   - Спросить пользователя «Найдено K новых тем (L дублей пропущено). Добавить?».
-   - При согласии — слить, перегенерировать xlsx.
-4. Запомнить файлы для коммита.
+Источник теперь per-task: каждый батч живёт в `topics/NNN-<slug>/`. Дедуп с корневым `topics.xlsx` уже сделан в worktree до сборки батча, поэтому здесь просто применяем.
+
+1. Найти все `topics/NNN-*/meta.json` со state `shared` или `completed` И без флага `applied_to_root_xlsx: true`. Это pending-батчи.
+2. Для каждого:
+   - Прочитать `<topics_dir>/topics-batch.json`.
+   - Если корневой `topics.xlsx` НЕ существует:
+     - Скопировать `topics-batch.json` в корень как `topics.json` (временно).
+     - Запустить `.claude\scripts\_node.cmd .claude\scripts\to-excel.mjs .`.
+     - Удалить временный `topics.json`.
+   - Если корневой `topics.xlsx` существует:
+     - Прочитать существующие `main_query` через `.claude\scripts\_node.cmd .claude\scripts\read-topics-xlsx.mjs .`.
+     - Отфильтровать батч от дублей (по нормализованному `main_query`, lowercase + trim).
+     - Если новых тем 0 - сообщить «батч NNN: все темы уже в корневом темнике, пропускаю».
+     - Если новых тем >0 - слить (старые из xlsx + новые из батча), записать объединённый JSON во временный `topics.json` в корне, запустить `to-excel.mjs`, удалить временный JSON.
+     - Сводка в чат: «батч NNN: добавлено K тем (L дублей пропущено)».
+3. Через Edit отметить в `<topics_dir>/meta.json` флаг `applied_to_root_xlsx: true` и обновить `updated` timestamp. Это идемпотентность - повторный `/handoff-process` не применит батч второй раз.
+4. Запомнить файлы для коммита: корневой `topics.xlsx` + изменённые `meta.json`.
+
+#### 4.2-legacy new-topics-legacy (старый путь - из handoff-requests/)
+
+Если есть `.claude/handoff-requests/topics-batch.json` и `topics-meta.json` (от батчей, собранных до версии этого скила):
+
+1. Прочитать как раньше.
+2. Применить по той же логике, что 4.2 (дедуп через `read-topics-xlsx.mjs`, merge, перегенерация xlsx).
+3. Через `git mv` перенести `topics-batch.json` и `topics-meta.json` в `processed/<timestamp>-...`.
 
 #### 4.3 shared-edit (одиночные .md)
 
@@ -110,7 +127,7 @@ Pending = всё в `.claude/handoff-requests/` (кроме `processed/`):
 
 ### 5. Перенос обработанных в `processed/`
 
-Через `git mv`:
+Через `git mv` - **только для запросов из `.claude/handoff-requests/`** (setup-project, shared-edit, legacy new-topics):
 ```
 git mv .claude/handoff-requests/setup-meta.json .claude/handoff-requests/processed/<timestamp>-setup-meta.json
 git mv .claude/handoff-requests/files .claude/handoff-requests/processed/<timestamp>-files
@@ -118,6 +135,8 @@ git mv .claude/handoff-requests/files .claude/handoff-requests/processed/<timest
 ```
 
 (`processed/` существует или создаётся через `mkdir`.)
+
+**Батчи `topics/NNN-*/` НЕ переносятся** - они остаются в своей папке как историческая копия. Идемпотентность обеспечивается флагом `applied_to_root_xlsx: true` в их `meta.json` (см. шаг 4.2).
 
 ### 6. Финальный коммит
 
