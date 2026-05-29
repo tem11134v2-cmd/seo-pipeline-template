@@ -4,6 +4,30 @@
 
 Архитектура — **worktree-first multi-task**: каждая задача в отдельной git worktree, единственная команда в основной папке — `/handoff-process` (применяет накопленные результаты). Подробности — в [docs/adr/](docs/adr/).
 
+## Естественный workflow клиента
+
+```
+1. /setup-project URL          → ЗАКАЗЧИК.md + template.html
+        ↓
+2. /seo-analysis (бриф)        → A2.md + A3.md (предпроектный анализ, У1)
+        ↓
+3. /seo-structure NNN          → A6.xlsx → клиент → A6.md (структура сайта, У3)
+        ↓
+4. /strategy URL               → SEO_Strategy.docx + Smeta.xlsx (тарифы)
+        ↓
+5. /new-topics                 → topics.xlsx (15-25 тем для блога)
+        ↓
+6. /write-article N            → Article.docx + output.html (на каждую тему)
+```
+
+Каждый шаг читает артефакты предыдущих:
+- `/seo-structure` читает `analyses/NNN/brief.json + competitors.json + serp.json + leader_scan.json` — обязательная стыковка
+- `/strategy` читает `ЗАКАЗЧИК.md`
+- `/new-topics` читает `ЗАКАЗЧИК.md`
+- `/write-article` читает `topics.xlsx + ЗАКАЗЧИК.md + template.html`
+
+Шаги 2 и 3 можно пропустить если работаешь только со статьями (не делаешь полный пресейл). Шаги 4-6 независимы от 2-3 — стратегию и статьи можно делать без формального анализа структуры.
+
 ---
 
 ## Содержание
