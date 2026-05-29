@@ -260,9 +260,9 @@ project_root: <project root>
 
 `~/.claude/seo-knowledge/DRIVE.md` -> извлечь `structures_folder_id`.
 
-Если файла или поля нет - не блокировать, а скипнуть с предупреждением:
+**Если файла нет, поля нет, или значение равно `TODO_СОЗДАЙ_ПАПКУ_В_DRIVE`** - не блокировать, а скипнуть с предупреждением:
 ```
-bash .claude/hooks/update-meta.sh <structure_dir> xlsx-built skip_reason="Drive upload: в DRIVE.md нет якоря structures_folder_id. Создай папку «Структуры» в Drive с правами anyone-with-link -> reader, добавь её ID в DRIVE.md, затем /share-structure <NNN>."
+bash .claude/hooks/update-meta.sh <structure_dir> xlsx-built skip_reason="Drive upload: в DRIVE.md нет валидного structures_folder_id (либо TODO). Создай папку «Структуры» в Drive с правами anyone-with-link -> reader, подставь ID в DRIVE.md, затем /share-structure <NNN>."
 ```
 Перейти к шагу 8 (`awaiting-client`), оставить локальный xlsx для ручной отправки клиенту.
 
