@@ -185,8 +185,8 @@ await step("A6.xlsx pipes commerce note to «Примечания» (neutral, no
   if (!rowFound) return "не нашёл строку с n=3";
   const notesCell = ws.getCell(rowFound, notesCol);
   const txt = String(notesCell.value || "");
-  // info_dominant теперь даёт человеческую формулировку, без жаргона/процентов.
-  if (!txt.includes("справочную информацию")) return `ожидал человеческую формулировку про справочную информацию, получил: «${txt.slice(0, 80)}...»`;
+  // info_dominant теперь даёт человеческую формулировку с термином «информационный интент».
+  if (!txt.toLowerCase().includes("информационный интент")) return `ожидал «Информационный интент» в примечании, получил: «${txt.slice(0, 80)}...»`;
   if (notesCell.font && notesCell.font.color?.argb === "FFFF0000") {
     return `Примечания не должны быть красными (сигнал недостоверен для B2B), row=${rowFound}`;
   }
