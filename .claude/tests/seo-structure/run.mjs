@@ -185,10 +185,27 @@ await step("A6.xlsx pipes commerce note to «Примечания» (neutral, no
   if (!rowFound) return "не нашёл строку с n=3";
   const notesCell = ws.getCell(rowFound, notesCol);
   const txt = String(notesCell.value || "");
-  if (!txt.includes("info-сайты")) return `ожидал в Примечаниях текст «info-сайты», получил: «${txt.slice(0, 80)}...»`;
-  // Красной подсветки больше быть НЕ должно (Фаза 4 - сигнал недостоверен для B2B).
+  // info_dominant теперь даёт человеческую формулировку, без жаргона/процентов.
+  if (!txt.includes("справочную информацию")) return `ожидал человеческую формулировку про справочную информацию, получил: «${txt.slice(0, 80)}...»`;
   if (notesCell.font && notesCell.font.color?.argb === "FFFF0000") {
-    return `Примечания не должны быть красными (Фаза 4 убрала недостоверный warning), row=${rowFound}`;
+    return `Примечания не должны быть красными (сигнал недостоверен для B2B), row=${rowFound}`;
+  }
+  return true;
+});
+
+await step("A6.xlsx Примечания без внутреннего жаргона (клиентская чистота)", async () => {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(join(sandboxDir, "A6_test.xlsx"));
+  const ws = wb.getWorksheet("Структура");
+  const headerRow = ws.getRow(2);
+  let notesCol = 0;
+  headerRow.eachCell((cell, c) => { if (String(cell.value || "").trim() === "Примечания") notesCol = c; });
+  // Запрещённый в клиентском листе жаргон: имена файлов/инструментов/полей/англ. термины.
+  const banned = ["decisions.json", "umbrella", "commercial_pct", "arsenkin", "semantic_pack", "info_dominant", "marker", "->", "top-10", "borderline", "mixed-intent"];
+  for (let r = 3; r <= ws.rowCount; r++) {
+    const v = String(ws.getCell(r, notesCol).value || "").toLowerCase();
+    const hit = banned.find((b) => v.includes(b.toLowerCase()));
+    if (hit) return `в Примечаниях строки ${r} протёк внутренний жаргон «${hit}»: «${v.slice(0, 80)}»`;
   }
   return true;
 });
@@ -198,9 +215,9 @@ await step("A6.xlsx instruction row + headers at row 2 + data validation", async
   await wb.xlsx.readFile(join(sandboxDir, "A6_test.xlsx"));
   const ws = wb.getWorksheet("Структура");
   const row1 = String(ws.getCell(1, 1).value || "");
-  if (!row1.includes("Инструкция клиенту")) return `row 1 not instruction: ${row1.slice(0, 40)}`;
+  if (!row1.includes("Как заполнить")) return `row 1 not instruction: ${row1.slice(0, 40)}`;
   if (String(ws.getCell(2, 1).value) !== "№") return `row 2 col 1 is not «№»: ${ws.getCell(2, 1).value}`;
-  if (String(ws.getCell(2, 5).value) !== "Целевая?") return `row 2 col 5 is not «Целевая?»: ${ws.getCell(2, 5).value}`;
+  if (String(ws.getCell(2, 5).value) !== "Нужна?") return `row 2 col 5 is not «Нужна?»: ${ws.getCell(2, 5).value}`;
   // Data validation на data row (3)
   const dv = ws.getCell(3, 5).dataValidation;
   if (!dv || !dv.formulae || !dv.formulae[0].includes("да")) {

@@ -73,37 +73,40 @@ headerRow.eachCell((cell, colNumber) => {
 });
 const firstDataRow = headerRowNum + 1;
 
-// Индексы колонок (1-based)
-function findCol(name) {
+// Индексы колонок (1-based). Принимает ОДНО имя или массив алиасов:
+// новые клиентские заголовки + старые (обратная совместимость с уже разосланными файлами).
+function findCol(names) {
+  const list = Array.isArray(names) ? names : [names];
   for (let i = 1; i < headers.length; i++) {
-    if (headers[i] === name) return i;
+    if (list.includes(headers[i])) return i;
   }
   return -1;
 }
 
 const COL_N = findCol("№");
-const COL_URL = findCol("URL (ЧПУ)");
+const COL_URL = findCol(["Адрес страницы", "URL (ЧПУ)"]);
 const COL_TYPE = findCol("Тип");
 const COL_NAME = findCol("Название");
-const COL_TARGET = findCol("Целевая?");
-const COL_MARKER = findCol("Маркер");
-const COL_WS = findCol("WS");
-const COL_COMPETITORS = findCol("У конкурентов");
+const COL_TARGET = findCol(["Нужна?", "Целевая?"]);
+const COL_MARKER = findCol(["Главный запрос", "Маркер"]);
+const COL_WS = findCol(["Спрос в месяц", "WS"]);
+const COL_COMPETITORS = findCol(["Есть у конкурентов", "У конкурентов"]);
 const COL_PRIORITY = findCol("Приоритет");
 const COL_STATUS = findCol("Статус");
 const COL_ROLE = findCol("Роль"); // может быть -1 в старых файлах (до Фазы 4) - guard ниже
 const COL_NOTES = findCol("Примечания");
 
 if (COL_TARGET < 0) {
-  console.error("[import-structure] не найдена колонка «Целевая?» - возможно клиент изменил структуру или это не A6.xlsx.");
+  console.error("[import-structure] не найдена колонка «Нужна?»/«Целевая?» - возможно клиент изменил структуру или это не A6.xlsx.");
   process.exit(1);
 }
 
 // Все колонки с запросами и частотами (2..10 = до 9 дополнительных запросов помимо маркера).
+// Новые заголовки «Спрос N» + старые «ЧN».
 const queryCols = [];
 for (let i = 2; i <= 10; i++) {
   const qCol = findCol(`Запрос ${i}`);
-  const fCol = findCol(`Ч${i}`);
+  const fCol = findCol([`Спрос ${i}`, `Ч${i}`]);
   if (qCol > 0 && fCol > 0) queryCols.push({ qCol, fCol, num: i });
 }
 

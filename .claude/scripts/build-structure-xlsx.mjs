@@ -154,13 +154,14 @@ workbook.created = new Date();
 
 const ws1 = workbook.addWorksheet("Структура");
 
-const fixedLeft = ["№", "URL (ЧПУ)", "Тип", "Название", "Целевая?", "Маркер", "WS"];
+// Клиентские заголовки - понятный русский, без SEO-жаргона.
+const fixedLeft = ["№", "Адрес страницы", "Тип", "Название", "Нужна?", "Главный запрос", "Спрос в месяц"];
 const queryHeaders = [];
 // MAX_QUERIES=9 дополнительных запросов (2..10), всего 10 запросов с маркером.
 for (let i = 2; i <= MAX_QUERIES + 1; i++) {
-  queryHeaders.push(`Запрос ${i}`, `Ч${i}`);
+  queryHeaders.push(`Запрос ${i}`, `Спрос ${i}`);
 }
-const fixedRight = ["У конкурентов", "Приоритет", "Статус", "Роль", "Примечания"];
+const fixedRight = ["Есть у конкурентов", "Приоритет", "Статус", "Роль", "Примечания"];
 const headers1 = [...fixedLeft, ...queryHeaders, ...fixedRight];
 const totalCols1 = headers1.length;
 
@@ -168,9 +169,11 @@ const totalCols1 = headers1.length;
 ws1.mergeCells(1, 1, 1, totalCols1);
 const instrCell = ws1.getCell(1, 1);
 instrCell.value =
-  "Инструкция клиенту: заполните колонку «Целевая?» одним из значений (да / нет / обсудить) для каждой страницы. " +
-  "«да» = страница нужна, включаем в работу. «нет» = страница не нужна, отложить. «обсудить» = есть вопросы, разберём отдельно. " +
-  "Колонку «URL (ЧПУ)» можно поправить если предложенный URL вам не подходит. Готовый файл пришлите обратно.";
+  "Как заполнить: в колонке «Нужна?» напротив каждой страницы поставьте да / нет / обсудить. " +
+  "«да» - такая страница нужна, делаем. «нет» - страница не нужна. «обсудить» - есть вопросы, обсудим отдельно " +
+  "(этим помечены новые для вас направления - подтвердите, занимаетесь ли вы ими). " +
+  "Колонки «Главный запрос» и «Спрос в месяц» - справочные (что и как часто люди ищут в поиске), их заполнять не нужно. " +
+  "Адрес страницы при желании можно поправить. Готовый файл пришлите обратно.";
 instrCell.font = { name: FONT_FAMILY, size: FONT_SIZE, italic: true, color: { argb: "FF1F4E79" } };
 instrCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF9E6" } };
 instrCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
@@ -218,26 +221,25 @@ for (const page of top10.pages) {
     rowData.push(q?.query ?? "-", q?.freq_base ?? q?.freq_exact ?? "-"); // 5.2: base-preferred
   }
 
-  // Собираем «Примечания» - комбинируем notes страницы + commerce_warning из markers.json.
+  // «Примечания» для КЛИЕНТА - только человеческий русский, без SEO-жаргона, процентов,
+  // имён инструментов и служебных полей. Вся внутренняя кухня (роли, проценты, журнал) - в A6.md.
+  // page.notes НЕ выводим: там служебный английский ("no marker (info or inherited page)" и т.п.).
   const notesParts = [];
-  if (page.notes) notesParts.push(String(page.notes).trim());
-  if (markerData?.commerce_warning) {
-    notesParts.push(`⚠ ${markerData.commerce_warning}`);
-  } else if (markerData?.commerce_note === "borderline") {
-    notesParts.push(`⚠ Borderline коммерциализация (${markerData.commercial_pct}%) - выдача mixed-intent, посмотреть ТОП-10 перед запуском`);
-  } else if (markerData?.commerce_note === "replaced_marker") {
-    notesParts.push(`Маркер заменён по коммерциализации: было «${markerData.original_marker}» → стало «${markerData.marker}»`);
-  } else if (markerData?.commerce_note === "not_verified") {
-    notesParts.push(`⚠ Коммерциализация не проверена (arsenkin_commerce был недоступен) - проверить вручную`);
-  }
-  // Бизнес-вопрос Фазы 3 (смежные/броадер-направления) - выводим клиенту в Примечания.
+  // Бизнес-вопрос (новое/смежное направление) - самое важное для клиента, ставим первым.
   if (master?.business_flag) {
-    notesParts.unshift(`🏢 Новое/смежное направление - подтвердите: ${master.business_question || "производите / готовы освоить?"}`);
+    notesParts.push(`Новое для вас направление - подтвердите, занимаетесь ли вы этим${master.business_question ? ` (${master.business_question})` : ""}`);
   }
+  // Коммерческие пометки - переводим в понятную клиенту суть, без процентов/терминов.
+  if (markerData?.commerce_note === "info_dominant") {
+    notesParts.push("По этому запросу люди чаще ищут справочную информацию, чем товар/услугу - страница будет общим разделом-обзором");
+  } else if (markerData?.commerce_note === "replaced_marker") {
+    notesParts.push("Главный запрос подобран под коммерческий спрос (как реально ищут покупатели)");
+  }
+  // borderline / not_verified клиенту НЕ показываем - это внутренние пометки для SEO-команды (в A6.md).
   if (master?.demand === "low") {
-    notesParts.push("нишевая (низкая текущая видимость у конкурентов - валидная посадка)");
+    notesParts.push("Нишевое направление, спрос небольшой, но страница нужна для полноты каталога");
   }
-  const notesCell = notesParts.join(" | ");
+  const notesCell = notesParts.join(". ");
 
   // Роль страницы - простановка алгоритма (markers.role), клиент её не заполняет.
   const role = markerData?.role || (page.type === "info" ? "info" : "target");
@@ -475,17 +477,18 @@ function typeRu(type) {
     article: "Статья",
     info: "Инфо",
     other: "Прочее",
-  }[type] || type;
+  }[type] || "Прочее"; // неизвестный тип -> «Прочее», не утекаем сырое англ. значение
 }
 
 function roleRu(role) {
+  // Клиентопонятные формулировки, без англо-фоллбэка (неизвестное -> «Продвигаемая» по умолчанию).
   return {
-    target: "целевая",
-    umbrella: "зонтичная",
-    navigational: "навигац.",
-    info: "инфо",
-    article: "блог",
-  }[role] || role || "целевая";
+    target: "Продвигаемая",
+    umbrella: "Раздел-обзор",
+    navigational: "Навигация",
+    info: "Информация",
+    article: "Блог",
+  }[role] || "Продвигаемая";
 }
 
 function statusRu(migration) {
@@ -496,7 +499,7 @@ function statusRu(migration) {
     delete_410: "к удалению",
     discuss: "обсудить",
     new: "новая",
-  }[migration] || migration;
+  }[migration] || "новая"; // неизвестное -> «новая», не утекаем сырое значение
 }
 
 function decisionRu(d) {
