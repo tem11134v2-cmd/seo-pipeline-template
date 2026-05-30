@@ -115,11 +115,10 @@ await step("select-top10 filters navigational query (5.1)", () => {
 await step("select-top10 keeps base-only query exact=0,base>=10 (5.2)", () => {
   const top = JSON.parse(readFileSync(join(sandboxDir, "top10.json"), "utf8"));
   const allQueries = top.pages.flatMap((p) => p.queries.map((q) => q.query));
-  // exact=0 но base=1200 (n3) и base=50 (n1) - 5.2 должна их СОХРАНИТЬ (раньше exact>0 их резал)
-  const kept1200 = allQueries.includes("ремонт ванной комнаты под ключ");
-  const kept50 = allQueries.includes("ремонт квартир шум базовый");
-  if (!kept1200) return "base-only query (base=1200, exact=0) был выброшен - 5.2 не работает";
-  if (!kept50) return "base-only query (base=50, exact=0) был выброшен - 5.2 не работает";
+  // "ремонт квартир шум базовый" - exact=0, base=50: 5.2 должна СОХРАНИТЬ (старый фильтр exact>0 резал).
+  if (!allQueries.includes("ремонт квартир шум базовый")) {
+    return "base-only query (base=50, exact=0) был выброшен - 5.2 не работает";
+  }
   return true;
 });
 

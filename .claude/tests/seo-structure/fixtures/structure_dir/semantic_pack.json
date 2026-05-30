@@ -20,7 +20,9 @@
         {"query": "ремонт квартир москва недорого", "freq_base": 1100, "freq_exact": 900, "source": "WS", "frequency_source": "jm_semantic_pack"},
         {"query": "ремонт квартиры москва", "freq_base": 4800, "freq_exact": 3100, "source": "WS", "frequency_source": "jm_semantic_pack"},
         {"query": "evil-competitor.ru ремонт", "freq_base": 100, "freq_exact": 50, "source": "Sug", "frequency_source": "jm_semantic_pack"},
-        {"query": "ремонт квартир москва от собственника", "freq_base": 320, "freq_exact": 180, "source": "WS", "frequency_source": "jm_semantic_pack"}
+        {"query": "ремонт квартир москва от собственника", "freq_base": 320, "freq_exact": 180, "source": "WS", "frequency_source": "jm_semantic_pack"},
+        {"query": "ремонт квартир ооо рога официальный сайт", "freq_base": 500, "freq_exact": 100, "source": "Sug", "frequency_source": "jm_semantic_pack"},
+        {"query": "ремонт квартир шум базовый", "freq_base": 50, "freq_exact": 0, "source": "WS", "frequency_source": "jm_semantic_pack"}
       ],
       "semantic_warning": null
     },
