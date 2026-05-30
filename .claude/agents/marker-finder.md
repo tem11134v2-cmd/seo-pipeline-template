@@ -97,6 +97,8 @@ wk_check_frequency(keywords=["маркер1", "маркер2", ...])
 
 Используй резерв только пакетом - один-два вызова на все проблемные маркеры (не по одному).
 
+**Фиксируй ОБЕ частотности (5.2):** `ws_exact` (точная, «в кавычках») И `ws_base` (базовая Wordstat). keyword_info отдаёт обе; jm_wordstat - через `freq_types=["base","exact"]`. `ws_base` критичен downstream: для B2B `ws_exact` часто 0 при живом `ws_base`, и semantic-expander решает «расширять или нет» именно по base (иначе живые страницы уходят голыми).
+
 В записи каждой страницы фиксируй `frequency_source`:
 - `"keyso"` - данные из Keyso (основной)
 - `"jm_wordstat"` - резерв через JM
@@ -248,6 +250,7 @@ arsenkin_top(queries=["<маркер>"], se=[{"type": 1, "region": <region_yande
       "role": "target",
       "marker": "ремонт квартир спб",
       "ws_exact": 5400,
+      "ws_base": 18000,
       "marker_source": "keyword_info",
       "frequency_source": "keyso",
       "manual_warning": null,

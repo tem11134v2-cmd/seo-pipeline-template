@@ -24,7 +24,8 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const N_TOP = 10;          // сколько запросов держим на странице
-const MIN_FREQ_KEEP = 0;   // запросы с частотой ниже выбрасываем (можно поднять, но 0 - safe default)
+const MIN_FREQ_KEEP = 0;   // точная частотность ниже этого выбрасывается (0 - safe default)
+const MIN_BASE_KEEP = 10;  // 5.2: но если exact=0, держим запрос при base >= 10 (B2B: живой спрос с нулевым "в кавычках")
 
 const structureDirArg = process.argv[2];
 if (!structureDirArg) {
@@ -105,6 +106,18 @@ function isOrthoMistake(query) {
   // Эвристика - повтор подряд 4+ букв, или цифро-буквенный шум, или 1-символьные слова в середине
   if (/(.)\1{3,}/.test(query)) return true;
   if (/[a-zа-я]\d[a-zа-я]/i.test(query) && !/iphone|ipad|samsung\s?galaxy/i.test(query)) return true;
+  return false;
+}
+
+// 5.1: навигационные/брендовые запросы к КОНКРЕТНОЙ организации (не наша категория).
+// Консервативно - только однозначные сигналы. Тонкий интент (geo-завод, чужой продукт)
+// добивает cannibalization-resolver (LLM-суждение). ВАЖНО: generic «завод X» НЕ режем -
+// клиент сам завод, «завод резервуаров» это коммерческий запрос, который нам НУЖЕН.
+function isNavigationalQuery(query) {
+  const q = query.toLowerCase();
+  if (/официальн\w*\s+сайт/.test(q)) return true;                       // "... официальный сайт"
+  if (/\b(ооо|оао|зао|пао|нпо|нпп|акционерн\w+ обществ\w+)\b/.test(q)) return true; // орг-формы
+  if (/\b(вакансии|отзывы сотрудник\w+|режим работы|как добраться|телефон горячей)\b/.test(q)) return true;
   return false;
 }
 
@@ -194,8 +207,11 @@ for (const master of masterList.pages) {
   const seenNormalized = new Set();
   const filtered = (sp.queries || [])
     .filter((q) => q && q.query)
-    .filter((q) => (q.freq_exact || 0) > MIN_FREQ_KEEP)
+    // 5.2: держим запрос при точной частотности ИЛИ заметной базовой. B2B-запросы часто имеют
+    // exact=0 при живой base - раньше их теряли, отсюда тонкие страницы.
+    .filter((q) => (q.freq_exact || 0) > MIN_FREQ_KEEP || (q.freq_base || 0) >= MIN_BASE_KEEP)
     .filter((q) => !isCompetitorBrandQuery(q.query))
+    .filter((q) => !isNavigationalQuery(q.query))
     .filter((q) => !isOrthoMistake(q.query))
     .filter((q) => {
       // Дубль в другой форме слова - первый по частотности выигрывает.
@@ -234,8 +250,8 @@ for (const master of masterList.pages) {
     });
   }
 
-  // Сортируем оставшиеся по freq_exact убыванием
-  filtered.sort((a, b) => (b.freq_exact || 0) - (a.freq_exact || 0));
+  // 5.2: сорт по точной убыв., тайбрейк по базовой (чтобы exact=0/base>0 ранжировались осмысленно)
+  filtered.sort((a, b) => ((b.freq_exact || 0) - (a.freq_exact || 0)) || ((b.freq_base || 0) - (a.freq_base || 0)));
 
   // Добавляем до N_TOP
   const limit = Math.max(0, N_TOP - top.length);

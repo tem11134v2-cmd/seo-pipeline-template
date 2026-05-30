@@ -196,7 +196,9 @@ for (const page of top10.pages) {
   const queries = page.queries || [];
   // queries[0] всегда маркер, потом 9 дополнительных
   const marker = queries[0]?.query || page.marker || "-";
-  const ws_freq = queries[0]?.freq_exact ?? page.ws_exact ?? "-";
+  // 5.2: показываем базовую частотность Wordstat (привычное "WS"-число; exact для B2B микроскопичен
+  // и создаёт ложное впечатление мёртвого рынка). Fallback на exact/ws_exact если base нет.
+  const ws_freq = queries[0]?.freq_base ?? queries[0]?.freq_exact ?? page.ws_exact ?? "-";
   const extras = queries.slice(1, 1 + MAX_QUERIES);
 
   const rowData = [
@@ -211,7 +213,7 @@ for (const page of top10.pages) {
 
   for (let i = 0; i < MAX_QUERIES; i++) {
     const q = extras[i];
-    rowData.push(q?.query ?? "-", q?.freq_exact ?? "-");
+    rowData.push(q?.query ?? "-", q?.freq_base ?? q?.freq_exact ?? "-"); // 5.2: base-preferred
   }
 
   // Собираем «Примечания» - комбинируем notes страницы + commerce_warning из markers.json.
