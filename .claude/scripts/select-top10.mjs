@@ -114,10 +114,13 @@ function isOrthoMistake(query) {
 // добивает cannibalization-resolver (LLM-суждение). ВАЖНО: generic «завод X» НЕ режем -
 // клиент сам завод, «завод резервуаров» это коммерческий запрос, который нам НУЖЕН.
 function isNavigationalQuery(query) {
-  const q = query.toLowerCase();
-  if (/официальн\w*\s+сайт/.test(q)) return true;                       // "... официальный сайт"
-  if (/\b(ооо|оао|зао|пао|нпо|нпп|акционерн\w+ обществ\w+)\b/.test(q)) return true; // орг-формы
-  if (/\b(вакансии|отзывы сотрудник\w+|режим работы|как добраться|телефон горячей)\b/.test(q)) return true;
+  // ВАЖНО: \w и \b в JS - ASCII-only, кириллицу НЕ матчат. Используем [а-яё] и пробельные границы.
+  const q = " " + query.toLowerCase().replace(/ё/g, "е") + " "; // паддинг пробелами для границ слов
+  if (/официальн[а-я]*\s+сайт/.test(q)) return true;                    // "... официальный сайт"
+  if (/[\s(](ооо|оао|зао|пао|нпо|нпп)[\s)]/.test(q)) return true;       // орг-формы как отдельное слово
+  if (/акционерн[а-я]+\s+обществ/.test(q)) return true;
+  if (/[\s(](вакансии|режим работы|как добраться)[\s)]/.test(q)) return true;
+  if (/отзывы сотрудник/.test(q)) return true;
   return false;
 }
 
