@@ -46,6 +46,26 @@ const markers = readJson(join(structureDir, "markers.json"));
 const masterList = readJson(join(structureDir, "master_list.json"));
 const inputs = readJson(join(structureDir, "inputs.json"));
 
+// === page_id (стабильный паспорт страницы) ===
+// master-list-builder проставляет master.id = slug(name). Если отсутствует (legacy/фикстуры) -
+// детерминированно выводим из названия. Используется как ключ журнала решений (а не плывущий n).
+function slugifyId(name) {
+  const map = {
+    а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i",
+    й: "j", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t",
+    у: "u", ф: "f", х: "h", ц: "c", ч: "ch", ш: "sh", щ: "shch", ъ: "", ы: "y", ь: "",
+    э: "e", ю: "yu", я: "ya",
+  };
+  return String(name || "page")
+    .toLowerCase()
+    .split("")
+    .map((c) => (c in map ? map[c] : c))
+    .join("")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "page";
+}
+
 // === A3.md - доменный стоп-лист (как блок-фильтр для брендов в запросах) ===
 // Мы не блокируем все запросы по доменам - это не имеет смысла на уровне запросов,
 // но из A3 можно вытащить «бренды конкурентов» (если домен типа «vasya-master.ru» -
@@ -96,8 +116,15 @@ function normalizeForDuplicate(query) {
     .replace(/[^a-zа-я0-9\s]/gi, " ")
     .split(/\s+/)
     .filter(Boolean)
-    // Грубое «лемматизирование» - убираем русские окончания
-    .map((w) => w.replace(/(ого|его|ому|ему|ыми|ими|ами|ями|ах|ях|ой|ей|ою|ею|ия|ие|ии|ый|ий|ая|ое|ые|ое|ый|им|ым|ом|ем|ой|у|ы|и|а|е|я|ю|у|ь)$/, ""))
+    // Грубое «лемматизирование» - убираем русские окончания.
+    // Двухсимвольные+ окончания срезаем всегда; одиночные (а/е/и/о/у/ы/я/ю/ь/й) - ТОЛЬКО если
+    // основа остаётся длиннее 4 букв (защита коротких терминов оборудования от ложной склейки:
+    // напр. «вал»/«вол» не должны схлопнуться, а «резервуары» -> «резервуар» - схлопывается ок).
+    .map((w) => {
+      let s = w.replace(/(ого|его|ому|ему|ыми|ими|ами|ями|ах|ях|ой|ей|ою|ею|ия|ие|ии|ый|ий|ая|ое|ые|им|ым|ом|ем)$/, "");
+      if (s.length > 4) s = s.replace(/(а|е|и|о|у|ы|я|ю|ь|й)$/, "");
+      return s;
+    })
     .sort()
     .join(" ");
 }
@@ -115,6 +142,7 @@ const pagesOutput = [];
 for (const master of masterList.pages) {
   const sp = semanticByNum.get(master.n);
   const mk = markerByNum.get(master.n);
+  const pageId = master.id || (mk && mk.id) || slugifyId(master.name);
 
   if (!mk) {
     // Нет записи в markers.json - пропускаем (возможно legacy данные).
@@ -125,6 +153,7 @@ for (const master of masterList.pages) {
     // Информационная или унаследованная - пустой топ-10, но страница в выходе есть.
     pagesOutput.push({
       n: master.n,
+      id: pageId,
       name: master.name,
       type: master.type,
       marker: null,
@@ -141,6 +170,7 @@ for (const master of masterList.pages) {
     // Маркер есть, но JM не дал результата - страница попадёт с только маркером.
     pagesOutput.push({
       n: master.n,
+      id: pageId,
       name: master.name,
       type: master.type,
       marker: mk.marker,
@@ -222,6 +252,7 @@ for (const master of masterList.pages) {
 
   pagesOutput.push({
     n: master.n,
+    id: pageId,
     name: master.name,
     type: master.type,
     marker: mk.marker,
@@ -257,6 +288,7 @@ for (const page of pagesOutput) {
     if (!queryToPages.has(norm)) queryToPages.set(norm, []);
     queryToPages.get(norm).push({
       n: page.n,
+      id: page.id,
       name: page.name,
       query: q.query,
       freq_exact: q.freq_exact,
@@ -287,6 +319,7 @@ for (const [norm, list] of queryToPages.entries()) {
     freq_exact: list[0].freq_exact,
     pages: list.map((e) => ({
       n: e.n,
+      id: e.id,
       name: e.name,
       marker: e.page_marker,
       marker_freq: e.page_marker_freq,

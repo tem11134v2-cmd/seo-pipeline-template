@@ -22,10 +22,12 @@ MCP не используешь. Это чистая компиляция дан
 1. `<structure_dir>/structure_data.json` - **главный источник**: правленая клиентом версия мастер-списка с полем `target_status` (`yes` / `no` / `discuss`-разрешённое).
 2. `<structure_dir>/cannibalization.json` - `recommendations[]` (рекомендации по расширению), `resolutions[]`.
 3. `<structure_dir>/master_list.json` - `pairing_performed`, `unique_features`, миграционные решения (для листа «Миграция»).
-4. `<structure_dir>/inputs.json` - параметры проекта (`slug`, `domain`, `keyso_base`, `region_yandex`, `region_name`).
+4. `<structure_dir>/inputs.json` - параметры проекта (`slug`, `domain`, `keyso_base`, `region_yandex`, `region_name`, `note_region`, `analysis_reconstructed`).
 5. `<analysis_dir>/brief.json` - `niche`, `region`, `domain`, `company_name`.
 6. `<analysis_dir>/competitors.json` - `direct[]`, `leaders_top3[]` для секции «Конкуренты».
 7. `<analysis_dir>/A3.md` - стоп-лист (для информации в шапке, опц.).
+8. `<structure_dir>/semantic_pack.json` (опц.) - поля `degraded`, `degraded_reason`, `region_note` (для блока «Замечания прогона» - честно отразить, если JM деградировал).
+9. `<structure_dir>/decisions.json` (опц.) - журнал авто-решений алгоритма (для раздела «Наши SEO-решения»; low-confidence выносятся отдельным чек-листом).
 
 ## Что делать
 
@@ -50,7 +52,19 @@ MCP не используешь. Это чистая компиляция дан
 - **Конкурентов в анализе:** <competitors.direct.length>
 - **Топ-3 лидера:** <competitors.leaders_top3 через запятую>
 - **Доменов в стоп-листе:** <количество строк A3.md минус заголовок>
-- **Спаривание с клиентом выполнено:** <да/нет, если да - сколько существующих/301/удалить/обсудить>
+- **Спаривание с клиентом выполнено:** <да/нет; если нет - указать master_list.pairing_skipped_reason>
+
+<Если есть хоть одно из: inputs.analysis_reconstructed==true, inputs.note_region непуст, semantic_pack.degraded==true, master_list.pairing_skipped_reason непуст - добавить подраздел ниже. Иначе пропустить.>
+
+### Замечания прогона
+
+> Честный статус данных, на которых построена структура. Не скрывать.
+
+<построчно, только непустые:>
+- ⚠️ **Анализ реконструирован:** структура построена на реконструированных данных (не нативный прогон /seo-analysis). <если inputs.analysis_reconstructed>
+- ⚠️ **Регион:** <inputs.note_region> <если непуст - например про замену федерального кода на 213 и что Казахстан/.kz вне scope этого прогона>
+- ⚠️ **JM деградировал:** <semantic_pack.degraded_reason> - семантика собрана на урезанном наборе источников; топ-10 ранжированы по частотности (она цела), но охват кандидатов уже обычного. <если semantic_pack.degraded>
+- ⚠️ **Спаривание не выполнено:** <master_list.pairing_skipped_reason>. <если непуст и pairing не делалось>
 
 ---
 
@@ -81,6 +95,27 @@ MCP не используешь. Это чистая компиляция дан
 <если пуст:>
 
 Расширение не требуется - текущая структура покрывает основную семантику.
+
+---
+
+## Наши SEO-решения (журнал)
+
+> Решения, которые алгоритм принял САМ (клиента по SEO не спрашивали). Источник: `decisions.json`.
+
+<если decisions.json есть и непуст:>
+
+| Страница | Что сделали | Почему | Уверенность |
+|---|---|---|---|
+<построчно из decisions[]: page_id/name | what | why | confidence>
+
+<Отдельно вынеси low-confidence как чек-лист (структурные решения - роль/расщепление/свёртка):>
+
+**Проверить при желании (low-confidence):**
+- <для каждого decision с confidence == "low": «<what> (<page_id>) - <why>»>
+
+<если decisions.json нет или пуст:>
+
+Авто-решений не потребовалось - маркеры коммерческие, структура чистая.
 
 ---
 

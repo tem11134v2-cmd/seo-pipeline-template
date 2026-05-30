@@ -58,6 +58,7 @@ structures/NNN-<domain-slug>/
 ├── semantic_pack.json         # топ-30 JM на каждый маркер
 ├── top10.json                 # отфильтрованные топ-10 на каждую страницу
 ├── cannibalization.json       # список конфликтов + разрешения + рекомендации по расширению
+├── decisions.json             # журнал авто-решений алгоритма (роль/синоним/блог/свёртка) + confidence
 ├── A6_<slug>.xlsx             # ФИНАЛ-1 (для клиента): 4 листа
 ├── client_filled.xlsx         # после шага --import (правленая клиентом версия)
 ├── structure_data.json        # машиночитаемый разбор client_filled.xlsx
@@ -95,16 +96,28 @@ import_path = <значение --import> или null
 `analysis_dir = analyses/<NNN>-*/` - найти по NNN (glob). Если не найдено - стоп:
 > Нет папки `analyses/<NNN>-*/`. Запусти `/seo-analysis` чтобы собрать предпроектный анализ (или укажи существующий номер).
 
-Прочитать ключевые JSON. Если хоть один отсутствует (`brief.json`, `competitors.json`, `serp.json`):
-> Анализ `<analysis_dir>` неполный. Запусти `/seo-analysis --resume <NNN>` чтобы дособрать.
+**Валидация входа (схема, не «файл существует»).** Прогнать:
 
-`leader_scan.json` опциональный (используется только для рекомендаций) - его отсутствие не блокирует.
+```
+.claude\scripts\_node.cmd .claude\scripts\validate-analysis-inputs.mjs <analysis_dir>
+```
+
+- Exit 0 - канон-схема цела, продолжаем. Если в выводе строка `⚠ ВНИМАНИЕ: анализ реконструирован` - **запомнить** этот факт: surface его в стартовой сводке и передать в A6.md («структура построена на реконструированных данных»).
+- Exit 2 - не хватает файлов/полей (скрипт печатает построчно чего нет, включая дрейф схемы вроде `target_queries_client` вместо `client_target_queries`). Стоп:
+  > Анализ `<analysis_dir>` не в канон-схеме (см. список выше). Варианты: (1) `/seo-analysis --resume <NNN>`; (2) если только legacy A2.md - дособрать канон-JSON вручную по образцу `structures/001-*/`.
+- Exit 1 - ошибка запуска (нет директории / битый JSON) - показать stderr, стоп.
+
+`leader_scan.json` опциональный (используется только для рекомендаций) - его отсутствие не блокирует (скрипт лишь предупреждает).
 
 Извлечь:
 - `slug = brief.slug`
 - `domain = brief.domain` (может быть null)
 - `keyso_base = brief.keyso_base`
-- `region_yandex` - код Яндекса по `brief.region`. Если не в стандартном списке (Москва=213, СПб=2, Екб=54, Краснодар=35, Минск=157, и т.д.) - вызвать `mcp_wordstat_get_regions_tree` (один раз) и найти.
+- `region_yandex` - код Яндекса по `brief.region`. **Guard от country-кода:** источник `suggest` в `jm_semantic_pack` отклоняет country-level коды (`225` Россия, `0`, `null`) с ошибкой `ya_lr_err`. Поэтому:
+  - Если регион - конкретный город из стандартного списка (Москва=213, СПб=2, Екб=54, Краснодар=35, Минск=157, и т.д.) - бери его код.
+  - Если регион федеральный / «Россия» / «Россия + <страна>» / не определяется до города - **НЕ ставить 225/0**, ставить дефолт-город `213` (Москва) и записать `note_region` в inputs.json: «Регион федеральный (`<region>`); 225/0 ломают источник Sug в JM, взят 213 для оценки рынка».
+  - Если город не в стандартном списке - один раз `mcp_wordstat_get_regions_tree` и найти код города; если и там только страна - дефолт 213 + `note_region`.
+  - **Тип:** `region_yandex` записывать в inputs.json **числом** (`213`), не строкой (`"213"`) - JM-tool ждёт integer.
 
 #### 1b. Если `--resume` ИЛИ `--import`
 
@@ -126,12 +139,16 @@ import_path = <значение --import> или null
   "slug": "<slug>",
   "domain": "<domain>|null",
   "keyso_base": "<keyso_base>",
-  "region_yandex": "<region_yandex_code>",
+  "region_yandex": 213,
   "region_name": "<region>",
+  "note_region": "<пусто, либо причина guard-замены на 213 для федерального региона>",
+  "analysis_reconstructed": false,
   "competitors_source": "analyses/<NNN>-<slug>/competitors.json",
   "stop_list_source": "analyses/<NNN>-<slug>/A3.md"
 }
 ```
+
+> `region_yandex` - **число** (не строка). `analysis_reconstructed` - `true` если валидатор сообщил о `_import_meta` (см. 1a); потребляется `structure-writer` для пометки в A6.md.
 
 4. Создать `meta.json`:
 
@@ -180,7 +197,7 @@ structure_dir: <structure_dir>
 analysis_dir: <analysis_dir>
 project_root: <project root>
 
-Прочитай master_list.json + brief.json (для keyso_base) + competitors.json (для лидеров и доменов). Для каждой страницы (кроме информационных) определи маркер через каскад: domain_keywords(лидер) -> domain_keywords(остальные конкуренты) -> keyword_info -> keyword_similar -> ручное. Если Keyso не даёт данных - резерв jm_wordstat (пакетно) или wk_check_frequency (массово). Сохрани markers.json.
+Прочитай master_list.json (с полем id) + brief.json (для keyso_base) + competitors.json (для лидеров и доменов). Для каждой страницы (кроме информационных) определи маркер через каскад: domain_keywords(лидер) -> domain_keywords(остальные конкуренты) -> keyword_info -> keyword_similar -> ручное. Если Keyso не даёт данных - резерв jm_wordstat (пакетно) или wk_check_frequency (массово). Проверь коммерциализацию (arsenkin_commerce). info_dominant без синонима 1:1 - НЕ сваливай на клиента: переназначь role=umbrella, инфо-запрос в блог, коммерцию на страницу-дом, запиши всё в decisions.json (идемпотентно по id). Протяни id из master_list. Сохрани markers.json + decisions.json.
 ```
 
 После завершения:
@@ -198,13 +215,17 @@ structure_dir: <structure_dir>
 analysis_dir: <analysis_dir>
 project_root: <project root>
 
-Прочитай markers.json + inputs.json (для region_yandex). Проверь баланс JM через jm_account. Оцени стоимость для всех маркеров. Если хватает - запусти jm_semantic_pack пакетом, top_n=30. Для запросов без частотности - резервный источник (jm_wordstat или wk_check_frequency). Сохрани semantic_pack.json.
+Прочитай markers.json + inputs.json (для region_yandex). Проверь баланс JM через jm_account. Оцени стоимость. Прогони region-guard (country-код 225/0 -> 213). Запусти jm_semantic_pack ПАКЕТАМИ по 12-15 маркеров (не один монолит на 40+ - словишь MCP-таймаут; не по одному - расточительно), top_n=30, with_topics=false. При таймауте пакета - ретрай, потом деградация источников с явным degraded:true. Для запросов без частотности - резерв (jm_wordstat или wk_check_frequency). Сохрани semantic_pack.json.
 ```
 
 После завершения:
 - `bash .claude/hooks/update-meta.sh <structure_dir> semantic-done`
-- Сводка: маркеров отправлено / успешных / без результатов / общее количество запросов.
-- **В `--review`** - пауза с сообщением:
+- Сводка: маркеров отправлено / пакетов / успешных / без результатов / общее количество запросов.
+- **Гейт деградации (не пропускать молча).** Прочитать `semantic_pack.json`. Если `degraded == true` ИЛИ у ВСЕХ страниц `freq_exact` пуст (полный провал частотности) - это **точка решения**, не успех:
+  - Записать событие: `bash .claude/hooks/update-meta.sh <structure_dir> semantic-done degraded="<degraded_reason из semantic_pack.json>"`.
+  - В `--review` - пауза: «JM деградировал (`<причина>`). Источники урезаны/частотность неполна. Принять как есть или ретрай полного набора? [принять/ретрай]».
+  - В `--auto` - продолжить, но degraded-флаг ОБЯЗАН дойти до A6.md (structure-writer пометит «структура частично на деградированных JM-данных»). Не выдавать за чистый успех.
+- **В `--review`** (если не деградация) - пауза:
   > JM-расширение завершено. Перед фильтрацией - проверь сводку. ОК? [Y/n]
 - **В `--auto`** - переход к шагу 5.
 
@@ -234,12 +255,13 @@ structure_dir: <structure_dir>
 analysis_dir: <analysis_dir>
 project_root: <project root>
 
-Прочитай top10.json + cannibalization.json (с конфликтами и альтернативами) + master_list.json + leader_scan.json (если есть). Разреши каждый конфликт по правилам "ближе по смыслу к маркеру". Сформулируй рекомендации по расширению (запросы под отдельные страницы, которых нет в master_list, но есть у конкурентов). Обнови top10.json (после замен) и cannibalization.json (добавь resolutions[] + recommendations[]).
+Прочитай top10.json + cannibalization.json (с конфликтами и альтернативами) + master_list.json + leader_scan.json (если есть) + decisions.json (если есть). Разреши каждый конфликт по правилам "ближе по смыслу к маркеру". Сформулируй рекомендации по расширению. Раздели: SEO-механику (расщепление/свёртка низкочастоток/добавление под запрос конкурента) - в decisions.json (kind add_page/split_page/merge_lowfreq, confidence low) + recommendations[]; бизнес-реальность (производит ли клиент?) - флагом business_flag клиенту. master_list НЕ переписывай (журнал = решение в данных). Обнови top10.json + cannibalization.json + допиши decisions.json (идемпотентно по id).
 ```
 
 После завершения:
 - `bash .claude/hooks/update-meta.sh <structure_dir> top10-done`
-- Сводка: разрешённых конфликтов / рекомендаций по расширению / страниц без полного топ-10.
+- Сводка: разрешённых конфликтов / рекомендаций по расширению / страниц без полного топ-10 / решений в журнал.
+- **Аудит low-confidence (`--review`).** Прочитать `decisions.json`. Если есть решения с `confidence == "low"` (структурные - роль/расщепление/свёртка) - в `--review` пауза: «Алгоритм принял `<N>` структурных решений (`<список kind:page_id>`). Они применены (как требует автономный режим), но помечены low-confidence. Принять / поправить? [принять/правки]». В `--auto` - продолжить, они уйдут в A6.md отдельным списком «проверить при желании».
 - Переход к шагу 6.
 
 ### 6. Сборка A6.xlsx (если state == "top10-done")
@@ -345,6 +367,11 @@ mcp__gdrive-piotr__uploadFile(
 
 Если N - стоп, выйти с сообщением «Дозаполни xlsx и запусти заново».
 
+**Проверка «нетронутого файла» (exit 0, но все «да»).** Колонка предзаполнена «да» по умолчанию. Если после парсинга `stats.yes == stats.total` (ни одной «нет»/«обсудить») - возможно клиент вернул файл, не глядя. НЕ трактуй молча как «всё целевое»:
+> Клиент вернул файл со всеми «да» (это значение по умолчанию). Он реально просмотрел структуру и подтверждает все `<N>` страниц - или файл нетронут? [подтверждено / переспросить клиента]
+
+В `--auto` - продолжить, но отметить в сводке «все целевые приняты по умолчанию (клиент не вносил правок)».
+
 #### 9c. Собрать A6.md
 
 Маркер: `.claude/tmp/expected-structure-writer-<run_id>.txt = <structure_dir>/A6.md`
@@ -355,7 +382,7 @@ structure_dir: <structure_dir>
 analysis_dir: <analysis_dir>
 project_root: <project root>
 
-Прочитай structure_data.json + cannibalization.json + master_list.json + inputs.json + analyses/NNN/A3.md. Собери A6.md по фиксированному шаблону - шапка проекта + Целевые + Рекомендации + Конкуренты + Миграция + Отложенные (с причинами).
+Прочитай structure_data.json + cannibalization.json + master_list.json + inputs.json + decisions.json (если есть) + semantic_pack.json (для degraded) + analyses/NNN/A3.md. Собери A6.md по фиксированному шаблону - шапка проекта + Замечания прогона (реконструкция/регион/деградация/спаривание) + Целевые + Рекомендации + Наши SEO-решения (журнал, low-confidence отдельным чек-листом) + Конкуренты + Миграция + Отложенные (с причинами).
 ```
 
 После завершения:

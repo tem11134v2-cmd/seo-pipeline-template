@@ -160,7 +160,7 @@ const queryHeaders = [];
 for (let i = 2; i <= MAX_QUERIES + 1; i++) {
   queryHeaders.push(`Запрос ${i}`, `Ч${i}`);
 }
-const fixedRight = ["У конкурентов", "Приоритет", "Статус", "Примечания"];
+const fixedRight = ["У конкурентов", "Приоритет", "Статус", "Роль", "Примечания"];
 const headers1 = [...fixedLeft, ...queryHeaders, ...fixedRight];
 const totalCols1 = headers1.length;
 
@@ -228,10 +228,14 @@ for (const page of top10.pages) {
   }
   const notesCell = notesParts.join(" | ");
 
+  // Роль страницы - простановка алгоритма (markers.role), клиент её не заполняет.
+  const role = markerData?.role || (page.type === "info" ? "info" : "target");
+
   rowData.push(
     master?.coverage ?? "-",
     PRIO_RU[priority],
     page.type === "info" ? "info" : statusRu(master?.migration_decision),
+    roleRu(role),
     notesCell
   );
 
@@ -240,15 +244,10 @@ for (const page of top10.pages) {
   r.eachCell((cell) => applyBody(cell, priority));
   r.alignment = { vertical: "top", wrapText: true };
 
-  // Красный шрифт на «Примечания» для серьёзных warning'ов
+  // info_dominant/not_verified: НЕ красная подсветка-warning (сигнал isCommerce недостоверен для B2B,
+  // и в Фазе 2 такие страницы уже авто-обработаны: роль -> umbrella, см. колонку «Роль» + decisions.json).
+  // Оставляем как тихую служебную заметку обычным шрифтом - просто считаем для лога.
   if (markerData?.commerce_note === "info_dominant" || markerData?.commerce_note === "not_verified") {
-    const notesCol = totalCols1; // последняя колонка
-    ws1.getCell(row1, notesCol).font = {
-      name: FONT_FAMILY,
-      size: FONT_SIZE,
-      color: { argb: COLORS.warning },
-      bold: true,
-    };
     rowsWithCommerceWarning.push(row1);
   }
   row1++;
@@ -268,7 +267,8 @@ for (let i = 8; i < 8 + queryHeaders.length; i++) {
 ws1.getColumn(8 + queryHeaders.length).width = 14;
 ws1.getColumn(9 + queryHeaders.length).width = 12;
 ws1.getColumn(10 + queryHeaders.length).width = 16;
-ws1.getColumn(11 + queryHeaders.length).width = 50; // «Примечания» шире — здесь commerce_warning
+ws1.getColumn(11 + queryHeaders.length).width = 14; // «Роль»
+ws1.getColumn(12 + queryHeaders.length).width = 50; // «Примечания» шире — здесь служебная заметка
 
 ws1.views = [{ state: "frozen", xSplit: 5, ySplit: 2 }];
 ws1.autoFilter = { from: { row: 2, column: 1 }, to: { row: row1 - 1, column: totalCols1 } };
@@ -352,10 +352,10 @@ for (const c of directList) {
     c.dr ?? "-",
     c.top10 ?? "-",
     c.top50 ?? "-",
-    c.pages_in_base ?? "-",
+    c.pages_keyso ?? c.pages_in_base ?? "-",
     c.traffic_month ?? "-",
     "мастер-список + маркеры",
-    isLeader ? "⭐ лидер" : (c.notes || ""),
+    isLeader ? "⭐ лидер" : (c.note || c.notes || ""),
   ]);
   ws3.getRow(r3).eachCell((cell) => applyBody(cell));
   r3++;
@@ -429,7 +429,29 @@ console.log(`   Recommendations: ${cannibalization.recommendations?.length || 0}
 console.log(`   Competitors: ${directList.length}`);
 console.log(`   Migration: ${masterList.pairing_performed ? "yes" : "n/a"}`);
 if (rowsWithCommerceWarning.length > 0) {
-  console.log(`   ⚠ Pages with commerce warning (highlighted red): ${rowsWithCommerceWarning.length} (rows: ${rowsWithCommerceWarning.join(", ")})`);
+  console.log(`   i Pages with info-dominant note (role auto-set umbrella, neutral note): ${rowsWithCommerceWarning.length} (rows: ${rowsWithCommerceWarning.join(", ")})`);
+}
+
+// === Смысловой sanity-assert (не fatal) ===
+// Заменяет «verify читаемости xlsx» (round-trip всегда читаем - это театр).
+// Ловит реальную дыру: коммерческая страница ушла клиенту без живого маркера/запросов
+// (например из-за молчаливой деградации JM). Только предупреждение - файл уже собран.
+const COMMERCIAL_TYPES = new Set(["home", "category", "service", "product"]);
+const sanityIssues = [];
+for (const page of top10.pages) {
+  if (!COMMERCIAL_TYPES.has(page.type)) continue;
+  const md = markersByNum.get(page.n);
+  // info_dominant / not_verified - это осознанные пометки marker-finder, не дыра.
+  if (md?.commerce_note === "info_dominant") continue;
+  const queries = page.queries || [];
+  const hasMarker = (queries[0]?.query && queries[0].query !== "-") || (page.marker && page.marker !== "-");
+  if (!hasMarker || queries.length === 0) {
+    sanityIssues.push(`n${page.n} «${page.name}» (${page.type}) - без живого маркера/запросов`);
+  }
+}
+if (sanityIssues.length > 0) {
+  console.log(`   ⚠ SANITY: ${sanityIssues.length} коммерческих страниц ушли бы клиенту пустыми - проверь semantic_pack (деградация JM?):`);
+  for (const s of sanityIssues) console.log(`       - ${s}`);
 }
 
 // === Локали ===
@@ -443,6 +465,16 @@ function typeRu(type) {
     info: "Инфо",
     other: "Прочее",
   }[type] || type;
+}
+
+function roleRu(role) {
+  return {
+    target: "целевая",
+    umbrella: "зонтичная",
+    navigational: "навигац.",
+    info: "инфо",
+    article: "блог",
+  }[role] || role || "целевая";
 }
 
 function statusRu(migration) {

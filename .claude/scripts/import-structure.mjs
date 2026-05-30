@@ -91,6 +91,7 @@ const COL_WS = findCol("WS");
 const COL_COMPETITORS = findCol("У конкурентов");
 const COL_PRIORITY = findCol("Приоритет");
 const COL_STATUS = findCol("Статус");
+const COL_ROLE = findCol("Роль"); // может быть -1 в старых файлах (до Фазы 4) - guard ниже
 const COL_NOTES = findCol("Примечания");
 
 if (COL_TARGET < 0) {
@@ -164,6 +165,7 @@ for (let r = firstDataRow; r <= ws.rowCount; r++) {
     competitors: row.getCell(COL_COMPETITORS).value ? String(row.getCell(COL_COMPETITORS).value).trim() : "",
     priority: row.getCell(COL_PRIORITY).value ? String(row.getCell(COL_PRIORITY).value).trim() : "",
     status: row.getCell(COL_STATUS).value ? String(row.getCell(COL_STATUS).value).trim() : "",
+    role: COL_ROLE > 0 && row.getCell(COL_ROLE).value ? String(row.getCell(COL_ROLE).value).trim() : "",
     client_notes: row.getCell(COL_NOTES).value ? String(row.getCell(COL_NOTES).value).trim() : "",
   };
 
