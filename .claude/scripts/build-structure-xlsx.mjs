@@ -206,7 +206,9 @@ for (const page of top10.pages) {
     url,
     typeRu(page.type),
     page.name,
-    "да", // по умолчанию все «да», клиент исправит
+    // business_flag (новое/смежное направление) -> по умолчанию «обсудить» (клиент решает явно);
+    // обычные страницы -> «да» (клиент снимает ненужные). 5.x: раньше business_flag не доезжал до xlsx.
+    master?.business_flag ? "обсудить" : "да",
     marker,
     ws_freq,
   ];
@@ -227,6 +229,13 @@ for (const page of top10.pages) {
     notesParts.push(`Маркер заменён по коммерциализации: было «${markerData.original_marker}» → стало «${markerData.marker}»`);
   } else if (markerData?.commerce_note === "not_verified") {
     notesParts.push(`⚠ Коммерциализация не проверена (arsenkin_commerce был недоступен) - проверить вручную`);
+  }
+  // Бизнес-вопрос Фазы 3 (смежные/броадер-направления) - выводим клиенту в Примечания.
+  if (master?.business_flag) {
+    notesParts.unshift(`🏢 Новое/смежное направление - подтвердите: ${master.business_question || "производите / готовы освоить?"}`);
+  }
+  if (master?.demand === "low") {
+    notesParts.push("нишевая (низкая текущая видимость у конкурентов - валидная посадка)");
   }
   const notesCell = notesParts.join(" | ");
 

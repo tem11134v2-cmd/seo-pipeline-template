@@ -103,6 +103,26 @@ await step("select-top10 filtered competitor brand", () => {
   return true;
 });
 
+await step("select-top10 filters navigational query (5.1)", () => {
+  const top = JSON.parse(readFileSync(join(sandboxDir, "top10.json"), "utf8"));
+  const allQueries = top.pages.flatMap((p) => p.queries.map((q) => q.query.toLowerCase()));
+  // "... ооо рога официальный сайт" - навигация к конкретной орг., должна быть вырезана 5.1
+  const survived = allQueries.filter((q) => q.includes("официальный сайт") || /\bооо\b/.test(q));
+  if (survived.length) return "navigational query survived 5.1 filter: " + survived.join("; ");
+  return true;
+});
+
+await step("select-top10 keeps base-only query exact=0,base>=10 (5.2)", () => {
+  const top = JSON.parse(readFileSync(join(sandboxDir, "top10.json"), "utf8"));
+  const allQueries = top.pages.flatMap((p) => p.queries.map((q) => q.query));
+  // exact=0 но base=1200 (n3) и base=50 (n1) - 5.2 должна их СОХРАНИТЬ (раньше exact>0 их резал)
+  const kept1200 = allQueries.includes("ремонт ванной комнаты под ключ");
+  const kept50 = allQueries.includes("ремонт квартир шум базовый");
+  if (!kept1200) return "base-only query (base=1200, exact=0) был выброшен - 5.2 не работает";
+  if (!kept50) return "base-only query (base=50, exact=0) был выброшен - 5.2 не работает";
+  return true;
+});
+
 // === Тест 2: build-structure-xlsx ===
 // Скрипт читает cannibalization.json - для теста xlsx используем уже разрешённую версию
 // (имитируем выход cannibalization-resolver).
