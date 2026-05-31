@@ -98,7 +98,7 @@ output_path: .claude/handoff-requests/files/template.html
 3. **Рендер только через localhost (НЕ `file://`).** ⚠️ Chrome-MCP `navigate` принудительно дописывает `https://`, поэтому `file://...` превращается в `https://file://...` и даёт страницу-ошибку. Поэтому:
    1. Поднять сервер в фоне: `.claude\scripts\_node.cmd .claude\scripts\preview-server.mjs .claude/handoff-requests/files 8765` (раздаёт папку с template.html).
    2. `navigate` `{ url: "http://localhost:8765/template.html", tabId }`.
-   3. После скриншота — погасить сервер (убить процесс на порту).
+   3. После скриншота — погасить сервер. На Windows по порту: `powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 8765 -State Listen -EA SilentlyContinue | %% { Stop-Process -Id \$_.OwningProcess -Force }"` (или просто завершить фоновую задачу сервера).
 4. Скриншот: `computer` `{ action: "screenshot", tabId, save_to_disk: true }` (НЕ `preview_screenshot` — то из другого MCP). Показать в чате.
 5. **Вердикт самопроверки** по скриншоту: подгрузился ли заявленный в `--nx-font` шрифт (или упал в Arial/Times-fallback), не поехала ли вёрстка (наезды, пустые блоки, сломанные таблица/FAQ/оглавление), читаемы ли цвета текста на фоне, не пустая ли страница (placeholder вроде `{{TITLE}}` = шаблон собрался криво).
 
@@ -171,4 +171,4 @@ Bash: xdg-open .claude/handoff-requests/files/template.html || open .claude/hand
 
 ## Состояние
 
-Скил одношаговый, без resume. Если что-то сломалось посередине — откати handoff-requests/setup-meta.json и handoff-requests/files/ и запусти заново.
+Полноценного resume нет, но есть идемпотентность профиля (шаг 2): если `files/ЗАКАЗЧИК.md` уже собран, при повторном запуске предлагается переиспользовать его, не гоняя `client-profiler` заново. Если сломалось на шаблоне/валидации — повторный запуск переиспользует профиль и доводит шаблон. Полный сброс — удалить `handoff-requests/setup-meta.json` и `handoff-requests/files/` и запустить заново.
