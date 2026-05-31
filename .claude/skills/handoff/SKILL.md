@@ -139,10 +139,15 @@ git -C "$MAIN_WT" branch -d "$CURRENT_BRANCH" || git -C "$MAIN_WT" branch -D "$C
 ### 6. Финал
 
 Сообщить пользователю:
+Про судьбу папки worktree подставить конкретику по факту шага 4:
+- Если `worktree remove --force` прошёл — «Папка worktree удалена.»
+- Если упал (Windows file lock) — назвать путь и дать команду:
+  > Папка `<PROJECT_ROOT>` осталась на диске (file lock индексатора Windows держит её, пока открыта эта сессия). Удалится автоматически при следующем `/handoff-process`, либо вручную после закрытия сессии: `Remove-Item -Recurse -Force "<PROJECT_ROOT>"`.
+
 ```
 ═══ HANDOFF DONE ═══
 Ветка <CURRENT_BRANCH> смержена в <BASE_BRANCH> и удалена.
-Worktree удалена (или будет очищена при следующем /handoff-process).
+Worktree: <удалена | папка <PROJECT_ROOT> осталась на диске, см. выше>.
 
 Следующий шаг:
   Если эта задача сгенерировала handoff-requests (setup-project / new-topics / request-shared-edit):
