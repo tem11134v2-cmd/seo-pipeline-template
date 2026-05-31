@@ -7,3 +7,5 @@ Thumbs.db
 .claude/tmp/
 *.log
 tmp-skill-extract/
+# Маркер шаблона: untracked, чтобы клиентские клоны его не наследовали (см. .claude/hooks/guard-template-root.sh)
+.claude/.is-template-root

@@ -90,17 +90,19 @@ output_path: .claude/handoff-requests/files/template.html
 
 **a) Скриншот через Claude in Chrome (best-effort, деградация на каждом шаге).**
 
-Точный порядок вызовов (важно: `navigate` требует `tabId`, а скриншот в Chrome-MCP делается действием `computer` с `action: "screenshot"`, НЕ `preview_screenshot` — то из другого сервера):
+Точный порядок (проверен вживую 2026-05-31; важные гочи отмечены):
 1. `mcp__Claude_in_Chrome__list_connected_browsers`.
-   - Если вернулся непустой список — взять активный (или `select_browser` по deviceId).
-   - Если `[]` (MCP-сервер поднят, но ни один браузер не спарен — типичный случай) — один раз вызвать `switch_browser` (рассылает запрос на подключение, ждёт до 2 мин, пока пользователь нажмёт «Connect» в Chrome). Сообщить пользователю: «Нажми Connect в расширении Claude in Chrome для скриншота-самопроверки (опционально)». Если так и не подключился — **деградировать** (шаг ниже), не блокировать setup.
-2. `tabs_create_mcp` (или `tabs_context_mcp`) → получить `tabId`.
-3. `navigate` `{ url: "file://<АБСОЛЮТНЫЙ путь к корню>/.claude/handoff-requests/files/template.html", tabId }`.
-   - ⚠️ Гоча: для `file://` у расширения должно быть включено «Allow access to file URLs» (chrome://extensions → Claude in Chrome → Details). Если навигация заблокирована/пустая страница — **fallback на localhost**: поднять локальный статический сервер из папки files (`python -m http.server` или `npx --yes serve`), `navigate` на `http://localhost:<порт>/template.html`, после скриншота сервер погасить. Если и это не вышло — деградировать.
-4. Скриншот: `computer` `{ action: "screenshot", tabId, save_to_disk: true }`. Показать в чате.
-5. **Вердикт самопроверки** по скриншоту: подгрузился ли заявленный в `--nx-font` шрифт (или упал в Arial/Times-fallback), не поехала ли вёрстка (наезды, пустые блоки, сломанные таблица/FAQ/оглавление), читаемы ли цвета текста на фоне.
+   - Непустой список — взять активный (или `select_browser` по deviceId).
+   - `[]` (MCP-сервер поднят, но браузер не спарен) — один раз `switch_browser` (рассылает запрос, ждёт до 2 мин, пока пользователь нажмёт «Connect»). Сообщить: «Нажми Connect в расширении Claude in Chrome (опционально, для скриншота-самопроверки)». Если так и не подключился — **деградировать** (ниже).
+2. `tabs_context_mcp` `{ createIfEmpty: true }` → взять `tabId` из ответа. ⚠️ НЕ `tabs_create_mcp` первым: без существующей группы он падает с «No tab group exists».
+3. **Рендер только через localhost (НЕ `file://`).** ⚠️ Chrome-MCP `navigate` принудительно дописывает `https://`, поэтому `file://...` превращается в `https://file://...` и даёт страницу-ошибку. Поэтому:
+   1. Поднять сервер в фоне: `.claude\scripts\_node.cmd .claude\scripts\preview-server.mjs .claude/handoff-requests/files 8765` (раздаёт папку с template.html).
+   2. `navigate` `{ url: "http://localhost:8765/template.html", tabId }`.
+   3. После скриншота — погасить сервер (убить процесс на порту).
+4. Скриншот: `computer` `{ action: "screenshot", tabId, save_to_disk: true }` (НЕ `preview_screenshot` — то из другого MCP). Показать в чате.
+5. **Вердикт самопроверки** по скриншоту: подгрузился ли заявленный в `--nx-font` шрифт (или упал в Arial/Times-fallback), не поехала ли вёрстка (наезды, пустые блоки, сломанные таблица/FAQ/оглавление), читаемы ли цвета текста на фоне, не пустая ли страница (placeholder вроде `{{TITLE}}` = шаблон собрался криво).
 
-**Деградация (молча, если любой шаг выше не удался — нет расширения, не спарен, заблокирован file://):** открыть в системном браузере и попросить глянуть глазами.
+**Деградация (молча, если любой шаг не удался — нет расширения, не спарен, сервер/скриншот не поднялись):** открыть в системном браузере и попросить глянуть глазами.
 ```
 PowerShell: Start-Process ".claude\handoff-requests\files\template.html"
 Bash: xdg-open .claude/handoff-requests/files/template.html || open .claude/handoff-requests/files/template.html

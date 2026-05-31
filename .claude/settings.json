@@ -1,5 +1,8 @@
 {
   "hooks": {
+    "UserPromptSubmit": [
+      { "matcher": "*", "hooks": [{ "type": "command", "command": ".claude/hooks/guard-template-root.sh", "timeout": 5 }] }
+    ],
     "SubagentStop": [
       { "matcher": "*", "hooks": [{ "type": "command", "command": ".claude/hooks/check-file.sh" }] },
       { "matcher": "section-writer", "hooks": [{ "type": "command", "command": ".claude/hooks/check-section.sh" }] },
