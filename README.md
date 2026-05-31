@@ -158,7 +158,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── CLAUDE.md                            ← политика, читается каждой сессией
 │   ├── settings.json                        ← Claude Code hooks config
 │   │
-│   ├── agents/                              ← 27 субагентов (см. ниже)
+│   ├── agents/                              ← 30 субагентов (см. ниже)
 │   │   ├── client-profiler.md
 │   │   ├── template-designer.md
 │   │   ├── topic-generator.md
@@ -185,9 +185,12 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── marker-finder.md                 ← /seo-structure
 │   │   ├── semantic-expander.md             ← /seo-structure
 │   │   ├── cannibalization-resolver.md      ← /seo-structure
-│   │   └── structure-writer.md              ← /seo-structure
+│   │   ├── structure-writer.md              ← /seo-structure
+│   │   ├── site-scanner.md                  ← /seo-metatags
+│   │   ├── metatag-researcher.md            ← /seo-metatags
+│   │   └── metatag-writer.md                ← /seo-metatags
 │   │
-│   ├── skills/                              ← 17 скилов
+│   ├── skills/                              ← 19 скилов
 │   │   ├── guide/SKILL.md                   (любая зона, справочник процесса)
 │   │   ├── setup-project/SKILL.md           (worktree, исследование сайта)
 │   │   ├── new-topics/SKILL.md              (worktree, сбор тем)
@@ -209,6 +212,11 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   │   ├── SKILL.md
 │   │   │   └── MCP_MAP.md
 │   │   ├── share-structure/SKILL.md         (worktree, загрузка A6.xlsx в Drive)
+│   │   ├── seo-metatags/                    (worktree, метатеги H1/Title/Description)
+│   │   │   ├── SKILL.md
+│   │   │   ├── MCP_MAP.md
+│   │   │   └── PLAYBOOK.md
+│   │   ├── share-metatags/SKILL.md          (worktree, загрузка A7.xlsx в Drive)
 │   │   ├── request-shared-edit/SKILL.md     (worktree, запрос на общий файл)
 │   │   ├── handoff/SKILL.md                 (worktree, финализация)
 │   │   └── handoff-process/SKILL.md         (main, применение запросов)
@@ -223,7 +231,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── git-hooks/                           ← git hooks (НЕ Claude Code)
 │   │   └── pre-commit                       (whitelist путей в worktree)
 │   │
-│   ├── scripts/                             ← обёртки + 19 .mjs
+│   ├── scripts/                             ← обёртки + 23 .mjs
 │   │   ├── _node.cmd / _node.sh             (обёртки, ищут node)
 │   │   ├── _client.mjs                      (общий helper)
 │   │   ├── finalize-setup.mjs               (git init + первый коммит)
@@ -322,6 +330,17 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── client_filled.xlsx                   (правленая клиентом версия)
 │   ├── structure_data.json                  (распарсенная клиентская версия)
 │   ├── A6.md                                (финал - для У5/У6/У7/У8)
+│   └── share.json                           (ссылка Drive)
+│
+├── metatags/NNN-domain-slug/                ← рабочие папки метатегов (A7)
+│   ├── meta.json                            (state machine + depth + источник)
+│   ├── inputs.json                          (slug + регион + УТП-блок + запрещёнки)
+│   ├── audit.json                           (только --site: текущие метатеги + приоритет)
+│   ├── pages.json                           (целевые страницы от read-metatags-input)
+│   ├── research.json                        (варианты + частотность + Comm/Geo + подсказки)
+│   ├── shortlist.json                       (chosen_form + shortlist + резерв на страницу)
+│   ├── pages/N.json                         (H1/Title/Description + аналитика на страницу)
+│   ├── A7_<slug>.xlsx                       (финал - 3 листа: Метатеги/Аналитика/Сводка)
 │   └── share.json                           (ссылка Drive)
 │
 ├── package.json                             ← exceljs, marked, jsdom
