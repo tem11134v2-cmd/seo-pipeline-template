@@ -16,9 +16,11 @@
   1. /setup-project URL  -> ЗАКАЗЧИК.md + template.html (профиль клиента)
   2. /seo-analysis       -> A2.md + A3.md (предпроектный анализ конкурентов)
   3. /seo-structure NNN  -> A6.xlsx -> клиент -> A6.md (структура сайта)
-  4. /new-topics         -> topics.xlsx (15-25 тем для блога)
+       └─ с --metatags в конце автоматически -> A7.xlsx (метатеги)
+  4. /seo-metatags       -> A7.xlsx (H1/Title/Description; или хвостом из шага 3)
+  5. /new-topics         -> topics.xlsx (15-25 тем для блога)
      /write-article N    -> Article.docx + output.html (на каждую тему)
-  5. [планируется: технический аудит и другие услуги]
+  6. [планируется: технический аудит и другие услуги]
 ```
 
 Каждый шаг читает артефакты предыдущих:
@@ -156,7 +158,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── CLAUDE.md                            ← политика, читается каждой сессией
 │   ├── settings.json                        ← Claude Code hooks config
 │   │
-│   ├── agents/                              ← 27 субагентов (см. ниже)
+│   ├── agents/                              ← 30 субагентов (см. ниже)
 │   │   ├── client-profiler.md
 │   │   ├── template-designer.md
 │   │   ├── topic-generator.md
@@ -183,9 +185,12 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── marker-finder.md                 ← /seo-structure
 │   │   ├── semantic-expander.md             ← /seo-structure
 │   │   ├── cannibalization-resolver.md      ← /seo-structure
-│   │   └── structure-writer.md              ← /seo-structure
+│   │   ├── structure-writer.md              ← /seo-structure
+│   │   ├── site-scanner.md                  ← /seo-metatags
+│   │   ├── metatag-researcher.md            ← /seo-metatags
+│   │   └── metatag-writer.md                ← /seo-metatags
 │   │
-│   ├── skills/                              ← 17 скилов
+│   ├── skills/                              ← 19 скилов
 │   │   ├── guide/SKILL.md                   (любая зона, справочник процесса)
 │   │   ├── setup-project/SKILL.md           (worktree, исследование сайта)
 │   │   ├── new-topics/SKILL.md              (worktree, сбор тем)
@@ -207,6 +212,11 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   │   ├── SKILL.md
 │   │   │   └── MCP_MAP.md
 │   │   ├── share-structure/SKILL.md         (worktree, загрузка A6.xlsx в Drive)
+│   │   ├── seo-metatags/                    (worktree, метатеги H1/Title/Description)
+│   │   │   ├── SKILL.md
+│   │   │   ├── MCP_MAP.md
+│   │   │   └── PLAYBOOK.md
+│   │   ├── share-metatags/SKILL.md          (worktree, загрузка A7.xlsx в Drive)
 │   │   ├── request-shared-edit/SKILL.md     (worktree, запрос на общий файл)
 │   │   ├── handoff/SKILL.md                 (worktree, финализация)
 │   │   └── handoff-process/SKILL.md         (main, применение запросов)
@@ -221,7 +231,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── git-hooks/                           ← git hooks (НЕ Claude Code)
 │   │   └── pre-commit                       (whitelist путей в worktree)
 │   │
-│   ├── scripts/                             ← обёртки + 19 .mjs
+│   ├── scripts/                             ← обёртки + 23 .mjs
 │   │   ├── _node.cmd / _node.sh             (обёртки, ищут node)
 │   │   ├── _client.mjs                      (общий helper)
 │   │   ├── finalize-setup.mjs               (git init + первый коммит)
@@ -322,6 +332,17 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── A6.md                                (финал - для У5/У6/У7/У8)
 │   └── share.json                           (ссылка Drive)
 │
+├── metatags/NNN-domain-slug/                ← рабочие папки метатегов (A7)
+│   ├── meta.json                            (state machine + depth + источник)
+│   ├── inputs.json                          (slug + регион + УТП-блок + запрещёнки)
+│   ├── audit.json                           (только --site: текущие метатеги + приоритет)
+│   ├── pages.json                           (целевые страницы от read-metatags-input)
+│   ├── research.json                        (варианты + частотность + Comm/Geo + подсказки)
+│   ├── shortlist.json                       (chosen_form + shortlist + резерв на страницу)
+│   ├── pages/N.json                         (H1/Title/Description + аналитика на страницу)
+│   ├── A7_<slug>.xlsx                       (финал - 3 листа: Метатеги/Аналитика/Сводка)
+│   └── share.json                           (ссылка Drive)
+│
 ├── package.json                             ← exceljs, marked, jsdom
 ├── .gitignore
 ├── .mcp.json.example                        ← документация формата (не активный конфиг)
@@ -349,7 +370,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ## Компоненты
 
-### 17 скилов (8 рабочих, 5 share-утилит, 3 управляющих, 1 справочный)
+### 19 скилов (9 рабочих, 6 share-утилит, 3 управляющих, 1 справочный)
 
 | Скил | Зона | Назначение |
 |---|---|---|
@@ -371,7 +392,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
 
-### 27 субагентов (вызываются скилами)
+### 30 субагентов (вызываются скилами)
 
 | Агент | Делает |
 |---|---|
@@ -402,8 +423,11 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `semantic-expander` | JM semantic_pack: топ-30 запросов на маркер + проверка баланса (для /seo-structure) |
 | `cannibalization-resolver` | Разрешение конфликтов каннибализации + рекомендации по расширению (для /seo-structure) |
 | `structure-writer` | Финальный A6.md по фиксированному шаблону (для /seo-structure) |
+| `site-scanner` | Скан живого сайта (sitemap + текущие H1/Title/Description + приоритет) → audit.json (для /seo-metatags, режим аудита) |
+| `metatag-researcher` | Варианты маркера по осям + батч частотности/коммерциализации/подсказок на весь проект → research.json (для /seo-metatags) |
+| `metatag-writer` | Финальные H1/Title/Description на страницу: deep (выдача + Акварель, параллельно) / bulk (по PLAYBOOK) → pages/N.json (для /seo-metatags) |
 
-### 19 Node-скриптов
+### 23 Node-скрипта
 
 | Скрипт | Делает |
 |---|---|
@@ -426,6 +450,10 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `select-top10.mjs` | semantic_pack.json → top10.json + cannibalization.json (детекция конфликтов) |
 | `build-structure-xlsx.mjs` | master_list + top10 + cannibalization + competitors → A6_<slug>.xlsx (4 листа) |
 | `import-structure.mjs` | client_filled.xlsx → structure_data.json (exit-коды 0/3/4 для развилок) |
+| `read-metatags-input.mjs` | вход метатегов: структура / таблица / аудит → pages.json (exit 0/2/1) |
+| `select-variations.mjs` | research.json → shortlist.json (отсев Comm, сорт по exact, форма+резерв на страницу) |
+| `build-metatags-xlsx.mjs` | inputs + pages + pages/N.json → A7_<slug>.xlsx (3 листа, подсветка длины) |
+| `verify-metatags.mjs` | проверка пачки: длины/тире/вхождение маркера/запрещёнки + missing (exit 0/2) |
 
 ### 5 Claude Code хуков
 
@@ -515,6 +543,7 @@ git commit -m "Update template from upstream"
 | [008](docs/adr/008-drive-sharing-anchor-folders.md) | Расшаривание стратегий через Drive + якорь-папки (обход бага addPermission) |
 | [009](docs/adr/009-seo-analysis-task-type.md) | Новый тип задачи `analyses/` для предпроектного анализа (повторное применение паттерна ADR-007) |
 | [010](docs/adr/010-structures-task-type.md) | Новый тип задачи `structures/` для построения структуры сайта на базе анализа (третье повторение паттерна; гибрид «скрипт + агент» на шаге каннибализации) |
+| [011](docs/adr/011-metatags-task-type.md) | Новый тип задачи `metatags/` для генерации метатегов (один движок, две глубины deep/bulk; verify скриптом не hook'ом из-за параллельного веера; авто-хвост из `/seo-structure`) |
 
 ---
 
