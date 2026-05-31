@@ -543,7 +543,8 @@ git commit -m "Update template from upstream"
 | [008](docs/adr/008-drive-sharing-anchor-folders.md) | Расшаривание стратегий через Drive + якорь-папки (обход бага addPermission) |
 | [009](docs/adr/009-seo-analysis-task-type.md) | Новый тип задачи `analyses/` для предпроектного анализа (повторное применение паттерна ADR-007) |
 | [010](docs/adr/010-structures-task-type.md) | Новый тип задачи `structures/` для построения структуры сайта на базе анализа (третье повторение паттерна; гибрид «скрипт + агент» на шаге каннибализации) |
-| [011](docs/adr/011-metatags-task-type.md) | Новый тип задачи `metatags/` для генерации метатегов (один движок, две глубины deep/bulk; verify скриптом не hook'ом из-за параллельного веера; авто-хвост из `/seo-structure`) |
+| [011](docs/adr/011-template-self-guard.md) | Самозащита каталога-шаблона от клиентских команд и артефактов (маркер `.is-template-root` + UserPromptSubmit-guard + pre-commit backstop) |
+| [012](docs/adr/012-metatags-task-type.md) | Новый тип задачи `metatags/` для генерации метатегов (один движок, две глубины deep/bulk; verify скриптом не hook'ом из-за параллельного веера; авто-хвост из `/seo-structure`) |
 
 ---
 

@@ -43,7 +43,7 @@ if [ -f "${PR_TMPL}/.claude/.is-template-root" ]; then
   while IFS= read -r f; do
     [ -z "${f}" ] && continue
     case "${f}" in
-      "ЗАКАЗЧИК.md"|"template.html"|"topics.xlsx"|"topics.json"|articles/*|analyses/*|structures/*|strategies/*|topics/*)
+      "ЗАКАЗЧИК.md"|"template.html"|"topics.xlsx"|"topics.json"|articles/*|analyses/*|structures/*|strategies/*|topics/*|metatags/*)
         tmpl_violations="${tmpl_violations}
   - ${f}" ;;
     esac

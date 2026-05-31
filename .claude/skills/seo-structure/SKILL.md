@@ -47,7 +47,7 @@ init -> master-list-done -> markers-done -> semantic-done ->
 
 В `--review` режиме добавляются паузы после `master-list-done` (показать мастер-список, ждать OK) и `semantic-done` (показать сводку JM, ждать OK).
 
-Структура завершается на `completed`. Если `--metatags` != `none`, при `completed` ставится `meta.metatags_pending = <deep|bulk>`, и шаг 11 запускает движок метатегов как **отдельную задачу** в `metatags/<NNN>-<slug>/` (со своей `meta.json`). Так сделано из-за порядка коммитов: структура коммитится первой под своей task-dir, потом `current-task.txt` переключается на метатеги (см. шаг 11 и [ADR-011](../../../docs/adr/011-metatags-task-type.md)).
+Структура завершается на `completed`. Если `--metatags` != `none`, при `completed` ставится `meta.metatags_pending = <deep|bulk>`, и шаг 11 запускает движок метатегов как **отдельную задачу** в `metatags/<NNN>-<slug>/` (со своей `meta.json`). Так сделано из-за порядка коммитов: структура коммитится первой под своей task-dir, потом `current-task.txt` переключается на метатеги (см. шаг 11 и [ADR-012](../../../docs/adr/012-metatags-task-type.md)).
 
 `meta.json` - единственный источник истины о состоянии. Обновляется через `bash .claude/hooks/update-meta.sh <structure_dir> <state>`.
 
@@ -511,7 +511,7 @@ Title > 60 / Description > 160: <x> / <y> (подсвечены в A7)
 
 - НЕ запускай без существующего `analyses/NNN-*/` - всегда нужен предпроектный анализ.
 - НЕ пиши в корень проекта - только в `<structure_dir>/` (а на шаге 11, после коммита структуры и переключения `current-task.txt`, - в `metatags/<NNN>-<slug>/`). Pre-commit отклонит остальное.
-- НЕ пиши метатеги в `structures/NNN/` - даже как хвост, A7 ВСЕГДА в `metatags/NNN/` (ADR-011).
+- НЕ пиши метатеги в `structures/NNN/` - даже как хвост, A7 ВСЕГДА в `metatags/NNN/` (ADR-012).
 - НЕ пропускай состояния - каждое `update-meta.sh` обязательно.
 - НЕ редактируй общие файлы (`ЗАКАЗЧИК.md`, `template.html`, `topics.xlsx`) - read-only из worktree.
 - НЕ редактируй файлы в `analyses/NNN/` - они read-only для этого скила (только чтение).
