@@ -57,9 +57,10 @@ Pre-commit hook менять не нужно - он универсален к ta
 
 ### 4. Стыковка с `/seo-structure` - аддитивный хвост
 
-`/seo-structure` получает новое состояние `metatags-done` между `client-imported` и `completed` и флаг `--metatags deep|bulk|none`:
+`/seo-structure` получает флаг `--metatags deep|bulk|none` и аддитивный хвост (шаг 11) после `completed`:
 
-- После того как клиент утвердил структуру (`client-imported`, A6.md собран) и **структура закоммичена**, скил в `--auto` запускает движок метатегов по «да»-страницам (`structure_data.json` где `target_status=="yes"`), переставив `current-task.txt = metatags/NNN-slug/`, и собирает A7 в `metatags/NNN/`. В `--review` - сначала спрашивает.
+- Порядок коммитов (важно из-за pre-commit): структура сначала доходит до `completed` и **коммитится** под `current-task.txt = structures/NNN`. В ту же запись `meta.json` пишется `metatags_pending = <deep|bulk|none>`. Только после этого хвост переставляет `current-task.txt = metatags/NNN-slug/` и работает там. Re-коммитить `structures/NNN` после переключения pre-commit запретил бы - поэтому состояние хвоста живёт в `metatags/NNN/meta.json`, а флаг-триггер `metatags_pending` - в структуре (для возобновляемости). Раньше план предполагал состояние `metatags-done` на структуре - отказались ровно из-за этого порядка коммитов.
+- Хвост по «да»-страницам (`structure_data.json` где `target_status=="yes"`) собирает A7 в `metatags/NNN/`. В `--auto` запускается автоматически (с анонсом-оценкой стоимости), в `--review` - сначала спрашивает. `/seo-structure NNN --resume` при `completed` + `metatags_pending` дёргает хвост (возобновляемость).
 - Скрипты структуры (`select-top10.mjs`, `build-structure-xlsx.mjs`, `import-structure.mjs`) **не трогаются** - правка чисто аддитивная (риск регресса минимален).
 - `--metatags none` - выключить хвост; по умолчанию `deep`.
 
@@ -107,8 +108,8 @@ Pre-commit hook менять не нужно - он универсален к ta
 
 - Жёсткой зависимости от структуры/анализа НЕТ (можно дать таблицу или просканировать сайт) - это плюс по гибкости, но `--from-structure` зависит от корректности `structure_data.json`/`top10.json`. Митигация: `read-metatags-input.mjs` валидирует вход и падает с понятным сообщением.
 - Режим аудита (`site-scanner`) - самая хрупкая часть (разные форматы sitemap, JS-рендер, потолки на объём). Митигация: вынесен последним этапом, потолки настраиваемы, при пустом `<title>` помечает «не удалось прочитать» вместо тихого пропуска.
-- Drive-якорь `metatags_folder_id` уже есть в DRIVE.md (`13TUn_...` использовался структурой? нет - structures_folder_id отдельный). Нужно завести `metatags_folder_id` вручную; до этого `/share-metatags` скипает с подсказкой.
-- Отступление от «verify → hook» задокументировано здесь (п.3), не уходит в устную традицию.
+- Drive-якорь: в DRIVE.md пока НЕТ ключа `metatags_folder_id` (есть отдельные для structures/analyses/articles/topics/strategies). Нужно завести вручную (папка «Метатеги», anyone-with-link -> reader); до этого `/share-metatags` и шаг 8 скипают с подсказкой.
+- Отступление от «verify -> hook» задокументировано здесь (п.3), не уходит в устную традицию.
 
 ## Ссылки
 
