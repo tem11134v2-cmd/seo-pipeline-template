@@ -17,6 +17,8 @@
 | [007](007-strategy-task-type.md) | Новый тип задачи `strategies/` + порт Python-шаблонов на Node | Принято |
 | [008](008-drive-sharing-anchor-folders.md) | Расшаривание стратегий через Drive + якорь-папки (обход бага `addPermission`) | Принято |
 | [009](009-seo-analysis-task-type.md) | Новый тип задачи `analyses/` для предпроектного анализа конкурентов | Принято |
+| [010](010-structures-task-type.md) | Новый тип задачи `structures/` для построения структуры сайта | Принято |
+| [011](011-template-self-guard.md) | Самозащита шаблона от запуска клиентских команд (маркер + UserPromptSubmit-хук + pre-commit backstop) | Принято |
 
 ## Как добавить новый ADR
 
