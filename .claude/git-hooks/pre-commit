@@ -30,6 +30,43 @@ if [ -z "${GIT_DIR}" ] || [ -z "${GIT_COMMON_DIR}" ]; then
   exit 0
 fi
 
+# --- Бэкстоп шаблона (доп. к ADR-003, 2026-05-31) ---
+# Если это рабочий каталог ШАБЛОНА (есть untracked-маркер .claude/.is-template-root),
+# запретить КОММИТ клиентских артефактов - иначе они засорят все будущие /new-project клоны.
+# Второй рубеж к guard-template-root.sh: даже если клиентская команда как-то выполнилась,
+# её результат не попадёт в шаблон. Удаления разрешены (--diff-filter=ACMR без D), чтобы
+# можно было вычищать уже просочившееся. У клиентов маркера нет -> бэкстоп не активен (fail-safe).
+PR_TMPL=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+if [ -f "${PR_TMPL}/.claude/.is-template-root" ]; then
+  staged_am=$(git -c core.quotepath=false diff --cached --name-only --diff-filter=ACMR)
+  tmpl_violations=""
+  while IFS= read -r f; do
+    [ -z "${f}" ] && continue
+    case "${f}" in
+      "ЗАКАЗЧИК.md"|"template.html"|"topics.xlsx"|"topics.json"|articles/*|analyses/*|structures/*|strategies/*|topics/*)
+        tmpl_violations="${tmpl_violations}
+  - ${f}" ;;
+    esac
+  done <<EOF
+${staged_am}
+EOF
+  if [ -n "${tmpl_violations}" ]; then
+    cat >&2 <<EOF
+pre-commit: это рабочий каталог ШАБЛОНА (есть .claude/.is-template-root).
+В шаблон нельзя коммитить клиентские артефакты - они засорят все будущие /new-project клоны.
+
+Запрещённые добавления/изменения:${tmpl_violations}
+
+Что делать:
+  - Клиентские данные принадлежат проекту ~/seo-projects/<slug>/, не шаблону.
+  - Случайная утечка: git restore --staged <файл> && git checkout -- <файл>
+  - Удаление просочившегося разрешено (git rm <файл> хук пропускает).
+EOF
+    exit 1
+  fi
+fi
+# --- конец бэкстопа шаблона ---
+
 # В main worktree git-dir и git-common-dir указывают на ОДНО место.
 # В дополнительной worktree они разные (git-dir = .git/worktrees/<name>, common-dir = основной .git).
 if [ "${GIT_DIR}" = "${GIT_COMMON_DIR}" ]; then
