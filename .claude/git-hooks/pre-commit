@@ -90,7 +90,11 @@ allowed_files=(
   "analyses/_index.json"
 )
 
-changed=$(git diff --cached --name-only)
+# -c core.quotepath=false обязателен: иначе non-ASCII имена (например ЗАКАЗЧИК.md)
+# git эскейпит в octal и оборачивает в двойные кавычки (".../\320\227...") —
+# ведущая кавычка ломает case-матч по разрешённым префиксам, и разрешённый файл
+# ошибочно считается нарушением. С quotepath=false путь приходит чистым UTF-8.
+changed=$(git -c core.quotepath=false diff --cached --name-only)
 
 violations=""
 while IFS= read -r f; do
