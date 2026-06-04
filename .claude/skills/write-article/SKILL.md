@@ -93,9 +93,16 @@ Recovery-сценарий «нашли баг скрипта - надо пере
 
 ### 1. Setup
 
-- Прочитать `topics.xlsx` (лист 1, строка N): `topic`, `main_query`, `ws_freq`, `intent`, `genres`, `priority`, `linking_url`. Колонка `№` (или индекс строки) — это `topic_id`.
-- `genres_in_xlsx` — массив жанров из колонки «Жанры (2-3)» (split по запятой).
-- `slug = slugify(topic)`.
+- Выбрать тему №N **по колонке `№`** (не по физической строке - строки бывают отфильтрованы/переставлены/со сдвигом шапки). Детерминированно, через парсер:
+  ```
+  .claude\scripts\_node.cmd .claude\scripts\read-topics-xlsx.mjs . --by-number N
+  ```
+  Вернёт `{ exists, found, requested, topic, available_numbers }`. Из `topic` берём: `n` (= `topic_id`), `topic`, `main_query`, `ws_freq`, `intent`, `genres`, `priority`, `linking_url`.
+  - `exists == false` → стоп: «`topics.xlsx` не найден в корне. Сначала `/new-topics` (или положи темник).»
+  - `found == false` → стоп: «В `topics.xlsx` нет темы №N. Доступные номера: `<available_numbers>`.» НЕ угадывать и НЕ брать соседнюю строку.
+- `topic_id = topic.n` (= N). Это **сквозная ось идентичности**: аргумент N = номер темы = номер папки (шаг 1b) = `meta.topic_id`.
+- `genres_in_xlsx = topic.genres` (жанры из колонки «Жанры (2-3)»).
+- `slug = slugify(topic.topic)`.
 
 #### 1a. Чтение индекса и логика коллизий
 
@@ -137,7 +144,7 @@ Recovery-сценарий «нашли баг скрипта - надо пере
 ```json
 {
   "topic": "...",
-  "topic_id": <N — индекс строки topics.xlsx>,
+  "topic_id": <N — номер темы из колонки № (НЕ индекс физической строки)>,
   "query": "...",
   "slug": "...",
   "genre": "<выбранный жанр>",

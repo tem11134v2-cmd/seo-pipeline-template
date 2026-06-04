@@ -23,11 +23,45 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import ExcelJS from "exceljs";
 
-const projectRoot = resolve(process.argv[2] || process.cwd());
+// CLI: read-topics-xlsx.mjs [project_root] [--by-number N]
+//   Без флага  - вернёт все темы (для дедупликации в /new-topics).
+//   --by-number N - вернёт ОДНУ тему по колонке № (n === N), для /write-article.
+const rawArgs = process.argv.slice(2);
+let byNumber = null;
+const positional = [];
+for (let i = 0; i < rawArgs.length; i++) {
+  if (rawArgs[i] === "--by-number") {
+    byNumber = Number(rawArgs[i + 1]);
+    i++;
+  } else {
+    positional.push(rawArgs[i]);
+  }
+}
+const projectRoot = resolve(positional[0] || process.cwd());
 const inputPath = join(projectRoot, "topics.xlsx");
 
+// Унифицированный вывод. В режиме --by-number находит тему по колонке № (поле n),
+// а не по физической строке xlsx, и возвращает available_numbers для внятной ошибки.
+function emit(payload) {
+  if (byNumber == null) {
+    console.log(JSON.stringify(payload));
+    return;
+  }
+  const list = payload.topics || [];
+  const topic = list.find((t) => Number(t.n) === byNumber) || null;
+  console.log(
+    JSON.stringify({
+      exists: payload.exists,
+      found: !!topic,
+      requested: byNumber,
+      topic,
+      available_numbers: list.map((t) => t.n),
+    }),
+  );
+}
+
 if (!existsSync(inputPath)) {
-  console.log(JSON.stringify({ exists: false, topics_count: 0, topics: [] }));
+  emit({ exists: false, topics_count: 0, topics: [] });
   process.exit(0);
 }
 
@@ -37,7 +71,7 @@ await workbook.xlsx.readFile(inputPath);
 // Лист 1 - "Темы для статей"
 const sheet = workbook.worksheets[0];
 if (!sheet) {
-  console.log(JSON.stringify({ exists: true, topics_count: 0, topics: [] }));
+  emit({ exists: true, topics_count: 0, topics: [] });
   process.exit(0);
 }
 
@@ -90,6 +124,4 @@ sheet.eachRow((row, rowNumber) => {
   });
 });
 
-console.log(
-  JSON.stringify({ exists: true, topics_count: topics.length, topics }),
-);
+emit({ exists: true, topics_count: topics.length, topics });
