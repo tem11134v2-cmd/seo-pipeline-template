@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // from-excel-topics.mjs
 // Обратное чтение: Topics_<slug>.xlsx -> topics-batch.json.
-// Используется скилом /new-topics --resume, когда пользователь скачал xlsx
+// Используется скилом /seo-temi --resume, когда пользователь скачал xlsx
 // из Drive, внёс правки руками (или клиент внёс в Sheets), положил обратно
 // в task-папку и хочет применить эти правки к batch.json.
 //

@@ -1,4 +1,4 @@
-# MCP-карта для /seo-structure
+# MCP-карта для /seo-struktura
 
 > Какие MCP-инструменты использовать на каком шаге. Принцип: экономия контекста + одна голова на этап. Не вызывай всё подряд - бери только нужное для текущего этапа.
 
@@ -95,12 +95,12 @@ arsenkin_top(queries=["q"], se=[{"type": 1, "region": <region_yandex>}], depth=1
 
 ---
 
-## НЕ использовать в /seo-structure
+## НЕ использовать в /seo-struktura
 
 | MCP | Почему |
 |---|---|
 | `jm_text_generate` / `jm_text_analyze` | Для написания статей, не для структуры |
-| `domain_dashboard` (Keyso) | Используется в `/seo-analysis`. Здесь данные уже в competitors.json |
+| `domain_dashboard` (Keyso) | Используется в `/seo-analiz`. Здесь данные уже в competitors.json |
 | `domain_competitors` (Keyso) | Конкуренты уже отобраны в analysis-step |
 | Webmaster (wm_*) | Доступы клиента не нужны для построения структуры |
 | Метрика (ym_*) | То же |

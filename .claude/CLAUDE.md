@@ -1,22 +1,22 @@
 # Проект SEO-конвейера
 
-Ты — SEO-агент клиентского проекта. Конкретный клиент описан в `ЗАКАЗЧИК.md` в корне - **читай его перед задачей, если файл существует**. Предпродажные задачи (`/strategy`, `/seo-analysis`) запускаются ДО онбординга и `ЗАКАЗЧИК.md` НЕ требуют (на свежем клоне его ещё нет, он появляется только после `/setup-project`) - контекст они собирают сами (скан сайта + вопросы). Работаешь с конвейером статей (и других задач — стратегий, аудитов, коммерческих текстов в будущем).
+Ты — SEO-агент клиентского проекта. Конкретный клиент описан в `ЗАКАЗЧИК.md` в корне - **читай его перед задачей, если файл существует**. Предпродажные задачи (`/seo-strategiya`, `/seo-analiz`) запускаются ДО онбординга и `ЗАКАЗЧИК.md` НЕ требуют (на свежем клоне его ещё нет, он появляется только после `/seo-shablon`) - контекст они собирают сами (скан сайта + вопросы). Работаешь с конвейером статей (и других задач — стратегий, аудитов, коммерческих текстов в будущем).
 
 ## Стек
 
-- `ЗАКАЗЧИК.md` — профиль клиента (читать перед задачей, если существует; предпродажным `/strategy` и `/seo-analysis` не требуется)
+- `ЗАКАЗЧИК.md` — профиль клиента (читать перед задачей, если существует; предпродажным `/seo-strategiya` и `/seo-analiz` не требуется)
 - `template.html` — шаблон вёрстки финальной статьи
 - `topics.xlsx` — список тем
 - `articles/NNN/` — рабочая папка одной статьи
-- `strategies/NNN/` — рабочая папка SEO-стратегии (если запускался /strategy)
-- `analyses/NNN/` — рабочая папка предпроектного анализа (если запускался /seo-analysis)
-- `structures/NNN/` — рабочая папка структуры сайта (если запускался /seo-structure)
-- `topics/NNN/` — рабочая папка батча тем (если запускался /new-topics)
+- `strategies/NNN/` — рабочая папка SEO-стратегии (если запускался /seo-strategiya)
+- `analyses/NNN/` — рабочая папка предпроектного анализа (если запускался /seo-analiz)
+- `structures/NNN/` — рабочая папка структуры сайта (если запускался /seo-struktura)
+- `topics/NNN/` — рабочая папка батча тем (если запускался /seo-temi)
 - `~/.claude/seo-knowledge/` — общая методология (стиль, жанры, HTML-элементы, SVG, TARIFFS, RULES)
 
 ## Модель работы: всё в worktree, единственная main-команда — /handoff-process
 
-**Правило:** каждая задача (`/setup-project`, `/new-topics`, `/write-article`, `/fix-article`, `/strategy`, `/seo-analysis`, `/seo-structure`, `/share-topics`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
+**Правило:** каждая задача (`/seo-shablon`, `/seo-temi`, `/seo-statya`, `/fix-article`, `/seo-strategiya`, `/seo-analiz`, `/seo-struktura`, `/share-topics`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
 
 **Единственная команда в main:** `/handoff-process` — применяет накопленные handoff-запросы к общим файлам проекта.
 
@@ -26,17 +26,17 @@
 
 | Команда | Что делает | Где результат |
 |---|---|---|
-| `/setup-project <URL>` | Исследует сайт клиента, готовит `ЗАКАЗЧИК.md` и `template.html` | `.claude/handoff-requests/files/` (для /handoff-process) |
-| `/new-topics [--resume]` | Полный цикл: собирает 15-25 тем → xlsx → автозагрузка в Drive (Google Sheet). Полная таблица в чат + ссылка | `topics/NNN-slug/` (per-task) |
-| `/share-topics <NNN> [--redo]` | Утилита-помощник для `/new-topics`: перезалить после правок или догрузить если Drive был недоступен | `topics/NNN/share.json` (per-task) |
-| `/write-article <N> [--resume]` | Полный цикл по теме №N | `articles/NNN/` (per-task, попадёт в main через /handoff) |
+| `/seo-shablon <URL>` | Исследует сайт клиента, готовит `ЗАКАЗЧИК.md` и `template.html` | `.claude/handoff-requests/files/` (для /handoff-process) |
+| `/seo-temi [--resume]` | Полный цикл: собирает 15-25 тем → xlsx → автозагрузка в Drive (Google Sheet). Полная таблица в чат + ссылка | `topics/NNN-slug/` (per-task) |
+| `/share-topics <NNN> [--redo]` | Утилита-помощник для `/seo-temi`: перезалить после правок или догрузить если Drive был недоступен | `topics/NNN/share.json` (per-task) |
+| `/seo-statya <N> [--resume]` | Полный цикл по теме №N | `articles/NNN/` (per-task, попадёт в main через /handoff) |
 | `/fix-article <NNN> "<правка>"` | Точечная правка готовой статьи | `articles/NNN/...` (per-task) |
-| `/strategy <URL> [--resume]` | Полный цикл стратегии: скан → конкуренты → точки роста → 3 тарифа → docx + xlsx → автозагрузка в Drive (Google Doc + Google Sheet) | `strategies/NNN-slug/` (per-task) |
-| `/share-strategy <NNN> [--redo]` | Утилита-помощник для `/strategy`: перезалить после правок или догрузить если Drive был недоступен | `strategies/NNN/share.json` (per-task) |
-| `/seo-analysis [--resume] [--no-share]` | Предпроектный анализ конкурентов: бриф → структурирование → конкуренты → SERP-вердикт → скан смыслов → A2.md + A3.md + recommendations.json + .docx + автозагрузка в Drive + revising-цикл до approved | `analyses/NNN-slug/` (per-task) |
-| `/share-analysis <NNN> [--redo]` | Утилита-помощник для `/seo-analysis`: перезалить .docx в Drive после правок или догрузить если Drive был недоступен | `analyses/NNN/share.json` (per-task) |
-| `/seo-structure <NNN> [--resume] [--review \| --auto] [--import <xlsx>]` | Структура сайта на базе предпроектного анализа: мастер-список из конкурентов → маркерные запросы → JM semantic_pack → топ-10 + каннибализация → A6.xlsx → клиент → A6.md | `structures/NNN-slug/` (per-task) |
-| `/share-structure <NNN> [--redo]` | Утилита-помощник для `/seo-structure`: перезалить A6.xlsx в Drive после правок или догрузить если Drive был недоступен | `structures/NNN/share.json` (per-task) |
+| `/seo-strategiya <URL> [--resume]` | Полный цикл стратегии: скан → конкуренты → точки роста → 3 тарифа → docx + xlsx → автозагрузка в Drive (Google Doc + Google Sheet) | `strategies/NNN-slug/` (per-task) |
+| `/share-strategy <NNN> [--redo]` | Утилита-помощник для `/seo-strategiya`: перезалить после правок или догрузить если Drive был недоступен | `strategies/NNN/share.json` (per-task) |
+| `/seo-analiz [--resume] [--no-share]` | Предпроектный анализ конкурентов: бриф → структурирование → конкуренты → SERP-вердикт → скан смыслов → A2.md + A3.md + recommendations.json + .docx + автозагрузка в Drive + revising-цикл до approved | `analyses/NNN-slug/` (per-task) |
+| `/share-analysis <NNN> [--redo]` | Утилита-помощник для `/seo-analiz`: перезалить .docx в Drive после правок или догрузить если Drive был недоступен | `analyses/NNN/share.json` (per-task) |
+| `/seo-struktura <NNN> [--resume] [--review \| --auto] [--import <xlsx>]` | Структура сайта на базе предпроектного анализа: мастер-список из конкурентов → маркерные запросы → JM semantic_pack → топ-10 + каннибализация → A6.xlsx → клиент → A6.md | `structures/NNN-slug/` (per-task) |
+| `/share-structure <NNN> [--redo]` | Утилита-помощник для `/seo-struktura`: перезалить A6.xlsx в Drive после правок или догрузить если Drive был недоступен | `structures/NNN/share.json` (per-task) |
 | `/request-shared-edit "<описание>"` | Запросить правку общего файла | `.claude/handoff-requests/<file>.md` |
 | **`/handoff`** | Финал worktree: commit → merge в main → cleanup | Файлы попадают в main |
 
@@ -71,7 +71,7 @@
 
 ```
 ┌─ worktree-сессия ─────────────────────────────────┐
-│ 1. /setup-project URL  (или /new-topics, или /write-article 1)
+│ 1. /seo-shablon URL  (или /seo-temi, или /seo-statya 1)
 │ 2. (опционально) /request-shared-edit "..."
 │ 3. /handoff
 │       ↓ commit + merge + cleanup
@@ -83,7 +83,7 @@
 └───────────────────────────────────────────────────┘
 ```
 
-Для чисто per-task задач (`/write-article`, `/fix-article`, `/strategy` без `/request-shared-edit`) шаг 4 не нужен — файлы уже в main после `/handoff`.
+Для чисто per-task задач (`/seo-statya`, `/fix-article`, `/seo-strategiya` без `/request-shared-edit`) шаг 4 не нужен — файлы уже в main после `/handoff`.
 
 ## Жёсткие правила (общие)
 

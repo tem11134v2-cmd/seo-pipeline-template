@@ -1,9 +1,9 @@
 ---
-name: seo-metatags
+name: seo-metategi
 description: Генерация метатегов (H1, Title, Description) под Яндекс для страниц сайта. Один движок, две глубины - deep (анализ выдачи + Акварель, по странице параллельно) и bulk (по PLAYBOOK + батч-данные, дёшево). Три источника страниц - сканирование сайта / таблица / готовая структура. Результат - A7_<slug>.xlsx (3 листа). Аргументы - [--from-structure <NNN>] [--site <домен>] [--table <путь>] [--depth deep|bulk] [--resume].
 ---
 
-# seo-metatags
+# seo-metategi
 
 Скил-оркестратор генерации метатегов (артефакт A7: H1 + Title + Description на каждую целевую страницу + аналитика). Запускается **в worktree-сессии**. Порт авторской услуги У4 (claude.ai) - см. [ADR-012](../../../docs/adr/012-metatags-task-type.md).
 
@@ -16,7 +16,7 @@ description: Генерация метатегов (H1, Title, Description) по
 ## Аргументы
 
 ```
-/seo-metatags [--from-structure <NNN>] [--site <домен>] [--table <путь>] [--depth deep|bulk] [--resume]
+/seo-metategi [--from-structure <NNN>] [--site <домен>] [--table <путь>] [--depth deep|bulk] [--resume]
 ```
 
 - Без аргументов - скил **спросит источник** (шаг 1b).
@@ -112,7 +112,7 @@ resume = true/false
 #### 1c. Определить slug, NNN, регион, УТП -> создать папку
 
 **Источник = структура** (`--from-structure NNN` или выбор 3):
-- `structure_dir = structures/<NNN>-*/` (glob). Если нет - стоп с подсказкой `/seo-structure`.
+- `structure_dir = structures/<NNN>-*/` (glob). Если нет - стоп с подсказкой `/seo-struktura`.
 - Прочитать `structure_dir/inputs.json` -> `slug`, `domain`, `region_yandex`, `region_name`, `analysis_dir`.
 - Прочитать `analysis_dir/brief.json` -> УТП-блок: `utp_technical[]`, `utp_service[]`, `utp_social[]`, `assortment[]`, `forbidden_phrasings[]` (или `запрещённые формулировки`), `brand_name`.
 - **NNN метатегов зеркалит NNN структуры.** `metatags_dir = metatags/<NNN>-<slug>/`.
@@ -318,7 +318,7 @@ Title > 60 / Description > 160: <X> / <Y> (подсвечены в xlsx)
 
 ## Обработка временных API-ошибок
 
-Любой субагент может вернуть `529 Overloaded` / `503` / `rate_limit_error`. Ловить, `ScheduleWakeup` на 90 секунд с тем же `/seo-metatags --resume <NNN>`. Максимум 3 попытки. (В deep-веере при overload части пачки - не падать: verify-metatags потом покажет недостающие, пере-делегируем.)
+Любой субагент может вернуть `529 Overloaded` / `503` / `rate_limit_error`. Ловить, `ScheduleWakeup` на 90 секунд с тем же `/seo-metategi --resume <NNN>`. Максимум 3 попытки. (В deep-веере при overload части пачки - не падать: verify-metatags потом покажет недостающие, пере-делегируем.)
 
 ## Запреты
 
@@ -328,4 +328,4 @@ Title > 60 / Description > 160: <X> / <Y> (подсвечены в xlsx)
 - НЕ редактируй общие файлы (`ЗАКАЗЧИК.md`, `template.html`) и `structures/NNN/`, `analyses/NNN/` - read-only.
 - НЕ ставь expected-маркеры на параллельных writer'ов в deep (ломает hook на веере) - полноту проверяет `verify-metatags.mjs`.
 - НЕ используй длинное тире (—) и среднее (–). Только дефис (-).
-- НЕ запускай `/seo-structure`, `/write-article`, `/strategy`, `/seo-analysis` из этой сессии - отдельные worktree-задачи.
+- НЕ запускай `/seo-struktura`, `/seo-statya`, `/seo-strategiya`, `/seo-analiz` из этой сессии - отдельные worktree-задачи.

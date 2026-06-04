@@ -1,16 +1,16 @@
 ---
-name: strategy
+name: seo-strategiya
 description: Полный цикл SEO-стратегии для клиента. Скан сайта → метрики → конкуренты → точки роста → три тарифа → стратегия .docx (без цен) и смета .xlsx (с ценами). Аргументы: <URL> [--resume].
 ---
 
-# strategy
+# seo-strategiya
 
 Скил-оркестратор формирования стратегии и сметы. Запускается **в worktree-сессии**. Проходит state machine от скана сайта до сборки docx/xlsx.
 
 ## Аргументы
 
 ```
-/strategy <URL> [--resume] [--niche="..."] [--region="..."]
+/seo-strategiya <URL> [--resume] [--niche="..."] [--region="..."]
 ```
 
 - `URL` — обязательный позиционный. Домен клиента в формате `https://site.ru/` или `site.ru`. Если у клиента нет сайта — передать `none`, скил спросит дополнительные данные.
@@ -52,7 +52,7 @@ slug = slugify(domain)   // vasya.ru → vasya-ru; none → no-site-<timestamp>
 
 ### 1. Setup
 
-> **Это предпродажный скил.** НЕ ищи и НЕ требуй `ЗАКАЗЧИК.md` (на свежем клоне его ещё нет - он появляется только после `/setup-project`). Контекст собираешь сам: вопросы ниже + скан (шаг 2).
+> **Это предпродажный скил.** НЕ ищи и НЕ требуй `ЗАКАЗЧИК.md` (на свежем клоне его ещё нет - он появляется только после `/seo-shablon`). Контекст собираешь сам: вопросы ниже + скан (шаг 2).
 > **Факт раньше утверждения:** ниша/регион из аргумента или домена - это ГИПОТЕЗА, не факт. Истину устанавливает `strategy-scanner` → `scan.json`. Финальное `inputs.niche` проставляется только после сверки со сканом (гейт 2.5).
 
 Спроси пользователя (если не указано в аргументе):
@@ -175,7 +175,7 @@ project_root: <project root>
 
 ### 4. Точки роста + strategy_data.json (если state == "competitors-done")
 
-Маркер: `.claude/tmp/expected-growth-strategist-<run_id>.txt = <strategy_dir>/strategy_data.json`
+Маркер: `.claude/tmp/expected-growth-strategist-<run_id>.txt = <strategy_dir>/seo-strategiya_data.json`
 
 Делегировать `growth-strategist`:
 ```
@@ -205,7 +205,7 @@ project_root: <project root>
 
 ### 6. Контент стратегии (если state == "tariffs-done")
 
-Маркер: `.claude/tmp/expected-strategy-writer-<run_id>.txt = <strategy_dir>/strategy_content.json`
+Маркер: `.claude/tmp/expected-strategy-writer-<run_id>.txt = <strategy_dir>/seo-strategiya_content.json`
 
 Делегировать `strategy-writer`:
 ```
@@ -312,7 +312,7 @@ mcp__gdrive-piotr__uploadFile(
 
 #### Что делать при ошибке Drive-загрузки
 
-Если MCP не отвечает, OAuth протух, или вернулась ошибка — **не блокировать `/strategy`**. Локальные файлы и так готовы. Действия:
+Если MCP не отвечает, OAuth протух, или вернулась ошибка — **не блокировать `/seo-strategiya`**. Локальные файлы и так готовы. Действия:
 1. Записать в `meta.json` поле `share_error: "<краткое описание>"` (через update-meta или вручную через Edit).
 2. НЕ переходить в `shared` — оставить state `xlsx-done`.
 3. В шаге 10 сообщить пользователю: «Локально готово. Расшаривание в Drive не удалось (причина). Запусти `/share-strategy <NNN>` отдельно после исправления.»
@@ -348,7 +348,7 @@ git commit -m "Strategy <NNN> for <domain>: completed"
    <strategy_dir>/SEO_Strategy_<slug>.docx
    <strategy_dir>/Smeta_<slug>.xlsx
 
-Данные анализа: <strategy_dir>/strategy_data.json
+Данные анализа: <strategy_dir>/seo-strategiya_data.json
 Тарифы:         <strategy_dir>/tariffs.json
 Ссылки:         <strategy_dir>/share.json
 
@@ -388,4 +388,4 @@ claude --worktree strat-002
 - НЕ редактируй методологию (TARIFFS.md, RULES.md) — это `~/.claude/seo-knowledge/`, read-only.
 - НЕ используй длинное тире (—) и среднее (–). Только дефис (-).
 - НЕ делай `git push` и не публикуй артефакты — это решение пользователя.
-- НЕ запускай `/write-article`, `/new-topics` из этой же сессии — это отдельные worktree-задачи.
+- НЕ запускай `/seo-statya`, `/seo-temi` из этой же сессии — это отдельные worktree-задачи.

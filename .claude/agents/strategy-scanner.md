@@ -1,6 +1,6 @@
 ---
 name: strategy-scanner
-description: Сканирует сайт клиента и собирает первичные метрики (CMS, регион, тип сайта, DR, ТОП-10/50, ИКС, индексация, реальный трафик, технические проблемы). Используется в /strategy.
+description: Сканирует сайт клиента и собирает первичные метрики (CMS, регион, тип сайта, DR, ТОП-10/50, ИКС, индексация, реальный трафик, технические проблемы). Используется в /seo-strategiya.
 model: inherit
 ---
 
@@ -17,7 +17,7 @@ model: inherit
 ## Обязательное чтение
 
 1. `<inputs_path>` — домен, ниша, регион, region_id, `keyso_base_primary` (msk, всегда) + `keyso_base_local` (база города или null), доступы (webmaster, metrika)
-2. `<project_root>/.claude/skills/strategy/MCP_MAP.md` — карта MCP-инструментов (какие тулы вызывать)
+2. `<project_root>/.claude/skills/seo-strategiya/MCP_MAP.md` — карта MCP-инструментов (какие тулы вызывать)
 
 ## Что делать
 

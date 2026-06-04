@@ -15,7 +15,7 @@ model: inherit
 - `project_root` — путь к корню проекта
 - `client_profile_path` — где лежит ЗАКАЗЧИК.md (типично `.claude/handoff-requests/files/ЗАКАЗЧИК.md` в worktree-режиме или `ЗАКАЗЧИК.md` в main)
 - `output_path` — куда записать результат. **Обязательный параметр.** Типичные значения:
-  - `.claude/handoff-requests/files/template.html` — для worktree-режима (через скил `/setup-project`)
+  - `.claude/handoff-requests/files/template.html` — для worktree-режима (через скил `/seo-shablon`)
   - `template.html` — для прямой работы в main (редкий случай)
 
 Также читаешь:

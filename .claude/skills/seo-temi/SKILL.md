@@ -1,9 +1,9 @@
 ---
-name: new-topics
+name: seo-temi
 description: Собирает 15-25 тем для блога в worktree. Полный цикл - топик-генератор -> xlsx -> автозагрузка в Google Sheet. Результат в topics/NNN-slug/. Аргументы - [--resume].
 ---
 
-# new-topics
+# seo-temi
 
 Полный цикл сбора батча тем для блога клиента: собирает 15-25 тем через `topic-generator`, строит `Topics_<slug>.xlsx`, загружает в Google Drive как Google Sheet и выдаёт ссылку для согласования с клиентом. Работает в worktree-сессии.
 
@@ -12,7 +12,7 @@ description: Собирает 15-25 тем для блога в worktree. Пол
 ## Аргументы
 
 ```
-/new-topics [--resume] [--queries "запрос1, запрос2"]
+/seo-temi [--resume] [--queries "запрос1, запрос2"]
 ```
 
 - `--resume` - продолжить незавершённый батч (находит самый свежий по `meta.json`), либо подхватить ручные правки в `Topics_<slug>.xlsx` (читает обратно в `topics-batch.json`).
@@ -39,10 +39,10 @@ collecting -> confirmed -> xlsx-done -> shared -> completed
 GIT_DIR=$(git rev-parse --git-dir)
 COMMON_DIR=$(git rev-parse --git-common-dir)
 ```
-Если в main - отказать: «/new-topics работает только в worktree. Открой сессию с галочкой worktree.»
+Если в main - отказать: «/seo-temi работает только в worktree. Открой сессию с галочкой worktree.»
 
 **ЗАКАЗЧИК.md:**
-Если нет в корне - отказать: «ЗАКАЗЧИК.md не найден. Сначала /setup-project в worktree + /handoff-process в main.»
+Если нет в корне - отказать: «ЗАКАЗЧИК.md не найден. Сначала /seo-shablon в worktree + /handoff-process в main.»
 
 ### 1. Parse args + найти/создать task-папку
 
@@ -231,9 +231,9 @@ bash .claude/hooks/update-meta.sh topics/NNN-<slug>/ shared
 
 Дальше:
   - Если клиент дал правки текстом:
-      /new-topics --resume  (применишь правки руками через Edit batch.json, пересоберём)
+      /seo-temi --resume  (применишь правки руками через Edit batch.json, пересоберём)
   - Если клиент правил в Sheets и ты скачал xlsx обратно:
-      положи в topics/NNN-<slug>/Topics_<slug>.xlsx и /new-topics --resume
+      положи в topics/NNN-<slug>/Topics_<slug>.xlsx и /seo-temi --resume
   - Перезалить в Drive после правок:
       /share-topics NNN --redo
   - Согласовано:

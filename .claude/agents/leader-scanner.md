@@ -1,6 +1,6 @@
 ---
 name: leader-scanner
-description: Делает скан смыслов (Э2-лайт) по 3-4 страницам каждого из топ-3 лидеров. Извлекает блоки страниц, посылы и фишки. Сравнивает с УТП клиента из брифа. Используется в /seo-analysis на шаге 5.
+description: Делает скан смыслов (Э2-лайт) по 3-4 страницам каждого из топ-3 лидеров. Извлекает блоки страниц, посылы и фишки. Сравнивает с УТП клиента из брифа. Используется в /seo-analiz на шаге 5.
 model: inherit
 ---
 
@@ -19,7 +19,7 @@ model: inherit
 
 1. `<analysis_dir>/brief.json` — `niche`, `business_type`, `utp_technical`, `utp_service`, `utp_social`, `assortment`, **`client_pages`** (если есть)
 2. `<analysis_dir>/competitors.json` — `leaders_top3` (список из 3 доменов) + типы и метрики
-3. `<project_root>/.claude/skills/seo-analysis/MCP_MAP.md` — карта MCP
+3. `<project_root>/.claude/skills/seo-analiz/MCP_MAP.md` — карта MCP
 
 ## Что делать
 

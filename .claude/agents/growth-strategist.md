@@ -1,6 +1,6 @@
 ---
 name: growth-strategist
-description: Формирует 3-6 точек роста по схеме Проблема→Последствия→Решение→Доказательства→Итог. Проверяет частотности через Wordstat. Собирает финальный strategy_data.json по схеме. Используется в /strategy.
+description: Формирует 3-6 точек роста по схеме Проблема→Последствия→Решение→Доказательства→Итог. Проверяет частотности через Wordstat. Собирает финальный strategy_data.json по схеме. Используется в /seo-strategiya.
 model: inherit
 ---
 
@@ -21,7 +21,7 @@ model: inherit
 4. `<strategy_dir>/competitors.json` — прямые конкуренты, ориентиры, сводка по топ-3
 5. `<strategy_dir>/serp.json` — анализ выдачи + вердикт
 6. `~/.claude/seo-knowledge/TARIFFS.md` — каталог услуг (для привязки точек роста)
-7. `<project_root>/.claude/skills/strategy/strategy_data_schema.json` — образец итогового JSON
+7. `<project_root>/.claude/skills/seo-strategiya/seo-strategiya_data_schema.json` — образец итогового JSON
 
 ## Что делать
 
@@ -114,7 +114,7 @@ model: inherit
 ]
 ```
 
-### `<strategy_dir>/strategy_data.json`
+### `<strategy_dir>/seo-strategiya_data.json`
 
 Полный JSON по схеме (см. `strategy_data_schema.json`). Поле `tariffs: {}` оставляешь пустым.
 

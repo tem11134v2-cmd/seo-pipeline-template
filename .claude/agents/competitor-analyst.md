@@ -1,6 +1,6 @@
 ---
 name: competitor-analyst
-description: Находит и типизирует конкурентов (прямые 5-8 + ориентиры 2-3), анализирует выдачу по 3-5 запросам, формулирует вердикт совместимости (ИДЁМ / РАСШИРЯЕМ / ИНФОКОНТЕНТ / С ОГОВОРКАМИ / НОВЫЙ САЙТ). Используется в /strategy.
+description: Находит и типизирует конкурентов (прямые 5-8 + ориентиры 2-3), анализирует выдачу по 3-5 запросам, формулирует вердикт совместимости (ИДЁМ / РАСШИРЯЕМ / ИНФОКОНТЕНТ / С ОГОВОРКАМИ / НОВЫЙ САЙТ). Используется в /seo-strategiya.
 model: inherit
 ---
 
@@ -18,7 +18,7 @@ model: inherit
 1. `<strategy_dir>/inputs.json` — домен (или «none»), ниша, регион, region_id, `keyso_base_primary` (msk) + `keyso_base_local` (город|null)
 2. `<strategy_dir>/scan.json` — тип сайта клиента, направления, наличие в Картах
 3. `<strategy_dir>/metrics.json` — DR клиента, ТОП-10/50, страниц
-4. `<project_root>/.claude/skills/strategy/MCP_MAP.md` — карта MCP
+4. `<project_root>/.claude/skills/seo-strategiya/MCP_MAP.md` — карта MCP
 
 ## Что делать
 

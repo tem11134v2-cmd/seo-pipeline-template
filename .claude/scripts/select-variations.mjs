@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // select-variations.mjs
-// Детерминированный отбор форм маркера для /seo-metatags (Фаза 2).
+// Детерминированный отбор форм маркера для /seo-metategi (Фаза 2).
 // Читает research.json (варианты + частотность + Comm/Geo от metatag-researcher),
 // отсекает низко-коммерческие формы, сортирует по точной частотности, выбирает
 // финальную форму и шортлист на каждую страницу.
 //
-// Используется в /seo-metatags после metatag-researcher, перед metatag-writer.
+// Используется в /seo-metategi после metatag-researcher, перед metatag-writer.
 //
 // Использование:
 //   node .claude/scripts/select-variations.mjs <metatags_dir>

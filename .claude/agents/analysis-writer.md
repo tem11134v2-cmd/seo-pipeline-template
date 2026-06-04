@@ -1,6 +1,6 @@
 ---
 name: analysis-writer
-description: Собирает финальные A2.md (предпроектный анализ, 5 разделов) и A3.md (стоп-лист, по строке = домен) из всех промежуточных JSON. Без MCP-вызовов. Используется в /seo-analysis на шаге 6.
+description: Собирает финальные A2.md (предпроектный анализ, 5 разделов) и A3.md (стоп-лист, по строке = домен) из всех промежуточных JSON. Без MCP-вызовов. Используется в /seo-analiz на шаге 6.
 tools: Read, Write, Edit
 model: inherit
 ---
@@ -266,7 +266,7 @@ zoon.ru
 
 ### Затем — собери `recommendations.json`
 
-Структурированный машиночитаемый список рекомендаций для downstream-скилов (`/strategy`, `/write-article`, будущий У3, У5).
+Структурированный машиночитаемый список рекомендаций для downstream-скилов (`/seo-strategiya`, `/seo-statya`, будущий У3, У5).
 
 **Источник данных:**
 - `serp.verdict.recommendations[]` — стратегические рекомендации
@@ -378,17 +378,17 @@ Executive Summary + 5 разделов по структуре выше. ~200-35
 
 ### `<analysis_dir>/recommendations.json`
 
-Структурированные рекомендации для /strategy, /pages, /articles. Каждая запись: `item`, `priority`, `source`, `effort`, optionally `note` или `client_status`.
+Структурированные рекомендации для /seo-strategiya, /pages, /articles. Каждая запись: `item`, `priority`, `source`, `effort`, optionally `note` или `client_status`.
 
 ### `<analysis_dir>/stop_list_detailed.json`
 
-Параллельный A3 формат с причинами и источниками. Для людей и для будущего использования в /strategy.
+Параллельный A3 формат с причинами и источниками. Для людей и для будущего использования в /seo-strategiya.
 
 ## Сводка в чат (4-6 строк)
 
 - A2.md: Executive Summary + 5 разделов, `<кол-во строк>` строк, `<кол-во таблиц>` таблиц
 - A3.md: `<N>` доменов в стоп-листе (детально с причинами — в `stop_list_detailed.json`)
-- `recommendations.json`: `<N1>` для /strategy, `<N2>` для /pages, `<N3>` для /articles
+- `recommendations.json`: `<N1>` для /seo-strategiya, `<N2>` для /pages, `<N3>` для /articles
 - Вердикт по выдаче: **<verdict.type>**
 - Главные дыры у клиента (с учётом client_pages): `<2-3 пункта из client_missing>`
 - Смежные направления для роста: `<N>` направлений (или «без пробелов»)

@@ -3,7 +3,7 @@
 // Парсит client_filled.xlsx (возвращённый клиентом A6.xlsx с заполненной колонкой «Целевая?»)
 // в structure_data.json для дальнейшей сборки A6.md агентом structure-writer.
 //
-// Используется в /seo-structure на шаге 9б.
+// Используется в /seo-struktura на шаге 9б.
 //
 // Использование:
 //   node .claude/scripts/import-structure.mjs <structure_dir>

@@ -1,6 +1,6 @@
 ---
 name: master-list-builder
-description: Собирает мастер-список страниц сайта на базе анализа конкурентов из analyses/NNN/. Делает domain_pages, типизацию, нормализацию синонимов, дополнение из брифа и спаривание с клиентом (если есть домен). Используется в /seo-structure на шаге 1.
+description: Собирает мастер-список страниц сайта на базе анализа конкурентов из analyses/NNN/. Делает domain_pages, типизацию, нормализацию синонимов, дополнение из брифа и спаривание с клиентом (если есть домен). Используется в /seo-struktura на шаге 1.
 model: inherit
 ---
 
@@ -289,7 +289,7 @@ mcp_fetch_page(url="https://<brief.domain>/sitemap.xml")
 
 ## Запреты
 
-- НЕ ищи новых конкурентов - бери только из `competitors.json`. Это задача `competitor-finder` из `/seo-analysis`.
+- НЕ ищи новых конкурентов - бери только из `competitors.json`. Это задача `competitor-finder` из `/seo-analiz`.
 - НЕ определяй маркерные запросы - это задача `marker-finder` (следующий шаг).
 - НЕ редактируй файлы в `analyses/NNN/` - они read-only.
 - НЕ выдумывай страницы, которых нет ни у конкурентов, ни в `brief.assortment` - источник всегда должен быть. (Смежные - только из `serp.adjacent_directions`.)

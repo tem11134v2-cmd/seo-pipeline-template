@@ -1,16 +1,16 @@
 ---
-name: seo-analysis
+name: seo-analiz
 description: Полный цикл предпроектного анализа конкурентов для SEO. Бриф клиента → структурирование → поиск конкурентов → SERP-вердикт → скан смыслов топ-3 → A2.md (5 разделов) + A3.md (стоп-лист) + опц. .docx. Аргументы: [путь к файлу с брифом ИЛИ ничего] [--resume].
 ---
 
-# seo-analysis
+# seo-analiz
 
 Скил-оркестратор предпроектного анализа конкурентов. Запускается **в worktree-сессии**. Проходит state machine от парсинга брифа до финальных A2.md/A3.md и опционально .docx для клиента.
 
 ## Аргументы
 
 ```
-/seo-analysis [--resume] [--no-share]
+/seo-analiz [--resume] [--no-share]
 ```
 
 - Без аргументов — скил запросит бриф у пользователя в чате (можно вставить текст или указать путь к файлу).
@@ -51,7 +51,7 @@ analyses/NNN-<domain-slug>/
 ├── A2.md                      # ФИНАЛ — markdown-отчёт (Executive Summary + 5 разделов)
 ├── A3.md                      # ФИНАЛ — стоп-лист (по строке = домен)
 ├── stop_list_detailed.json    # параллельный machine+human вариант стоп-листа с причинами
-├── recommendations.json       # структурированные рекомендации для /strategy, /write-article
+├── recommendations.json       # структурированные рекомендации для /seo-strategiya, /seo-statya
 ├── A2_<slug>.docx             # ASCII-safe имя; собирается всегда кроме --no-share
 └── share.json                 # ссылка Drive + drive_file_id + shared_at + revisions[]
 ```
@@ -228,7 +228,7 @@ project_root: <project root>
 `~/.claude/seo-knowledge/DRIVE.md` → извлечь `analyses_folder_id`.
 
 Если файла или поля нет — стоп:
-> «Не найден `analyses_folder_id` в DRIVE.md. Создай папку `/SEO/Analyses/` в Drive с правами `anyone-with-link → reader`, добавь её ID в DRIVE.md. Затем продолжи через `/seo-analysis --resume`.»
+> «Не найден `analyses_folder_id` в DRIVE.md. Создай папку `/SEO/Analyses/` в Drive с правами `anyone-with-link → reader`, добавь её ID в DRIVE.md. Затем продолжи через `/seo-analiz --resume`.»
 
 #### 8b. Если в meta.json есть `drive_file_id` (revising-цикл)
 
@@ -421,7 +421,7 @@ git commit -m "Analysis <NNN> for <slug или domain>: completed (<N> revisions
 
 ➡️ Следующий шаг конвейера (У3 - структура сайта):
    В новой worktree-сессии запусти:
-     /seo-structure <NNN>
+     /seo-struktura <NNN>
    Скил прочитает analyses/<NNN>-<slug>/ (brief.json, competitors.json, serp.json,
    leader_scan.json), соберёт мастер-список страниц, маркеры через каскад
    Keyso → JM, проверит каннибализацию, сгенерирует A6.xlsx → клиенту → A6.md.
@@ -444,4 +444,4 @@ claude --worktree analysis-002
 - НЕ редактируй общие файлы (`ЗАКАЗЧИК.md`, `template.html`, `topics.xlsx`) — read-only из worktree.
 - НЕ используй длинное тире (—) и среднее (–). Только дефис (-).
 - НЕ делай `git push` и не публикуй артефакты — это решение пользователя.
-- НЕ запускай `/write-article`, `/strategy`, `/new-topics` из этой же сессии — отдельные worktree-задачи.
+- НЕ запускай `/seo-statya`, `/seo-strategiya`, `/seo-temi` из этой же сессии — отдельные worktree-задачи.

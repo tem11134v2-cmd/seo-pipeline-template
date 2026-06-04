@@ -1,15 +1,15 @@
 ---
 name: share-strategy
-description: Повторная или отложенная загрузка docx-стратегии и xlsx-сметы из strategies/NNN/ на Google Drive (с автоконверсией в Google Doc/Sheet). По умолчанию `/strategy` сам делает это в шаге 9 — этот скил нужен только если шаг был пропущен или после правок локальных файлов. Аргументы:<NNN> [--redo].
+description: Повторная или отложенная загрузка docx-стратегии и xlsx-сметы из strategies/NNN/ на Google Drive (с автоконверсией в Google Doc/Sheet). По умолчанию `/seo-strategiya` сам делает это в шаге 9 — этот скил нужен только если шаг был пропущен или после правок локальных файлов. Аргументы:<NNN> [--redo].
 ---
 
 # share-strategy
 
-Утилита-помощник для скила `/strategy`. **Основной поток `/strategy` загружает результаты в Drive сам** (шаг 9). Этот скил пригодится в трёх сценариях:
+Утилита-помощник для скила `/seo-strategiya`. **Основной поток `/seo-strategiya` загружает результаты в Drive сам** (шаг 9). Этот скил пригодится в трёх сценариях:
 
-1. **Drive был недоступен** при первом прогоне `/strategy` — стратегия осталась в `state: xlsx-done` без `share.json`. Запускаешь `/share-strategy <NNN>` после восстановления MCP.
+1. **Drive был недоступен** при первом прогоне `/seo-strategiya` — стратегия осталась в `state: xlsx-done` без `share.json`. Запускаешь `/share-strategy <NNN>` после восстановления MCP.
 2. **Поправил локальный .docx или .xlsx** вручную или через будущий `/fix-strategy` — нужно перезалить новую версию в Drive: `/share-strategy <NNN> --redo`.
-3. **Legacy-стратегии** (собраны до версии этого скила, когда Drive ещё не был интегрирован в `/strategy`) — догрузить ссылки задним числом: `/share-strategy <NNN>`.
+3. **Legacy-стратегии** (собраны до версии этого скила, когда Drive ещё не был интегрирован в `/seo-strategiya`) — догрузить ссылки задним числом: `/share-strategy <NNN>`.
 
 ## Аргументы
 
@@ -42,7 +42,7 @@ redo = true если --redo
 `strategy_dir = strategies/<NNN>-*/` - найти существующую по NNN. Если не найдено - стоп: «Стратегия с номером <NNN> не найдена.»
 
 Прочитать:
-- `<strategy_dir>/meta.json` - убедиться, что `state >= xlsx-done` (стратегия и смета собраны). Если нет - стоп с подсказкой запустить `/strategy <URL> --resume`.
+- `<strategy_dir>/meta.json` - убедиться, что `state >= xlsx-done` (стратегия и смета собраны). Если нет - стоп с подсказкой запустить `/seo-strategiya <URL> --resume`.
 - `<strategy_dir>/inputs.json` - получить `slug`, `domain`.
 
 Локальные пути:
@@ -54,7 +54,7 @@ redo = true если --redo
 ### 2. Развилка по share.json
 
 Случай **A:** `share.json` не существует, `--redo` НЕ передан.
-- Это сценарий «отложенная или legacy-загрузка». Просто грузим, как делает шаг 9 в `/strategy`.
+- Это сценарий «отложенная или legacy-загрузка». Просто грузим, как делает шаг 9 в `/seo-strategiya`.
 - Переход к шагу 3.
 
 Случай **B:** `share.json` существует, `--redo` НЕ передан.
@@ -108,11 +108,11 @@ mcp__gdrive-piotr__uploadFile(
 
 ### 5. Записать share.json и обновить meta
 
-`<strategy_dir>/share.json` — формат как в `/strategy` шаг 9d (включая `mime_type: application/vnd.google-apps.document` / `application/vnd.google-apps.spreadsheet`). Если `--redo` — увеличить `redo_count` (или установить в 1, если поля не было).
+`<strategy_dir>/share.json` — формат как в `/seo-strategiya` шаг 9d (включая `mime_type: application/vnd.google-apps.document` / `application/vnd.google-apps.spreadsheet`). Если `--redo` — увеличить `redo_count` (или установить в 1, если поля не было).
 
 Обновление meta зависит от текущего state:
 
-- **`state == "xlsx-done"`** (Drive не был залит при первом прогоне `/strategy` либо --redo по legacy-стратегии без completed): `bash .claude/hooks/update-meta.sh <strategy_dir> shared`, затем `bash .claude/hooks/update-meta.sh <strategy_dir> completed`.
+- **`state == "xlsx-done"`** (Drive не был залит при первом прогоне `/seo-strategiya` либо --redo по legacy-стратегии без completed): `bash .claude/hooks/update-meta.sh <strategy_dir> shared`, затем `bash .claude/hooks/update-meta.sh <strategy_dir> completed`.
 - **`state == "shared"`** (был shared, не дошёл до completed): `bash .claude/hooks/update-meta.sh <strategy_dir> completed`.
 - **`state == "completed"`** (типичный --redo): **НЕ вызывать update-meta** — иначе state регрессирует с `completed` обратно на `shared` (скрипт всегда перезаписывает state, не сравнивая «свежее vs текущее»). Вручную через Edit добавь `shared` в `completed_steps` если его там нет.
 
@@ -145,7 +145,7 @@ mcp__gdrive-piotr__uploadFile(
 - НЕ грузить файлы в Drive вне якорей-папок (только `parentFolderId` из DRIVE.md).
 - НЕ оставлять `convertToGoogleFormat: false` — это противоречит решению об автоконверсии (ADR-008 обновлён). Команда не сможет редактировать в браузере.
 - НЕ вызывать `addPermission` — известный баг пакета на `type: anyone`.
-- НЕ менять файлы в Drive после загрузки через MCP. Если нужны правки — править локальный файл (через `/strategy --resume` или вручную), затем `/share-strategy <NNN> --redo`.
+- НЕ менять файлы в Drive после загрузки через MCP. Если нужны правки — править локальный файл (через `/seo-strategiya --resume` или вручную), затем `/share-strategy <NNN> --redo`.
 - Длинное тире (—) и среднее (–) не использовать. Только дефис (-).
 
 ## Параллельная работа

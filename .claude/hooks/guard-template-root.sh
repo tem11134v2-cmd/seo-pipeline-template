@@ -2,7 +2,7 @@
 # guard-template-root.sh - UserPromptSubmit-хук.
 #
 # Назначение: запретить запуск клиентских скилов (slash-команд) В САМОМ ШАБЛОНЕ
-# (seo-pipeline-template), чтобы случайный /setup-project, /write-article или
+# (seo-pipeline-template), чтобы случайный /seo-shablon, /seo-statya или
 # /handoff-process не загадил шаблон клиентскими артефактами. Реальный инцидент:
 # /handoff-process по ошибке применил клиента в шаблон вместо проекта.
 #

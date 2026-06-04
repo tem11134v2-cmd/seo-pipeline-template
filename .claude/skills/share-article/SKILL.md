@@ -1,15 +1,15 @@
 ---
 name: share-article
-description: Загружает Article_<slug>.docx из articles/NNN/ на Google Drive (с автоконверсией в Google Doc) и записывает delivery-ссылку в meta.json. По умолчанию /write-article делает это сам в шаге 13 — этот скил нужен если шаг пропустили (Drive был недоступен) или после ручных правок локального docx. Аргументы: <NNN> [--redo].
+description: Загружает Article_<slug>.docx из articles/NNN/ на Google Drive (с автоконверсией в Google Doc) и записывает delivery-ссылку в meta.json. По умолчанию /seo-statya делает это сам в шаге 13 — этот скил нужен если шаг пропустили (Drive был недоступен) или после ручных правок локального docx. Аргументы: <NNN> [--redo].
 ---
 
 # share-article
 
-Утилита-помощник для скила `/write-article`. Основной поток `/write-article` загружает docx статьи в Drive сам (на этапе finalize). Этот скил пригодится в трёх сценариях:
+Утилита-помощник для скила `/seo-statya`. Основной поток `/seo-statya` загружает docx статьи в Drive сам (на этапе finalize). Этот скил пригодится в трёх сценариях:
 
-1. **Drive был недоступен** при первом прогоне `/write-article` — docx остался локально, `meta.share` не заполнен. Запускаешь `/share-article <NNN>` после восстановления MCP.
+1. **Drive был недоступен** при первом прогоне `/seo-statya` — docx остался локально, `meta.share` не заполнен. Запускаешь `/share-article <NNN>` после восстановления MCP.
 2. **Поправил локальный .docx** руками или через `/fix-article` — нужно перезалить новую версию: `/share-article <NNN> --redo`.
-3. **Legacy-статьи**, собранные до интеграции Drive в `/write-article` — догрузить ссылку задним числом: `/share-article <NNN>`.
+3. **Legacy-статьи**, собранные до интеграции Drive в `/seo-statya` — догрузить ссылку задним числом: `/share-article <NNN>`.
 
 ## Аргументы
 
@@ -23,7 +23,7 @@ description: Загружает Article_<slug>.docx из articles/NNN/ на Goog
 ## Предусловия
 
 - MCP `gdrive-piotr` подключён, OAuth пройден.
-- В `articles/<NNN>-*/` есть собранный `Article_<slug>.docx` (создаётся через `build-article-docx.mjs` — шаг сборки в `/write-article`).
+- В `articles/<NNN>-*/` есть собранный `Article_<slug>.docx` (создаётся через `build-article-docx.mjs` — шаг сборки в `/seo-statya`).
 - `~/.claude/seo-knowledge/DRIVE.md` содержит якорь `Статьи` с Drive folder ID. Если якоря нет — стоп с инструкцией: «Добавь в DRIVE.md строку таблицы `| **Статьи** | Конвертированные Google Doc статей клиентов | <folder_id> |`. Папку создай в Drive вручную, расшарь anyone-with-link → reader, скопируй её ID.»
 
 ## Алгоритм
@@ -46,8 +46,8 @@ redo = true если --redo
 `found == false` → стоп «Статья с номером `<NNN>` не найдена»; `ambiguous == true` → показать `candidates`, попросить уточнить полный id; иначе `article_dir = <ответ>.dir`.
 
 Прочитать:
-- `<article_dir>/meta.json` — `slug`, `topic`, `state`. Если `state < assembled` — стоп: «Статья ещё не собрана. Запусти `/write-article <N> --resume`.»
-- `docx_path = <article_dir>/Article_<slug>.docx` — обязателен. Если нет — стоп: «Файл `Article_<slug>.docx` не найден. Запусти `node .claude/scripts/build-article-docx.mjs <article_dir>` (или `/write-article <N> --resume`).»
+- `<article_dir>/meta.json` — `slug`, `topic`, `state`. Если `state < assembled` — стоп: «Статья ещё не собрана. Запусти `/seo-statya <N> --resume`.»
+- `docx_path = <article_dir>/Article_<slug>.docx` — обязателен. Если нет — стоп: «Файл `Article_<slug>.docx` не найден. Запусти `node .claude/scripts/build-article-docx.mjs <article_dir>` (или `/seo-statya <N> --resume`).»
 
 ### 2. Развилка по meta.share
 

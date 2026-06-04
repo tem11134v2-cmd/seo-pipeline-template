@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // build-article-docx.mjs
 // Собирает финальный .docx статьи: шапка с метатегами + H1 + автор + breadcrumbs + body + FAQ + tags.
-// Используется в /write-article (волна 3 roadmap) как итоговый deliverable для Google Drive.
+// Используется в /seo-statya (волна 3 roadmap) как итоговый deliverable для Google Drive.
 //
 // Вход:
 //   <article_dir>/article.md             — текст статьи (Markdown)

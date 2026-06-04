@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // read-topics-xlsx.mjs
 // Читает корневой topics.xlsx (если есть) и возвращает JSON с темами в формате,
-// совместимом с topic-generator. Используется скилом /new-topics для дедупликации:
+// совместимом с topic-generator. Используется скилом /seo-temi для дедупликации:
 // передаёт existing_main_queries в промт топик-генератора, чтобы тот не предлагал
 // темы, которые уже есть в общем темнике клиента.
 //
@@ -24,8 +24,8 @@ import { join, resolve } from "node:path";
 import ExcelJS from "exceljs";
 
 // CLI: read-topics-xlsx.mjs [project_root] [--by-number N]
-//   Без флага  - вернёт все темы (для дедупликации в /new-topics).
-//   --by-number N - вернёт ОДНУ тему по колонке № (n === N), для /write-article.
+//   Без флага  - вернёт все темы (для дедупликации в /seo-temi).
+//   --by-number N - вернёт ОДНУ тему по колонке № (n === N), для /seo-statya.
 const rawArgs = process.argv.slice(2);
 let byNumber = null;
 const positional = [];

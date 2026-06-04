@@ -1,4 +1,4 @@
-# Smoke-тесты `/seo-structure`
+# Smoke-тесты `/seo-struktura`
 
 Регрессионные тесты для трёх скриптов скила:
 - `select-top10.mjs` - фильтрация JM + детекция каннибализации
@@ -31,7 +31,7 @@
 Ожидаемый вывод (~5 секунд):
 
 ```
-=== /seo-structure scripts smoke ===
+=== /seo-struktura scripts smoke ===
 Sandbox: <project>/.claude/tmp/seo-structure-test
 
   [test] select-top10.mjs runs and writes outputs ... PASS

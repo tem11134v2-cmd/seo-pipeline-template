@@ -1,6 +1,6 @@
 ---
 name: competitor-finder
-description: Ищет конкурентов по пути А/Б/В/Г из brief.json, фильтрует, собирает метрики, типизирует и отбирает 6-10 финальных + топ-3 лидера. Используется в /seo-analysis на шагах 2-3.
+description: Ищет конкурентов по пути А/Б/В/Г из brief.json, фильтрует, собирает метрики, типизирует и отбирает 6-10 финальных + топ-3 лидера. Используется в /seo-analiz на шагах 2-3.
 model: inherit
 ---
 
@@ -16,7 +16,7 @@ model: inherit
 ## Обязательное чтение
 
 1. `<analysis_dir>/brief.json` — `path`, `domain`, `niche`, `region`, `keyso_base`, `business_type`, `assortment`, `client_target_queries`, `client_competitors`, `city_not_in_keyso`
-2. `<project_root>/.claude/skills/seo-analysis/MCP_MAP.md` — карта MCP-инструментов
+2. `<project_root>/.claude/skills/seo-analiz/MCP_MAP.md` — карта MCP-инструментов
 
 ## Что делать
 

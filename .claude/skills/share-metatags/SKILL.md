@@ -1,11 +1,11 @@
 ---
 name: share-metatags
-description: Повторная или отложенная загрузка A7_<slug>.xlsx из metatags/NNN/ на Google Drive (с автоконверсией в Google Sheet). По умолчанию `/seo-metatags` делает это сам в шаге 8 - этот скил нужен если шаг был пропущен (Drive недоступен / нет metatags_folder_id) или после ручных правок локального .xlsx. Аргументы - <NNN> [--redo].
+description: Повторная или отложенная загрузка A7_<slug>.xlsx из metatags/NNN/ на Google Drive (с автоконверсией в Google Sheet). По умолчанию `/seo-metategi` делает это сам в шаге 8 - этот скил нужен если шаг был пропущен (Drive недоступен / нет metatags_folder_id) или после ручных правок локального .xlsx. Аргументы - <NNN> [--redo].
 ---
 
 # share-metatags
 
-Утилита-помощник для скила `/seo-metatags`. **Основной поток грузит A7 в Drive сам** (шаг 8). Этот скил - для трёх случаев:
+Утилита-помощник для скила `/seo-metategi`. **Основной поток грузит A7 в Drive сам** (шаг 8). Этот скил - для трёх случаев:
 
 1. **Drive был недоступен / не настроен** при первом прогоне (нет `metatags_folder_id` в DRIVE.md) - метатеги остались в `state: xlsx-built` без `share.json`. Запускаешь `/share-metatags <NNN>` после настройки.
 2. **Поправил локальный .xlsx** вручную - перезалить: `/share-metatags <NNN> --redo`.
@@ -38,7 +38,7 @@ redo = true если --redo
 `metatags_dir = metatags/<NNN>-*/` (glob). Если не найдено - стоп.
 
 Прочитать:
-- `meta.json` - `state >= xlsx-built`. Если нет - стоп с подсказкой `/seo-metatags --resume <NNN>`.
+- `meta.json` - `state >= xlsx-built`. Если нет - стоп с подсказкой `/seo-metategi --resume <NNN>`.
 - `inputs.json` - `slug`, `domain`.
 
 `xlsx_path = <metatags_dir>/A7_<slug>.xlsx`. Если нет - стоп.

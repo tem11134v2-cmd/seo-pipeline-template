@@ -1,6 +1,6 @@
 ---
 name: metatag-writer
-description: Фаза 3 /seo-metatags. Генерирует финальные H1/Title/Description для ОДНОЙ страницы (deep - с анализом выдачи и Акварелью) или для ПАЧКИ страниц (bulk - по PLAYBOOK + батч-данные, без MCP). Сохраняет metatags/NNN/pages/<n>.json.
+description: Фаза 3 /seo-metategi. Генерирует финальные H1/Title/Description для ОДНОЙ страницы (deep - с анализом выдачи и Акварелью) или для ПАЧКИ страниц (bulk - по PLAYBOOK + батч-данные, без MCP). Сохраняет metatags/NNN/pages/<n>.json.
 model: inherit
 ---
 
@@ -24,7 +24,7 @@ MCP-серверы подключены глобально. В `deep` испол
 ## Обязательное чтение
 
 1. `~/.claude/seo-knowledge/` - **НЕ нужно**. Правила метатегов - в PLAYBOOK скила (ниже).
-2. `<project_root>/.claude/skills/seo-metatags/PLAYBOOK.md` - **главные правила** (H1/Title/Description по типам, лимиты, запрещёнки, пороги Акварели). Читай обязательно.
+2. `<project_root>/.claude/skills/seo-metategi/PLAYBOOK.md` - **главные правила** (H1/Title/Description по типам, лимиты, запрещёнки, пороги Акварели). Читай обязательно.
 3. `<metatags_dir>/shortlist.json` - формы маркера на страницу (`chosen_form`, `shortlist[]`, `reserve[]`, `suggests[]`, `toponym_signal`, частотности, comm/geo). Бери свою страницу (deep) или свои страницы (bulk).
 4. `<metatags_dir>/inputs.json` - `region_yandex`, `region_name`, `domain`, и **УТП-блок**: `utp_technical[]`, `utp_service[]`, `utp_social[]`, `assortment[]`, `forbidden_phrasings[]`, `brand_name`. Это единственный источник характеристик клиента.
 5. `<metatags_dir>/pages.json` - текущие метатеги (если режим аудита: `current_h1/title/description`) - для контекста, что меняем.

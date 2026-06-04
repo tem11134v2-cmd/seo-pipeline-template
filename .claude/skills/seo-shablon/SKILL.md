@@ -1,16 +1,16 @@
 ---
-name: setup-project
+name: seo-shablon
 description: Исследует сайт клиента и готовит ЗАКАЗЧИК.md + template.html. Запускается в worktree после клонирования template-репо. Файлы выносятся в main через /handoff + /handoff-process.
 ---
 
-# setup-project
+# seo-shablon
 
 Первичное исследование проекта клиента: сбор данных с сайта, генерация профиля и шаблона вёрстки. **Запускается в worktree-сессии** уже клонированного template-репо.
 
 ## Аргументы
 
 ```
-/setup-project <URL_сайта_клиента>
+/seo-shablon <URL_сайта_клиента>
 ```
 
 ## Алгоритм
@@ -23,7 +23,7 @@ COMMON_DIR=$(git rev-parse --git-common-dir)
 ```
 
 Если `GIT_DIR == COMMON_DIR` (мы в main) — сообщить и отказать:
-> «/setup-project работает только в worktree-сессии. Открой текущую папку в новой сессии с галочкой worktree.»
+> «/seo-shablon работает только в worktree-сессии. Открой текущую папку в новой сессии с галочкой worktree.»
 
 ### 1. Записать current-task.txt
 
@@ -138,7 +138,7 @@ Bash: xdg-open .claude/handoff-requests/files/template.html || open .claude/hand
   "post_actions": [
     "git config core.hooksPath .claude/git-hooks"
   ],
-  "notes": "Первичная инициализация проекта <URL>. После применения main-проект готов к /new-topics и /write-article."
+  "notes": "Первичная инициализация проекта <URL>. После применения main-проект готов к /seo-temi и /seo-statya."
 }
 ```
 
@@ -166,7 +166,7 @@ Bash: xdg-open .claude/handoff-requests/files/template.html || open .claude/hand
 ## Запреты
 
 - Не пиши `ЗАКАЗЧИК.md` или `template.html` в корень проекта напрямую — только в `.claude/handoff-requests/files/`. Иначе pre-commit hook откажет в коммите.
-- Не запускай `/new-topics`, `/write-article` из этой же сессии — это отдельные worktree-задачи.
+- Не запускай `/seo-temi`, `/seo-statya` из этой же сессии — это отдельные worktree-задачи.
 - Не используй длинное тире (—) и среднее (–). Только дефис (-).
 
 ## Состояние

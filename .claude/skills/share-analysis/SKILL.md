@@ -1,13 +1,13 @@
 ---
 name: share-analysis
-description: Повторная или отложенная загрузка A2_<slug>.docx из analyses/NNN/ на Google Drive (с автоконверсией в Google Doc). По умолчанию `/seo-analysis` сам делает это в шаге 8 — этот скил нужен если шаг был пропущен (Drive недоступен) или после ручных правок локального .docx. Аргументы: <NNN> [--redo].
+description: Повторная или отложенная загрузка A2_<slug>.docx из analyses/NNN/ на Google Drive (с автоконверсией в Google Doc). По умолчанию `/seo-analiz` сам делает это в шаге 8 — этот скил нужен если шаг был пропущен (Drive недоступен) или после ручных правок локального .docx. Аргументы: <NNN> [--redo].
 ---
 
 # share-analysis
 
-Утилита-помощник для скила `/seo-analysis`. **Основной поток `/seo-analysis` загружает результат в Drive сам** (шаг 8). Этот скил пригодится в трёх сценариях:
+Утилита-помощник для скила `/seo-analiz`. **Основной поток `/seo-analiz` загружает результат в Drive сам** (шаг 8). Этот скил пригодится в трёх сценариях:
 
-1. **Drive был недоступен** при первом прогоне `/seo-analysis` — анализ остался в `state: docx-done` без `share.json`. Запускаешь `/share-analysis <NNN>` после восстановления MCP.
+1. **Drive был недоступен** при первом прогоне `/seo-analiz` — анализ остался в `state: docx-done` без `share.json`. Запускаешь `/share-analysis <NNN>` после восстановления MCP.
 2. **Поправил локальный .docx** вручную — нужно перезалить новую версию: `/share-analysis <NNN> --redo`.
 3. **Legacy-анализы** (собраны до версии этого скила) — догрузить ссылки задним числом: `/share-analysis <NNN>`.
 
@@ -40,7 +40,7 @@ redo = true если --redo
 `analysis_dir = analyses/<NNN>-*/` - найти существующую по NNN. Если не найдено - стоп.
 
 Прочитать:
-- `<analysis_dir>/meta.json` - убедиться, что `state >= docx-done`. Если нет - стоп с подсказкой `/seo-analysis --resume`.
+- `<analysis_dir>/meta.json` - убедиться, что `state >= docx-done`. Если нет - стоп с подсказкой `/seo-analiz --resume`.
 - `<analysis_dir>/brief.json` - получить `slug`, `domain`.
 
 Локальный путь: `docx_path = <analysis_dir>/A2_<slug>.docx`. Если нет - стоп.

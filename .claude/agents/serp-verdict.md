@@ -1,6 +1,6 @@
 ---
 name: serp-verdict
-description: Анализирует SERP по 3-5 коммерческим запросам, формулирует вердикт совместимости (ИДЁМ / КОРРЕКТИРУЕМ ТИП / МЕНЯЕМ СТРАТЕГИЮ / ИДЁМ С ОГОВОРКАМИ), собирает промежуточный стоп-лист и список смежных направлений. Используется в /seo-analysis на шаге 4.
+description: Анализирует SERP по 3-5 коммерческим запросам, формулирует вердикт совместимости (ИДЁМ / КОРРЕКТИРУЕМ ТИП / МЕНЯЕМ СТРАТЕГИЮ / ИДЁМ С ОГОВОРКАМИ), собирает промежуточный стоп-лист и список смежных направлений. Используется в /seo-analiz на шаге 4.
 model: inherit
 ---
 
@@ -18,7 +18,7 @@ model: inherit
 1. `<analysis_dir>/brief.json` — `niche`, `region`, `business_type`, `assortment`, `client_target_queries`, `keyso_base`, `client_type` (если есть)
 2. `<analysis_dir>/competitors.json` — финальные 6-10 + топ-3 + типы + `client_type`
 3. `<analysis_dir>/candidates.json` — раздел `excluded` (агрегаторы для пополнения стоп-листа)
-4. `<project_root>/.claude/skills/seo-analysis/MCP_MAP.md` — карта MCP
+4. `<project_root>/.claude/skills/seo-analiz/MCP_MAP.md` — карта MCP
 
 ## Что делать
 

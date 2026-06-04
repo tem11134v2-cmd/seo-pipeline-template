@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // validate-analysis-inputs.mjs
-// Жёсткая валидация входа для /seo-structure: проверяет НАЛИЧИЕ файлов анализа И канонические поля,
+// Жёсткая валидация входа для /seo-struktura: проверяет НАЛИЧИЕ файлов анализа И канонические поля,
 // а не просто «файл существует». Ловит дрейф схемы (например target_queries_client вместо
 // client_target_queries) и неполный/реконструированный анализ ДО старта дорогих шагов.
 //
-// Используется в /seo-structure на шаге 1a.
+// Используется в /seo-struktura на шаге 1a.
 //
 // Использование:
 //   node .claude/scripts/validate-analysis-inputs.mjs <analysis_dir>
@@ -148,7 +148,7 @@ if (problems.length > 0) {
   console.error("Проблемы (канон-схема нарушена):");
   for (const p of problems) console.error(`  - ${p}`);
   console.error("");
-  console.error("Варианты: (1) перепрогнать /seo-analysis --resume <NNN>;");
+  console.error("Варианты: (1) перепрогнать /seo-analiz --resume <NNN>;");
   console.error("          (2) если только legacy A2.md - дособрать канон-JSON вручную по образцу structures/001-*/.");
   process.exit(2);
 }

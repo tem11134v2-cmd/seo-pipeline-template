@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // read-metatags-input.mjs
-// Собирает канонический pages.json для /seo-metatags из одного из трёх источников:
+// Собирает канонический pages.json для /seo-metategi из одного из трёх источников:
 //   --from-structure <structure_dir>  - страницы «да» из утверждённой структуры (A6)
 //   --from-audit                       - выбранные страницы из site-scanner (audit.json)
 //   --from-table <csv_or_tsv_path>     - готовая таблица URL/Тип/Маркер[/запросы]
 //
-// Используется в /seo-metatags (Фаза 1, до metatag-researcher) и в хвосте /seo-structure.
+// Используется в /seo-metategi (Фаза 1, до metatag-researcher) и в хвосте /seo-struktura.
 //
 // Использование:
 //   node .claude/scripts/read-metatags-input.mjs <metatags_dir> --from-structure <structure_dir>

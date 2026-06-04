@@ -1,13 +1,13 @@
 ---
 name: share-structure
-description: Повторная или отложенная загрузка A6_<slug>.xlsx из structures/NNN/ на Google Drive (с автоконверсией в Google Sheet). По умолчанию `/seo-structure` сам делает это в шаге 7 - этот скил нужен если шаг был пропущен (Drive недоступен) или после ручных правок локального .xlsx. Аргументы - <NNN> [--redo].
+description: Повторная или отложенная загрузка A6_<slug>.xlsx из structures/NNN/ на Google Drive (с автоконверсией в Google Sheet). По умолчанию `/seo-struktura` сам делает это в шаге 7 - этот скил нужен если шаг был пропущен (Drive недоступен) или после ручных правок локального .xlsx. Аргументы - <NNN> [--redo].
 ---
 
 # share-structure
 
-Утилита-помощник для скила `/seo-structure`. **Основной поток `/seo-structure` загружает результат в Drive сам** (шаг 7). Этот скил пригодится в трёх сценариях:
+Утилита-помощник для скила `/seo-struktura`. **Основной поток `/seo-struktura` загружает результат в Drive сам** (шаг 7). Этот скил пригодится в трёх сценариях:
 
-1. **Drive был недоступен** при первом прогоне `/seo-structure` - структура осталась в `state: xlsx-built` без `share.json`. Запускаешь `/share-structure <NNN>` после восстановления MCP.
+1. **Drive был недоступен** при первом прогоне `/seo-struktura` - структура осталась в `state: xlsx-built` без `share.json`. Запускаешь `/share-structure <NNN>` после восстановления MCP.
 2. **Поправил локальный .xlsx** вручную - нужно перезалить новую версию: `/share-structure <NNN> --redo`.
 3. **Legacy-структуры** (собраны до версии этого скила) - догрузить ссылки задним числом: `/share-structure <NNN>`.
 
@@ -40,7 +40,7 @@ redo = true если --redo
 `structure_dir = structures/<NNN>-*/` - найти существующую по NNN. Если не найдено - стоп.
 
 Прочитать:
-- `<structure_dir>/meta.json` - убедиться, что `state >= xlsx-built`. Если нет - стоп с подсказкой `/seo-structure --resume`.
+- `<structure_dir>/meta.json` - убедиться, что `state >= xlsx-built`. Если нет - стоп с подсказкой `/seo-struktura --resume`.
 - `<structure_dir>/inputs.json` - получить `slug`, `domain`.
 
 Локальный путь: `xlsx_path = <structure_dir>/A6_<slug>.xlsx`. Если нет - стоп.
@@ -114,7 +114,7 @@ mcp__gdrive-piotr__uploadFile(
    <drive_link>
 
 Клиент заполняет колонку «Целевая?» и возвращает файл.
-Когда вернётся - /seo-structure <NNN> --import <путь>
+Когда вернётся - /seo-struktura <NNN> --import <путь>
 
 Локальный оригинал:
    <xlsx_path>

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // build-analysis-docx.mjs
 // Генерирует A2 (предпроектный анализ) в формате .docx из A2.md.
-// Опциональный шаг 7 скила /seo-analysis. Эквивалент шага 7 исходного claude.ai-скила.
+// Опциональный шаг 7 скила /seo-analiz. Эквивалент шага 7 исходного claude.ai-скила.
 //
 // Зависимости: docx (npm install docx) — уже в package.json (от build-strategy-docx.mjs).
 //

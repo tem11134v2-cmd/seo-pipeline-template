@@ -1,14 +1,14 @@
 ---
 name: share-topics
-description: Повторная или отложенная загрузка Topics_<slug>.xlsx из topics/NNN/ на Google Drive (с автоконверсией в Google Sheet). По умолчанию /new-topics сам делает это в шаге 7 - этот скил нужен если шаг был пропущен (Drive недоступен) или после ручных правок локального xlsx. Аргументы - <NNN> [--redo].
+description: Повторная или отложенная загрузка Topics_<slug>.xlsx из topics/NNN/ на Google Drive (с автоконверсией в Google Sheet). По умолчанию /seo-temi сам делает это в шаге 7 - этот скил нужен если шаг был пропущен (Drive недоступен) или после ручных правок локального xlsx. Аргументы - <NNN> [--redo].
 ---
 
 # share-topics
 
-Утилита-помощник для скила `/new-topics`. **Основной поток `/new-topics` загружает результат в Drive сам** (шаг 7). Этот скил пригодится в трёх сценариях:
+Утилита-помощник для скила `/seo-temi`. **Основной поток `/seo-temi` загружает результат в Drive сам** (шаг 7). Этот скил пригодится в трёх сценариях:
 
-1. **Drive был недоступен** при первом прогоне `/new-topics` - батч остался в `state: xlsx-done` без `share.json`. Запускаешь `/share-topics <NNN>` после восстановления MCP.
-2. **Поправил локальный xlsx** вручную (или применил правки через `/new-topics --resume` после `from-excel-topics.mjs`) - нужно перезалить новую версию: `/share-topics <NNN> --redo`.
+1. **Drive был недоступен** при первом прогоне `/seo-temi` - батч остался в `state: xlsx-done` без `share.json`. Запускаешь `/share-topics <NNN>` после восстановления MCP.
+2. **Поправил локальный xlsx** вручную (или применил правки через `/seo-temi --resume` после `from-excel-topics.mjs`) - нужно перезалить новую версию: `/share-topics <NNN> --redo`.
 3. **Legacy-батчи** (собраны до версии этого скила) - догрузить ссылку задним числом: `/share-topics <NNN>`.
 
 ## Аргументы
@@ -42,7 +42,7 @@ redo = true если --redo
 `topics_dir = topics/<NNN>-*/` - найти существующую по NNN. Если не найдено - стоп: «Батч с номером <NNN> не найден.»
 
 Прочитать:
-- `<topics_dir>/meta.json` - убедиться, что `state >= xlsx-done`. Если нет - стоп с подсказкой запустить `/new-topics --resume`.
+- `<topics_dir>/meta.json` - убедиться, что `state >= xlsx-done`. Если нет - стоп с подсказкой запустить `/seo-temi --resume`.
 - `slug` берётся из `meta.json` (поле `slug`).
 
 Локальный путь: `xlsx_path = <topics_dir>/Topics_<slug>.xlsx`. Если файла нет - стоп.
@@ -130,7 +130,7 @@ mcp__gdrive-piotr__uploadFile(
 - НЕ грузить файлы в Drive вне `topics_folder_id` из DRIVE.md.
 - НЕ оставлять `convertToGoogleFormat: false` без предупреждения - команда не сможет редактировать в браузере.
 - НЕ вызывать `addPermission` - известный баг пакета на `type: anyone`, права наследуются от папки.
-- НЕ менять файлы в Drive после загрузки через MCP. Если нужны правки - правь локальный xlsx (через `/new-topics --resume`) или `topics-batch.json`, затем `/share-topics <NNN> --redo`.
+- НЕ менять файлы в Drive после загрузки через MCP. Если нужны правки - правь локальный xlsx (через `/seo-temi --resume`) или `topics-batch.json`, затем `/share-topics <NNN> --redo`.
 - Длинное тире (—) и среднее (–) не использовать. Только дефис (-).
 
 ## Параллельная работа

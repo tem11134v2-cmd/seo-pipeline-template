@@ -2,7 +2,7 @@
 // select-top10.mjs
 // Детерминированная фильтрация JM semantic_pack → топ-10 на страницу + детекция каннибализации.
 //
-// Используется в /seo-structure на шаге 4а (перед агентом cannibalization-resolver).
+// Используется в /seo-struktura на шаге 4а (перед агентом cannibalization-resolver).
 //
 // Использование:
 //   node .claude/scripts/select-top10.mjs <structure_dir>

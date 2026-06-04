@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // build-metatags-xlsx.mjs
-// Собирает A7_<slug>.xlsx (3 листа) из результатов writer'ов для /seo-metatags (Фаза 4).
+// Собирает A7_<slug>.xlsx (3 листа) из результатов writer'ов для /seo-metategi (Фаза 4).
 // Палитра и хелперы согласованы с build-structure-xlsx.mjs (A6) - A7 зеркалит A6.
 //
 // Использование:
@@ -107,7 +107,7 @@ function loadPageMeta(n) {
 }
 
 const workbook = new ExcelJS.Workbook();
-workbook.creator = "seo-pipeline /seo-metatags";
+workbook.creator = "seo-pipeline /seo-metategi";
 workbook.created = new Date();
 
 // ──────────────────────────────────────────────────────────────────────────

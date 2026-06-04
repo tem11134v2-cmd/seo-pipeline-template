@@ -24,9 +24,9 @@ description: Перепишет один раздел (H2) уже написан
 - Раздел дублирует другой по смыслу.
 - Раздел вышел слишком длинным/коротким, не помогла адаптивная коррекция в первый прогон.
 
-Если нужна **точечная правка** (заменить абзац, поправить фразу) — используй `/fix-article` или (в `--review` цикле write-article) `/edit "..."`.
+Если нужна **точечная правка** (заменить абзац, поправить фразу) — используй `/fix-article` или (в `--review` цикле seo-statya) `/edit "..."`.
 
-Если **вся статья** не пошла — проще запустить `/write-article N --review` заново.
+Если **вся статья** не пошла — проще запустить `/seo-statya N --review` заново.
 
 ## Алгоритм
 
@@ -41,7 +41,7 @@ description: Перепишет один раздел (H2) уже написан
 .claude\scripts\_node.cmd .claude\scripts\resolve-article-dir.mjs articles <NNN>
 ```
 `found == false` → стоп «Статья не найдена»; `ambiguous == true` → показать `candidates`, уточнить полный id; иначе `article_dir = <ответ>.dir`.
-Прочитать `<article_dir>/meta.json`. Если `state < sections-done` — стоп: «Статья ещё пишется. Запусти `/write-article N --resume`.»
+Прочитать `<article_dir>/meta.json`. Если `state < sections-done` — стоп: «Статья ещё пишется. Запусти `/seo-statya N --resume`.»
 
 Прочитать `<article_dir>/tz.md`, выписать все H2 в порядке появления в Разделе 5. Найти раздел N (1-based). Если N выходит за пределы — стоп.
 

@@ -50,7 +50,7 @@ model: inherit
 
 ## После твоей работы
 
-Скил `write-article` выведет в чат сообщение:
+Скил `seo-statya` выведет в чат сообщение:
 
 ```
 Сгенерируй фото по промтам из <article_dir>/photos/prompts.md.

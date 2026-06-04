@@ -10,28 +10,28 @@
 
 ```
 ТРЕК А - пресейл (нужна стратегия продвижения)
-  /new-project -> /strategy URL   -> SEO_Strategy.docx + Smeta.xlsx (КП клиенту)
+  /new-project -> /seo-strategiya URL   -> SEO_Strategy.docx + Smeta.xlsx (КП клиенту)
 
 ТРЕК Б - согласованная работа (клиент принял предложение)
-  1. /setup-project URL  -> ЗАКАЗЧИК.md + template.html (профиль клиента)
-  2. /seo-analysis       -> A2.md + A3.md (предпроектный анализ конкурентов)
-  3. /seo-structure NNN  -> A6.xlsx -> клиент -> A6.md (структура сайта)
+  1. /seo-shablon URL  -> ЗАКАЗЧИК.md + template.html (профиль клиента)
+  2. /seo-analiz       -> A2.md + A3.md (предпроектный анализ конкурентов)
+  3. /seo-struktura NNN  -> A6.xlsx -> клиент -> A6.md (структура сайта)
        └─ с --metatags в конце автоматически -> A7.xlsx (метатеги)
-  4. /seo-metatags       -> A7.xlsx (H1/Title/Description; или хвостом из шага 3)
-  5. /new-topics         -> topics.xlsx (15-25 тем для блога)
-     /write-article N    -> Article.docx + output.html (на каждую тему)
+  4. /seo-metategi       -> A7.xlsx (H1/Title/Description; или хвостом из шага 3)
+  5. /seo-temi         -> topics.xlsx (15-25 тем для блога)
+     /seo-statya N    -> Article.docx + output.html (на каждую тему)
   6. [планируется: технический аудит и другие услуги]
 ```
 
 Каждый шаг читает артефакты предыдущих:
-- `/seo-structure` читает `analyses/NNN/brief.json + competitors.json + serp.json + leader_scan.json` - обязательная стыковка
-- `/new-topics` и `/write-article` читают `ЗАКАЗЧИК.md` (поэтому до контента нужен `/setup-project`)
-- `/write-article` дополнительно читает `topics.xlsx + template.html`
-- `/strategy` читает `ЗАКАЗЧИК.md` если он есть, иначе спрашивает нишу/регион напрямую (работает в пресейле без профиля)
+- `/seo-struktura` читает `analyses/NNN/brief.json + competitors.json + serp.json + leader_scan.json` - обязательная стыковка
+- `/seo-temi` и `/seo-statya` читают `ЗАКАЗЧИК.md` (поэтому до контента нужен `/seo-shablon`)
+- `/seo-statya` дополнительно читает `topics.xlsx + template.html`
+- `/seo-strategiya` читает `ЗАКАЗЧИК.md` если он есть, иначе спрашивает нишу/регион напрямую (работает в пресейле без профиля)
 
 Заметки:
 - Шаги 2-3 (анализ + структура) можно пропустить, если занимаешься только контентом.
-- `/strategy` не привязан жёстко к пресейлу - его можно запускать и внутри трека Б (например, переутвердить тарифы).
+- `/seo-strategiya` не привязан жёстко к пресейлу - его можно запускать и внутри трека Б (например, переутвердить тарифы).
 
 ---
 
@@ -99,8 +99,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
     1. Открой ~/seo-projects/<slug>/ в новой сессии Claude Code Desktop
        с ВКЛЮЧЁННОЙ галочкой worktree.
     2. В этой новой сессии запусти, в зависимости от стадии:
-       - пресейл (нужна стратегия): /strategy <URL_клиента>
-       - согласованная работа:      /setup-project <URL_клиента>
+       - пресейл (нужна стратегия): /seo-strategiya <URL_клиента>
+       - согласованная работа:      /seo-shablon <URL_клиента>
 
   Эту установочную сессию можно закрыть.
   ═════════════════════════════
@@ -117,9 +117,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 ```
 ┌─ worktree-сессия (галочка worktree) ──────────────┐
 │                                                    │
-│  /setup-project <URL>      ← один раз на клиента   │
-│  /new-topics               ← один раз за период    │
-│  /write-article 1          ← на каждую статью      │
+│  /seo-shablon <URL>      ← один раз на клиента   │
+│  /seo-temi               ← один раз за период    │
+│  /seo-statya 1          ← на каждую статью      │
 │  /fix-article 001 "..."    ← по необходимости      │
 │  /request-shared-edit "..."← если нужна правка     │
 │                              общего файла          │
@@ -138,10 +138,10 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ### Когда нужен `/handoff-process`
 
-- ✅ Нужен после `/setup-project` (создавал `ЗАКАЗЧИК.md` и `template.html` в handoff-requests).
-- ✅ Нужен после `/new-topics` (создавал `topics-batch.json`).
-- ✅ Нужен после `/write-article` или `/fix-article`, **если в их ходе был** `/request-shared-edit`.
-- ❌ **Не нужен** после `/write-article` или `/fix-article`, если они не трогали общие файлы — статья уже в main после `/handoff`.
+- ✅ Нужен после `/seo-shablon` (создавал `ЗАКАЗЧИК.md` и `template.html` в handoff-requests).
+- ✅ Нужен после `/seo-temi` (создавал `topics-batch.json`).
+- ✅ Нужен после `/seo-statya` или `/fix-article`, **если в их ходе был** `/request-shared-edit`.
+- ❌ **Не нужен** после `/seo-statya` или `/fix-article`, если они не трогали общие файлы — статья уже в main после `/handoff`.
 
 ### Параллельная работа
 
@@ -171,48 +171,48 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── photo-promter.md
 │   │   ├── article-fixer.md
 │   │   ├── article-fixer-batch.md
-│   │   ├── strategy-scanner.md              ← /strategy
-│   │   ├── competitor-analyst.md            ← /strategy
-│   │   ├── growth-strategist.md             ← /strategy
-│   │   ├── tariff-architect.md              ← /strategy
-│   │   ├── strategy-writer.md               ← /strategy
-│   │   ├── brief-structurer.md              ← /seo-analysis
-│   │   ├── competitor-finder.md             ← /seo-analysis
-│   │   ├── serp-verdict.md                  ← /seo-analysis
-│   │   ├── leader-scanner.md                ← /seo-analysis
-│   │   ├── analysis-writer.md               ← /seo-analysis
-│   │   ├── master-list-builder.md           ← /seo-structure
-│   │   ├── marker-finder.md                 ← /seo-structure
-│   │   ├── semantic-expander.md             ← /seo-structure
-│   │   ├── cannibalization-resolver.md      ← /seo-structure
-│   │   ├── structure-writer.md              ← /seo-structure
-│   │   ├── site-scanner.md                  ← /seo-metatags
-│   │   ├── metatag-researcher.md            ← /seo-metatags
-│   │   └── metatag-writer.md                ← /seo-metatags
+│   │   ├── strategy-scanner.md              ← /seo-strategiya
+│   │   ├── competitor-analyst.md            ← /seo-strategiya
+│   │   ├── growth-strategist.md             ← /seo-strategiya
+│   │   ├── tariff-architect.md              ← /seo-strategiya
+│   │   ├── strategy-writer.md               ← /seo-strategiya
+│   │   ├── brief-structurer.md              ← /seo-analiz
+│   │   ├── competitor-finder.md             ← /seo-analiz
+│   │   ├── serp-verdict.md                  ← /seo-analiz
+│   │   ├── leader-scanner.md                ← /seo-analiz
+│   │   ├── analysis-writer.md               ← /seo-analiz
+│   │   ├── master-list-builder.md           ← /seo-struktura
+│   │   ├── marker-finder.md                 ← /seo-struktura
+│   │   ├── semantic-expander.md             ← /seo-struktura
+│   │   ├── cannibalization-resolver.md      ← /seo-struktura
+│   │   ├── structure-writer.md              ← /seo-struktura
+│   │   ├── site-scanner.md                  ← /seo-metategi
+│   │   ├── metatag-researcher.md            ← /seo-metategi
+│   │   └── metatag-writer.md                ← /seo-metategi
 │   │
 │   ├── skills/                              ← 19 скилов
 │   │   ├── guide/SKILL.md                   (любая зона, справочник процесса)
-│   │   ├── setup-project/SKILL.md           (worktree, исследование сайта)
-│   │   ├── new-topics/SKILL.md              (worktree, сбор тем)
+│   │   ├── seo-shablon/SKILL.md           (worktree, исследование сайта)
+│   │   ├── seo-temi/SKILL.md              (worktree, сбор тем)
 │   │   ├── share-topics/SKILL.md            (worktree, загрузка Topics.xlsx в Drive)
-│   │   ├── write-article/SKILL.md           (worktree, цикл статьи)
+│   │   ├── seo-statya/SKILL.md           (worktree, цикл статьи)
 │   │   ├── fix-article/SKILL.md             (worktree, точечная правка)
 │   │   ├── rewrite-section/SKILL.md         (worktree, переписать один H2)
 │   │   ├── share-article/SKILL.md           (worktree, загрузка Article.docx в Drive)
-│   │   ├── strategy/                        (worktree, стратегия + тарифы)
+│   │   ├── seo-strategiya/                        (worktree, стратегия + тарифы)
 │   │   │   ├── SKILL.md
 │   │   │   ├── MCP_MAP.md
 │   │   │   └── strategy_data_schema.json
 │   │   ├── share-strategy/SKILL.md          (worktree, загрузка .docx + .xlsx в Drive)
-│   │   ├── seo-analysis/                    (worktree, предпроектный анализ)
+│   │   ├── seo-analiz/                    (worktree, предпроектный анализ)
 │   │   │   ├── SKILL.md
 │   │   │   └── MCP_MAP.md
 │   │   ├── share-analysis/SKILL.md          (worktree, загрузка A2.docx в Drive)
-│   │   ├── seo-structure/                   (worktree, структура сайта по анализу)
+│   │   ├── seo-struktura/                   (worktree, структура сайта по анализу)
 │   │   │   ├── SKILL.md
 │   │   │   └── MCP_MAP.md
 │   │   ├── share-structure/SKILL.md         (worktree, загрузка A6.xlsx в Drive)
-│   │   ├── seo-metatags/                    (worktree, метатеги H1/Title/Description)
+│   │   ├── seo-metategi/                    (worktree, метатеги H1/Title/Description)
 │   │   │   ├── SKILL.md
 │   │   │   ├── MCP_MAP.md
 │   │   │   └── PLAYBOOK.md
@@ -257,7 +257,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── .gitkeep
 │   │   ├── files/                           (готовые файлы для корня)
 │   │   ├── *.md                             (текстовые запросы на правку)
-│   │   ├── topics-batch.json                (батч тем от /new-topics)
+│   │   ├── topics-batch.json                (батч тем от /seo-temi)
 │   │   └── processed/                       (архив применённых)
 │   │
 │   └── tmp/                                 ← служебные файлы сессии (gitignore)
@@ -276,9 +276,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── 009-seo-analysis-task-type.md
 │   └── 010-structures-task-type.md
 │
-├── ЗАКАЗЧИК.md                              ← создаётся через /setup-project + /handoff-process
+├── ЗАКАЗЧИК.md                              ← создаётся через /seo-shablon + /handoff-process
 ├── template.html                            ← аналогично
-├── topics.xlsx                              ← создаётся через /new-topics + /handoff-process
+├── topics.xlsx                              ← создаётся через /seo-temi + /handoff-process
 ├── articles/_index.json                     ← индекс статей (topic_id, жанр, state)
 ├── articles/NNN-slug/                       ← рабочие папки статей
 │   ├── meta.json                            (state machine)
@@ -313,7 +313,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── leader_scan.json                     (блоки/посылы/фишки топ-3)
 │   ├── A2.md                                (финал - markdown-отчёт)
 │   ├── A3.md                                (финал - стоп-лист)
-│   ├── recommendations.json                 (рекомендации для /strategy, /write-article)
+│   ├── recommendations.json                 (рекомендации для /seo-strategiya, /seo-statya)
 │   ├── stop_list_detailed.json              (стоп-лист с причинами)
 │   ├── A2_<domain>.docx                     (для клиента, кроме --no-share)
 │   └── share.json                           (ссылка Drive + ревизии)
@@ -359,8 +359,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 ├── SVG-ICONS.md                             (набор инлайн SVG, без CDN)
 ├── TEMPLATE-MASTER.html                     (эталонный шаблон вёрстки)
 ├── CLIENT-TEMPLATE.md                       (образец ЗАКАЗЧИК.md)
-├── TARIFFS.md                               (каталог услуг для /strategy)
-├── RULES.md                                 (правила связок тарифов для /strategy)
+├── TARIFFS.md                               (каталог услуг для /seo-strategiya)
+├── RULES.md                                 (правила связок тарифов для /seo-strategiya)
 └── DRIVE.md                                 (ID Drive-папок для всех /share-*)
 ```
 
@@ -375,18 +375,18 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | Скил | Зона | Назначение |
 |---|---|---|
 | `/guide [тема]` | любая | Справочник рабочего процесса: вход/вопросы/опции/выход по каждой команде, связки артефактов, роли MCP, ступоры. Ничего не выполняет |
-| `/setup-project <URL>` | worktree | Исследование сайта, генерация `ЗАКАЗЧИК.md` и `template.html` в handoff-requests |
-| `/new-topics` | worktree | Сбор 15-25 тем для блога, батч в `topics/NNN/` + автозагрузка в Google Sheet |
+| `/seo-shablon <URL>` | worktree | Исследование сайта, генерация `ЗАКАЗЧИК.md` и `template.html` в handoff-requests |
+| `/seo-temi` | worktree | Сбор 15-25 тем для блога, батч в `topics/NNN/` + автозагрузка в Google Sheet |
 | `/share-topics NNN [--redo]` | worktree | Утилита: перезалить Topics.xlsx в Drive после правок, или догрузить если Drive был недоступен |
-| `/write-article N [--resume]` | worktree | Полный цикл статьи (JM → ТЗ → разделы → финал → аудит → улучшения → HTML) |
+| `/seo-statya N [--resume]` | worktree | Полный цикл статьи (JM → ТЗ → разделы → финал → аудит → улучшения → HTML) |
 | `/fix-article NNN "..."` | worktree | Точечная правка готовой статьи |
 | `/rewrite-section NNN idx "..."` | worktree | Переписать один H2-раздел статьи заново |
 | `/share-article NNN [--redo]` | worktree | Утилита: перезалить Article.docx в Drive после правок, или догрузить если Drive был недоступен |
-| `/strategy <URL> [--resume]` | worktree | Полный цикл SEO-стратегии: скан → конкуренты → точки роста → 3 тарифа → стратегия .docx + смета .xlsx → **автозагрузка в Google Drive с конверсией в Google Doc/Sheet** |
-| `/share-strategy NNN [--redo]` | worktree | Утилита: перезалить в Drive после правок локальных файлов, либо догрузить если Drive был недоступен при первом прогоне `/strategy` |
-| `/seo-analysis [--resume]` | worktree | Предпроектный анализ конкурентов: бриф → структурирование → конкуренты → SERP-вердикт → скан смыслов топ-3 → A2.md + A3.md + опц. .docx |
+| `/seo-strategiya <URL> [--resume]` | worktree | Полный цикл SEO-стратегии: скан → конкуренты → точки роста → 3 тарифа → стратегия .docx + смета .xlsx → **автозагрузка в Google Drive с конверсией в Google Doc/Sheet** |
+| `/share-strategy NNN [--redo]` | worktree | Утилита: перезалить в Drive после правок локальных файлов, либо догрузить если Drive был недоступен при первом прогоне `/seo-strategiya` |
+| `/seo-analiz [--resume]` | worktree | Предпроектный анализ конкурентов: бриф → структурирование → конкуренты → SERP-вердикт → скан смыслов топ-3 → A2.md + A3.md + опц. .docx |
 | `/share-analysis NNN [--redo]` | worktree | Утилита: перезалить A2.docx в Drive после правок, или догрузить если Drive был недоступен |
-| `/seo-structure NNN [--resume] [--review\|--auto] [--import <xlsx>]` | worktree | Построение структуры сайта на базе анализа: мастер-список → маркеры → JM semantic_pack → топ-10 + каннибализация → A6.xlsx → клиент → A6.md |
+| `/seo-struktura NNN [--resume] [--review\|--auto] [--import <xlsx>]` | worktree | Построение структуры сайта на базе анализа: мастер-список → маркеры → JM semantic_pack → топ-10 + каннибализация → A6.xlsx → клиент → A6.md |
 | `/share-structure NNN [--redo]` | worktree | Утилита: перезалить A6.xlsx в Drive после правок, или догрузить если Drive был недоступен |
 | `/request-shared-edit "..."` | worktree | Отложенный запрос на правку общего файла |
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
@@ -407,25 +407,25 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `enhancer` | HTML-элементы по меткам + FAQ + Schema.org JSON-LD |
 | `photo-promter` | Промты для фото по меткам `[ФОТО: ...]` |
 | `article-fixer` | Точечная правка статьи (по запросу из `/fix-article`) |
-| `article-fixer-batch` | Массовое применение правок аудита одним проходом (для `/write-article`) |
-| `strategy-scanner` | Скан сайта + первичные метрики клиента (для /strategy) |
-| `competitor-analyst` | Конкуренты, типизация, выдача, вердикт (для /strategy) |
-| `growth-strategist` | Точки роста + сборка strategy_data.json (для /strategy) |
+| `article-fixer-batch` | Массовое применение правок аудита одним проходом (для `/seo-statya`) |
+| `strategy-scanner` | Скан сайта + первичные метрики клиента (для /seo-strategiya) |
+| `competitor-analyst` | Конкуренты, типизация, выдача, вердикт (для /seo-strategiya) |
+| `growth-strategist` | Точки роста + сборка strategy_data.json (для /seo-strategiya) |
 | `tariff-architect` | Подбор трёх тарифов из TARIFFS.md по правилам RULES.md |
 | `strategy-writer` | Проза для 6 разделов стратегии в strategy_content.json |
-| `brief-structurer` | Парсинг свободного брифа в 16 параметров + путь Keyso (для /seo-analysis) |
-| `competitor-finder` | Поиск + фильтрация + типизация + отбор 6-10 конкурентов + топ-3 лидера (для /seo-analysis) |
-| `serp-verdict` | SERP-анализ по запросам + вердикт совместимости + стоп-лист + смежные (для /seo-analysis) |
-| `leader-scanner` | Скан смыслов Э2-лайт: блоки/посылы/фишки 9-12 страниц топ-3 лидеров (для /seo-analysis) |
-| `analysis-writer` | Сборка A2.md (5 разделов) + A3.md (стоп-лист) из всех JSON-данных (для /seo-analysis) |
-| `master-list-builder` | Мастер-список страниц (типизация + нормализация + спаривание) на базе анализа (для /seo-structure) |
-| `marker-finder` | Маркерные запросы на каждую страницу через каскад Keyso + фолбэки (для /seo-structure) |
-| `semantic-expander` | JM semantic_pack: топ-30 запросов на маркер + проверка баланса (для /seo-structure) |
-| `cannibalization-resolver` | Разрешение конфликтов каннибализации + рекомендации по расширению (для /seo-structure) |
-| `structure-writer` | Финальный A6.md по фиксированному шаблону (для /seo-structure) |
-| `site-scanner` | Скан живого сайта (sitemap + текущие H1/Title/Description + приоритет) → audit.json (для /seo-metatags, режим аудита) |
-| `metatag-researcher` | Варианты маркера по осям + батч частотности/коммерциализации/подсказок на весь проект → research.json (для /seo-metatags) |
-| `metatag-writer` | Финальные H1/Title/Description на страницу: deep (выдача + Акварель, параллельно) / bulk (по PLAYBOOK) → pages/N.json (для /seo-metatags) |
+| `brief-structurer` | Парсинг свободного брифа в 16 параметров + путь Keyso (для /seo-analiz) |
+| `competitor-finder` | Поиск + фильтрация + типизация + отбор 6-10 конкурентов + топ-3 лидера (для /seo-analiz) |
+| `serp-verdict` | SERP-анализ по запросам + вердикт совместимости + стоп-лист + смежные (для /seo-analiz) |
+| `leader-scanner` | Скан смыслов Э2-лайт: блоки/посылы/фишки 9-12 страниц топ-3 лидеров (для /seo-analiz) |
+| `analysis-writer` | Сборка A2.md (5 разделов) + A3.md (стоп-лист) из всех JSON-данных (для /seo-analiz) |
+| `master-list-builder` | Мастер-список страниц (типизация + нормализация + спаривание) на базе анализа (для /seo-struktura) |
+| `marker-finder` | Маркерные запросы на каждую страницу через каскад Keyso + фолбэки (для /seo-struktura) |
+| `semantic-expander` | JM semantic_pack: топ-30 запросов на маркер + проверка баланса (для /seo-struktura) |
+| `cannibalization-resolver` | Разрешение конфликтов каннибализации + рекомендации по расширению (для /seo-struktura) |
+| `structure-writer` | Финальный A6.md по фиксированному шаблону (для /seo-struktura) |
+| `site-scanner` | Скан живого сайта (sitemap + текущие H1/Title/Description + приоритет) → audit.json (для /seo-metategi, режим аудита) |
+| `metatag-researcher` | Варианты маркера по осям + батч частотности/коммерциализации/подсказок на весь проект → research.json (для /seo-metategi) |
+| `metatag-writer` | Финальные H1/Title/Description на страницу: deep (выдача + Акварель, параллельно) / bulk (по PLAYBOOK) → pages/N.json (для /seo-metategi) |
 
 ### 23 Node-скрипта
 
@@ -434,7 +434,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `_client.mjs` | Общий helper, импортируется другими скриптами |
 | `finalize-setup.mjs` | git init + `.env.example` + первый коммит (для setup в `/handoff-process`) |
 | `to-excel.mjs` | legacy: topics.json → корневой topics.xlsx (темы теперь собирает topics-to-excel.mjs) |
-| `topics-to-excel.mjs` | батч тем → `Topics_<slug>.xlsx` в topics/NNN/ (актуальный для `/new-topics`) |
+| `topics-to-excel.mjs` | батч тем → `Topics_<slug>.xlsx` в topics/NNN/ (актуальный для `/seo-temi`) |
 | `from-excel-topics.mjs` | обратное чтение: `Topics_<slug>.xlsx` → topics-batch.json (правки клиента) |
 | `read-topics-xlsx.mjs` | чтение корневого topics.xlsx для дедупа тем |
 | `update-index.mjs` | поддержка `articles/_index.json` |
@@ -544,7 +544,7 @@ git commit -m "Update template from upstream"
 | [009](docs/adr/009-seo-analysis-task-type.md) | Новый тип задачи `analyses/` для предпроектного анализа (повторное применение паттерна ADR-007) |
 | [010](docs/adr/010-structures-task-type.md) | Новый тип задачи `structures/` для построения структуры сайта на базе анализа (третье повторение паттерна; гибрид «скрипт + агент» на шаге каннибализации) |
 | [011](docs/adr/011-template-self-guard.md) | Самозащита каталога-шаблона от клиентских команд и артефактов (маркер `.is-template-root` + UserPromptSubmit-guard + pre-commit backstop) |
-| [012](docs/adr/012-metatags-task-type.md) | Новый тип задачи `metatags/` для генерации метатегов (один движок, две глубины deep/bulk; verify скриптом не hook'ом из-за параллельного веера; авто-хвост из `/seo-structure`) |
+| [012](docs/adr/012-metatags-task-type.md) | Новый тип задачи `metatags/` для генерации метатегов (один движок, две глубины deep/bulk; verify скриптом не hook'ом из-за параллельного веера; авто-хвост из `/seo-struktura`) |
 
 ---
 
@@ -592,7 +592,7 @@ git commit -m "Update template from upstream"
   - Webmaster (wm_*)
   - Fetch (mcp_fetch_page)
   - Google Drive (gdrive-piotr: uploadFile с конверсией в Google Doc/Sheet) - ядро для всех `/share-*` и финальных заливок
-  - Cloudinary + OpenRouter (скилы image-generation / image-publishing) - фото в `/write-article`
+  - Cloudinary + OpenRouter (скилы image-generation / image-publishing) - фото в `/seo-statya`
   - Sheets (опционально, прямое чтение/запись Google Sheets)
 - **Node.js LTS** (24+): `scoop install nodejs-lts` или https://nodejs.org/. Зависимости: `exceljs`, `marked`, `jsdom`, `docx` — ставятся через `npm install`.
 - **Git** с поддержкой `git worktree` (включён по умолчанию в современных версиях).

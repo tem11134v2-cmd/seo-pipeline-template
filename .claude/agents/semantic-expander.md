@@ -1,6 +1,6 @@
 ---
 name: semantic-expander
-description: Запускает JM semantic_pack для всех маркеров - получает топ-30 запросов на каждый. Проверяет баланс, оценивает стоимость. Для запросов без частотности - резерв jm_wordstat / wk_check_frequency. Используется в /seo-structure на шаге 3.
+description: Запускает JM semantic_pack для всех маркеров - получает топ-30 запросов на каждый. Проверяет баланс, оценивает стоимость. Для запросов без частотности - резерв jm_wordstat / wk_check_frequency. Используется в /seo-struktura на шаге 3.
 model: inherit
 ---
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// run.mjs - регрессионный smoke-тест трёх скриптов /seo-structure.
+// run.mjs - регрессионный smoke-тест трёх скриптов /seo-struktura.
 //
 // Использование:
 //   .claude\scripts\_node.cmd .claude\tests\seo-structure\run.mjs
@@ -71,7 +71,7 @@ mkdirSync(sandboxDir, { recursive: true });
 //   (inputs.json указывает на fixtures-путь относительно project root)
 cpSync(join(fixturesDir, "structure_dir"), sandboxDir, { recursive: true });
 
-console.log("=== /seo-structure scripts smoke ===");
+console.log("=== /seo-struktura scripts smoke ===");
 console.log("Sandbox: " + sandboxDir);
 console.log("");
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // metrics-report.mjs
 // Считает метрики готовой статьи и дописывает блок «Метрики» в report.md.
-// Используется в /write-article после сборки HTML (или может вызываться вручную).
+// Используется в /seo-statya после сборки HTML (или может вызываться вручную).
 //
 // Использование:
 //   node .claude/scripts/metrics-report.mjs <article_dir>

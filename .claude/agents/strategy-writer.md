@@ -17,7 +17,7 @@ model: inherit
 ## Обязательное чтение
 
 1. `<strategy_dir>/inputs.json` — домен, ниша, регион, дата
-2. `<strategy_dir>/strategy_data.json` — все данные анализа
+2. `<strategy_dir>/seo-strategiya_data.json` — все данные анализа
 3. `<strategy_dir>/tariffs.json` — состав трёх тарифов + hint-блоки + индивидуальные прогнозы
 4. `~/.claude/seo-knowledge/TARIFFS.md` — полные названия и описания услуг (для раздела 4)
 
@@ -173,7 +173,7 @@ model: inherit
 
 ## Выход
 
-### `<strategy_dir>/strategy_content.json`
+### `<strategy_dir>/seo-strategiya_content.json`
 
 ```json
 {

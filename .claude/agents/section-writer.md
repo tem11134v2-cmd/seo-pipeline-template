@@ -93,7 +93,7 @@ model: inherit
 ```
 
 Каждый запуск:
-1. Прочитать `progress.json`. Файл всегда создан скилом `write-article` с минимальной структурой (`total_sections`, `completed_sections`, `current_section`).
+1. Прочитать `progress.json`. Файл всегда создан скилом `seo-statya` с минимальной структурой (`total_sections`, `completed_sections`, `current_section`).
 2. **Если `completed_sections` пуст** (это первый вызов на статье) — дочитать `tz.md`, распарсить и **дополнить** `progress.json` полями: `ngrams` (с целями из ТЗ §4 Блок 1), `single_words`, `lsi_obligatory` (`total: 15` + пустой `used`), `lsi_optional`, `elements` (по меткам `[ТАБЛИЦА:]`/`[ФОТО:]`/`[ДИАГРАММА]`/`[ЦИТАТА]`/`[ИКОНКИ:]`/`[ТАБЫ:]` из ТЗ §5), `section_volumes_target` (по каждому H2), `links_inserted: []`, `pains_closed: {}`, `brand_mentions: []`, `section_volumes: {}`, `carry_over: {"ngrams_undershoot": []}`. Записать обратно.
 3. Написать раздел.
 4. После написания — обновить `used`, `by_section`, `elements`, `links_inserted`, `pains_closed`, `brand_mentions`, `section_volumes`, `completed_sections`.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// run.mjs - smoke-тесты для скриптов /seo-metatags.
+// run.mjs - smoke-тесты для скриптов /seo-metategi.
 // Запуск: .claude\scripts\_node.cmd .claude\tests\metatags\run.mjs
 //
 // Проверяет четыре скрипта на синтетических фикстурах:
@@ -65,7 +65,7 @@ function writeJson(p, obj) {
 }
 
 // === Песочница ===
-console.log("=== /seo-metatags scripts smoke ===");
+console.log("=== /seo-metategi scripts smoke ===");
 console.log(`Sandbox: ${SANDBOX}`);
 if (existsSync(SANDBOX)) rmSync(SANDBOX, { recursive: true, force: true });
 mkdirSync(SANDBOX, { recursive: true });

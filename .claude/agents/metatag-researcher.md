@@ -1,6 +1,6 @@
 ---
 name: metatag-researcher
-description: Фаза 1 /seo-metatags. Генерирует варианты маркера для ВСЕХ страниц по осям (число/порядок/приставка/топоним) и пакетно собирает частотность (wk_check_frequency x3), коммерциализацию/гео (arsenkin_commerce) и подсказки Яндекса (jm_suggest) ОДНИМ заходом на весь проект. Сохраняет research.json.
+description: Фаза 1 /seo-metategi. Генерирует варианты маркера для ВСЕХ страниц по осям (число/порядок/приставка/топоним) и пакетно собирает частотность (wk_check_frequency x3), коммерциализацию/гео (arsenkin_commerce) и подсказки Яндекса (jm_suggest) ОДНИМ заходом на весь проект. Сохраняет research.json.
 model: inherit
 ---
 
@@ -21,7 +21,7 @@ MCP-серверы подключены глобально. Используем
 1. `<metatags_dir>/pages.json` - список страниц (от `read-metatags-input.mjs`): `n`, `url`, `type`, `name`, `marker`, `queries[]`.
 2. `<metatags_dir>/inputs.json` - `region_yandex` (число, код Яндекса), `region_name`, `keyso_base` (если есть), `domain`.
 3. `~/.claude/seo-knowledge/` НЕ требуется здесь (правила - у writer). Тебе нужны только частотность/коммерциализация.
-4. `.claude/skills/seo-metatags/PLAYBOOK.md` раздел 4 (оси вариаций) и раздел 8 (коды регионов) - как ориентир.
+4. `.claude/skills/seo-metategi/PLAYBOOK.md` раздел 4 (оси вариаций) и раздел 8 (коды регионов) - как ориентир.
 
 ## Что делать
 

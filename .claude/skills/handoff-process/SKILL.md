@@ -1,6 +1,6 @@
 ---
 name: handoff-process
-description: В main-сессии анализирует и применяет накопленные handoff-requests из .claude/handoff-requests/ (созданные через /setup-project, /new-topics, /request-shared-edit в worktree-задачах). Единственный скил, работающий в main.
+description: В main-сессии анализирует и применяет накопленные handoff-requests из .claude/handoff-requests/ (созданные через /seo-shablon, /seo-temi, /request-shared-edit в worktree-задачах). Единственный скил, работающий в main.
 ---
 
 # handoff-process

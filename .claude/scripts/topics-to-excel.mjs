@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // topics-to-excel.mjs
 // Конвертирует topics-batch.json в Topics_<slug>.xlsx внутри task-папки topics/NNN-<slug>/.
-// Используется скилом /new-topics после сбора батча и подтверждения пользователем.
-// Файл затем загружается в Google Drive (см. шаг 7 /new-topics).
+// Используется скилом /seo-temi после сбора батча и подтверждения пользователем.
+// Файл затем загружается в Google Drive (см. шаг 7 /seo-temi).
 //
 // Использование:
 //   node .claude/scripts/topics-to-excel.mjs <task_dir>

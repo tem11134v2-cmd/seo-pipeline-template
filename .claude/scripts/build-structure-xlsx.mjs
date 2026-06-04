@@ -147,7 +147,7 @@ function makeUrl(page) {
 // === Создание книги ===
 
 const workbook = new ExcelJS.Workbook();
-workbook.creator = "seo-pipeline /seo-structure";
+workbook.creator = "seo-pipeline /seo-struktura";
 workbook.created = new Date();
 
 // === Лист 1: СТРУКТУРА ===
