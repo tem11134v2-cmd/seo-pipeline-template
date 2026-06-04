@@ -87,6 +87,7 @@ const COL_N = findCol("№");
 const COL_URL = findCol(["Адрес страницы", "URL (ЧПУ)"]);
 const COL_TYPE = findCol("Тип");
 const COL_NAME = findCol("Название");
+const COL_SECTION = findCol("Раздел"); // -1 если структура не секционирована - guard ниже
 const COL_TARGET = findCol(["Нужна?", "Целевая?"]);
 const COL_MARKER = findCol(["Главный запрос", "Маркер"]);
 const COL_WS = findCol(["Спрос в месяц", "WS"]);
@@ -158,6 +159,7 @@ for (let r = firstDataRow; r <= ws.rowCount; r++) {
     url: row.getCell(COL_URL).value ? String(row.getCell(COL_URL).value).trim() : "",
     type: row.getCell(COL_TYPE).value ? String(row.getCell(COL_TYPE).value).trim() : "",
     name: name ? String(name).trim() : "",
+    section: COL_SECTION > 0 && row.getCell(COL_SECTION).value ? String(row.getCell(COL_SECTION).value).trim() : "",
     target_status: target || "empty",
     target_raw: rawTarget,
     marker: row.getCell(COL_MARKER).value ? String(row.getCell(COL_MARKER).value).trim() : "",

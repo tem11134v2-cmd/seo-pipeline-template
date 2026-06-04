@@ -155,7 +155,11 @@ workbook.created = new Date();
 const ws1 = workbook.addWorksheet("Структура");
 
 // Клиентские заголовки - понятный русский, без SEO-жаргона.
-const fixedLeft = ["№", "Адрес страницы", "Тип", "Название", "Нужна?", "Главный запрос", "Спрос в месяц"];
+// «Раздел» (точка 5) добавляется только для крупной секционированной структуры (master_list.use_sections).
+const useSections = !!masterList.use_sections;
+const fixedLeft = useSections
+  ? ["№", "Адрес страницы", "Тип", "Название", "Раздел", "Нужна?", "Главный запрос", "Спрос в месяц"]
+  : ["№", "Адрес страницы", "Тип", "Название", "Нужна?", "Главный запрос", "Спрос в месяц"];
 const queryHeaders = [];
 // MAX_QUERIES=9 дополнительных запросов (2..10), всего 10 запросов с маркером.
 for (let i = 2; i <= MAX_QUERIES + 1; i++) {
@@ -164,6 +168,8 @@ for (let i = 2; i <= MAX_QUERIES + 1; i++) {
 const fixedRight = ["Есть у конкурентов", "Приоритет", "Статус", "Роль", "Примечания"];
 const headers1 = [...fixedLeft, ...queryHeaders, ...fixedRight];
 const totalCols1 = headers1.length;
+// Позиции вычисляем динамически - устойчиво к наличию/отсутствию колонки «Раздел».
+const COL_TARGET = headers1.indexOf("Нужна?") + 1; // 1-based индекс колонки «Нужна?»
 
 // Instruction-row для клиента (строка 1, mergeCells по всей ширине).
 ws1.mergeCells(1, 1, 1, totalCols1);
@@ -174,6 +180,10 @@ instrCell.value =
   "(этим помечены новые для вас направления - подтвердите, занимаетесь ли вы ими). " +
   "Колонки «Главный запрос» и «Спрос в месяц» - справочные (что и как часто люди ищут в поиске), их заполнять не нужно. " +
   "Адрес страницы при желании можно поправить. Готовый файл пришлите обратно.";
+if (useSections) {
+  instrCell.value +=
+    " Колонка «Раздел» - группировка страниц для меню сайта (справочно; при желании поправьте).";
+}
 instrCell.font = { name: FONT_FAMILY, size: FONT_SIZE, italic: true, color: { argb: "FF1F4E79" } };
 instrCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF9E6" } };
 instrCell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
@@ -209,6 +219,7 @@ for (const page of top10.pages) {
     url,
     typeRu(page.type),
     page.name,
+    ...(useSections ? [master?.section || ""] : []),
     // business_flag (новое/смежное направление) -> по умолчанию «обсудить» (клиент решает явно);
     // обычные страницы -> «да» (клиент снимает ненужные). 5.x: раньше business_flag не доезжал до xlsx.
     master?.business_flag ? "обсудить" : "да",
@@ -266,32 +277,31 @@ for (const page of top10.pages) {
   row1++;
 }
 
-// Ширины
-ws1.getColumn(1).width = 5;
-ws1.getColumn(2).width = 32;
-ws1.getColumn(3).width = 14;
-ws1.getColumn(4).width = 28;
-ws1.getColumn(5).width = 12;
-ws1.getColumn(6).width = 28;
-ws1.getColumn(7).width = 10;
-for (let i = 8; i < 8 + queryHeaders.length; i++) {
-  ws1.getColumn(i).width = (i - 8) % 2 === 0 ? 22 : 10;
+// Ширины (позиции от fixedLeft - устойчиво к колонке «Раздел»)
+const leftWidths = useSections
+  ? [5, 32, 14, 28, 18, 12, 28, 10] // ... включая «Раздел»=18 на позиции 5
+  : [5, 32, 14, 28, 12, 28, 10];
+leftWidths.forEach((w, i) => (ws1.getColumn(i + 1).width = w));
+const qStart = fixedLeft.length + 1; // первая колонка «Запрос 2»
+for (let k = 0; k < queryHeaders.length; k++) {
+  ws1.getColumn(qStart + k).width = k % 2 === 0 ? 22 : 10;
 }
-ws1.getColumn(8 + queryHeaders.length).width = 14;
-ws1.getColumn(9 + queryHeaders.length).width = 12;
-ws1.getColumn(10 + queryHeaders.length).width = 16;
-ws1.getColumn(11 + queryHeaders.length).width = 14; // «Роль»
-ws1.getColumn(12 + queryHeaders.length).width = 50; // «Примечания» шире — здесь служебная заметка
+const rStart = fixedLeft.length + queryHeaders.length; // смещение к fixedRight
+ws1.getColumn(rStart + 1).width = 14; // «Есть у конкурентов»
+ws1.getColumn(rStart + 2).width = 12; // «Приоритет»
+ws1.getColumn(rStart + 3).width = 16; // «Статус»
+ws1.getColumn(rStart + 4).width = 14; // «Роль»
+ws1.getColumn(rStart + 5).width = 50; // «Примечания» шире — здесь служебная заметка
 
-ws1.views = [{ state: "frozen", xSplit: 5, ySplit: 2 }];
+ws1.views = [{ state: "frozen", xSplit: COL_TARGET, ySplit: 2 }];
 ws1.autoFilter = { from: { row: 2, column: 1 }, to: { row: row1 - 1, column: totalCols1 } };
 
-// Data validation на колонку «Целевая?» (5) для всех data rows.
+// Data validation на колонку «Нужна?» (COL_TARGET) для всех data rows.
 const firstDataRow = 3;
 const lastDataRow = row1 - 1;
 if (lastDataRow >= firstDataRow) {
   for (let r = firstDataRow; r <= lastDataRow; r++) {
-    ws1.getCell(r, 5).dataValidation = {
+    ws1.getCell(r, COL_TARGET).dataValidation = {
       type: "list",
       allowBlank: true,
       formulae: ['"да,нет,обсудить"'],
