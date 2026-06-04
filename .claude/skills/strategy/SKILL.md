@@ -50,6 +50,9 @@ slug = slugify(domain)   // vasya.ru → vasya-ru; none → no-site-<timestamp>
 
 ### 1. Setup
 
+> **Это предпродажный скил.** НЕ ищи и НЕ требуй `ЗАКАЗЧИК.md` (на свежем клоне его ещё нет - он появляется только после `/setup-project`). Контекст собираешь сам: вопросы ниже + скан (шаг 2).
+> **Факт раньше утверждения:** ниша/регион из аргумента или домена - это ГИПОТЕЗА, не факт. Истину устанавливает `strategy-scanner` → `scan.json`. Финальное `inputs.niche` проставляется только после сверки со сканом (гейт 2.5).
+
 Спроси пользователя (если не указано в аргументе):
 - Регион продвижения (например «Санкт-Петербург»)
 - Ниша / описание бизнеса (1-2 предложения)
@@ -96,7 +99,8 @@ strategy_dir = strategies/<NNN>-<slug>/
   "domain": "site.ru",
   "slug": "site-ru",
   "url_raw": "https://site.ru/",
-  "niche": "...",
+  "niche_hypothesis": "...",
+  "niche": null,
   "region": "Санкт-Петербург",
   "region_id": 2,
   "keyso_base": "spb",
@@ -139,6 +143,14 @@ project_root: <project root>
 После завершения:
 - `bash .claude/hooks/update-meta.sh <strategy_dir> scan-done`
 - Вывести сводку (агент уже вывел). Сразу переходить к шагу 3.
+
+### 2.5. Гейт сверки ниши (сразу после скана, state остаётся scan-done)
+
+Прочитать `scan.json`. Установить `inputs.niche` (поле было `null`):
+- Если `scan.niche_conflict == true` → `inputs.niche = scan.niche_from_site` (скан авторитетнее догадки). В чат ОДНУ строку: «скан уточнил нишу: было „<niche_hypothesis>“ → стало „<niche_from_site>“».
+- Иначе → `inputs.niche = niche_hypothesis` (гипотеза подтвердилась).
+
+Записать обновлённый `inputs.json`. Дальше `competitor-analyst` и `growth-strategist` читают `inputs.niche` как ФАКТ. Это ловит кривую нишу рано (сразу после скана), а не «в середине», когда докладывают дочерние агенты.
 
 ### 3. Конкуренты + вердикт (если state == "scan-done")
 

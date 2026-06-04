@@ -30,6 +30,7 @@ model: inherit
 1. `mcp_fetch_page(url="https://<домен>/")` → title, description, контент
    - Определи: регион (по адресу/телефону/тексту), тип бизнеса, основные направления, CMS (meta-generator, footer, паттерны URL)
    - Сверь регион с заявленным (`inputs.region`). При расхождении — пометить `region_match: false`.
+   - Сверь нишу/тип бизнеса с гипотезой (`inputs.niche_hypothesis`). НЕ строгим равенством строк (ниша - свободный текст): подними `niche_conflict: true` только если сайт **явно про другое** (смысловое противоречие, не синоним/перефразировка). Что реально на сайте - в `niche_from_site`. `scan.json` авторитетнее гипотезы.
 2. `mcp_fetch_page` по 2-3 внутренним страницам (раздел услуг/каталога/о компании) → структура, контент, SEO-элементы.
 3. `web_fetch(url="https://<домен>/robots.txt")` → блокировки, наличие sitemap.
 4. `web_fetch(url="https://<домен>/sitemap.xml")` → количество URL, структура разделов. Если 404 — `sitemap_pages: null`.
@@ -76,6 +77,9 @@ model: inherit
   "region_from_site": "Москва",
   "region_declared": "Москва",
   "region_match": true,
+  "niche_from_site": "ремонт квартир под ключ",
+  "niche_hypothesis": "ремонт квартир",
+  "niche_conflict": false,
   "directions": ["направление1", "направление2"],
   "sitemap_pages": 45,
   "robots_blocks": [],
