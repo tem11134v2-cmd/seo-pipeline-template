@@ -68,7 +68,7 @@ slug = slugify(domain)   // vasya.ru → vasya-ru; none → no-site-<timestamp>
 
 Эти данные нужны competitor-analyst для пути Г (генерация маркеров «<услуга> <город>») и growth-strategist для частотных таблиц. Запиши их в `inputs.json` как поля `seed_queries: [...]` и `seed_competitors: [...]`.
 
-Определи `region_id` (Wordstat) и `keyso_base`:
+Определи `region_id` (Wordstat) и базы Keys.so (двойная база, точка 4):
 
 ```
 region_id (Wordstat): Москва: 213 | СПб: 2 | Екатеринбург: 54 | Новосибирск: 65
@@ -77,8 +77,12 @@ region_id (Wordstat): Москва: 213 | СПб: 2 | Екатеринбург: 
   Пермь: 50 | Омск: 66 | Волгоград: 38 | Красноярск: 62
   (не в списке) → ближайший крупный или null
 
-keyso_base: msk | spb | ekb | nsk | kzn | nnv | che | sam | rnd | krr | vrn | vlg | ufa | prm | kry | oms | sar | tmn | tom | mns
-  (не совпадает) → msk + флаг city_not_in_keyso=true
+keyso_base_primary = "msk" ВСЕГДА - флагманская база: полнота пула конкурентов
+  и рыночный потолок, страховка от пустых данных на тонкой региональной базе.
+keyso_base_local = база города: spb | ekb | nsk | kzn | nnv | che | sam | rnd | krr |
+  vrn | vlg | ufa | prm | kry | oms | sar | tmn | tom | mns
+  → null если город == Москва (msk) ИЛИ города нет среди баз Keys.so.
+  Локальная база = реальные локальные позиции клиента и локальные игроки.
 ```
 
 Подготовь папку:
@@ -105,8 +109,8 @@ strategy_dir = strategies/<NNN>-<slug>/
   "niche": null,
   "region": "Санкт-Петербург",
   "region_id": 2,
-  "keyso_base": "spb",
-  "city_not_in_keyso": false,
+  "keyso_base_primary": "msk",
+  "keyso_base_local": "spb",
   "access_webmaster": true,
   "access_metrika": true,
   "budget": null,

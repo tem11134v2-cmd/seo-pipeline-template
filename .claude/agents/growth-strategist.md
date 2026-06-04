@@ -15,7 +15,7 @@ model: inherit
 
 ## Обязательное чтение
 
-1. `<strategy_dir>/inputs.json` — домен, ниша, регион, region_id, keyso_base, дата
+1. `<strategy_dir>/inputs.json` — домен, ниша, регион, region_id, `keyso_base_primary`+`keyso_base_local`, дата
 2. `<strategy_dir>/scan.json` — CMS, тип сайта, направления, Карты, проблемы
 3. `<strategy_dir>/metrics.json` — DR, ТОП-10/50, страницы, индексация, техпроблемы
 4. `<strategy_dir>/competitors.json` — прямые конкуренты, ориентиры, сводка по топ-3
@@ -77,7 +77,7 @@ model: inherit
 ### 4. Собери `strategy_data.json`
 
 По образцу `strategy_data_schema.json`. Перенеси:
-- `domain`, `region`, `region_id`, `niche`, `date`, `keyso_base`, `path` — из inputs/competitors
+- `domain`, `region`, `region_id`, `niche`, `date`, `keyso_base_primary`, `keyso_base_local`, `path` — из inputs/competitors
 - `scan` — целиком из scan.json (поля совпадают)
 - `metrics` — целиком из metrics.json (агрегируй)
 - `dynamics` — из metrics.json

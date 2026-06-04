@@ -17,16 +17,17 @@
 | `domain_keywords` | Ключевые слова домена с позициями | Глубокий разбор конкурента (опц.) | по необх. |
 | `keyword_similar` | Похожие запросы | Расширение семантики (опц.) | по необх. |
 
-**Параметры:** во всех вызовах Keyso - `base="<keyso_base>"`. Московская база (msk) покрывает регионы и обновляется чаще - использовать по умолчанию. Региональную - для локальной специфики.
+**Параметры (двойная база, точка 4):** `keyso_base_primary` (всегда msk) - полнота пула конкурентов и рыночный потолок, страховка от пустых данных. `keyso_base_local` (база города или null) - реальные локальные позиции и локальные игроки. Метрики клиента и поиск пула - на ОБЕИХ базах; детализация по каждому конкуренту - на msk (бюджет); выдача (`keyword_info`) - на локальной, если задана.
 
 **Кириллический IDN-домен** (например `ремонт-квартир-днр.рф`) передавай в Keyso **в кириллице**, не в Punycode (`xn--80aeklehhe9ape7g.xn--p1ai`). Keyso работает с кириллической формой. Punycode даст «домен не найден».
 
 ```
-domain_dashboard(domain="site.ru", base="spb", include_history=true)   # клиент с историей
-domain_dashboard(domain="competitor.ru", base="spb")                    # конкурент без истории
-domain_competitors(domain="site.ru", base="spb")
-keyword_info(keyword="запрос", base="spb")
-domain_pages(domain="leader.ru", base="spb", sort="it50|desc", per_page=10)
+domain_dashboard(domain="site.ru", base="msk", include_history=true)    # клиент: msk (потолок)
+domain_dashboard(domain="site.ru", base="spb", include_history=true)    # клиент: + локальная (если задана)
+domain_dashboard(domain="competitor.ru", base="msk")                    # конкурент: только msk (бюджет)
+domain_competitors(domain="site.ru", base="msk")                        # пул: msk (+ проход на spb для локалов)
+keyword_info(keyword="запрос", base="spb")                              # выдача: локальная если задана, иначе msk
+domain_pages(domain="leader.ru", base="msk", sort="it50|desc", per_page=10)  # лидеры: msk
 ```
 
 ### Wordstat MCP

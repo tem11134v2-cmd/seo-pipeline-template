@@ -7,7 +7,8 @@
   "region_id": 2,
   "niche": "Краткое описание ниши клиента",
   "date": "Май 2026",
-  "keyso_base": "spb",
+  "keyso_base_primary": "msk",
+  "keyso_base_local": "spb",
   "path": "А",
 
   "scan": {

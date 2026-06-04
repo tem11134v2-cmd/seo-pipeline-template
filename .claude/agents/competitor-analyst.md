@@ -15,7 +15,7 @@ model: inherit
 
 ## Обязательное чтение
 
-1. `<strategy_dir>/inputs.json` — домен (или «none»), ниша, регион, region_id, keyso_base
+1. `<strategy_dir>/inputs.json` — домен (или «none»), ниша, регион, region_id, `keyso_base_primary` (msk) + `keyso_base_local` (город|null)
 2. `<strategy_dir>/scan.json` — тип сайта клиента, направления, наличие в Картах
 3. `<strategy_dir>/metrics.json` — DR клиента, ТОП-10/50, страниц
 4. `<project_root>/.claude/skills/strategy/MCP_MAP.md` — карта MCP
@@ -35,7 +35,10 @@ model: inherit
 Только ниша и регион?      → ПУТЬ Г (сгенерируй 5-7 маркеров «<услуга> <город>» → как В)
 ```
 
-Если город не в базе Keyso (`keyso_base = msk` для не-московских) — дополнительно `mcp_yandex_search(query="<запрос> <город>")` для локальных игроков.
+**Базы для поиска пула (двойная база, точка 4):**
+- Основной пул конкурентов собирай на `keyso_base_primary` (msk) - там полнее набор доменов и рыночный потолок.
+- Если `keyso_base_local` задан - дополнительный проход `domain_competitors`/`keyword_info` на локальной базе → локальные игроки гео-выдачи. Дедуплицируй с основным пулом, помечай источник базы.
+- Если города нет ни в одной базе (`keyso_base_local == null` у не-московского клиента) — дополнительно `mcp_yandex_search(query="<запрос> <город>")` для локальных игроков.
 
 ### 2. Поиск кандидатов
 
@@ -83,14 +86,14 @@ model: inherit
 
 ### 5. Метрики каждого конкурента
 
-`domain_dashboard(domain="<X>", base="<keyso_base>")` без истории — экономия контекста.
+`domain_dashboard(domain="<X>", base="<keyso_base_primary>"` (msk)`)` без истории — детализация по каждому конкуренту остаётся на ОДНОЙ базе (msk) для экономии вызовов (бюджет точки 4).
 
 Собрать: DR, ТОП-10, ТОП-50, страниц, оценка модели роста (контент / ссылки / ПФ / бренд).
 
 ### 6. Анализ выдачи
 
 3-5 основных коммерческих запросов ниши. По каждому:
-`keyword_info(keyword="<запрос>", base="<keyso_base>")`
+`keyword_info(keyword="<запрос>", base="<keyso_base_local или keyso_base_primary>")` — выдача гео-специфична: по локальной базе, если она задана (реальная картина в городе клиента), иначе msk.
 
 Зафиксировать в `serp.json.queries`:
 - ТОП-1, ТОП-2, ТОП-3 (домены)
@@ -101,7 +104,7 @@ model: inherit
 ### 7. Быстрый скан топ-3 прямых
 
 По топ-3 прямых конкурентов (по DR или ТОП-50):
-1. `domain_pages(domain="<X>", base="<keyso_base>", sort="it50|desc", per_page=10)` → топ-10 страниц.
+1. `domain_pages(domain="<X>", base="<keyso_base_primary>"` (msk)`, sort="it50|desc", per_page=10)` → топ-10 страниц (детализация лидеров на одной базе, бюджет).
 2. `mcp_fetch_page` по 2-3 ключевым страницам каждого → блоки, посылы, фишки.
 
 Зафиксировать в `competitors.json.leader_pages_summary`:

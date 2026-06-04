@@ -128,7 +128,9 @@
 
 ## ТОЧКА 4 — Keyso: всегда МСК + опционально база города проекта
 
-### Статус: НЕ внедрено (подтверждено)
+> **СТАТУС: ✅ ВНЕДРЕНО в СТРАТЕГИЮ (2026-06-04).** `inputs.json`: `keyso_base_primary` (msk, всегда) + `keyso_base_local` (город|null) вместо одиночной `keyso_base`+`city_not_in_keyso`. `strategy-scanner` - `domain_dashboard` клиента на обеих базах (+ `metrics.local_metrics`). `competitor-analyst` - пул на msk + локальный проход на городской базе, детализация конкурентов на msk (бюджет), выдача `keyword_info` на локальной. `growth-strategist`/`MCP_MAP`/`strategy_data_schema` - обе базы. По назначению: пул/потолок → msk, локальные позиции/выдача → город. Проверено: схема валидна, голых `keyso_base` не осталось, docx/smeta не задеты. **Отложено (Q2):** `seo-analysis`/`seo-structure` остаются на одиночной базе - отдельным узким заходом (msk-бэкстоп при тонкой городской).
+
+### Статус (исходный анализ): было НЕ внедрено
 
 Сейчас везде **один** `keyso_base` = база города (или `msk` с флагом `city_not_in_keyso`):
 `strategy/SKILL.md:66-77`, `strategy-scanner.md:46` (`domain_dashboard(base=keyso_base)`),

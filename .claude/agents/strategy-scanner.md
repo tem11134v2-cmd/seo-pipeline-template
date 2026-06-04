@@ -16,7 +16,7 @@ model: inherit
 
 ## Обязательное чтение
 
-1. `<inputs_path>` — домен, ниша, регион, region_id, keyso_base, доступы (webmaster, metrika)
+1. `<inputs_path>` — домен, ниша, регион, region_id, `keyso_base_primary` (msk, всегда) + `keyso_base_local` (база города или null), доступы (webmaster, metrika)
 2. `<project_root>/.claude/skills/strategy/MCP_MAP.md` — карта MCP-инструментов (какие тулы вызывать)
 
 ## Что делать
@@ -45,7 +45,10 @@ model: inherit
 
 **Кириллический IDN-домен** (например `ремонт-квартир-днр.рф`) в Keyso передавай **в кириллице**, не в Punycode. Keyso работает с кириллической формой; Punycode (`xn--...`) даст «домен не найден» или нулевые метрики. То же правило для всех Keyso-вызовов в этом и других агентах.
 
-1. `domain_dashboard(domain="<домен>", base="<keyso_base>", include_history=true)` → DR, ТОП-10/50, трафик, страниц в Keyso + динамика по месяцам.
+1. `domain_dashboard` клиента на ОБЕИХ базах (двойная база, точка 4):
+   - `domain_dashboard(domain="<домен>", base="<keyso_base_primary>"` (msk)`, include_history=true)` → DR, ТОП-10/50, трафик, страниц + динамика. Это рыночный потолок и полнота.
+   - Если `keyso_base_local` задан (не null): ещё раз `domain_dashboard(domain="<домен>", base="<keyso_base_local>")` → реальные локальные позиции клиента. Положить в `metrics.local_metrics`.
+   - Если `keyso_base_local == null` (московский клиент) - второй вызов не нужен, `local_metrics = null`.
 2. `arsenkin_domains(mode="whois", queries=["<домен>"])` → возраст домена.
 3. Если `inputs.access_webmaster == true`:
    - `wm_summary` → ИКС, страницы в поиске, проблемы (счётчик)
@@ -93,6 +96,8 @@ model: inherit
 ```json
 {
   "domain": "site.ru",
+  "keyso_base_primary": "msk",
+  "keyso_base_local": "spb",
   "age_years": 3.5,
   "dr": 5,
   "iks": 30,
@@ -105,6 +110,7 @@ model: inherit
   "bot_traffic_warning": false,
   "critical_issues_webmaster": [],
   "indexation_speedyindex": {"checked": 10, "in_index": 8},
+  "local_metrics": {"base": "spb", "dr": 4, "top10": 8, "top50": 60, "pages_keyso": 40},
   "dynamics": [
     {"month": "2025-10", "top10": 8, "top50": 65, "traffic_month": 800}
   ],
@@ -120,7 +126,7 @@ model: inherit
 
 3-5 строк:
 - Домен, CMS, регион (совпадает/нет), тип сайта
-- Возраст, DR, ТОП-10/50, страниц в индексе
+- Возраст, DR, ТОП-10/50 (на msk; если задана локальная база - дополнительно её ТОП-10/50), страниц в индексе
 - Реальный трафик (если есть) + доля поиска
 - Сколько критических проблем (Вебмастер) и техпроблем (доп. чек)
 - Яндекс.Карты: есть/нет
