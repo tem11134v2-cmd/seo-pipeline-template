@@ -17,7 +17,7 @@ description: Загружает Article_<slug>.docx из articles/NNN/ на Goog
 /share-article <NNN> [--redo]
 ```
 
-- `NNN` — номер статьи (например `001`). Обязательный позиционный.
+- `NNN` — номер темы (префикс папки) или полный id папки (`005-slug-dko`), если под темой несколько статей. Обязательный позиционный.
 - `--redo` — пересоздать ссылку: удалить старый файл в Drive (по `drive_id` из `meta.share`), загрузить заново.
 
 ## Предусловия
@@ -39,7 +39,11 @@ redo = true если --redo
 
 ### 1. Найти папку статьи и проверить готовность
 
-`article_dir = articles/<NNN>-*/` — найти существующую по NNN. Если не найдено — стоп: «Статья с номером <NNN> не найдена.»
+Резолвить папку детерминированно (NNN после точки 2 не уникален):
+```
+.claude\scripts\_node.cmd .claude\scripts\resolve-article-dir.mjs articles <NNN>
+```
+`found == false` → стоп «Статья с номером `<NNN>` не найдена»; `ambiguous == true` → показать `candidates`, попросить уточнить полный id; иначе `article_dir = <ответ>.dir`.
 
 Прочитать:
 - `<article_dir>/meta.json` — `slug`, `topic`, `state`. Если `state < assembled` — стоп: «Статья ещё не собрана. Запусти `/write-article <N> --resume`.»

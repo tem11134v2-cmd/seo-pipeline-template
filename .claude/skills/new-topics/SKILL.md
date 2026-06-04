@@ -89,8 +89,12 @@ COMMON_DIR=$(git rev-parse --git-common-dir)
 ```
 Парсит stdout как JSON. Если `exists: true` - забрать все `main_query` (без пустых).
 
-**Источник 2 - `articles/_index.json`:**
-Если есть - прочитать через Read, извлечь `main_query` (если есть в индексе) или `topic` (fallback).
+**Источник 2 - `articles/_index.json` (производный кеш):**
+Сначала пересобрать из meta.json (в свежей worktree файла может не быть - он gitignored):
+```
+.claude\scripts\_node.cmd .claude\scripts\rebuild-index.mjs articles
+```
+Затем прочитать через Read, извлечь `main_query` (если есть в индексе) или `topic` (fallback).
 
 Объединить, нормализовать (lowercase, схлопнуть пробелы), убрать дубли. Если получилось >0 - добавить в промт топик-генератора как `existing_main_queries`.
 

@@ -63,6 +63,8 @@
 
 ## ТОЧКА 2 — нумерация папок и параллельная работа (идея «001-dko»)
 
+> **СТАТУС: ✅ СДЕЛАНО (2026-06-04).** Половина A (нумерация: `TTT`=zero-pad(topic_id) + `rand3` суффикс, папка `<TTT>-<slug>-<rand3>`) + половина B (`_index.json` → производный кеш: новый `rebuild-index.mjs`, gitignored, убран из pre-commit whitelist; `update-index.mjs` ключует по полному basename) + дизамбигуация (новый `resolve-article-dir.mjs` в fix-article/rewrite-section/share-article/write-article --rebuild-docx) + ADR-013. Протестировано: две статьи темы 005 не схлопываются; `git check-ignore` подтверждает игнор индекса. Отложено: нумерация `topics/strategies/analyses/structures/metatags` (отдельный заход).
+
 ### Идея пользователя
 
 Номер папки = номер темы + 3 случайные буквы (напр. `001-dko`), чтобы при параллельной работе не было конфликтов.

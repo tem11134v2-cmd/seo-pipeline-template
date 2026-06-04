@@ -64,20 +64,23 @@ const nnn = nnnMatch[1];
 
 const now = new Date().toISOString();
 
-let index = { version: 1, updated: now, articles: [] };
+let index = { version: 2, derived: true, updated: now, articles: [] };
 if (existsSync(indexPath)) {
   try {
     index = JSON.parse(readFileSync(indexPath, "utf8").replace(/^﻿/, ""));
   } catch (e) {
     console.warn(`[update-index] _index.json повреждён, пересоздаю: ${e.message}`);
-    index = { version: 1, updated: now, articles: [] };
+    index = { version: 2, derived: true, updated: now, articles: [] };
   }
 }
 
-// Запись по nnn (уникальный идентификатор статьи)
-let rec = index.articles.find((a) => a.nnn === nnn);
+// Запись по полному basename папки (key) - уникальный идентификатор.
+// NNN (= topic_id) после точки 2 НЕ уникален: у одной темы может быть
+// несколько статей (разные жанры/площадки), все с префиксом <TTT>-.
+let rec = index.articles.find((a) => a.key === dirName);
 if (!rec) {
   rec = {
+    key: dirName,
     nnn,
     topic_id: meta.topic_id ?? null,
     slug: meta.slug || dirName.slice(nnn.length + 1),
@@ -89,6 +92,7 @@ if (!rec) {
     started: meta.started || now,
     completed_at: null,
     share_url: null,
+    updated: meta.updated || now,
   };
   index.articles.push(rec);
 } else {
@@ -99,6 +103,7 @@ if (!rec) {
   rec.genre = meta.genre || rec.genre;
   rec.platform_target = meta.platform_target || rec.platform_target;
   rec.topic_id = meta.topic_id ?? rec.topic_id;
+  rec.updated = meta.updated || now;
 }
 
 if (meta.state === "completed" && !rec.completed_at) {
@@ -110,8 +115,8 @@ if (meta.share?.docx_url) {
 
 index.updated = now;
 
-// Сортируем по nnn для предсказуемости
-index.articles.sort((a, b) => a.nnn.localeCompare(b.nnn));
+// Сортируем по key (полный basename) для предсказуемости
+index.articles.sort((a, b) => a.key.localeCompare(b.key));
 
 mkdirSync(dirname(indexPath), { recursive: true });
 writeFileSync(indexPath, JSON.stringify(index, null, 2) + "\n", "utf8");

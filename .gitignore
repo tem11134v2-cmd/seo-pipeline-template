@@ -9,3 +9,13 @@ Thumbs.db
 tmp-skill-extract/
 # Маркер шаблона: untracked, чтобы клиентские клоны его не наследовали (см. .claude/hooks/guard-template-root.sh)
 .claude/.is-template-root
+
+# Производные кеши реестров задач (ADR-013): источник истины - per-folder meta.json.
+# _index.json пересобирается из meta.json (rebuild-index.mjs) и НЕ коммитится =>
+# ноль merge-конфликтов при параллельной работе двух worktree.
+articles/_index.json
+strategies/_index.json
+analyses/_index.json
+structures/_index.json
+topics/_index.json
+metatags/_index.json

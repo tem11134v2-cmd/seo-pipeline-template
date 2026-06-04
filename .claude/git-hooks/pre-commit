@@ -118,13 +118,11 @@ allowed_prefixes=(
   ".claude/handoff-requests/"
 )
 
-# Дополнительно разрешённые файлы по точному имени (общие реестры задач).
-# Эти файлы ведутся хуком update-meta.sh для всех задач коллективно и должны
-# обновляться внутри worktree, иначе перестанет работать логика повтора темы и пр.
+# Дополнительно разрешённые файлы по точному имени.
+# (ADR-013) Реестры _index.json больше НЕ коммитятся - это производные кеши,
+# gitignored, пересобираются из per-folder meta.json (rebuild-index.mjs). Белого
+# списка для них не нужно: их не видит git => ноль merge-конфликтов при параллели.
 allowed_files=(
-  "articles/_index.json"
-  "strategies/_index.json"
-  "analyses/_index.json"
 )
 
 # -c core.quotepath=false обязателен: иначе non-ASCII имена (например ЗАКАЗЧИК.md)
@@ -142,7 +140,7 @@ while IFS= read -r f; do
       "${p}"*) ok=1; break ;;
     esac
   done
-  if [ "${ok}" != "1" ]; then
+  if [ "${ok}" != "1" ] && [ "${#allowed_files[@]}" -gt 0 ]; then
     for af in "${allowed_files[@]}"; do
       if [ "${f}" = "${af}" ]; then
         ok=1
