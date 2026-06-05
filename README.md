@@ -242,7 +242,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── git-hooks/                           ← git hooks (НЕ Claude Code)
 │   │   └── pre-commit                       (whitelist путей в worktree)
 │   │
-│   ├── scripts/                             ← обёртки + 26 .mjs
+│   ├── scripts/                             ← обёртки + 28 .mjs
 │   │   ├── _node.cmd / _node.sh             (обёртки, ищут node)
 │   │   ├── _client.mjs                      (общий helper)
 │   │   ├── finalize-setup.mjs               (git init + первый коммит)
@@ -265,7 +265,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── import-structure.mjs             (client_filled.xlsx → structure_data.json)
 │   │   ├── render-audit-md.mjs              (audit_data.json → A12.md)
 │   │   ├── build-audit-docx.mjs             (audit_data.json → A12_<slug>.docx)
-│   │   └── verify-audit.mjs                 (проверка audit_data.json)
+│   │   ├── verify-audit.mjs                 (проверка audit_data.json)
+│   │   ├── select-audit-pages.mjs           (indexing.json → page_plan.json: выборка+шарды)
+│   │   └── merge-onpage.mjs                 (onpage_*.json шарды → onpage.json)
 │   │
 │   ├── handoff-requests/                    ← запросы worktree → main
 │   │   ├── .gitkeep
@@ -455,11 +457,11 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `metatag-writer` | Финальные H1/Title/Description на страницу: deep (выдача + Акварель, параллельно) / bulk (по PLAYBOOK) → pages/N.json (для /seo-metategi) |
 | `audit-recon` | Разведка техаудита: Вебмастер/Метрика/Keyso/возраст/CMS → recon.json (для /seo-tehaudit, шаг 1) |
 | `audit-indexing` | Индексация и тех-здоровье: robots/sitemap/диагностика/редиректы/доноры → indexing.json (для /seo-tehaudit, шаг 2) |
-| `audit-onpage` | URL/мета/Schema/JS на выборке 8-12 страниц → onpage.json (для /seo-tehaudit, шаг 3) |
+| `audit-onpage` | URL/мета/Schema/JS для ОДНОГО батча страниц (шард, запускается параллельно) → onpage_<k>.json (для /seo-tehaudit, шаг 3) |
 | `audit-analytics` | Аналитика/поведенческие/ссылки + финальный вердикт Яндекс Бизнеса → analytics.json (для /seo-tehaudit, шаг 4) |
 | `audit-writer` | Сборка audit_data.json (карточка + проблемы + чеклист + динамические приложения) из 4 JSON (для /seo-tehaudit, шаг 5) |
 
-### 26 Node-скриптов
+### 28 Node-скриптов
 
 | Скрипт | Делает |
 |---|---|
@@ -489,6 +491,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `render-audit-md.mjs` | audit_data.json → A12.md (markdown-отчёт техаудита) |
 | `build-audit-docx.mjs` | audit_data.json → A12_<slug>.docx (порт docx_template.py, дизайн TIMUR SEO) |
 | `verify-audit.mjs` | проверка audit_data.json: счётчики=длины, ссылки на приложения, плейсхолдеры (exit 0/2) |
+| `select-audit-pages.mjs` | indexing.json → page_plan.json (типизация + url_structure + шардинг страниц для on-page аудита, `--pages N`) |
+| `merge-onpage.mjs` | onpage_*.json (шарды) → onpage.json (Title-заглушка, дубли, schema_summary по всей выборке) |
 
 ### 5 Claude Code хуков
 

@@ -12,13 +12,14 @@ description: "Полный цикл технического SEO-аудита с
 ## Аргументы
 
 ```
-/seo-tehaudit <domain> [--resume] [--no-share] [--from-analysis <NNN>]
+/seo-tehaudit <domain> [--resume] [--no-share] [--from-analysis <NNN>] [--pages <N>]
 ```
 
 - `<domain>` - домен клиента (например `example.ru`; кириллический IDN - в кириллице). Обязателен на фрэш-старте (если не передан - скил спросит).
 - `--resume` - продолжить с того места, где остановились (по `meta.json` существующей `audits/NNN-slug/`).
 - `--no-share` - собрать A12.md + A12.docx локально, **не** заливать в Drive и не запускать цикл правок. Финальное состояние `docx-done`. Для случаев когда нужен только локальный отчёт.
 - `--from-analysis <NNN>` - взять базу Keyso из `analyses/NNN/brief.json` (артефакт A2). Если не задан - скил сам поищет свежий `analyses/` или определит базу по региону.
+- `--pages <N>` - сколько страниц охватить on-page аудитом (шаг 4; по умолчанию 24, потолок 80). Страницы шардятся на батчи по 8 и аудируются параллельными `audit-onpage`. Для крупного сайта ставь больше, для лендинга - меньше.
 
 ## State machine
 
@@ -50,7 +51,9 @@ audits/NNN-<domain-slug>/
 ├── meta.json            # state machine + drive_file_id + revisions_log
 ├── recon.json           # шаг 1: карточка, host_id, counter_id, база Keyso, CMS/шаблон/возраст
 ├── indexing.json        # шаг 2: robots, sitemap (+all_urls), диагностика, редиректы, доноры
-├── onpage.json          # шаг 3: выборка 8-12 страниц, мета-теги, Title-заглушка, schema
+├── page_plan.json       # шаг 4: план выборки + шарды (select-audit-pages.mjs)
+├── onpage_<k>.json      # шаг 4: шарды on-page (параллельные audit-onpage)
+├── onpage.json          # шаг 4: слитый on-page (merge-onpage.mjs): мета-теги, Title-заглушка, schema
 ├── analytics.json       # шаг 4: трафик, источники, отказы, цели, устройства, вердикт ЯБ
 ├── audit_data.json      # шаг 5: ЕДИНЫЙ структурированный отчёт (источник истины для рендеров)
 ├── A12.md               # ФИНАЛ - markdown-отчёт (рендер render-audit-md.mjs)
@@ -78,6 +81,7 @@ COMMON_DIR=$(git rev-parse --git-common-dir)
 resume   = true если --resume
 no_share = true если --no-share
 from_analysis = <NNN> если --from-analysis <NNN>
+pages    = <N> если --pages <N>, иначе 24
 domain   = первый позиционный аргумент (не флаг)
 ```
 
@@ -90,7 +94,7 @@ domain   = первый позиционный аргумент (не флаг)
 - Спросить: «Найдено в состоянии `<state>`, обновлено `<updated>`. Продолжить? [Y/n]»
 - Если Y - перейти к шагу по карте (идемпотентность: каждый шаг пропускает работу, если его JSON уже есть):
   - `recon-done` -> шаг 3; `indexing-done` -> шаг 4; `collection-done` -> шаг 5; `report-done` -> шаг 6; `docx-done` -> шаг 7 (если не `--no-share`); `shared` -> шаг 7e; `client-review` -> шаг 8; `revising` -> шаг 8d; `approved` -> шаг 9; `completed` -> стоп: «Аудит завершён. Используй `/share-audit <NNN> --redo` для перезаливки.»
-  - **resume для шага 4 (параллельного):** если `state==indexing-done` или `collection-done`, но какого-то из `onpage.json`/`analytics.json` нет - до-запустить недостающий коллектор.
+  - **resume для шага 4 (шарды):** если `state==indexing-done`/`collection-done`, но нет `onpage.json` - восстановить `page_plan.json` (4a при отсутствии), до-запустить только недостающие шарды `onpage_<k>.json` и `analytics.json`, затем `merge-onpage.mjs` (4c).
 
 #### 1b. Если фрэш-старт
 
@@ -153,37 +157,61 @@ project_root: <project root>
 - `bash .claude/hooks/update-meta.sh <audit_dir> indexing-done`
 - Сводка в чат. Переход к шагу 4.
 
-### 4. URL/мета + Аналитика - ПАРАЛЛЕЛЬНО (если state == "indexing-done")
+### 4. URL/мета (ШАРДАМИ) + Аналитика - ПАРАЛЛЕЛЬНО (если state == "indexing-done")
 
-`audit-onpage` и `audit-analytics` независимы (оба читают только `recon.json` + `indexing.json`, друг от друга не зависят). **Запустить их одним сообщением - двумя параллельными делегациями** (экономит время). Ни один из них не использует Арсенкин, так что параллель безопасна.
+On-page аудит идёт **шардами**: выборку страниц делает скрипт, затем несколько `audit-onpage` параллельно фетчат свои батчи (каждый со свежим контекстом -> можно охватить много страниц), затем merge сливает. Рядом параллельно идёт `audit-analytics` (он независим). Никто из них не трогает Арсенкин - параллель безопасна.
 
-Записать оба маркера:
+#### 4a. Отбор и шардинг страниц (скрипт, без MCP)
+
 ```bash
-echo "audits/<NNN>-<slug>/onpage.json"    > .claude/tmp/expected-audit-onpage-<NNN>.txt
+.claude\scripts\_node.cmd .claude\scripts\select-audit-pages.mjs audits\<NNN>-<slug> --pages <N>
+```
+
+`<N>` = из `--pages` (по умолчанию 24, потолок 80). Скрипт читает `indexing.json` (`sitemap.all_urls`) + `recon.json`, типизирует страницы, считает `url_structure` (ЧПУ/глубина/длина/мультислеш), отбирает до `<N>` страниц (главная + round-robin по типам для разнообразия) и шардит на батчи по 8 -> `page_plan.json` (`batches: [[{url,type}...], ...]`).
+
+#### 4b. Параллельный запуск шардов + аналитики
+
+Прочитать `page_plan.json` -> `batches` (K штук). Записать маркеры (по одному на батч + аналитика):
+```bash
+echo "audits/<NNN>-<slug>/onpage_1.json" > .claude/tmp/expected-audit-onpage-1-<NNN>.txt
+# ... для каждого k = 1..K
 echo "audits/<NNN>-<slug>/analytics.json" > .claude/tmp/expected-audit-analytics-<NNN>.txt
 ```
 
-Делегировать **обоих** (в одном сообщении - два вызова субагентов):
+**Одним сообщением** делегировать K экземпляров `audit-onpage` (по батчу каждый) + один `audit-analytics`.
 
-`audit-onpage`:
+`audit-onpage` (для каждого батча k = 1..K, передать его срез из `page_plan.batches[k-1]`):
 ```
 audit_dir: <audit_dir>
 project_root: <project root>
-Прочитай recon.json (keyso_base, domain) и indexing.json (sitemap.all_urls). Сформируй выборку 8-12 страниц, проверь URL-структуру, Title/H1/Description, Title-заглушку, noindex (точно), canonical, Schema.org, favicon, JS-рендеринг. Собери onpage.json.
+batch_id: <k>
+page_list: <page_plan.batches[k-1]>   # массив {url,type} этого батча
+Прочитай recon.json. Зафетчи свои страницы, извлеки Title/H1/Description/noindex (точно)/canonical/Schema/крошки/JS, favicon (если в батче есть "/"). БЕЗ межстраничных проверок. Запиши onpage_<k>.json.
 ```
 
 `audit-analytics`:
 ```
 audit_dir: <audit_dir>
 project_root: <project root>
-Прочитай recon.json (counter_id, counter_age_days, metrika_connected) и indexing.json (not_in_sprav_candidate, external_links). Собери трафик, источники, отказы, цели, устройства; ссылочный профиль; вынеси финальный вердикт Яндекс Бизнеса кросс-проверкой по yandex.ru/maps. Собери analytics.json.
+Прочитай recon.json (counter_id, counter_age_days, metrika_connected) и indexing.json (not_in_sprav_candidate, external_links). Собери трафик/источники/отказы/цели/устройства, ссылочный профиль, финальный вердикт Яндекс Бизнеса кросс-проверкой по yandex.ru/maps. Запиши analytics.json.
 ```
 
-После завершения ОБОИХ:
-- `bash .claude/hooks/update-meta.sh <audit_dir> collection-done`
-- Краткие сводки от обоих - в чат. Переход к шагу 5.
+> Лимит одновременных субагентов ~10. По умолчанию (24 страницы -> 3 батча + аналитика = 4 субагента) укладывается свободно. При `--pages 80` (10 батчей) запускай батчи группами или уменьши `<N>`.
 
-> Если параллельный запуск по какой-то причине неудобен - можно последовательно (onpage, затем analytics). Результат тот же; параллель только быстрее.
+#### 4c. Слияние шардов (скрипт, без MCP)
+
+После завершения ВСЕХ шардов и аналитики:
+```bash
+.claude\scripts\_node.cmd .claude\scripts\merge-onpage.mjs audits\<NNN>-<slug>
+```
+`merge-onpage.mjs` читает все `onpage_*.json` + `page_plan.json`, считает межстраничное (Title-заглушка >=50%, дубли Title/H1, `schema_summary`), переносит `url_structure` -> `onpage.json` (та же схема, что читает `audit-writer`).
+
+После:
+- `bash .claude/hooks/update-meta.sh <audit_dir> collection-done`
+- Краткие сводки шардов и аналитики - в чат. Переход к шагу 5.
+
+> **Resume шага 4:** нет `page_plan.json` -> заново 4a; затем перезапустить только те `audit-onpage`, чьих `onpage_<k>.json` нет, и `audit-analytics`, если нет `analytics.json`; затем 4c (merge). Идемпотентно.
+> Если параллель неудобна - можно последовательно (шарды по очереди, потом аналитика); результат тот же, только медленнее.
 
 ### 5. Сборка отчёта (если state == "collection-done")
 
