@@ -14,7 +14,12 @@
     "build-article-docx": "node .claude/scripts/build-article-docx.mjs",
     "verify-markers": "node .claude/scripts/verify-markers.mjs",
     "metrics-report": "node .claude/scripts/metrics-report.mjs",
-    "update-index": "node .claude/scripts/update-index.mjs"
+    "update-index": "node .claude/scripts/update-index.mjs",
+    "render-audit-md": "node .claude/scripts/render-audit-md.mjs",
+    "build-audit-docx": "node .claude/scripts/build-audit-docx.mjs",
+    "verify-audit": "node .claude/scripts/verify-audit.mjs",
+    "select-audit-pages": "node .claude/scripts/select-audit-pages.mjs",
+    "merge-onpage": "node .claude/scripts/merge-onpage.mjs"
   },
   "dependencies": {
     "docx": "^9.0.0",

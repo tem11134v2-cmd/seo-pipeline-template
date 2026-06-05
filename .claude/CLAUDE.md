@@ -11,12 +11,13 @@
 - `strategies/NNN/` — рабочая папка SEO-стратегии (если запускался /seo-strategiya)
 - `analyses/NNN/` — рабочая папка предпроектного анализа (если запускался /seo-analiz)
 - `structures/NNN/` — рабочая папка структуры сайта (если запускался /seo-struktura)
+- `audits/NNN/` — рабочая папка технического аудита (если запускался /seo-tehaudit)
 - `topics/NNN/` — рабочая папка батча тем (если запускался /seo-temi)
 - `~/.claude/seo-knowledge/` — общая методология (стиль, жанры, HTML-элементы, SVG, TARIFFS, RULES)
 
 ## Модель работы: всё в worktree, единственная main-команда — /handoff-process
 
-**Правило:** каждая задача (`/seo-shablon`, `/seo-temi`, `/seo-statya`, `/fix-article`, `/seo-strategiya`, `/seo-analiz`, `/seo-struktura`, `/share-topics`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
+**Правило:** каждая задача (`/seo-shablon`, `/seo-temi`, `/seo-statya`, `/fix-article`, `/seo-strategiya`, `/seo-analiz`, `/seo-struktura`, `/seo-tehaudit`, `/share-topics`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
 
 **Единственная команда в main:** `/handoff-process` — применяет накопленные handoff-запросы к общим файлам проекта.
 
@@ -37,6 +38,8 @@
 | `/share-analysis <NNN> [--redo]` | Утилита-помощник для `/seo-analiz`: перезалить .docx в Drive после правок или догрузить если Drive был недоступен | `analyses/NNN/share.json` (per-task) |
 | `/seo-struktura <NNN> [--resume] [--review \| --auto] [--import <xlsx>]` | Структура сайта на базе предпроектного анализа: мастер-список из конкурентов → маркерные запросы → JM semantic_pack → топ-10 + каннибализация → A6.xlsx → клиент → A6.md | `structures/NNN-slug/` (per-task) |
 | `/share-structure <NNN> [--redo]` | Утилита-помощник для `/seo-struktura`: перезалить A6.xlsx в Drive после правок или догрузить если Drive был недоступен | `structures/NNN/share.json` (per-task) |
+| `/seo-tehaudit <domain> [--resume] [--no-share]` | Технический SEO-аудит сайта под Яндекс: разведка/карточка → индексация → URL/мета/Schema/JS → аналитика/ссылки → A12.md + A12.docx + автозагрузка в Drive + revising-цикл. Нужны доступы Вебмастер+Метрика | `audits/NNN-slug/` (per-task) |
+| `/share-audit <NNN> [--redo]` | Утилита-помощник для `/seo-tehaudit`: перезалить A12.docx в Drive после правок или догрузить если Drive был недоступен | `audits/NNN/share.json` (per-task) |
 | `/request-shared-edit "<описание>"` | Запросить правку общего файла | `.claude/handoff-requests/<file>.md` |
 | **`/handoff`** | Финал worktree: commit → merge в main → cleanup | Файлы попадают в main |
 
