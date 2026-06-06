@@ -23,7 +23,8 @@
   4. /seo-tekst         -> Texts.docx (Google Doc) + prototype.html на страницу
        (продающие тексты + HTML-прототип; согласование анализа ЦА с клиентом)
        └─ /seo-tekst-fix NNN "..." - точечная правка прототипа
-  [планируется: /seo-faq (SEO-нормализация: FAQ + N-граммы поверх готового текста)]
+  5. /seo-faq           -> faq.html (Schema.org FAQPage) на страницу + FAQ.docx
+       (SEO-нормализация: FAQ + плитка тегов + перелинковка с недостающими N-граммами)
 
 ТРЕК «Информационное SEO» (блог/статьи) - ПОЛНОСТЬЮ независим от коммерческого
   1. /seo-shablon URL  -> ЗАКАЗЧИК.md + template.html (профиль + шаблон статьи)
@@ -393,6 +394,15 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── Texts_<slug>.docx                    (клиенту финальные тексты -> Google Doc)
 │   └── share.json                           (ссылки Drive: analysis + texts)
 │
+├── faq/NNN-domain-slug/                     ← рабочие папки SEO-блоков (/seo-faq)
+│   ├── meta.json + inputs.json + pages.json (текст страниц + целевые запросы)
+│   ├── pages/<page-slug>/
+│   │   ├── faq_blocks.json                  (FAQ+теги+перелинковка + normalized_keywords - faq-builder)
+│   │   ├── faq.html                         (ФИНАЛ - вставляемый сниппет + Schema.org FAQPage)
+│   │   └── faq.md
+│   ├── FAQ_<slug>.docx                      (клиенту -> Google Doc)
+│   └── share.json
+│
 ├── package.json                             ← exceljs, marked, jsdom
 ├── .gitignore
 ├── .mcp.json.example                        ← документация формата (не активный конфиг)
@@ -420,7 +430,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ## Компоненты
 
-### 24 скила (12 рабочих, 8 share-утилит, 3 управляющих, 1 справочный)
+### 26 скилов (13 рабочих, 9 share-утилит, 3 управляющих, 1 справочный)
 
 | Скил | Зона | Назначение |
 |---|---|---|
@@ -443,11 +453,13 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/seo-tekst [--from-structure NNN\|--from-table\|--from-analysis] [--mode A\|B] [--review\|--auto] [--theme]` | worktree | Конверсионные тексты коммерческих страниц + HTML-прототип. Анализ ЦА/оффера → согласование с клиентом (Analysis.docx → Google Doc) → веер писателей → сборка прототипов поверх kit. Выход: Texts.docx (Google Doc) + prototype.html на страницу |
 | `/seo-tekst-fix NNN [slug] "..."` | worktree | Точечная правка прототипа (разбор голосовых; manifest → пересборка → дифф) |
 | `/share-tekst NNN [--redo]` | worktree | Утилита: перезалить Analysis/Texts.docx в Drive после правок, или догрузить если Drive был недоступен |
+| `/seo-faq [--from-tekst NNN\|--from-table\|--url] [--review\|--auto]` | worktree | SEO-нормализация: JM-анализ пробелов текста → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка с недостающими N-граммами. Выход: faq.html (вставляемый сниппет) на страницу + FAQ.docx (Google Doc) |
+| `/share-faq NNN [--redo]` | worktree | Утилита: перезалить FAQ.docx в Drive после правок, или догрузить если Drive был недоступен |
 | `/request-shared-edit "..."` | worktree | Отложенный запрос на правку общего файла |
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
 
-### 40 субагентов (вызываются скилами)
+### 41 субагент (вызываются скилами)
 
 | Агент | Делает |
 |---|---|
@@ -491,8 +503,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `page-writer` | Конверсионный текст одной страницы: подбор блоков + ЦА-под-страницу + копия по формулам/метрикам → page.json (для /seo-tekst, веер) |
 | `prototype-builder` | Сборка HTML-прототипа одной страницы поверх kit: page.json → manifest → build-prototype.mjs + verify + fix (для /seo-tekst, веер) |
 | `prototype-fixer` | Точечная правка прототипа (разбор голосовых PHASE-7 + паттерн article-fixer) (для /seo-tekst-fix) |
+| `faq-builder` | SEO-блок одной страницы: JM-анализ пробелов → FAQ (Schema.org) + возражения + плитка тегов + перелинковка с недостающими N-граммами (для /seo-faq, веер) |
 
-### 33 Node-скрипта
+### 37 Node-скриптов
 
 | Скрипт | Делает |
 |---|---|
@@ -529,6 +542,10 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `verify-prototype.mjs` | POST-FLIGHT прототипа: 1 форма в финале, header/footer/tel/cookie, без фреймворков/тире, стоп-формулы (exit 0/2) |
 | `build-tekst-analysis-docx.mjs` | audience.json + strategy.json → Analysis_<slug>.docx (клиенту на согласование) |
 | `build-tekst-docx.mjs` | pages/*/page.json → Texts_<slug>.docx (финальные тексты клиенту) |
+| `read-faq-input.mjs` | tekst/таблица/url → pages.json (текст страницы + целевые запросы для JM) |
+| `build-faq.mjs` | faq_blocks.json → faq.html (аккордеон + Schema.org FAQPage + плитка тегов + перелинковка) + faq.md |
+| `verify-faq.mjs` | проверка SEO-блока: Schema валидна, объёмы FAQ, стоп-формулы, тире, normalized_keywords (exit 0/2) |
+| `build-faq-docx.mjs` | faq_blocks → FAQ_<slug>.docx (клиенту) |
 
 ### 5 Claude Code хуков
 
@@ -623,6 +640,7 @@ git commit -m "Update template from upstream"
 | [013](docs/adr/013-numbering-by-topic-derived-index.md) | Реестры `_index.json` не коммитятся - производные кеши, пересобираются из per-folder meta.json (ноль merge-конфликтов при параллели) |
 | [014](docs/adr/014-audit-task-type.md) | Новый тип задачи `audits/` для техаудита (4-е повторение паттерна; `audit_data.json` как источник истины, двойной рендер md+docx + verify, порт `docx_template.py` на Node) |
 | [015](docs/adr/015-tekst-task-type.md) | Новый тип задачи `texts/` для конверсионных текстов + HTML-прототип (/seo-tekst); манифест-JSON + детерминированный сборщик вместо LLM-печати HTML (осознанное отступление от гайда); клиентский гейт согласования + двухуровневый веер |
+| [016](docs/adr/016-faq-task-type.md) | Новый тип задачи `faq/` для SEO-нормализации (/seo-faq); JM-анализ пробелов → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка; читает kit из seo-tekst/assets |
 
 ---
 
