@@ -1,0 +1,18 @@
+/* Theme: B2B / Corporate
+   Use for: services for business, equipment, IT, wholesale, legal, accounting,
+   engineering. 12-col grid, bold metrics, soft shadows, small radius.
+   Source: DESIGN-SYSTEMS section 2; accent-secondary green darkened for WCAG CTA. */
+:root{
+  --font: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --bg:#FFFFFF;
+  --bg-alt:#F4F6F8;
+  --bg-invert:#0F1B2D;
+  --text-primary:#0F1B2D;
+  --text-secondary:#5A6478;
+  --text-invert:#FFFFFF;
+  --accent-primary:#0066CC;
+  --accent-secondary:#008043;
+  --border:#DEE3EA;
+  --radius:6px;
+  --shadow:0 1px 3px rgba(15,27,45,.08);
+}

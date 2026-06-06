@@ -1,0 +1,22 @@
+<section class="pt-section">
+  <div class="container">
+    <!--IF:h2-->
+    <div class="pt-section__head">
+      <h2 class="pt-h2">{{h2}}</h2>
+      <!--IF:subhead--><p class="pt-section__sub">{{subhead}}</p><!--/IF:subhead-->
+    </div>
+    <!--/IF:h2-->
+    <div class="pt-portfolio">
+      <!--REPEAT:items-->
+      <article class="pt-work">
+        <div class="pt-work__media" role="img" aria-label="{{item.media_alt}}">{{item.media_alt}}</div>
+        <div class="pt-work__body">
+          <!--IF:item.tag--><div class="pt-work__tag">{{item.tag}}</div><!--/IF:item.tag-->
+          <div class="pt-work__title">{{item.title}}</div>
+          <div class="pt-work__result">{{item.result}}</div>
+        </div>
+      </article>
+      <!--/REPEAT:items-->
+    </div>
+  </div>
+</section>

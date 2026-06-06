@@ -1,0 +1,18 @@
+/* Theme: PRODUCT / SaaS / COURSES (modern hybrid)
+   Use for: info-products, online courses, digital products, SaaS services,
+   online schools. Alternating light/dark blocks, larger radius, big soft shadows.
+   Source: DESIGN-SYSTEMS section 5 (variant 5A); indigo + pink darkened for WCAG. */
+:root{
+  --font: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --bg:#FFFFFF;
+  --bg-alt:#0E0E1A;
+  --bg-invert:#0E0E1A;
+  --text-primary:#0E0E1A;
+  --text-secondary:#6B7280;
+  --text-invert:#FFFFFF;
+  --accent-primary:#4F46E5;
+  --accent-secondary:#C81E64;
+  --border:#E5E7EB;
+  --radius:14px;
+  --shadow:0 10px 30px rgba(14,14,26,.10);
+}

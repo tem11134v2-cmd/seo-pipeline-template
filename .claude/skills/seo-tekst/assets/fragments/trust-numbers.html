@@ -1,0 +1,18 @@
+<section class="pt-section">
+  <div class="container">
+    <!--IF:h2-->
+    <div class="pt-section__head">
+      <h2 class="pt-h2">{{h2}}</h2>
+      <!--IF:subhead--><p class="pt-section__sub">{{subhead}}</p><!--/IF:subhead-->
+    </div>
+    <!--/IF:h2-->
+    <div class="pt-numbers">
+      <!--REPEAT:items-->
+      <div class="pt-number">
+        <div class="pt-number__value">{{item.value}}</div>
+        <div class="pt-number__label">{{item.label}}</div>
+      </div>
+      <!--/REPEAT:items-->
+    </div>
+  </div>
+</section>

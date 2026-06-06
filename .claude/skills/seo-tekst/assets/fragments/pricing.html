@@ -1,0 +1,28 @@
+<section class="pt-section">
+  <div class="container">
+    <!--IF:h2-->
+    <div class="pt-section__head">
+      <h2 class="pt-h2">{{h2}}</h2>
+      <!--IF:subhead--><p class="pt-section__sub">{{subhead}}</p><!--/IF:subhead-->
+    </div>
+    <!--/IF:h2-->
+    <div class="pt-pricing">
+      <!--REPEAT:tariffs-->
+      <div class="pt-tariff<!--IF:item.featured--> pt-tariff--featured<!--/IF:item.featured-->">
+        <!--IF:item.featured--><div class="pt-tariff__badge">{{item.badge}}</div><!--/IF:item.featured-->
+        <div class="pt-tariff__name">{{item.name}}</div>
+        <div class="pt-tariff__tagline">{{item.tagline}}</div>
+        <div class="pt-tariff__price">{{item.price}}</div>
+        <div class="pt-tariff__price-note">{{item.price_note}}</div>
+        <ul class="pt-tariff__list">
+          <!--REPEAT:item.features-->
+          <li>{{item}}</li>
+          <!--/REPEAT:item.features-->
+        </ul>
+        <a href="#lead" class="btn btn--primary btn--block pt-tariff__cta">{{item.cta}}</a>
+      </div>
+      <!--/REPEAT:tariffs-->
+    </div>
+    <!--IF:note--><div class="pt-pricing__note">{{note}}</div><!--/IF:note-->
+  </div>
+</section>

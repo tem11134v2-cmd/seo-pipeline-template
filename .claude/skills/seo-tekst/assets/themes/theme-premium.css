@@ -1,0 +1,19 @@
+/* Theme: PREMIUM (light)
+   Use for: elite goods, real estate, luxury services, jewellery, art, design
+   projects for affluent audiences. Serif display headings, generous whitespace,
+   near-zero radius, hairline separators, almost no shadow.
+   Source: DESIGN-SYSTEMS section 1 (variant 1B light premium); accents tuned for WCAG. */
+:root{
+  --font: Georgia, "Times New Roman", "Iowan Old Style", "Apple Garamond", serif;
+  --bg:#FAFAF7;
+  --bg-alt:#F0EDE5;
+  --bg-invert:#0E0E0E;
+  --text-primary:#1C1C1C;
+  --text-secondary:#6B6B6B;
+  --text-invert:#F5F5F0;
+  --accent-primary:#1C1C1C;
+  --accent-secondary:#8B6F3D;
+  --border:#E5E1D8;
+  --radius:2px;
+  --shadow:0 1px 2px rgba(28,28,28,.06);
+}

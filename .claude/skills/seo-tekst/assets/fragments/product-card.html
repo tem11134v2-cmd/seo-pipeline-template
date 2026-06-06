@@ -1,0 +1,23 @@
+<section class="pt-section">
+  <div class="container">
+    <!--IF:h2-->
+    <div class="pt-section__head">
+      <h2 class="pt-h2">{{h2}}</h2>
+      <!--IF:subhead--><p class="pt-section__sub">{{subhead}}</p><!--/IF:subhead-->
+    </div>
+    <!--/IF:h2-->
+    <div class="pt-products">
+      <!--REPEAT:items-->
+      <article class="pt-product">
+        <div class="pt-product__media" role="img" aria-label="{{item.media_alt}}">{{item.media_alt}}</div>
+        <div class="pt-product__body">
+          <div class="pt-product__title">{{item.title}}</div>
+          <div class="pt-product__text">{{item.text}}</div>
+          <!--IF:item.price--><div class="pt-product__price">{{item.price}}</div><!--/IF:item.price-->
+          <a href="#lead" class="btn btn--primary btn--block pt-product__cta">{{item.cta}}</a>
+        </div>
+      </article>
+      <!--/REPEAT:items-->
+    </div>
+  </div>
+</section>

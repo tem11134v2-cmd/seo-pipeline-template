@@ -1,0 +1,21 @@
+<section class="pt-hero" id="hero">
+  <div class="container pt-hero__grid">
+    <div class="pt-hero__text">
+      <h1 class="pt-hero__h1">{{h1}}</h1>
+      <p class="pt-hero__sub">{{subhead}}</p>
+      <div class="pt-hero__cta-wrap">
+        <a href="#lead" class="btn btn--primary btn--lg pt-hero__cta">{{cta_label}}</a>
+        <!--IF:opts.arrow--><span class="pt-arrow" aria-hidden="true"><!--ARROW_SVG--></span><!--/IF:opts.arrow-->
+        <!--IF:bonus--><p class="pt-hero__bonus">{{bonus}}</p><!--/IF:bonus-->
+      </div>
+    </div>
+    <div class="pt-hero__plates">
+      <!--REPEAT:plates-->
+      <div class="pt-plate">
+        <div class="pt-plate__title">{{item.title}}</div>
+        <div class="pt-plate__text">{{item.text}}</div>
+      </div>
+      <!--/REPEAT:plates-->
+    </div>
+  </div>
+</section>

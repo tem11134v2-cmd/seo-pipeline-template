@@ -1,0 +1,21 @@
+<section class="pt-section">
+  <div class="container">
+    <!--IF:h2-->
+    <div class="pt-section__head">
+      <h2 class="pt-h2">{{h2}}</h2>
+      <!--IF:subhead--><p class="pt-section__sub">{{subhead}}</p><!--/IF:subhead-->
+    </div>
+    <!--/IF:h2-->
+    <div class="pt-geo__grid">
+      <div class="pt-geo__map" role="img" aria-label="{{map_alt}}">{{map_alt}}</div>
+      <div class="pt-geo__text">
+        <p class="pt-lead">{{lead}}</p>
+        <div class="pt-geo__list">
+          <!--REPEAT:areas-->
+          <span class="pt-geo__item">{{item.name}}</span>
+          <!--/REPEAT:areas-->
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

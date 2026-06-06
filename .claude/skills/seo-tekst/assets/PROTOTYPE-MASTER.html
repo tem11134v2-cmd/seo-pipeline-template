@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!--META_TITLE-->
+  <!--META_DESC-->
+  <style><!--THEME_CSS--></style>
+  <style><!--PROTOTYPE_CSS--></style>
+</head>
+<body>
+
+  <header class="pt-header">
+    <div class="container pt-header__row">
+      <a href="#" class="pt-logo"><!--LOGO--></a>
+      <div class="pt-header__contacts">
+        <div class="pt-phone-block">
+          <a href="tel:<!--PHONE_RAW-->" class="pt-phone"><!--PHONE--></a>
+          <span class="pt-schedule"><!--SCHEDULE--></span>
+        </div>
+        <a href="#lead" class="btn btn--primary">Оставить заявку</a>
+        <button class="pt-burger-btn" aria-label="Меню" onclick="openBurger()">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="pt-burger-overlay" id="burgerOverlay" onclick="closeBurger()"></div>
+  <aside class="pt-burger-drawer" id="burgerDrawer">
+    <button class="pt-burger-close" onclick="closeBurger()" aria-label="Закрыть">&times;</button>
+    <nav class="pt-burger-nav" aria-label="Мобильное меню">
+      <a href="#lead" onclick="closeBurger()">Оставить заявку</a>
+    </nav>
+    <div>
+      <a href="tel:<!--PHONE_RAW-->" class="pt-phone"><!--PHONE--></a>
+      <p class="pt-schedule" style="margin:4px 0 16px;"><!--SCHEDULE--></p>
+      <a href="#lead" class="btn btn--primary btn--block btn--lg" onclick="closeBurger()">Оставить заявку</a>
+    </div>
+  </aside>
+
+  <main id="mainContent">
+    <!--BLOCKS-->
+  </main>
+
+  <!--FOOTER-->
+
+  <!--LEGAL_PAGES-->
+
+  <div class="pt-popup-overlay" id="popupTime">
+    <div class="pt-popup">
+      <button class="pt-popup__close" onclick="closePopup('popupTime')" aria-label="Закрыть">&times;</button>
+      <h3 class="pt-h3"><!--POPUP_TIME_TITLE--></h3>
+      <p style="margin:8px 0 18px; color:var(--text-secondary); font-size:14px;"><!--POPUP_TIME_SUB--></p>
+      <form class="pt-form" style="border:0; padding:0; box-shadow:none;">
+        <div class="pt-field">
+          <input class="pt-input" type="text" placeholder="Ваше имя" required>
+        </div>
+        <div class="pt-field">
+          <input class="pt-input" type="tel" placeholder="Телефон или мессенджер" required>
+        </div>
+        <div class="pt-check">
+          <input type="checkbox" id="popup-time-agree">
+          <label for="popup-time-agree">Согласен с <a href="#privacy">политикой</a> и <a href="#person-data-consent">обработкой ПДн</a></label>
+        </div>
+        <button type="submit" class="btn btn--primary btn--block btn--lg" disabled><!--POPUP_TIME_CTA--></button>
+      </form>
+    </div>
+  </div>
+
+  <div class="pt-popup-overlay" id="popupExit">
+    <div class="pt-popup">
+      <button class="pt-popup__close" onclick="closePopup('popupExit')" aria-label="Закрыть">&times;</button>
+      <h3 class="pt-h3"><!--POPUP_EXIT_TITLE--></h3>
+      <p style="margin:8px 0 18px; color:var(--text-secondary); font-size:14px;"><!--POPUP_EXIT_SUB--></p>
+      <form class="pt-form" style="border:0; padding:0; box-shadow:none;">
+        <div class="pt-field">
+          <input class="pt-input" type="text" placeholder="Ваше имя" required>
+        </div>
+        <div class="pt-field">
+          <input class="pt-input" type="tel" placeholder="Телефон или мессенджер" required>
+        </div>
+        <div class="pt-check">
+          <input type="checkbox" id="popup-exit-agree">
+          <label for="popup-exit-agree">Согласен с <a href="#privacy">политикой</a> и <a href="#person-data-consent">обработкой ПДн</a></label>
+        </div>
+        <button type="submit" class="btn btn--primary btn--block btn--lg" disabled><!--POPUP_EXIT_CTA--></button>
+      </form>
+    </div>
+  </div>
+
+  <div class="pt-mobile-cta">
+    <a href="#lead" class="btn btn--primary btn--block btn--lg">Оставить заявку</a>
+  </div>
+
+  <!--COOKIE_BANNER-->
+
+  <script><!--PROTOTYPE_JS--></script>
+</body>
+</html>

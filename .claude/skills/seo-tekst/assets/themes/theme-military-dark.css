@@ -1,0 +1,20 @@
+/* Theme: MILITARY DARK (tactical)
+   Use for: military hardware, FPV drones, special comms, tactical gear, security,
+   defence systems, heavy-reliability B2B; also masculine premium (watches, knives,
+   auto-tuning). Near-black green-tinted bg, aged-gold accent, sharp corners,
+   flat (almost no) shadow, 1px borders.
+   Source: DESIGN-SYSTEMS section 6; olive accent-secondary lightened for WCAG. */
+:root{
+  --font: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --bg:#0E1411;
+  --bg-alt:#1A2218;
+  --bg-invert:#E8E4D8;
+  --text-primary:#E8E4D8;
+  --text-secondary:#9CA395;
+  --text-invert:#0E1411;
+  --accent-primary:#C9A961;
+  --accent-secondary:#8A9C6B;
+  --border:#2A3328;
+  --radius:3px;
+  --shadow:0 1px 0 rgba(0,0,0,.4);
+}

@@ -1,0 +1,30 @@
+<section class="pt-section">
+  <div class="container">
+    <!--IF:h2-->
+    <div class="pt-section__head">
+      <h2 class="pt-h2">{{h2}}</h2>
+      <!--IF:subhead--><p class="pt-section__sub">{{subhead}}</p><!--/IF:subhead-->
+    </div>
+    <!--/IF:h2-->
+    <div class="pt-compare__wrap">
+      <table class="pt-compare">
+        <thead>
+          <tr>
+            <th>{{col_param}}</th>
+            <th>{{col_us}}</th>
+            <th>{{col_them}}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!--REPEAT:rows-->
+          <tr>
+            <th scope="row">{{item.param}}</th>
+            <td>{{item.us}}</td>
+            <td>{{item.them}}</td>
+          </tr>
+          <!--/REPEAT:rows-->
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

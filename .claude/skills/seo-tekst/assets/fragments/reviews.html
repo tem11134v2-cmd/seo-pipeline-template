@@ -1,0 +1,24 @@
+<section class="pt-section pt-section--alt">
+  <div class="container">
+    <!--IF:h2-->
+    <div class="pt-section__head">
+      <h2 class="pt-h2">{{h2}}</h2>
+      <!--IF:subhead--><p class="pt-section__sub">{{subhead}}</p><!--/IF:subhead-->
+    </div>
+    <!--/IF:h2-->
+    <div class="pt-reviews">
+      <!--REPEAT:items-->
+      <article class="pt-review">
+        <div class="pt-review__head">
+          <div class="pt-review__avatar" aria-hidden="true">{{item.initial}}</div>
+          <div>
+            <div class="pt-review__name">{{item.name}}</div>
+            <div class="pt-review__pos">{{item.pos}}</div>
+          </div>
+        </div>
+        <p class="pt-review__text">{{item.text}}</p>
+      </article>
+      <!--/REPEAT:items-->
+    </div>
+  </div>
+</section>

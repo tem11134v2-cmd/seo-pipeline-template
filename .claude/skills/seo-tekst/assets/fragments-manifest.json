@@ -1,0 +1,176 @@
+{
+  "_doc": "Карта фрагментов прототипа. fragments[*] = форма блока (scalars/repeatables/opts/notes). block_to_fragment = смысловой тип блока (BLOCKS.md, рус.) -> форма фрагмента. Непокрытые/редкие типы падают в cards. Синтаксис слотов - KIT-SPEC.md §3.",
+  "fragments": {
+    "hero": {
+      "file": "hero.html",
+      "scalars": ["h1", "subhead", "cta_label", "bonus"],
+      "repeatables": { "plates": ["title", "text"] },
+      "opts": ["arrow"],
+      "notes": "1 кнопка (не 2), SVG-стрелка через <!--ARROW_SVG-->, ровно 3 плашки title+1 строка. H1 44px. Без дисклеймеров. Якорь CTA -> #lead. Цифры-якоря НЕ дублировать с плашками."
+    },
+    "trust-numbers": {
+      "file": "trust-numbers.html",
+      "scalars": ["h2", "subhead"],
+      "repeatables": { "items": ["value", "label"] },
+      "opts": [],
+      "notes": "4 цифры-якоря: value (цифра/срок/%) + label (1 строка). Не ставить, если в Hero уже есть плашки."
+    },
+    "cards": {
+      "file": "cards.html",
+      "scalars": ["h2", "subhead"],
+      "repeatables": { "items": ["title", "text"] },
+      "opts": ["cols"],
+      "notes": "Универсальная сетка иконка+заголовок+текст. opts.cols = 3/4/5 (хелпер <!--CLASS:cols--> -> cols-N). Иконка = индекс {{@index}}, без эмодзи. Заголовок карточки = УТП, не 'о нас'. Фолбэк-форма для непокрытых типов."
+    },
+    "steps": {
+      "file": "steps.html",
+      "scalars": ["h2", "subhead"],
+      "repeatables": { "items": ["title", "text"] },
+      "opts": [],
+      "notes": "Процесс/таймлайн/этапы. Номер шага = {{@index}} (с 1). Альтернативный фон (pt-section--alt)."
+    },
+    "compare-table": {
+      "file": "compare-table.html",
+      "scalars": ["h2", "subhead", "col_param", "col_us", "col_them"],
+      "repeatables": { "rows": ["param", "us", "them"] },
+      "opts": [],
+      "notes": "Сравнительная таблица 3 колонки (параметр / мы / конкурент-или-альтернатива). Горизонтальный скролл на мобайле."
+    },
+    "pricing": {
+      "file": "pricing.html",
+      "scalars": ["h2", "subhead", "note"],
+      "repeatables": { "tariffs": ["featured", "badge", "name", "tagline", "price", "price_note", "features", "cta"] },
+      "opts": ["featured"],
+      "notes": "3-5 тарифов. ВНИМАНИЕ: вложенный REPEAT - item.features это массив СТРОК, рендерится <!--REPEAT:item.features-->{{item}}<!--/REPEAT:item.features--> (ассемблер должен поддержать вложенные repeat и скаляр-элемент {{item}}). featured (bool на тарифе) включает badge + класс pt-tariff--featured. Цена визуально меньше ('179 тыс. ₽'). price_note типа 'цена требует утверждения'."
+    },
+    "accordion": {
+      "file": "accordion.html",
+      "scalars": ["h2", "subhead"],
+      "repeatables": { "items": ["q", "a"] },
+      "opts": [],
+      "notes": "FAQ / возражения / мифы / гарантии. Каждый пункт = <details class=pt-faq__item><summary>. JS делает single-open в группе. Вопрос важнее ответа (ответ закладывать в формулировку вопроса)."
+    },
+    "portfolio": {
+      "file": "portfolio.html",
+      "scalars": ["h2", "subhead"],
+      "repeatables": { "items": ["media_alt", "tag", "title", "result"] },
+      "opts": [],
+      "notes": "Кейсы/работы. media_alt = подпись плейсхолдера (текст в серой плашке). Цифра результата - в title. tag опционален."
+    },
+    "reviews": {
+      "file": "reviews.html",
+      "scalars": ["h2", "subhead"],
+      "repeatables": { "items": ["initial", "name", "pos", "text"] },
+      "opts": [],
+      "notes": "Отзывы. initial = буква/инициал в аватар-плейсхолдере. Цитата 200-490 знаков с конкретикой. Альтернативный фон."
+    },
+    "geo": {
+      "file": "geo.html",
+      "scalars": ["h2", "subhead", "map_alt", "lead"],
+      "repeatables": { "areas": ["name"] },
+      "opts": [],
+      "notes": "География работ/филиалы. map_alt = подпись карты-плейсхолдера. areas = плашки районов/городов (поле name)."
+    },
+    "tag-tiles": {
+      "file": "tag-tiles.html",
+      "scalars": ["h2", "subhead"],
+      "repeatables": { "items": ["label"] },
+      "opts": [],
+      "notes": "Плитки-теги (направления/категории/услуги-якоря). Каждая плитка - ссылка на #lead. Без эмодзи."
+    },
+    "cta-mid": {
+      "file": "cta-mid.html",
+      "scalars": ["h2", "text", "cta_label"],
+      "repeatables": {},
+      "opts": ["inverted"],
+      "notes": "ЕДИНСТВЕННЫЙ тёмный блок (bg-invert). Максимум 1-2 на страницу. CTA отличается от основного (бриф/лид-магнит/чек-лист), ведёт на #lead. opts.inverted декларативно (форма уже тёмная)."
+    },
+    "form": {
+      "file": "form.html",
+      "scalars": ["h2", "subhead", "form_title", "cta_label", "form_note", "select_label", "textarea_label", "textarea_placeholder", "tg_url", "wa_url"],
+      "repeatables": { "bullets": ["text"], "select_options": ["label"] },
+      "opts": ["select", "textarea", "messengers"],
+      "notes": "ЕДИНСТВЕННАЯ форма захвата в финале (встречается 1 раз). Якорь секции id=lead. submit id=f-submit disabled по умолчанию; чекбокс id=f-agree разблокирует через JS. Текст чекбокса ВСТРАИВАЕТ точную надпись кнопки {{cta_label}} в <b>, ссылки на #privacy и #person-data-consent. Поля имя+телефон всегда; select/textarea/messengers - по opts. cta_label используется ДВАЖДЫ (кнопка + <b> в согласии) - значения должны совпадать."
+    },
+    "product-card": {
+      "file": "product-card.html",
+      "scalars": ["h2", "subhead"],
+      "repeatables": { "items": ["media_alt", "title", "text", "price", "cta"] },
+      "opts": [],
+      "notes": "Карточки товаров (каталог/e-commerce). media_alt = подпись плейсхолдера. price опционален (показывать только в 5 случаях из BLOCKS.md). CTA ведёт на #lead."
+    }
+  },
+  "block_to_fragment": {
+    "Первый экран (Hero)": "hero",
+    "Цифры компании": "trust-numbers",
+    "Цифры о компании": "trust-numbers",
+    "Цифры-якоря": "trust-numbers",
+    "Преимущества": "cards",
+    "Почему мы": "cards",
+    "Выгоды": "cards",
+    "Что входит": "cards",
+    "Услуги": "cards",
+    "Направления": "cards",
+    "Категории услуг": "cards",
+    "Для кого": "cards",
+    "Особенности": "cards",
+    "Закрытие возражений": "accordion",
+    "Возражения": "accordion",
+    "Мифы": "accordion",
+    "FAQ": "accordion",
+    "Частые вопросы": "accordion",
+    "Гарантии": "accordion",
+    "Цены / тарифы": "pricing",
+    "Цены": "pricing",
+    "Тарифы": "pricing",
+    "Пакеты услуг": "pricing",
+    "Стоимость": "pricing",
+    "Этапы / процесс": "steps",
+    "Этапы": "steps",
+    "Процесс": "steps",
+    "Как мы работаем": "steps",
+    "Схема работы": "steps",
+    "Дорожная карта": "steps",
+    "Сравнение": "compare-table",
+    "Сравнительная таблица": "compare-table",
+    "Мы и конкуренты": "compare-table",
+    "Кейсы": "portfolio",
+    "Портфолио": "portfolio",
+    "Наши работы": "portfolio",
+    "Реализованные проекты": "portfolio",
+    "Примеры работ": "portfolio",
+    "Отзывы": "reviews",
+    "Что говорят клиенты": "reviews",
+    "Команда": "reviews",
+    "География": "geo",
+    "Карта": "geo",
+    "Зона работы": "geo",
+    "Филиалы": "geo",
+    "Контакты": "geo",
+    "Теги": "tag-tiles",
+    "Категории-якоря": "tag-tiles",
+    "Популярные запросы": "tag-tiles",
+    "Промежуточный CTA": "cta-mid",
+    "CTA-баннер": "cta-mid",
+    "Призыв к действию": "cta-mid",
+    "Лид-магнит": "cta-mid",
+    "Форма захвата": "form",
+    "Финальная форма": "form",
+    "Заявка": "form",
+    "Квиз": "form",
+    "Калькулятор": "form",
+    "Каталог": "product-card",
+    "Товары": "product-card",
+    "Продукты": "product-card",
+    "Ассортимент": "product-card",
+    "Стек технологий": "tag-tiles",
+    "Технологии": "tag-tiles",
+    "Партнёры": "tag-tiles",
+    "Логотипы клиентов": "tag-tiles",
+    "Сертификаты": "cards",
+    "Лицензии": "cards",
+    "О компании": "cards",
+    "Акция": "cta-mid",
+    "Бонус": "cta-mid"
+  }
+}

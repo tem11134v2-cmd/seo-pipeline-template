@@ -1,0 +1,67 @@
+<section class="pt-section pt-lead" id="lead">
+  <div class="container">
+    <div class="pt-lead__grid">
+      <div class="pt-lead__left">
+        <h2 class="pt-h2">{{h2}}</h2>
+        <p>{{subhead}}</p>
+        <ul class="pt-lead__bullets">
+          <!--REPEAT:bullets-->
+          <li>{{item.text}}</li>
+          <!--/REPEAT:bullets-->
+        </ul>
+      </div>
+
+      <form class="pt-form" id="leadForm" novalidate>
+        <div class="pt-form__title">{{form_title}}</div>
+        <div class="pt-form__sub">Поля со звёздочкой обязательны</div>
+
+        <div class="pt-field">
+          <label class="pt-field__label" for="f-name">Имя *</label>
+          <input class="pt-input" type="text" id="f-name" name="name" required>
+        </div>
+        <div class="pt-field">
+          <label class="pt-field__label" for="f-phone">Телефон или мессенджер *</label>
+          <input class="pt-input" type="tel" id="f-phone" name="phone" required>
+        </div>
+
+        <!--IF:opts.select-->
+        <div class="pt-field">
+          <label class="pt-field__label" for="f-select">{{select_label}}</label>
+          <select class="pt-select" id="f-select" name="select">
+            <!--REPEAT:select_options-->
+            <option>{{item.label}}</option>
+            <!--/REPEAT:select_options-->
+          </select>
+        </div>
+        <!--/IF:opts.select-->
+
+        <!--IF:opts.textarea-->
+        <div class="pt-field">
+          <label class="pt-field__label" for="f-task">{{textarea_label}}</label>
+          <textarea class="pt-textarea" id="f-task" name="task" placeholder="{{textarea_placeholder}}"></textarea>
+        </div>
+        <!--/IF:opts.textarea-->
+
+        <div class="pt-check">
+          <input type="checkbox" id="f-agree" name="agree">
+          <label for="f-agree">
+            Нажимая «<b>{{cta_label}}</b>», я подтверждаю согласие с
+            <a href="#privacy">политикой конфиденциальности</a> и
+            <a href="#person-data-consent">обработкой персональных данных</a>.
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn--primary btn--block btn--lg" id="f-submit" disabled>{{cta_label}}</button>
+        <!--IF:form_note--><p class="pt-form__note">{{form_note}}</p><!--/IF:form_note-->
+
+        <!--IF:opts.messengers-->
+        <div class="pt-msgr">
+          <span class="pt-msgr__label">Или напишите сразу:</span>
+          <a href="{{tg_url}}" class="pt-msgr__link">Telegram</a>
+          <a href="{{wa_url}}" class="pt-msgr__link">WhatsApp</a>
+        </div>
+        <!--/IF:opts.messengers-->
+      </form>
+    </div>
+  </div>
+</section>

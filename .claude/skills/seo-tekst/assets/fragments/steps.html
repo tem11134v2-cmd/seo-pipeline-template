@@ -1,0 +1,19 @@
+<section class="pt-section pt-section--alt">
+  <div class="container">
+    <!--IF:h2-->
+    <div class="pt-section__head">
+      <h2 class="pt-h2">{{h2}}</h2>
+      <!--IF:subhead--><p class="pt-section__sub">{{subhead}}</p><!--/IF:subhead-->
+    </div>
+    <!--/IF:h2-->
+    <div class="pt-steps">
+      <!--REPEAT:items-->
+      <div class="pt-step">
+        <div class="pt-step__num">{{@index}}</div>
+        <div class="pt-step__title">{{item.title}}</div>
+        <div class="pt-step__text">{{item.text}}</div>
+      </div>
+      <!--/REPEAT:items-->
+    </div>
+  </div>
+</section>

@@ -1,0 +1,18 @@
+/* Theme: E-COMMERCE
+   Use for: retail and wholesale online stores, marketplaces, large-assortment
+   retail. Product photos lead, prices prominent, minimal backgrounds, small radius.
+   Source: DESIGN-SYSTEMS section 4; accent-secondary green darkened for WCAG. */
+:root{
+  --font: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --bg:#FFFFFF;
+  --bg-alt:#FAFAFA;
+  --bg-invert:#1A1A1A;
+  --text-primary:#1A1A1A;
+  --text-secondary:#767676;
+  --text-invert:#FFFFFF;
+  --accent-primary:#E60023;
+  --accent-secondary:#008043;
+  --border:#E8E8E8;
+  --radius:6px;
+  --shadow:0 2px 8px rgba(26,26,26,.08);
+}

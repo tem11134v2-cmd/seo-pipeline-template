@@ -1,0 +1,18 @@
+/* Theme: MASS-MARKET SERVICES (trust, blue-white)
+   Use for: repair, stretch ceilings, auto-services, home services, cleaning,
+   moving, budget dentistry. One bright CTA accent, big guarantees, soft radius.
+   Source: DESIGN-SYSTEMS section 3 (variant 3A); orange CTA darkened for WCAG. */
+:root{
+  --font: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --bg:#FFFFFF;
+  --bg-alt:#F2F7FB;
+  --bg-invert:#1A2332;
+  --text-primary:#1A2332;
+  --text-secondary:#5C6B7D;
+  --text-invert:#FFFFFF;
+  --accent-primary:#C94E1D;
+  --accent-secondary:#2A6FB6;
+  --border:#DCE3EC;
+  --radius:10px;
+  --shadow:0 4px 12px rgba(26,35,50,.10);
+}
