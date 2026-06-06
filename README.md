@@ -459,7 +459,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
 
-### 41 субагент (вызываются скилами)
+### 42 субагента (вызываются скилами)
 
 | Агент | Делает |
 |---|---|
@@ -504,6 +504,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `prototype-builder` | Сборка HTML-прототипа одной страницы поверх kit: page.json → manifest → build-prototype.mjs + verify + fix (для /seo-tekst, веер) |
 | `prototype-fixer` | Точечная правка прототипа (разбор голосовых PHASE-7 + паттерн article-fixer) (для /seo-tekst-fix) |
 | `faq-builder` | SEO-блок одной страницы: JM-анализ пробелов → FAQ (Schema.org) + возражения + плитка тегов + перелинковка с недостающими N-граммами (для /seo-faq, веер) |
+| `leader-block-scanner` | Скан композиции блоков 3-6 лидеров по типам страниц (Chrome → rendered, fetch → fallback) → матрица покрытия + фишки. Доказательный подбор блоков, особенно каталоги (для /seo-tekst, проектный) |
 
 ### 37 Node-скриптов
 
@@ -641,6 +642,7 @@ git commit -m "Update template from upstream"
 | [014](docs/adr/014-audit-task-type.md) | Новый тип задачи `audits/` для техаудита (4-е повторение паттерна; `audit_data.json` как источник истины, двойной рендер md+docx + verify, порт `docx_template.py` на Node) |
 | [015](docs/adr/015-tekst-task-type.md) | Новый тип задачи `texts/` для конверсионных текстов + HTML-прототип (/seo-tekst); манифест-JSON + детерминированный сборщик вместо LLM-печати HTML (осознанное отступление от гайда); клиентский гейт согласования + двухуровневый веер |
 | [016](docs/adr/016-faq-task-type.md) | Новый тип задачи `faq/` для SEO-нормализации (/seo-faq); JM-анализ пробелов → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка; читает kit из seo-tekst/assets |
+| [017](docs/adr/017-leader-block-scan-and-catalog.md) | Доказательный подбор блоков через скан лидеров (Chrome → rendered, fetch → fallback, статическая матрица → пол) + поддержка каталожных сайтов (типы Категория/Карточка + 5 фрагментов) |
 
 ---
 

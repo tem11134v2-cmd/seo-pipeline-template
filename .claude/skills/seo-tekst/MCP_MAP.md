@@ -4,6 +4,8 @@
 
 | Шаг / агент | Инструмент | Зачем | Обязательность |
 |---|---|---|---|
+| 2b `leader-block-scanner` | `mcp__Claude_in_Chrome__*` (navigate/read_page/snapshot/screenshot) | скан rendered-композиции блоков 3-6 лидеров по типам страниц + фишки (особенно каталоги/SPA) | желательно (Chrome) |
+| 2b `leader-block-scanner` | `mcp_fetch_page` | fallback, если Chrome не подключён (сырой HTML) | fallback |
 | 3 `audience-analyst` | `web_search` / `mcp_yandex_search`, `mcp_fetch_page` | (опц.) форум-майнинг дословных формулировок болей/возражений, если нет analysis_dir | опционально |
 | 4 `offer-strategist` | `mcp_wordstat_get_keyword_stats` | сигнал стадии прогретости (поиск по продукту vs по проблеме) | желательно |
 | 4 `offer-strategist` | `mcp_fetch_page` | факты о компании с сайта клиента -> 30 тезисов | опционально |

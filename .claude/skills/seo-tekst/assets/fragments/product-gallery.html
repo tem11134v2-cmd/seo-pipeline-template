@@ -1,0 +1,26 @@
+<section class="pt-gallery" id="hero">
+  <div class="container pt-gallery__grid">
+    <div class="pt-gallery__media-col">
+      <div class="pt-gallery__main" role="img" aria-label="{{h1}}">{{h1}}</div>
+      <div class="pt-gallery__thumbs">
+        <!--REPEAT:thumbs-->
+        <div class="pt-gallery__thumb" role="img" aria-label="{{item.alt}}">{{item.alt}}</div>
+        <!--/REPEAT:thumbs-->
+      </div>
+    </div>
+    <div class="pt-gallery__info">
+      <h1 class="pt-h1 pt-gallery__h1">{{h1}}</h1>
+      <p class="pt-gallery__sub">{{subhead}}</p>
+      <ul class="pt-gallery__specs">
+        <!--REPEAT:key_specs-->
+        <li class="pt-gallery__spec">
+          <span class="pt-gallery__spec-label">{{item.label}}</span>
+          <span class="pt-gallery__spec-value">{{item.value}}</span>
+        </li>
+        <!--/REPEAT:key_specs-->
+      </ul>
+      <a href="#lead" class="btn btn--primary btn--lg pt-gallery__cta">{{cta_label}}</a>
+      <!--IF:note--><p class="pt-gallery__note">{{note}}</p><!--/IF:note-->
+    </div>
+  </div>
+</section>

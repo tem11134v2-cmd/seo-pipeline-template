@@ -1,0 +1,21 @@
+<section class="pt-section">
+  <div class="container">
+    <!--IF:h2-->
+    <div class="pt-section__head">
+      <h2 class="pt-h2">{{h2}}</h2>
+      <!--IF:subhead--><p class="pt-section__sub">{{subhead}}</p><!--/IF:subhead-->
+    </div>
+    <!--/IF:h2-->
+    <div class="pt-cat-grid <!--CLASS:cols-->">
+      <!--REPEAT:items-->
+      <a class="pt-cat-card" href="{{item.url}}">
+        <div class="pt-cat-card__media" role="img" aria-label="{{item.media_alt}}">{{item.media_alt}}</div>
+        <div class="pt-cat-card__body">
+          <div class="pt-cat-card__title">{{item.title}}</div>
+          <div class="pt-cat-card__count">{{item.count}}</div>
+        </div>
+      </a>
+      <!--/REPEAT:items-->
+    </div>
+  </div>
+</section>

@@ -1,0 +1,15 @@
+<section class="pt-section">
+  <div class="container">
+    <!--IF:h2-->
+    <div class="pt-section__head">
+      <h2 class="pt-h2">{{h2}}</h2>
+      <!--IF:subhead--><p class="pt-section__sub">{{subhead}}</p><!--/IF:subhead-->
+    </div>
+    <!--/IF:h2-->
+    <div class="pt-subcat">
+      <!--REPEAT:items-->
+      <a class="pt-subcat__link" href="{{item.url}}">{{item.label}}</a>
+      <!--/REPEAT:items-->
+    </div>
+  </div>
+</section>

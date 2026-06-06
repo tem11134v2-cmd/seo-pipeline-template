@@ -1,0 +1,41 @@
+<section class="pt-section">
+  <div class="container">
+    <!--IF:h2-->
+    <div class="pt-section__head">
+      <h2 class="pt-h2">{{h2}}</h2>
+      <!--IF:subhead--><p class="pt-section__sub">{{subhead}}</p><!--/IF:subhead-->
+    </div>
+    <!--/IF:h2-->
+    <div class="pt-listing">
+      <!--IF:opts.filter-->
+      <aside class="pt-filter" aria-label="Фильтры">
+        <!--REPEAT:filters-->
+        <div class="pt-filter__group">
+          <div class="pt-filter__name">{{item.name}}</div>
+          <ul class="pt-filter__options">
+            <!--REPEAT:item.options-->
+            <li class="pt-filter__option">
+              <span class="pt-filter__box" aria-hidden="true"></span>
+              <span class="pt-filter__label">{{item}}</span>
+            </li>
+            <!--/REPEAT:item.options-->
+          </ul>
+        </div>
+        <!--/REPEAT:filters-->
+      </aside>
+      <!--/IF:opts.filter-->
+      <div class="pt-product-grid">
+        <!--REPEAT:products-->
+        <article class="pt-product-card">
+          <div class="pt-product-card__media" role="img" aria-label="{{item.media_alt}}">{{item.media_alt}}</div>
+          <div class="pt-product-card__body">
+            <div class="pt-product-card__title">{{item.title}}</div>
+            <div class="pt-product-card__spec">{{item.spec}}</div>
+            <a href="{{item.url}}" class="btn btn--primary btn--block pt-product-card__cta">{{item.cta}}</a>
+          </div>
+        </article>
+        <!--/REPEAT:products-->
+      </div>
+    </div>
+  </div>
+</section>

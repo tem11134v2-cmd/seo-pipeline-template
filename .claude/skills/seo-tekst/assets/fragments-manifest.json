@@ -98,6 +98,44 @@
       "repeatables": { "items": ["media_alt", "title", "text", "price", "cta"] },
       "opts": [],
       "notes": "Карточки товаров (каталог/e-commerce). media_alt = подпись плейсхолдера. price опционален (показывать только в 5 случаях из BLOCKS.md). CTA ведёт на #lead."
+    },
+    "breadcrumbs": {
+      "file": "breadcrumbs.html",
+      "scalars": [],
+      "repeatables": { "items": ["label", "url"] },
+      "opts": [],
+      "notes": "Хлебные крошки (каталог). Не секция - <nav class=pt-breadcrumbs>. Без h2. items = цепочка от корня; последний элемент = текущая страница (стилизуется как current, без перехода). url относительный/якорь."
+    },
+    "category-grid": {
+      "file": "category-grid.html",
+      "scalars": ["h2", "subhead"],
+      "repeatables": { "items": ["title", "count", "url", "media_alt"] },
+      "opts": ["cols"],
+      "notes": "Плитка категорий (Главная-каталог / подкатегории). Карточка = media-плейсхолдер + title + count ('120 товаров') + ссылка url на всю карточку. opts.cols = 3/4 (хелпер <!--CLASS:cols--> -> cols-N). media_alt = подпись плейсхолдера."
+    },
+    "product-listing": {
+      "file": "product-listing.html",
+      "scalars": ["h2", "subhead"],
+      "repeatables": {
+        "filters": ["name", "options"],
+        "products": ["title", "spec", "url", "cta", "media_alt"]
+      },
+      "opts": ["filter"],
+      "notes": "Листинг товаров в категории. Слева фильтр-рейл (opts.filter включает <aside class=pt-filter>), справа сетка карточек. ВНИМАНИЕ: вложенный REPEAT - filters[].options это массив СТРОК (как pricing.tariffs[].features), рендерится <!--REPEAT:item.options-->{{item}}<!--/REPEAT:item.options--> (чекбокс-плейсхолдеры, не интерактив). products: media_alt + title + spec (короткая строка характеристики) + cta-ссылка на url. opts.filter скрывает/показывает рейл (на мобайле рейл встаёт над сеткой)."
+    },
+    "product-gallery": {
+      "file": "product-gallery.html",
+      "scalars": ["h1", "subhead", "cta_label", "note"],
+      "repeatables": { "thumbs": ["alt"], "key_specs": ["label", "value"] },
+      "opts": [],
+      "notes": "Карточка товара, верхний блок. Своя секция pt-gallery (id=hero), НЕ pt-section, без IF:h2 - несёт h1. Сетка 1fr/1fr: слева главный media-плейсхолдер + ряд thumbs (alt), справа h1 + subhead + key_specs (label: value) + CTA cta_label -> #lead + note. thumbs/key_specs - плейсхолдеры, без реальных фото."
+    },
+    "subcategory-tiles": {
+      "file": "subcategory-tiles.html",
+      "scalars": ["h2", "subhead"],
+      "repeatables": { "items": ["label", "url"] },
+      "opts": [],
+      "notes": "Подкатегории / бренды / похожие-якоря: компактные ссылки-плитки (<div class=pt-subcat>). Тонкий вариант tag-tiles/category-grid, но ссылки ведут на item.url (реальные разделы), а не на #lead. Без media. Опц. h2-head."
     }
   },
   "block_to_fragment": {
@@ -171,6 +209,19 @@
     "Лицензии": "cards",
     "О компании": "cards",
     "Акция": "cta-mid",
-    "Бонус": "cta-mid"
+    "Бонус": "cta-mid",
+    "Хлебные крошки": "breadcrumbs",
+    "Плитка категорий": "category-grid",
+    "Категории": "category-grid",
+    "Подкатегории": "subcategory-tiles",
+    "Листинг товаров": "product-listing",
+    "Каталог товаров": "product-listing",
+    "Фильтры": "product-listing",
+    "Карточка товара": "product-gallery",
+    "Галерея товара": "product-gallery",
+    "Характеристики": "product-card",
+    "Похожие товары": "product-card",
+    "Бренды": "subcategory-tiles",
+    "Популярные товары": "product-card"
   }
 }

@@ -27,6 +27,7 @@ FAQ / возражения / плитку тегов / перелинковку 
 - `--mode A` (по умолчанию) - новый сайт; `--mode B` - существующий (page-writer фетчит живую страницу).
 - `--auto` (по умолчанию) - автономно, единственная обязательная пауза = согласование анализа заказчиком. `--review` - добавляет паузу после текстов (до сборки прототипов).
 - `--theme <ниша>` - палитра (`premium|b2b|mass-services|ecommerce|saas|military-dark`); иначе подбирает offer-strategist.
+- `--scan-leaders` / `--no-scan` - доказательный подбор блоков по лидерам (шаг 2b). По умолчанию ВКЛ, если есть лидеры (источник структура/анализ) - **обязателен для каталогов**; `--no-scan` выключает (быстрее, по статической матрице).
 - `--resume` - продолжить по `meta.json`.
 
 ## State machine
@@ -42,6 +43,7 @@ texts/NNN-<slug>/
 ├── meta.json              # state + drive (analysis/texts) + revisions
 ├── inputs.json            # slug/domain/регион/ниша/УТП/запрещёнки + реквизиты (company,inn,ogrn,address,email,phone)
 ├── pages.json             # целевые страницы (read-tekst-input)
+├── leader_blocks.json     # (опц.) матрица покрытия блоков лидерами по типу + фишки (leader-block-scanner)
 ├── audience.json          # анализ ЦА (audience-analyst)
 ├── strategy.json          # стратегия оффера (offer-strategist)
 ├── Analysis_<slug>.docx   # КЛИЕНТУ на согласование (-> Google Doc)
@@ -88,6 +90,13 @@ GIT_DIR=$(git rev-parse --git-dir); COMMON=$(git rev-parse --git-common-dir)
 .claude\scripts\_node.cmd .claude\scripts\read-tekst-input.mjs <texts_dir> --from-structure <structure_dir> | --from-table <путь> | --from-analysis <analysis_dir>
 ```
 Exit 2 - нет целевых (стоп с подсказкой). `update-meta.sh <texts_dir> pages-ready`. Сводка по типам.
+
+### 2b. Скан блоков лидеров (опц., доказательная основа подбора)
+По умолчанию ВКЛ, если есть лидеры (источник структура/анализ); **особенно нужно для каталогов** (набор блоков на Категория/Карточка сильно меняется от ниши к нише - статическая матрица их не ловит). `--no-scan` выключает (быстрее), `--scan-leaders` форсирует.
+
+Маркер: `.claude/tmp/expected-leader-block-scanner-<run_id>.txt = <texts_dir>/leader_blocks.json`. Делегировать `leader-block-scanner` (`texts_dir`, `project_root`, `structure_dir`/`analysis_dir`, `niche`). Агент смотрит 3-6 лидеров по типам страниц (**Chrome-плагин -> rendered-композиция + фишки; `mcp_fetch_page` -> fallback**), строит матрицу покрытия «блок × тип» + `features_to_steal`. Потом `page-writer` берёт блоки с покрытием `>= 50%` как обязательные, статическая матрица BLOCKS - пол.
+
+Chrome не подключён/упал -> fetch-фолбэк (медленнее, SPA-каталоги видит хуже). Совсем нет данных -> не блокируем, `page-writer` падает на матрицу BLOCKS. State не меняем (остаётся `pages-ready`, наличие `leader_blocks.json` - сигнал).
 
 ### 3. Анализ ЦА (state == pages-ready)
 Маркер: `.claude/tmp/expected-audience-analyst-<run_id>.txt = <texts_dir>/audience.json`. Делегировать `audience-analyst` (передать `texts_dir`, `project_root`, `analysis_dir` если есть). После: `update-meta.sh <texts_dir> audience-done`.
