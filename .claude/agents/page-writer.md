@@ -13,7 +13,7 @@ model: opus
 - `page_url` - (только mode B) URL живой страницы
 
 ## Обязательное чтение
-- `texts_dir/inputs.json` - бренд, регион, УТП, запрещённые формулировки, ассортимент
+- `texts_dir/inputs.json` - бренд (brand_name), регион, УТП, `forbidden_wordings` (запрещённые формулировки), `not_in_assortment` (чего нет в ассортименте - не предлагать), assortment
 - `texts_dir/strategy.json` - формула оффера, идея, стадия прогретости, тезисы, proof_inventory, materials
 - `texts_dir/audience.json` - сводка (боли/страхи/возражения/триггеры/цитаты) + портрет под эту страницу
 - `texts_dir/pages.json` - твоя страница (тип, маркер, запросы)

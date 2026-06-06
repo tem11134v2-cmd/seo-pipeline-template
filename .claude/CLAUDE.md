@@ -41,6 +41,11 @@
 | `/share-structure <NNN> [--redo]` | Утилита-помощник для `/seo-struktura`: перезалить A6.xlsx в Drive после правок или догрузить если Drive был недоступен | `structures/NNN/share.json` (per-task) |
 | `/seo-tehaudit <domain> [--resume] [--no-share]` | Технический SEO-аудит сайта под Яндекс: разведка/карточка → индексация → URL/мета/Schema/JS → аналитика/ссылки → A12.md + A12.docx + автозагрузка в Drive + revising-цикл. Нужны доступы Вебмастер+Метрика | `audits/NNN-slug/` (per-task) |
 | `/share-audit <NNN> [--redo]` | Утилита-помощник для `/seo-tehaudit`: перезалить A12.docx в Drive после правок или догрузить если Drive был недоступен | `audits/NNN/share.json` (per-task) |
+| `/seo-tekst [--from-structure NNN \| --from-table <путь> \| --from-analysis NNN] [--mode A\|B] [--review \| --auto] [--theme <ниша>]` | Конверсионные тексты коммерческих страниц + HTML-прототип: анализ ЦА/оффера → согласование с клиентом (Analysis.docx → Google Doc, revising-цикл) → веер писателей → сборка прототипов поверх kit. Выход: Texts.docx (Google Doc) + prototype.html на страницу | `texts/NNN-slug/` (per-task) |
+| `/seo-tekst-fix <NNN> [<slug>] "<правка>"` | Точечная правка готового прототипа (разбор голосовых; manifest → пересборка → дифф) | `texts/NNN/pages/<slug>/` (per-task) |
+| `/share-tekst <NNN> [--redo] [--analysis\|--texts]` | Утилита-помощник для `/seo-tekst`: перезалить Analysis/Texts.docx в Drive после правок или догрузить если Drive был недоступен | `texts/NNN/share.json` (per-task) |
+| `/seo-faq [--from-tekst NNN \| --from-table <путь> \| --url <URL>] [--review \| --auto]` | SEO-нормализация готовых страниц: JM-анализ пробелов → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка с недостающими N-граммами. Выход: faq.html (вставляемый сниппет) на страницу + FAQ.docx (Google Doc) | `faq/NNN-slug/` (per-task) |
+| `/share-faq <NNN> [--redo]` | Утилита-помощник для `/seo-faq`: перезалить FAQ.docx в Drive после правок или догрузить если Drive был недоступен | `faq/NNN/share.json` (per-task) |
 | `/request-shared-edit "<описание>"` | Запросить правку общего файла | `.claude/handoff-requests/<file>.md` |
 | **`/handoff`** | Финал worktree: commit → merge в main → cleanup | Файлы попадают в main |
 

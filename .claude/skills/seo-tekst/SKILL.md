@@ -77,10 +77,11 @@ GIT_DIR=$(git rev-parse --git-dir); COMMON=$(git rev-parse --git-common-dir)
 ```
 
 **1c. slug, NNN, регион, УТП, реквизиты -> папка.**
-- Источник структура: `structure_dir/inputs.json` -> slug, domain, region; `analysis_dir/brief.json` -> УТП-блок (utp_*, assortment, forbidden_phrasings, brand_name). **NNN texts зеркалит NNN структуры.**
+- Источник структура: `structure_dir/inputs.json` -> slug, domain, region; `analysis_dir/brief.json` -> УТП-блок. **NNN texts зеркалит NNN структуры.**
+- **Реальные поля `brief.json`** (от brief-structurer, маппинг в inputs.json): `company_name`->brand_name, `niche`, `region`, `business_type`, `keyso_base`, `utp_technical/service/social`, `assortment`, `forbidden_wordings`, `not_in_assortment`, `ca_data` (строка - данные ЦА), `client_target_queries`. (Не `brand_name`/`forbidden_phrasings` - таких полей нет.)
 - Источник таблица/анализ: из корневого `ЗАКАЗЧИК.md` (`.claude\scripts\_node.cmd .claude\scripts\_client.mjs --field "<поле>" ЗАКАЗЧИК.md`) взять бренд, регион, реквизиты (Название/ИНН/ОГРН/Юр.адрес/Телефон/Email), УТП, стоп-слова. Чего нет - спросить (реквизиты можно отложить плейсхолдерами `[... - Ща Докрутим]`). NNN - следующий свободный в `texts/`.
 - Создать `texts/<NNN>-<slug>/`. **Записать `.claude/tmp/current-task.txt = texts/<NNN>-<slug>/`** (без этого pre-commit откажет).
-- Записать `inputs.json` (slug, domain, region_yandex, region_name, niche, source, mode, brand_name, utp_technical/service/social, assortment, forbidden_phrasings, company, inn, ogrn, address, email, phone) и `meta.json` (state init, review/auto, source, started/updated).
+- Записать `inputs.json` (slug, domain, region_yandex, region_name, niche, business_type, keyso_base, source, mode, **brand_name** (из brief.company_name), utp_technical/service/social, assortment, **forbidden_wordings**, **not_in_assortment**, **ca_data**, client_target_queries + legal-блок `company, inn, ogrn, address, email, phone` из ЗАКАЗЧИК.md или плейсхолдеры) и `meta.json` (state init, review/auto, source, started/updated).
 
 ### 2. Страницы (state == init)
 ```

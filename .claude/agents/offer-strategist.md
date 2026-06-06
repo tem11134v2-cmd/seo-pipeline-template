@@ -12,7 +12,7 @@ model: opus
 - `domain` / `url` - (опц.) сайт клиента для сбора фактов
 
 ## Обязательное чтение
-- `texts_dir/inputs.json` - ниша, регион, бренд, УТП (технические/сервисные/социальные), запрещённые формулировки, ассортимент
+- `texts_dir/inputs.json` - ниша, регион, бренд (brand_name), УТП (utp_technical/service/social), `forbidden_wordings`, `not_in_assortment`, assortment, client_target_queries
 - `texts_dir/audience.json` - портреты + сводка (от audience-analyst)
 - `texts_dir/pages.json` - страницы
 - `.claude/skills/seo-tekst/assets/COPY.md` - формулы (читай как методичку)

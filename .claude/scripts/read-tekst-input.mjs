@@ -90,18 +90,31 @@ try {
       return { url: c[0] || "", type: c[1] || "Страница", marker: c[2] || "", queries: c[3] ? c[3].split(/[|,]/).map((s) => s.trim()).filter(Boolean) : [] };
     }).filter((p) => p.url || p.marker);
   } else if (fromAnalysis) {
+    // ЧЕРНОВОЙ путь: точную структуру лучше строить через /seo-struktura.
+    // Источники посадок (по убыванию приоритета): recommendations.site_architecture (явные /url/),
+    // brief.client_target_queries, фолбэк brief.assortment.
     source = `analysis:${fromAnalysis}`;
     const adir = resolve(fromAnalysis);
     const briefP = join(adir, "brief.json");
     if (!existsSync(briefP)) { console.error(`[read-tekst-input] нет brief.json в ${adir}`); process.exit(1); }
     const brief = readJson(briefP);
-    // направления/услуги из брифа -> страницы-кандидаты (тип «Услуга» по умолчанию)
-    const dirs = brief.directions || brief.services || brief.adjacent_directions || pick(brief, ["направления", "услуги"]) || [];
-    rawPages = (Array.isArray(dirs) ? dirs : []).map((d) => {
-      const name = typeof d === "string" ? d : (d.name || d.title || "");
-      return { url: "/" + slugify(name) + "/", type: "Услуга", marker: name, queries: [] };
-    }).filter((p) => p.marker);
-    console.error(`[read-tekst-input] analysis: направлений из брифа ${rawPages.length} (тип Услуга по умолчанию, уточни вручную)`);
+    const recP = join(adir, "recommendations.json");
+    const rec = existsSync(recP) ? readJson(recP) : {};
+    const biz = String(brief.business_type || "").toLowerCase();
+    const defType = /shop|ecom|store|catalog|катал|товар/.test(biz) ? "Категория" : "Услуга";
+    // Посадки = целевые запросы клиента (русские маркеры), фолбэк - ассортимент.
+    const qList = Array.isArray(brief.client_target_queries) ? brief.client_target_queries : [];
+    const usedAssort = qList.length === 0;
+    const srcList = usedAssort ? (Array.isArray(brief.assortment) ? brief.assortment.slice(0, 15) : []) : qList;
+    rawPages = srcList.map((q) => ({ url: "/" + slugify(q) + "/", type: defType, marker: String(q), queries: [] })).filter((p) => p.marker);
+    // Подсказка: рекомендованные URL-посадки из анализа (привязать вручную/через /seo-struktura).
+    const archUrls = [];
+    for (const a of (Array.isArray(rec.site_architecture) ? rec.site_architecture : [])) {
+      const t = typeof a === "string" ? a : (a.item || "");
+      for (const u of (String(t).match(/\/[a-z0-9][a-z0-9-]*\//g) || [])) archUrls.push(u);
+    }
+    console.error(`[read-tekst-input] analysis: ${rawPages.length} посадок из ${usedAssort ? "assortment" : "client_target_queries"}. ЧЕРНОВИК - для точной структуры прогони /seo-struktura, затем --from-structure.`);
+    if (archUrls.length) console.error(`  рекомендованные URL из анализа (привяжи к посадкам): ${[...new Set(archUrls)].join(" ")}`);
   } else {
     console.error("[read-tekst-input] не задан источник (--from-structure | --from-table | --from-analysis)");
     process.exit(1);
