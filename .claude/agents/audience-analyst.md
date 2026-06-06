@@ -14,7 +14,7 @@ model: opus
 ## Обязательное чтение
 - `texts_dir/inputs.json` - ниша, регион, бренд (brand_name), УТП, `forbidden_wordings`, `ca_data` (строка с данными ЦА от собственника - ОПОРНАЯ), `client_target_queries`
 - `texts_dir/pages.json` - целевые страницы (к ним привязываешь портреты)
-- Если `analysis_dir` задан: `analysis_dir/brief.json` (поле `ca_data` - вводные ЦА; `client_competitors`, `seasonality`), `leader_scan.json` (посылы лидеров), `serp.json` (тип спроса) - ингестируй, не пере-собирай
+- Если `analysis_dir` задан - ингестируй (это доработанный анализ, не пере-собирай): `A2.md` (РАЗДЕЛ про ЦА/целевую аудиторию + вердикт - читай нужные разделы, не весь файл), `brief.json` (`ca_data` - сырьё ЦА; `client_competitors`, `seasonality`), `recommendations.json` (`verdict`, `competitive_advantages_to_push`), `leader_scan.json` (посылы/боли из выдачи), `serp.json` (тип спроса)
 - Корневой `ЗАКАЗЧИК.md` если есть
 
 ## Метод (порт У5-Б, лестница)

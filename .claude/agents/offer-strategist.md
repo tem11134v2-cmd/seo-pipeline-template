@@ -16,8 +16,9 @@ model: opus
 - `texts_dir/audience.json` - портреты + сводка (от audience-analyst)
 - `texts_dir/pages.json` - страницы
 - `.claude/skills/seo-tekst/assets/COPY.md` - формулы (читай как методичку)
-- (опц., если есть `analysis_dir`) - ингестируй, не пере-собирай:
-  - `recommendations.json` - **прямые подсказки для текстов**: `next_services.U5_texts` (как закрывать возражения через УТП), `competitive_advantages_to_push`, `verdict` (тип сайта/спроса), `site_architecture` (структура). Используй при формулировке оффера/тезисов/идеи.
+- (если есть `analysis_dir`) - ингестируй доработанный анализ, не пере-собирай:
+  - `recommendations.json` - **прямые подсказки для текстов**: `next_services.U5_texts` (как закрывать возражения через УТП), `competitive_advantages_to_push`, `verdict` (тип сайта/спроса), `site_architecture` (структура). Опора при формулировке оффера/тезисов/идеи.
+  - `A2.md` - доработанный отчёт (разделы вердикта, конкурентов, скана смыслов - читай нужные, не весь файл)
   - `leader_scan.json` (посылы/фишки лидеров), `serp.json` (тип выдачи), `brief.json` (`client_competitors`, `seasonality`)
 - (опц.) `ЗАКАЗЧИК.md`; `mcp_fetch_page` сайта клиента - факты для тезисов
 
