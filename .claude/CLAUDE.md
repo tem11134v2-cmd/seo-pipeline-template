@@ -12,12 +12,13 @@
 - `analyses/NNN/` — рабочая папка предпроектного анализа (если запускался /seo-analiz)
 - `structures/NNN/` — рабочая папка структуры сайта (если запускался /seo-struktura)
 - `audits/NNN/` — рабочая папка технического аудита (если запускался /seo-tehaudit)
+- `texts/NNN/` — рабочая папка конверсионных текстов + HTML-прототипов (если запускался /seo-tekst)
 - `topics/NNN/` — рабочая папка батча тем (если запускался /seo-temi)
 - `~/.claude/seo-knowledge/` — общая методология (стиль, жанры, HTML-элементы, SVG, TARIFFS, RULES)
 
 ## Модель работы: всё в worktree, единственная main-команда — /handoff-process
 
-**Правило:** каждая задача (`/seo-shablon`, `/seo-temi`, `/seo-statya`, `/fix-article`, `/seo-strategiya`, `/seo-analiz`, `/seo-struktura`, `/seo-tehaudit`, `/share-topics`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
+**Правило:** каждая задача (`/seo-shablon`, `/seo-temi`, `/seo-statya`, `/fix-article`, `/seo-strategiya`, `/seo-analiz`, `/seo-struktura`, `/seo-tehaudit`, `/seo-tekst`, `/seo-tekst-fix`, `/share-topics`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
 
 **Единственная команда в main:** `/handoff-process` — применяет накопленные handoff-запросы к общим файлам проекта.
 

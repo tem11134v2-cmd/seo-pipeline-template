@@ -21,8 +21,8 @@
 | [011](011-template-self-guard.md) | Самозащита шаблона: маркер `.is-template-root` + UserPromptSubmit-guard + pre-commit backstop | Принято |
 | [012](012-metatags-task-type.md) | Новый тип задачи `metatags/` для генерации метатегов (H1/Title/Description) | Принято |
 | [013](013-numbering-by-topic-derived-index.md) | Нумерация папок статей по номеру темы + случайный суффикс; `_index.json` - производный кеш | Принято |
-| [010](010-structures-task-type.md) | Новый тип задачи `structures/` для построения структуры сайта | Принято |
-| [011](011-template-self-guard.md) | Самозащита шаблона от запуска клиентских команд (маркер + UserPromptSubmit-хук + pre-commit backstop) | Принято |
+| [014](014-audit-task-type.md) | Новый тип задачи `audits/` для техаудита (`audit_data.json` источник истины, md+docx+verify) | Принято |
+| [015](015-tekst-task-type.md) | Новый тип задачи `texts/` для конверсионных текстов + HTML-прототип (/seo-tekst); манифест+сборщик вместо LLM-печати HTML | Принято |
 
 ## Как добавить новый ADR
 
