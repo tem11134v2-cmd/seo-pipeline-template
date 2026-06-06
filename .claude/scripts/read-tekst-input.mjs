@@ -28,9 +28,11 @@ const fromTable = flag("--from-table");
 const fromAnalysis = flag("--from-analysis");
 
 function readJson(p) { return JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, "")); }
+const TRANSLIT = { а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"c",ч:"ch",ш:"sh",щ:"sch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya" };
+function translit(s) { return String(s || "").toLowerCase().replace(/[а-яё]/g, (c) => (c in TRANSLIT ? TRANSLIT[c] : c)); }
+// slug -> ТОЛЬКО латиница (кириллицу транслитерируем; git/скрипты не любят кириллицу в путях - см. CLAUDE.md)
 function slugify(s) {
-  return String(s || "").toLowerCase()
-    .replace(/https?:\/\//, "").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "page";
+  return translit(String(s || "")).replace(/https?:\/\//, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "page";
 }
 function pick(obj, keys) {
   for (const k of Object.keys(obj || {})) {

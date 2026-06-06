@@ -22,7 +22,10 @@ const fromTekst = flag("--from-tekst");
 const fromTable = flag("--from-table");
 const url = flag("--url");
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, ""));
-const slugify = (s) => String(s || "").toLowerCase().replace(/https?:\/\//, "").replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "page";
+const TRANSLIT = { а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"c",ч:"ch",ш:"sh",щ:"sch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya" };
+const translit = (s) => String(s || "").toLowerCase().replace(/[а-яё]/g, (c) => (c in TRANSLIT ? TRANSLIT[c] : c));
+// slug -> ТОЛЬКО латиница (см. CLAUDE.md: кириллица в путях ломает git/скрипты)
+const slugify = (s) => translit(String(s || "")).replace(/https?:\/\//, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "page";
 
 // собрать читаемый текст из блоков page.json
 function collectText(obj, acc = []) {
