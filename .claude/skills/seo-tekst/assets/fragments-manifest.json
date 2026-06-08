@@ -90,7 +90,7 @@
       "scalars": ["h2", "subhead", "form_title", "cta_label", "form_note", "select_label", "textarea_label", "textarea_placeholder", "tg_url", "wa_url"],
       "repeatables": { "bullets": ["text"], "select_options": ["label"] },
       "opts": ["select", "textarea", "messengers"],
-      "notes": "ЕДИНСТВЕННАЯ форма захвата в финале (встречается 1 раз). Якорь секции id=lead. submit id=f-submit disabled по умолчанию; чекбокс id=f-agree разблокирует через JS. Текст чекбокса ВСТРАИВАЕТ точную надпись кнопки {{cta_label}} в <b>, ссылки на #privacy и #person-data-consent. Поля имя+телефон всегда; select/textarea/messengers - по opts. cta_label используется ДВАЖДЫ (кнопка + <b> в согласии) - значения должны совпадать."
+      "notes": "ЕДИНСТВЕННАЯ форма захвата в финале (встречается 1 раз). Якорь секции id=lead. submit id=f-submit disabled по умолчанию; чекбокс id=f-agree разблокирует через JS. Чекбокс согласия - короткая формулировка (v4: одна строка «Согласен с [политикой] и [обработкой ПДн]», БЕЗ дублирования надписи кнопки), ссылки на #privacy и #person-data-consent. Поля имя+телефон всегда; select/textarea/messengers - по opts. cta_label - только надпись кнопки."
     },
     "product-card": {
       "file": "product-card.html",
