@@ -24,7 +24,7 @@ tools: Read, Write, Edit, Bash
    - `blocks` - перенеси из page.json (type, fragment, h2, slots, opts, fill_notes). Сверь слоты с fragments-manifest; если слот не из списка фрагмента - перенеси в подходящий или убери.
    - `meta` - `{project, slug, page_type, title (<=60, метатег), description (<=160), marker}`.
    - `theme` - `theme` из входа / `strategy.design_theme` / по нише.
-   - `legal` - из inputs: `{company, inn, ogrn, address, domain, email, phone, date}`. **Отсутствующие реквизиты - НЕ выдумывай**, ставь `"[ИНН - Ща Докрутим]"` и т.п. (без реквизитов сайт не пройдёт модерацию Директа - помечай для заказчика).
+   - `legal` - из inputs: `{company, inn, ogrn, address, domain, email, phone, date}`. **Отсутствующие реквизиты - НЕ выдумывай**, ставь `"[ИНН - требует уточнения]"` и т.п. (без реквизитов сайт не пройдёт модерацию Директа - помечай для заказчика).
    - `popups` - опционально (заголовки/CTA), иначе дефолты сборщика.
 2. **Настрой opts**: `cols` (3/4 по числу карточек), `featured` (средний тариф), `inverted` (cta-mid). Ровно один блок `form` в финале - если в page.json его нет, добавь финальную форму.
 3. **Собери**: `.claude\scripts\_node.cmd .claude\scripts\build-prototype.mjs texts/NNN-slug/pages/<slug>/`
@@ -39,7 +39,7 @@ tools: Read, Write, Edit, Bash
 
 ## Запреты
 - НЕ редактируй kit-ассеты (`assets/` read-only) - только manifest своей страницы.
-- НЕ выдумывай реквизиты - плейсхолдеры `[... - Ща Докрутим]`.
+- НЕ выдумывай реквизиты - плейсхолдеры `[... - требует уточнения]`.
 - НЕ добавляй FAQ/SEO-блоки - это /seo-faq.
 - Пиши ТОЛЬКО в `texts_dir/pages/<slug>/`. Чужие страницы не трогай.
 - Длинное/среднее тире (— –) запрещено - дефис (-).

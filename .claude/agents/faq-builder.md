@@ -13,6 +13,7 @@ model: opus
 ## Обязательное чтение
 - `faq_dir/pages.json` - твоя страница: `text` (текущий текст), `queries`, `marker`, `url`
 - `faq_dir/inputs.json` - регион (`region_yandex`), бренд, стоп-домены, запрещённые формулировки
+- `faq_dir/facts.json` или `texts/NNN/facts.json` - (если есть) числа/гарантия/реквизиты. **Все цифры в ответах FAQ - ТОЛЬКО отсюда** (не сочиняй, не считай на лету)
 - `.claude/skills/seo-tekst/assets/BLOCKS.md` - блоки 33-39 (FAQ/возражения/мифы/плитка/перелинковка): метрики, Schema.org-правило, пороги (FAQ>8 -> отдельная страница)
 - `.claude/skills/seo-tekst/assets/COPY.md` - стоп-таблицы, H2-выгода, «без выдуманных цифр»
 - (опц.) `structure_dir/A6.md` / `analysis_dir` - реальные смежные страницы для перелинковки

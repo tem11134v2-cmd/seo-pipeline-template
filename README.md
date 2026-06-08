@@ -459,7 +459,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
 
-### 42 субагента (вызываются скилами)
+### 43 субагента (вызываются скилами)
 
 | Агент | Делает |
 |---|---|
@@ -505,6 +505,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `prototype-fixer` | Точечная правка прототипа (разбор голосовых PHASE-7 + паттерн article-fixer) (для /seo-tekst-fix) |
 | `faq-builder` | SEO-блок одной страницы: JM-анализ пробелов → FAQ (Schema.org) + возражения + плитка тегов + перелинковка с недостающими N-граммами (для /seo-faq, веер) |
 | `leader-block-scanner` | Скан композиции блоков 3-6 лидеров по типам страниц (Chrome → rendered, fetch → fallback) → матрица покрытия + фишки. Доказательный подбор блоков, особенно каталоги (для /seo-tekst, проектный) |
+| `copy-auditor` | Pre-flight копи-валидатор (v4): 13-пунктовый чек-лист (стоп-листы + сверка чисел с facts.json) → чинит page.json свежим проходом перед HTML (для /seo-tekst, веер) |
 
 ### 37 Node-скриптов
 
@@ -547,6 +548,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `build-faq.mjs` | faq_blocks.json → faq.html (аккордеон + Schema.org FAQPage + плитка тегов + перелинковка) + faq.md |
 | `verify-faq.mjs` | проверка SEO-блока: Schema валидна, объёмы FAQ, стоп-формулы, тире, normalized_keywords (exit 0/2) |
 | `build-faq-docx.mjs` | faq_blocks → FAQ_<slug>.docx (клиенту) |
+| `verify-copy.mjs` | pre-flight копи-валидатор (v4): механические 13 пунктов по page.json до HTML (самозащита/жаргон/манипуляции/сленг/H1, exit 0/2) |
 
 ### 5 Claude Code хуков
 
@@ -643,6 +645,7 @@ git commit -m "Update template from upstream"
 | [015](docs/adr/015-tekst-task-type.md) | Новый тип задачи `texts/` для конверсионных текстов + HTML-прототип (/seo-tekst); манифест-JSON + детерминированный сборщик вместо LLM-печати HTML (осознанное отступление от гайда); клиентский гейт согласования + двухуровневый веер |
 | [016](docs/adr/016-faq-task-type.md) | Новый тип задачи `faq/` для SEO-нормализации (/seo-faq); JM-анализ пробелов → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка; читает kit из seo-tekst/assets |
 | [017](docs/adr/017-leader-block-scan-and-catalog.md) | Доказательный подбор блоков через скан лидеров (Chrome → rendered, fetch → fallback, статическая матрица → пол) + поддержка каталожных сайтов (типы Категория/Карточка + 5 фрагментов) |
+| [018](docs/adr/018-v4-copy-quality-layer.md) | Слой качества копирайта v4 (постмортемы): смысловое = выбор заказчика (offer-варианты + гейт), FACTS единый источник, стоп-листы + verify-copy + copy-auditor проход |
 
 ---
 
