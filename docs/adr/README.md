@@ -27,6 +27,7 @@
 | [017](017-leader-block-scan-and-catalog.md) | Доказательный подбор блоков (скан лидеров Chrome/fetch) + поддержка каталожных сайтов | Принято |
 | [018](018-v4-copy-quality-layer.md) | Слой качества копирайта v4: смысловое = выбор, FACTS, стоп-листы + verify-copy + copy-auditor | Принято |
 | [019](019-machinery-sync.md) | Синхронизация машинерии в существующие клоны: движок `/sync-from-template` + `/sync-all` + `.machinery-version` + миграции (решает «Плохо» из ADR-006) | Принято |
+| [020](020-writer-context-diet-and-voice.md) | Диета контекста писателя: block-planner + blueprint, распил COPY.md на VOICE.md/COPY-AUDIT.md, анти-ИИ слой (п.14) | Принято |
 
 ## Как добавить новый ADR
 

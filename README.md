@@ -170,7 +170,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── CLAUDE.md                            ← политика, читается каждой сессией
 │   ├── settings.json                        ← Claude Code hooks config
 │   │
-│   ├── agents/                              ← 35 субагентов (см. ниже)
+│   ├── agents/                              ← 44 субагента (см. ниже)
 │   │   ├── client-profiler.md
 │   │   ├── template-designer.md
 │   │   ├── topic-generator.md
@@ -459,7 +459,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
 
-### 43 субагента (вызываются скилами)
+### 44 субагента (вызываются скилами)
 
 | Агент | Делает |
 |---|---|
@@ -500,12 +500,13 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `audit-writer` | Сборка audit_data.json (карточка + проблемы + чеклист + динамические приложения) из 4 JSON (для /seo-tehaudit, шаг 5) |
 | `audience-analyst` | Глубокий анализ ЦА (порт У5-Б): портреты/боли-сцены/страхи/возражения + компактная сводка → audience.json (для /seo-tekst, проектный) |
 | `offer-strategist` | Стратегия оффера: позиционирование + прогретость + идея + формула + 30 тезисов + палитра + materials-gate → strategy.json (для /seo-tekst, проектный) |
-| `page-writer` | Конверсионный текст одной страницы: подбор блоков + ЦА-под-страницу + копия по формулам/метрикам → page.json (для /seo-tekst, веер) |
+| `block-planner` | Блок-план всех страниц одним проходом: BLOCKS.md + leader_blocks → blueprints/<slug>.json (блоки + цели + боли + слоты + char-лимиты); снимает каталоги с писателей (для /seo-tekst, проектный) |
+| `page-writer` | Конверсионный текст одной страницы по готовому blueprint: голос + ЦА-под-страницу + копия по VOICE.md (диета контекста, ADR-020) → page.json (для /seo-tekst, веер) |
 | `prototype-builder` | Сборка HTML-прототипа одной страницы поверх kit: page.json → manifest → build-prototype.mjs + verify + fix (для /seo-tekst, веер) |
 | `prototype-fixer` | Точечная правка прототипа (разбор голосовых PHASE-7 + паттерн article-fixer) (для /seo-tekst-fix) |
 | `faq-builder` | SEO-блок одной страницы: JM-анализ пробелов → FAQ (Schema.org) + возражения + плитка тегов + перелинковка с недостающими N-граммами (для /seo-faq, веер) |
 | `leader-block-scanner` | Скан композиции блоков 3-6 лидеров по типам страниц (Chrome → rendered, fetch → fallback) → матрица покрытия + фишки. Доказательный подбор блоков, особенно каталоги (для /seo-tekst, проектный) |
-| `copy-auditor` | Pre-flight копи-валидатор (v4): 13-пунктовый чек-лист (стоп-листы + сверка чисел с facts.json) → чинит page.json свежим проходом перед HTML (для /seo-tekst, веер) |
+| `copy-auditor` | Pre-flight копи-валидатор (v4): 14-пунктовый чек-лист COPY-AUDIT.md (стоп-листы + сверка чисел с facts.json + маркеры ИИ-текста) → чинит page.json свежим проходом перед HTML (для /seo-tekst, веер) |
 
 ### 37 Node-скриптов
 
@@ -548,7 +549,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `build-faq.mjs` | faq_blocks.json → faq.html (аккордеон + Schema.org FAQPage + плитка тегов + перелинковка) + faq.md |
 | `verify-faq.mjs` | проверка SEO-блока: Schema валидна, объёмы FAQ, стоп-формулы, тире, normalized_keywords (exit 0/2) |
 | `build-faq-docx.mjs` | faq_blocks → FAQ_<slug>.docx (клиенту) |
-| `verify-copy.mjs` | pre-flight копи-валидатор (v4): механические 13 пунктов по page.json до HTML (самозащита/жаргон/манипуляции/сленг/H1, exit 0/2) |
+| `verify-copy.mjs` | pre-flight копи-валидатор (v4): механические пункты чек-листа COPY-AUDIT.md по page.json до HTML (самозащита/жаргон/манипуляции/сленг/H1, exit 0/2) |
 
 ### 5 Claude Code хуков
 
