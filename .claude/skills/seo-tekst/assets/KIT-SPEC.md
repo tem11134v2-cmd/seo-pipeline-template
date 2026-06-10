@@ -2,7 +2,7 @@
 
 > Внутренний спек для `build-prototype.mjs` и набора ассетов (kit).
 > Источник истины для слотов фрагментов, токенов темы и маркеров shell.
-> Менять синхронно: `build-prototype.mjs` <-> `fragments/*` <-> `fragments-manifest.json`.
+> Менять синхронно: `build-prototype.mjs` <-> `fragments/*` <-> `fragments-manifest.json` <-> `PROTOTYPE-MASTER.html`.
 
 Прототип собирается **детерминированно** скриптом `build-prototype.mjs` из:
 - `manifest.json` (что собрать: тема + блоки с текстом + опции) - его готовит агент `prototype-builder`
@@ -83,11 +83,13 @@ legal/page-thanks.html      # секция «Спасибо» (#thanks)
 Правила:
 - `blocks[].type` - смысловой тип блока (из BLOCKS.md). `blocks[].fragment` - какой HTML-фрагмент рендерить (обычно совпадает или из fragments-manifest).
 - `slots` - значения для `{{...}}` плейсхолдеров фрагмента. Массивы -> repeatable-регионы.
-- `opts` - модификаторы (варианты вёрстки/классы): `cols` (3/4), `featured` (индекс выделенного тарифа), `arrow` (bool), `inverted` (bool, тёмный блок - только cta-mid, максимум 1-2).
+- `opts` - модификаторы (варианты вёрстки/классы): `cols` (3/4), `arrow` (bool), `inverted` (bool, тёмный блок - только cta-mid, максимум 1-2).
+- Выделенный тариф - boolean `tariffs[i].featured`: true ровно у одного тарифа (это слот, не opt).
 - `fill_notes` - пометки `[ЗАПОЛНИТЬ: ...]` для согласования (выводятся отдельным списком, в HTML идут как `data-fill`).
 - **Ровно одна форма захвата в финале** (`type:"form"` встречается 1 раз). Pre-footer = микро-конверсия, не дубль формы.
+- Опциональные поля манифеста: `popups` (тексты попапов по таймеру/exit - ключи см. маркеры §6) и `meta.schedule`/`legal.schedule` (график работы в шапке); не заданы - сборщик подставит дефолты.
 
-`page.json` (вход для docx-сборки, готовит `page-writer`) - то же `blocks[]` с текстом, но БЕЗ `fragment/opts/theme/legal` (чистая копирайт-копия для Google Doc). `prototype-builder` дополняет его до `manifest.json`.
+`page.json` (вход для docx-сборки, готовит `page-writer`) - то же `blocks[]` с текстом; `fragment` и `opts` уже перенесены из blueprint, но БЕЗ `meta/theme/legal/popups`. В `page.json` есть и `page.description` - метатег Description (<=160) от писателя. `prototype-builder` переносит blocks как есть, meta title/description берёт из page.json (от page-writer, сам не сочиняет) и дополняет до `manifest.json` (meta, theme, legal, popups).
 
 ---
 
@@ -178,6 +180,12 @@ build-prototype.mjs заменяет HTML-комментарии-маркеры:
 | `<!--META_DESC-->` | `<meta name=description>` |
 | `<!--THEME_CSS-->` | `<style>` содержимое выбранной темы (инлайнится, чтобы файл был self-contained) |
 | `<!--PROTOTYPE_CSS-->` | `<style>` содержимое prototype.css |
+| `<!--LOGO-->` | название компании в шапке: `legal.company` -> `meta.project` -> "Компания" (escape) |
+| `<!--PHONE-->` | `legal.phone` (дефолт "+7 (000) 000-00-00"), в шапке и бургер-меню (escape) |
+| `<!--PHONE_RAW-->` | `legal.phone` без всех символов кроме цифр и `+` - для `href="tel:..."` |
+| `<!--SCHEDULE-->` | график работы: `meta.schedule` -> `legal.schedule` -> "Пн-Пт 9:00-19:00" |
+| `<!--POPUP_TIME_TITLE/SUB/CTA-->` | тексты попапа по таймеру: `manifest.popups.time_title/time_sub/time_cta`, дефолты "Не нашли что искали?" / "Оставьте телефон - перезвоним за 5 минут и ответим на вопросы" / "Жду звонка" |
+| `<!--POPUP_EXIT_TITLE/SUB/CTA-->` | тексты exit-попапа: `manifest.popups.exit_title/exit_sub/exit_cta`, дефолты "Уже уходите?" / "Заберите расчёт стоимости - пришлём в мессенджер" / "Получить расчёт" |
 | `<!--BLOCKS-->` | конкатенация отрендеренных фрагментов блоков по порядку |
 | `<!--FOOTER-->` | legal/footer.html со слотами реквизитов |
 | `<!--LEGAL_PAGES-->` | legal/page-*.html секции (роутятся по hash) |
@@ -194,7 +202,7 @@ build-prototype.mjs заменяет HTML-комментарии-маркеры:
 - есть `<header>`, ровно один `<form>` (финал), `<footer>`, `tel:`-ссылка, cookie-баннер;
 - нет фреймворковых атрибутов (`class="...react"`, `v-`, `ng-`, `data-tilda`);
 - submit формы `disabled` по умолчанию + чекбокс согласия (`#f-agree`) - короткая формулировка (v4: одна строка, без дублирования надписи кнопки);
-- бюджеты символов блоков в допуске (±15% от BLOCKS.md);
+- бюджеты символов блоков контролирует copy-auditor pre-flight (COPY-AUDIT п.9, по blueprint, допуск ±15%); verify-prototype лишь мягко предупреждает об экстремальных длинах H1/H2;
 - нет длинного/среднего тире (— –), только дефис;
-- стоп-формулы (COPY.md) не встречаются;
+- стоп-формулы (COPY-AUDIT.md §14в) не встречаются;
 - H1 содержит маркер; все `fill_notes` собраны в отчёт.

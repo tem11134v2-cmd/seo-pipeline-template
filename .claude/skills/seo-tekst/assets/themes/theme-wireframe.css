@@ -1,0 +1,18 @@
+/* Theme: Wireframe (black & white) - DEFAULT for client approval.
+   Use for: согласование ТЕКСТА прототипа. Монохром убирает споры о вкусах/цветах
+   и фокусирует заказчика на формулировках и структуре. Цветные темы (--theme)
+   применяются позже, когда текст согласован, или по явной просьбе заказчика. */
+:root{
+  --font: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --bg:#FFFFFF;
+  --bg-alt:#F5F5F5;
+  --bg-invert:#1A1A1A;
+  --text-primary:#111111;
+  --text-secondary:#666666;
+  --text-invert:#FFFFFF;
+  --accent-primary:#111111;
+  --accent-secondary:#444444;
+  --border:#D9D9D9;
+  --radius:4px;
+  --shadow:0 1px 3px rgba(0,0,0,.08);
+}

@@ -33,8 +33,8 @@ model: opus
 
 ### B. Технические решения - принимай САМ (не дёргай заказчика)
 - **Стадия прогретости (0-4)** + обоснование. Сигнал: Wordstat (`mcp_wordstat_get_keyword_stats`, регион - код ГОРОДА не страны: поиск по продукту -> 3-4, по проблеме -> 1-2) + CJM. Дефолт при неясности - **3**.
-- **Формула оффера (1-6)** по селектору COPY.md.
-- **Палитра (design_theme)** - одна из 6 (`premium/b2b/mass-services/ecommerce/saas/military-dark`) по нише.
+- **Формула оффера (1-6)** по селектору COPY.md. Выпиши в strategy.json поле `offer_formula_recipe` - 2-4 строки: алгоритм выбранной формулы из COPY.md раздела 3 своими словами (как строить оффер/Hero по этой формуле и на что она опирается), без примеров из методички. Это единственный канал, по которому алгоритм дойдёт до писателя - COPY.md он не читает.
+- **Палитра (design_theme)** - одна из 6 (`premium/b2b/mass-services/ecommerce/saas/military-dark`) по нише. `design_theme` - цветная палитра для финального сайта/по запросу заказчика; прототипы по умолчанию собираются в wireframe (ч/б), выбор палитры остаётся в strategy.json на будущее.
 
 ### C. Фактура
 - **30 продающих тезисов** (факт -> Вы-выгода, недостаток->преимущество). **Все числа - из `facts.json`** (если есть) или `[ЗАПОЛНИТЬ: ...]`. Никакой арифметики на лету (NPS->%, годовой÷12) - тест ФАС. НЕ выдумывай.
@@ -51,7 +51,7 @@ model: opus
     "cta_tone":          {"variants":["",""],   "recommended":0, "rationale":["",""], "chosen":null}
   },
   "warmth_stage":3, "warmth_rationale":"",
-  "offer_formula":1, "offer_formula_name":"",
+  "offer_formula":1, "offer_formula_name":"", "offer_formula_recipe":"",
   "design_theme":"b2b",
   "selling_theses":[""], "proof_inventory":[""],
   "materials_have":[""], "materials_missing":[""]

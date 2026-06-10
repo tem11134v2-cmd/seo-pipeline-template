@@ -14,11 +14,13 @@
 - `audits/NNN/` — рабочая папка технического аудита (если запускался /seo-tehaudit)
 - `texts/NNN/` — рабочая папка конверсионных текстов + HTML-прототипов (если запускался /seo-tekst)
 - `topics/NNN/` — рабочая папка батча тем (если запускался /seo-temi)
+- `faq/NNN/` — рабочая папка SEO-блоков FAQ (если запускался /seo-faq)
+- `metatags/NNN/` — рабочая папка метатегов A7 (если запускался /seo-metategi)
 - `~/.claude/seo-knowledge/` — общая методология (стиль, жанры, HTML-элементы, SVG, TARIFFS, RULES)
 
 ## Модель работы: всё в worktree, единственная main-команда — /handoff-process
 
-**Правило:** каждая задача (`/seo-shablon`, `/seo-temi`, `/seo-statya`, `/fix-article`, `/seo-strategiya`, `/seo-analiz`, `/seo-struktura`, `/seo-tehaudit`, `/seo-tekst`, `/seo-tekst-fix`, `/share-topics`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
+**Правило:** каждая задача (`/seo-shablon`, `/seo-temi`, `/seo-statya`, `/fix-article`, `/seo-strategiya`, `/seo-analiz`, `/seo-struktura`, `/seo-tehaudit`, `/seo-tekst`, `/seo-tekst-fix`, `/seo-faq`, `/seo-metategi`, `/share-topics`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
 
 **Единственная команда в main:** `/handoff-process` — применяет накопленные handoff-запросы к общим файлам проекта.
 
@@ -46,6 +48,8 @@
 | `/share-tekst <NNN> [--redo] [--analysis\|--texts]` | Утилита-помощник для `/seo-tekst`: перезалить Analysis/Texts.docx в Drive после правок или догрузить если Drive был недоступен | `texts/NNN/share.json` (per-task) |
 | `/seo-faq [--from-tekst NNN \| --from-table <путь> \| --url <URL>] [--review \| --auto]` | SEO-нормализация готовых страниц: JM-анализ пробелов → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка с недостающими N-граммами. Выход: faq.html (вставляемый сниппет) на страницу + FAQ.docx (Google Doc) | `faq/NNN-slug/` (per-task) |
 | `/share-faq <NNN> [--redo]` | Утилита-помощник для `/seo-faq`: перезалить FAQ.docx в Drive после правок или догрузить если Drive был недоступен | `faq/NNN/share.json` (per-task) |
+| `/seo-metategi [--from-structure <NNN>] [--site <домен>] [--table <путь>] [--depth deep\|bulk] [--resume]` | Генерация метатегов (H1, Title, Description) под Яндекс: один движок, две глубины - deep (анализ выдачи + Акварель, по странице параллельно) и bulk (по PLAYBOOK + батч-данные, дёшево). Три источника страниц: структура / сканирование сайта / таблица. Выход: A7_<slug>.xlsx (3 листа) + автозагрузка в Drive (Google Sheet) | `metatags/NNN-slug/` (per-task) |
+| `/share-metatags <NNN> [--redo]` | Утилита-помощник для `/seo-metategi`: перезалить A7.xlsx в Drive после правок или догрузить если Drive был недоступен | `metatags/NNN/share.json` (per-task) |
 | `/request-shared-edit "<описание>"` | Запросить правку общего файла | `.claude/handoff-requests/<file>.md` |
 | **`/handoff`** | Финал worktree: commit → merge в main → cleanup | Файлы попадают в main |
 

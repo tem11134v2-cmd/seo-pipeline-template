@@ -2,6 +2,8 @@
 
 **Статус:** Принято
 
+**Дополнено (ADR-020):** доказательный подбор по leader_blocks.json (раздел 2) перенесён из page-writer в block-planner; page-writer получает готовый blueprint и leader_blocks.json не читает.
+
 **Дата:** 2026-06-06
 
 ## Контекст
@@ -61,6 +63,6 @@ ADR-015 (`/seo-tekst`) подбирал блоки по **статической
 ## Ссылки
 - [ADR-015](015-tekst-task-type.md) - `/seo-tekst`, статический подбор (который здесь дополняем доказательным).
 - [ADR-009](009-seo-analysis-task-type.md) - `leader_scan.json` (Э2-лайт), прецедент скана лидеров.
-- `.claude/agents/leader-block-scanner.md`; `.claude/agents/page-writer.md` (доказательный подбор).
+- `.claude/agents/leader-block-scanner.md`; `.claude/agents/block-planner.md` (доказательный подбор, см. ADR-020).
 - `.claude/skills/seo-tekst/assets/fragments/{breadcrumbs,category-grid,product-listing,product-gallery,subcategory-tiles}.html` + `BLOCKS.md` (секция каталогов) + `prototype.css` (каталожные стили).
 - `.claude/skills/seo-tekst/SKILL.md` шаг 2b; `MCP_MAP.md` (Chrome).

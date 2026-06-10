@@ -6,12 +6,15 @@
 |---|---|---|---|
 | 2b `leader-block-scanner` | `mcp__Claude_in_Chrome__*` (navigate/read_page/snapshot/screenshot) | скан rendered-композиции блоков 3-6 лидеров по типам страниц + фишки (особенно каталоги/SPA) | желательно (Chrome) |
 | 2b `leader-block-scanner` | `mcp_fetch_page` | fallback, если Chrome не подключён (сырой HTML) | fallback |
+| 2c `direction-scanner` | `mcp_yandex_search` | топ-10 по маркеру направления (+ регион lr) | желательно |
+| 2c `direction-scanner` | `mcp__Claude_in_Chrome__*` / `mcp_fetch_page` | фетч 3-5 страниц однотипных конкурентов (rendered/fallback); в mode B + своя живая страница (own_page) | желательно |
 | 3 `audience-analyst` | `web_search` / `mcp_yandex_search`, `mcp_fetch_page` | (опц.) форум-майнинг дословных формулировок болей/возражений, если нет analysis_dir | опционально |
 | 4 `offer-strategist` | `mcp_wordstat_get_keyword_stats` | сигнал стадии прогретости (поиск по продукту vs по проблеме) | желательно |
 | 4 `offer-strategist` | `mcp_fetch_page` | факты о компании с сайта клиента -> 30 тезисов | опционально |
 | 4 `offer-strategist` | `wk_check_frequency` | частотность маркеров оффера (массово) | опционально |
-| 6a `block-planner` | - (без MCP) | блок-план всех страниц из BLOCKS.md + leader_blocks.json (только Read/Write) | - |
-| 6b `page-writer` (mode B) | `mcp_fetch_page` | инвентаризация блоков живой страницы (кастом-шаблон, объёмы +-15%) | только mode B |
+| 6a `block-planner` | - (без MCP) | блок-план всех страниц из BLOCKS.md + leader_blocks.json + recon/*.json (только Read/Write) | - |
+| 6b `page-writer` (mode B) | `mcp_fetch_page` | удачные формулировки/фактура живой страницы (структура и объёмы - по blueprint) | только mode B |
+| 6d `site-reviewer` | - (без MCP) | кросс-страничный аудит всех page.json (только Read/Write/Edit) | - |
 | 5/7 Drive | `mcp__gdrive-piotr__uploadFile` | docx -> Google Doc (Analysis + Texts) на согласование/выдачу | желательно (скип если нет texts_folder_id) |
 
 **Нет тяжёлых обязательных MCP.** Конкурентов/SERP/семантику не пере-собираем - ингестируем из `analyses/NNN` + `structures/NNN` (источник через `--from-structure`/`--from-analysis`). `prototype-builder` и `prototype-fixer` MCP не используют (только Read/Write/Edit/Bash - запуск скриптов сборки).

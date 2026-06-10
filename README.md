@@ -170,7 +170,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── CLAUDE.md                            ← политика, читается каждой сессией
 │   ├── settings.json                        ← Claude Code hooks config
 │   │
-│   ├── agents/                              ← 44 субагента (см. ниже)
+│   ├── agents/                              ← 46 субагентов (см. ниже)
 │   │   ├── client-profiler.md
 │   │   ├── template-designer.md
 │   │   ├── topic-generator.md
@@ -205,9 +205,20 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── audit-indexing.md                ← /seo-tehaudit
 │   │   ├── audit-onpage.md                  ← /seo-tehaudit
 │   │   ├── audit-analytics.md               ← /seo-tehaudit
-│   │   └── audit-writer.md                  ← /seo-tehaudit
+│   │   ├── audit-writer.md                  ← /seo-tehaudit
+│   │   ├── audience-analyst.md              ← /seo-tekst
+│   │   ├── offer-strategist.md              ← /seo-tekst
+│   │   ├── leader-block-scanner.md          ← /seo-tekst
+│   │   ├── direction-scanner.md             ← /seo-tekst
+│   │   ├── block-planner.md                 ← /seo-tekst
+│   │   ├── page-writer.md                   ← /seo-tekst
+│   │   ├── copy-auditor.md                  ← /seo-tekst
+│   │   ├── site-reviewer.md                 ← /seo-tekst
+│   │   ├── prototype-builder.md             ← /seo-tekst
+│   │   ├── prototype-fixer.md               ← /seo-tekst-fix
+│   │   └── faq-builder.md                   ← /seo-faq
 │   │
-│   ├── skills/                              ← 21 скил
+│   ├── skills/                              ← 27 скилов
 │   │   ├── guide/SKILL.md                   (любая зона, справочник процесса)
 │   │   ├── seo-shablon/SKILL.md           (worktree, исследование сайта)
 │   │   ├── seo-temi/SKILL.md              (worktree, сбор тем)
@@ -238,9 +249,22 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   │   ├── SKILL.md
 │   │   │   └── MCP_MAP.md
 │   │   ├── share-audit/SKILL.md             (worktree, загрузка A12.docx в Drive)
+│   │   ├── seo-tekst/                       (worktree, конверсионные тексты + HTML-прототипы)
+│   │   │   ├── SKILL.md
+│   │   │   ├── MCP_MAP.md
+│   │   │   └── assets/                      (BLOCKS.md, COPY.md, VOICE.md, COPY-AUDIT.md, KIT-SPEC.md, LEGAL.md,
+│   │   │                                     fragments-manifest.json, PROTOTYPE-MASTER.html, prototype.css, prototype.js,
+│   │   │                                     arrow.svg, fragments/, legal/, themes/ - 7 тем, вкл. theme-wireframe)
+│   │   ├── seo-tekst-fix/SKILL.md           (worktree, точечная правка прототипа)
+│   │   ├── share-tekst/SKILL.md             (worktree, загрузка Analysis/Texts.docx в Drive)
+│   │   ├── seo-faq/                         (worktree, SEO-нормализация: FAQ + теги + перелинковка)
+│   │   │   ├── SKILL.md
+│   │   │   └── MCP_MAP.md
+│   │   ├── share-faq/SKILL.md               (worktree, загрузка FAQ.docx в Drive)
 │   │   ├── request-shared-edit/SKILL.md     (worktree, запрос на общий файл)
 │   │   ├── handoff/SKILL.md                 (worktree, финализация)
-│   │   └── handoff-process/SKILL.md         (main, применение запросов)
+│   │   ├── handoff-process/SKILL.md         (main, применение запросов)
+│   │   └── sync-from-template/SKILL.md      (main, обновление машинерии из шаблона)
 │   │
 │   ├── hooks/                               ← Claude Code hooks
 │   │   ├── check-file.sh                    (SubagentStop, проверка вывода)
@@ -252,7 +276,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── git-hooks/                           ← git hooks (НЕ Claude Code)
 │   │   └── pre-commit                       (whitelist путей в worktree)
 │   │
-│   ├── scripts/                             ← обёртки + 28 .mjs
+│   ├── scripts/                             ← обёртки + 45 .mjs
 │   │   ├── _node.cmd / _node.sh             (обёртки, ищут node)
 │   │   ├── _client.mjs                      (общий helper)
 │   │   ├── finalize-setup.mjs               (git init + первый коммит)
@@ -277,7 +301,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── build-audit-docx.mjs             (audit_data.json → A12_<slug>.docx)
 │   │   ├── verify-audit.mjs                 (проверка audit_data.json)
 │   │   ├── select-audit-pages.mjs           (indexing.json → page_plan.json: выборка+шарды)
-│   │   └── merge-onpage.mjs                 (onpage_*.json шарды → onpage.json)
+│   │   ├── merge-onpage.mjs                 (onpage_*.json шарды → onpage.json)
+│   │   └── ...                              (всего 45 .mjs - полный список в таблице «Node-скрипты» ниже)
 │   │
 │   ├── handoff-requests/                    ← запросы worktree → main
 │   │   ├── .gitkeep
@@ -300,7 +325,17 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── 007-strategy-task-type.md
 │   ├── 008-drive-sharing-anchor-folders.md
 │   ├── 009-seo-analysis-task-type.md
-│   └── 010-structures-task-type.md
+│   ├── 010-structures-task-type.md
+│   ├── 011-template-self-guard.md
+│   ├── 012-metatags-task-type.md
+│   ├── 013-numbering-by-topic-derived-index.md
+│   ├── 014-audit-task-type.md
+│   ├── 015-tekst-task-type.md
+│   ├── 016-faq-task-type.md
+│   ├── 017-leader-block-scan-and-catalog.md
+│   ├── 018-v4-copy-quality-layer.md
+│   ├── 019-machinery-sync.md
+│   └── 020-writer-context-diet-and-voice.md
 │
 ├── ЗАКАЗЧИК.md                              ← создаётся через /seo-shablon + /handoff-process
 ├── template.html                            ← аналогично
@@ -383,9 +418,14 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 ├── texts/NNN-domain-slug/                   ← рабочие папки текстов + прототипов (/seo-tekst)
 │   ├── meta.json                            (state machine + drive: analysis/texts)
 │   ├── inputs.json                          (slug/домен/регион/ниша/УТП + реквизиты для legal)
+│   ├── facts.json                           (единый источник цифр: реквизиты/гарантии/числа - все цифры сайта только отсюда, v4)
 │   ├── pages.json                           (целевые страницы)
+│   ├── leader_blocks.json                   (опц.: матрица блоков лидеров по типу страниц - leader-block-scanner)
+│   ├── recon/<slug>.json                    (контент-разведка топ-10 направления - direction-scanner)
 │   ├── audience.json                        (анализ ЦА - audience-analyst)
 │   ├── strategy.json                        (стратегия оффера - offer-strategist)
+│   ├── blueprints/<page-slug>.json          (блок-план страницы: блоки+цели+слоты+лимиты - block-planner, ADR-020)
+│   ├── site_audit.json                      (кросс-страничный аудит - site-reviewer)
 │   ├── Analysis_<slug>.docx                 (клиенту на согласование -> Google Doc)
 │   ├── pages/<page-slug>/                   (по странице)
 │   │   ├── page.json                        (тексты блоков - page-writer)
@@ -430,7 +470,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ## Компоненты
 
-### 26 скилов (13 рабочих, 9 share-утилит, 3 управляющих, 1 справочный)
+### 27 скилов (13 рабочих, 9 share-утилит, 4 управляющих, 1 справочный)
 
 | Скил | Зона | Назначение |
 |---|---|---|
@@ -448,6 +488,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/share-analysis NNN [--redo]` | worktree | Утилита: перезалить A2.docx в Drive после правок, или догрузить если Drive был недоступен |
 | `/seo-struktura NNN [--resume] [--review\|--auto] [--import <xlsx>]` | worktree | Построение структуры сайта на базе анализа: мастер-список → маркеры → JM semantic_pack → топ-10 + каннибализация → A6.xlsx → клиент → A6.md |
 | `/share-structure NNN [--redo]` | worktree | Утилита: перезалить A6.xlsx в Drive после правок, или догрузить если Drive был недоступен |
+| `/seo-metategi [--from-structure NNN] [--site <домен>] [--table <путь>] [--depth deep\|bulk] [--resume]` | worktree | Генерация метатегов (H1, Title, Description) под Яндекс: один движок, две глубины - deep (анализ выдачи + Акварель, по странице параллельно) и bulk (по PLAYBOOK + батч-данные, дёшево). Три источника страниц: структура / сканирование сайта / таблица. Выход: A7_<slug>.xlsx (3 листа) |
+| `/share-metatags NNN [--redo]` | worktree | Утилита: перезалить A7.xlsx в Drive после правок, или догрузить если Drive был недоступен |
 | `/seo-tehaudit <domain> [--resume] [--no-share]` | worktree | Технический SEO-аудит сайта под Яндекс: разведка/карточка → индексация → URL/мета/Schema/JS → аналитика/ссылки → A12.md + A12.docx (проблемы по приоритетам, чеклист разработчику, динамические приложения) → автозагрузка в Drive + цикл правок |
 | `/share-audit NNN [--redo]` | worktree | Утилита: перезалить A12.docx в Drive после правок, или догрузить если Drive был недоступен |
 | `/seo-tekst [--from-structure NNN\|--from-table\|--from-analysis] [--mode A\|B] [--review\|--auto] [--theme]` | worktree | Конверсионные тексты коммерческих страниц + HTML-прототип. Анализ ЦА/оффера → согласование с клиентом (Analysis.docx → Google Doc) → веер писателей → сборка прототипов поверх kit. Выход: Texts.docx (Google Doc) + prototype.html на страницу |
@@ -458,8 +500,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/request-shared-edit "..."` | worktree | Отложенный запрос на правку общего файла |
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
+| `/sync-from-template [путь] [--apply]` | main | Обновление машинерии (`.claude/{scripts,agents,skills,hooks,git-hooks,migrations,tests}` + package.json) из локального шаблона; без `--apply` - dry-run |
 
-### 44 субагента (вызываются скилами)
+### 46 субагентов (вызываются скилами)
 
 | Агент | Делает |
 |---|---|
@@ -507,8 +550,10 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `faq-builder` | SEO-блок одной страницы: JM-анализ пробелов → FAQ (Schema.org) + возражения + плитка тегов + перелинковка с недостающими N-граммами (для /seo-faq, веер) |
 | `leader-block-scanner` | Скан композиции блоков 3-6 лидеров по типам страниц (Chrome → rendered, fetch → fallback) → матрица покрытия + фишки. Доказательный подбор блоков, особенно каталоги (для /seo-tekst, проектный) |
 | `copy-auditor` | Pre-flight копи-валидатор (v4): 14-пунктовый чек-лист COPY-AUDIT.md (стоп-листы + сверка чисел с facts.json + маркеры ИИ-текста) → чинит page.json свежим проходом перед HTML (для /seo-tekst, веер) |
+| `direction-scanner` | Контент-разведка одного направления: SERP топ-10 по маркеру -> фильтр однотипных -> фетч 3-5 страниц (Chrome/fetch) -> recon/<slug>.json: что публикует топ, must_have, gaps (для /seo-tekst, веер) |
+| `site-reviewer` | Финальный кросс-страничный аудит текстов сайта: межстраничные дубли, ИИ-узор сайта, уникальность H1/Title, консистентность decisions -> чинит + site_audit.json (для /seo-tekst, один на проект) |
 
-### 37 Node-скриптов
+### 45 Node-скриптов
 
 | Скрипт | Делает |
 |---|---|
@@ -519,18 +564,24 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `from-excel-topics.mjs` | обратное чтение: `Topics_<slug>.xlsx` → topics-batch.json (правки клиента) |
 | `read-topics-xlsx.mjs` | чтение корневого topics.xlsx для дедупа тем |
 | `update-index.mjs` | поддержка `articles/_index.json` |
+| `rebuild-index.mjs` | пересборка производного кеша `_index.json` из per-folder meta.json (ADR-013, кеш не коммитится) |
+| `resolve-article-dir.mjs` | детерминированный резолв папки задачи по id темы (после ADR-013 номер NNN не уникален) |
 | `assemble-html.mjs` | article.md + enhancements + faq + schema + photos + template → output.html |
 | `metrics-report.mjs` | метрики читаемости (слова, H2/H3, Flesch-RU) → раздел в report.md |
 | `verify-progress.mjs` | сверка sections/progress.json с фактическими секциями (exit 0/1/2) |
 | `verify-markers.mjs` | проверка, что финализатор сохранил все метки в article.md |
+| `verify-photo-budget.mjs` | число запланированных фото в tz.md попадает в жанровую вилку, независимо от числа таблиц |
+| `verify-photos.mjs` | кросс-чек фото: метки [ФОТО] в article.md = блоки prompts.md = записи photos/urls.json |
 | `build-article-docx.mjs` | article + фото из Cloudinary → `Article_<slug>.docx` |
 | `tilda-split.mjs` | output.html → tilda/head.html + tilda/t123.html (с !important фиксами) |
+| `preview-server.mjs` | минимальный статический HTTP-сервер для скриншот-самопроверки шаблона (Chrome MCP не открывает file://) |
 | `build-strategy-docx.mjs` | strategy_content.json + tariffs.json + inputs.json → SEO_Strategy_<domain>.docx |
 | `build-smeta-xlsx.mjs` | tariffs.json + inputs.json → Smeta_<domain>.xlsx (3 вкладки + формулы SUM) |
 | `build-analysis-docx.mjs` | A2.md → A2_<domain>.docx (Arial, цветной вердикт, таблицы) |
 | `select-top10.mjs` | semantic_pack.json → top10.json + cannibalization.json (детекция конфликтов) |
 | `build-structure-xlsx.mjs` | master_list + top10 + cannibalization + competitors → A6_<slug>.xlsx (4 листа) |
 | `import-structure.mjs` | client_filled.xlsx → structure_data.json (exit-коды 0/3/4 для развилок) |
+| `validate-analysis-inputs.mjs` | жёсткая валидация входа /seo-struktura: наличие файлов анализа + канонические поля брифа (ловит дрейф схемы) |
 | `read-metatags-input.mjs` | вход метатегов: структура / таблица / аудит → pages.json (exit 0/2/1) |
 | `select-variations.mjs` | research.json → shortlist.json (отсев Comm, сорт по exact, форма+резерв на страницу) |
 | `build-metatags-xlsx.mjs` | inputs + pages + pages/N.json → A7_<slug>.xlsx (3 листа, подсветка длины) |
@@ -550,6 +601,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `verify-faq.mjs` | проверка SEO-блока: Schema валидна, объёмы FAQ, стоп-формулы, тире, normalized_keywords (exit 0/2) |
 | `build-faq-docx.mjs` | faq_blocks → FAQ_<slug>.docx (клиенту) |
 | `verify-copy.mjs` | pre-flight копи-валидатор (v4): механические пункты чек-листа COPY-AUDIT.md по page.json до HTML (самозащита/жаргон/манипуляции/сленг/H1, exit 0/2) |
+| `sync-from-template.mjs` | движок синка машинерии шаблона на клиентский проект: dry-run отчёт +/~/-, версия, миграции, само-коммит (для /sync-from-template и /sync-all) |
 
 ### 5 Claude Code хуков
 
@@ -647,6 +699,9 @@ git commit -m "Update template from upstream"
 | [016](docs/adr/016-faq-task-type.md) | Новый тип задачи `faq/` для SEO-нормализации (/seo-faq); JM-анализ пробелов → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка; читает kit из seo-tekst/assets |
 | [017](docs/adr/017-leader-block-scan-and-catalog.md) | Доказательный подбор блоков через скан лидеров (Chrome → rendered, fetch → fallback, статическая матрица → пол) + поддержка каталожных сайтов (типы Категория/Карточка + 5 фрагментов) |
 | [018](docs/adr/018-v4-copy-quality-layer.md) | Слой качества копирайта v4 (постмортемы): смысловое = выбор заказчика (offer-варианты + гейт), FACTS единый источник, стоп-листы + verify-copy + copy-auditor проход |
+| [019](docs/adr/019-machinery-sync.md) | Синхронизация машинерии в существующие клоны: детерминированный движок sync-from-template.mjs + скилы /sync-from-template (один проект) и /sync-all (все разом), версионная метка `.claude/.machinery-version`, идемпотентные миграции данных |
+| [020](docs/adr/020-writer-context-diet-and-voice.md) | Диета контекста писателя + анти-ИИ слой: block-planner выносит выбор блоков из page-writer (blueprint на страницу), COPY.md распилен по читателям (VOICE.md писателю, COPY-AUDIT.md контролёру), чек-лист 14 пунктов (п.14 - маркеры ИИ-текста) |
+| [021](docs/adr/021-direction-recon-site-review-wireframe.md) | Контент-разведка направлений (direction-scanner) + кросс-страничный аудит (site-reviewer) + wireframe-прототипы (v5.1) |
 
 ---
 

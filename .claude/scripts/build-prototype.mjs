@@ -180,6 +180,8 @@ function renderTemplate(tpl, scope) {
           return renderTemplate(inner, child);
         })
         .join("");
+    } else if (arr != null) {
+      console.warn(`[build-prototype] REPEAT:${path} - не массив (${typeof arr}), отрендерено пусто`);
     }
   }
   return interpolate(before, scope) + rendered + renderTemplate(after, scope);

@@ -69,9 +69,36 @@ function collectText(obj, acc = []) {
   return acc;
 }
 const blocks = Array.isArray(manifest.blocks) ? manifest.blocks : [];
-const copyText = blocks.map((b) => collectText(b.slots).concat(b.h2 ? [b.h2] : []).join("  ")).join("\n").toLowerCase();
+const metaDescription = String((manifest.meta && manifest.meta.description) || "");
+const copyText = blocks.map((b) => collectText(b.slots).concat(b.h2 ? [b.h2] : []).join("  ")).concat(metaDescription ? [metaDescription] : []).join("\n").toLowerCase();
 
-for (const s of STOP) if (copyText.includes(s)) V(`стоп-формула в тексте: «${s}» (см. COPY.md - заменить на конкретику)`);
+for (const s of STOP) if (copyText.includes(s)) V(`стоп-формула в тексте: «${s}» (см. COPY-AUDIT.md §14в - заменить на конкретику)`);
+
+// вложенные массивы строк: писатель мог склеить в строку - REPEAT отрендерил бы пусто
+for (const b of blocks) {
+  const slots = b.slots || {};
+  if (b.fragment === "pricing") {
+    const tariffs = Array.isArray(slots.tariffs) ? slots.tariffs : [];
+    let featuredCount = 0;
+    for (const t of tariffs) {
+      if (!t || typeof t !== "object") continue;
+      if (!Array.isArray(t.features) || t.features.length === 0 || t.features.some((f) => typeof f !== "string"))
+        V(`pricing: tariffs[].features тарифа «${t.name || "?"}» должен быть непустым массивом строк`);
+      if ("featured" in t && typeof t.featured !== "boolean")
+        V(`pricing: featured тарифа «${t.name || "?"}» не boolean (${JSON.stringify(t.featured)}) - строго true/false`);
+      if (t.featured === true) featuredCount++;
+    }
+    if (featuredCount > 1) V(`pricing: featured=true у ${featuredCount} тарифов (допустим максимум один)`);
+  }
+  if (b.fragment === "product-listing") {
+    const filters = Array.isArray(slots.filters) ? slots.filters : [];
+    for (const f of filters) {
+      if (!f || typeof f !== "object") continue;
+      if (!Array.isArray(f.options) || f.options.length === 0 || f.options.some((o) => typeof o !== "string"))
+        V(`product-listing: filters[].options фильтра «${f.name || "?"}» должен быть непустым массивом строк`);
+    }
+  }
+}
 
 // H1 присутствует и содержит маркер
 const marker = (manifest.meta && manifest.meta.marker) || "";
@@ -83,7 +110,7 @@ else if (marker && !h1.toLowerCase().includes(marker.toLowerCase().split(" ")[0]
 }
 
 // мягкие бюджеты длины (предупреждения)
-if (h1 && h1.length > 90) W(`H1 длинный (${h1.length} симв, желательно <= 80)`);
+if (h1 && h1.length > 60) W(`H1 длинный (${h1.length} симв) - лимит 60 (COPY-AUDIT п.9)`);
 for (const b of blocks) {
   const h2 = b.h2 || (b.slots && b.slots.h2) || "";
   if (h2 && h2.length > 70) W(`H2 длинный (${h2.length} симв): «${h2.slice(0, 40)}...»`);

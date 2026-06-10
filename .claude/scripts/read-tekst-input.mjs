@@ -7,7 +7,7 @@
 //   node read-tekst-input.mjs <texts_dir> --from-table <path.csv|tsv>
 //   node read-tekst-input.mjs <texts_dir> --from-analysis <analysis_dir>   (берёт направления из брифа)
 //
-// Выход: <texts_dir>/pages.json = { source, pages: [{ n, slug, url, type, marker, queries[] }] }
+// Выход: <texts_dir>/pages.json = { source, pages: [{ n, slug, url, type, marker, queries[] }] }; queries[] - всегда массив строк (объектные формы источников нормализуются)
 // Exit: 0 ok | 2 нет целевых страниц | 1 ошибка.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
@@ -142,7 +142,7 @@ for (const p of rawPages) {
     url: p.url || "",
     type: p.type || "Страница",
     marker: p.marker || "",
-    queries: Array.isArray(p.queries) ? p.queries : [],
+    queries: (Array.isArray(p.queries) ? p.queries : []).map((q) => (typeof q === "string" ? q : String((q && q.query) || "")).trim()).filter(Boolean),
   });
 }
 

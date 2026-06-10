@@ -28,6 +28,7 @@
 | [018](018-v4-copy-quality-layer.md) | Слой качества копирайта v4: смысловое = выбор, FACTS, стоп-листы + verify-copy + copy-auditor | Принято |
 | [019](019-machinery-sync.md) | Синхронизация машинерии в существующие клоны: движок `/sync-from-template` + `/sync-all` + `.machinery-version` + миграции (решает «Плохо» из ADR-006) | Принято |
 | [020](020-writer-context-diet-and-voice.md) | Диета контекста писателя: block-planner + blueprint, распил COPY.md на VOICE.md/COPY-AUDIT.md, анти-ИИ слой (п.14) | Принято |
+| [021](021-direction-recon-site-review-wireframe.md) | v5.1: контент-разведка топ-10 по направлениям (direction-scanner) + кросс-страничный аудит (site-reviewer) + wireframe-прототипы + фиксы аудита | Принято |
 
 ## Как добавить новый ADR
 

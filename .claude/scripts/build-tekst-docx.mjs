@@ -32,7 +32,7 @@ const LI = (t) => out.push(new Paragraph({ bullet: { level: 0 }, spacing: { afte
 function elText(el) {
   if (typeof el === "string") return el;
   if (el == null) return "";
-  const order = ["title", "name", "q", "a", "value", "label", "tagline", "price", "text", "result", "us", "them", "param"];
+  const order = ["title", "name", "q", "a", "value", "label", "tagline", "price", "text", "result", "param", "us", "them"];
   const parts = [];
   for (const k of order) if (el[k] != null && String(el[k]).trim()) parts.push(String(el[k]));
   for (const k of Object.keys(el)) if (!order.includes(k) && typeof el[k] === "string" && el[k].trim()) parts.push(el[k]);
@@ -53,12 +53,22 @@ function renderSlots(slots) {
     // вложенные features (массив строк) выведутся внутри tariffs ниже; пропустим верхнеуровневые известные служебные
     if (k === "tariffs") {
       for (const t of v) {
-        LABEL((t.name || "Тариф") + (t.featured ? " (рекомендуем)" : "") + (t.price ? " - " + t.price : ""));
+        LABEL((t.name || "Тариф") + (t.badge ? " [" + t.badge + "]" : t.featured ? " (рекомендуем)" : "") + (t.price ? " - " + t.price : ""));
         if (t.tagline) P(t.tagline, { italics: true });
+        if (t.price_note) P(t.price_note, { italics: true, color: "888888" });
         for (const f of arr(t.features)) LI(typeof f === "string" ? f : elText(f));
+        if (t.cta) P("Кнопка: " + t.cta, { italics: true, color: "555555" });
       }
       continue;
     }
+    if (k === "rows") {
+      // compare-table: заголовки колонок + строки в порядке «параметр - у нас - у них»
+      const hdr = [slots.col_param, slots.col_us, slots.col_them].filter(Boolean).join(" / ");
+      if (hdr) LABEL(hdr);
+      for (const r of v) LI([r.param, r.us, r.them].filter(Boolean).join(" - "));
+      continue;
+    }
+    if (k === "key_specs") { for (const el of v) LI([el.label, el.value].filter(Boolean).join(": ")); continue; }
     if (k === "select_options" || k === "areas") { P([k === "areas" ? "География: " : "Варианты: ", v.map(elText).join(", ")].join("")); continue; }
     for (const el of v) LI(elText(el));
   }
@@ -89,7 +99,10 @@ for (let i = 0; i < pageDirs.length; i++) {
   for (const b of arr(page.blocks)) {
     const h2 = b.h2 || (b.slots && b.slots.h2) || "";
     if (h2) H2(h2);
-    renderSlots(b.slots);
+    // дедуп H1: page.h1 уже напечатан на уровне страницы - не повторять из слотов (hero, product-gallery)
+    const slots = { ...(b.slots || {}) };
+    if (typeof slots.h1 === "string" && typeof page.h1 === "string" && slots.h1.trim() === page.h1.trim()) delete slots.h1;
+    renderSlots(slots);
     for (const fn of arr(b.fill_notes)) P(`[ЗАПОЛНИТЬ: ${fn}]`, { color: "C00000", italics: true });
     blockCount++;
   }

@@ -40,8 +40,8 @@
       "file": "pricing.html",
       "scalars": ["h2", "subhead", "note"],
       "repeatables": { "tariffs": ["featured", "badge", "name", "tagline", "price", "price_note", "features", "cta"] },
-      "opts": ["featured"],
-      "notes": "3-5 тарифов. ВНИМАНИЕ: вложенный REPEAT - item.features это массив СТРОК, рендерится <!--REPEAT:item.features-->{{item}}<!--/REPEAT:item.features--> (ассемблер должен поддержать вложенные repeat и скаляр-элемент {{item}}). featured (bool на тарифе) включает badge + класс pt-tariff--featured. Цена визуально меньше ('179 тыс. ₽'). price_note типа 'цена требует утверждения'."
+      "opts": [],
+      "notes": "3-5 тарифов. ВНИМАНИЕ: вложенный REPEAT - item.features это массив СТРОК, рендерится <!--REPEAT:item.features-->{{item}}<!--/REPEAT:item.features--> (ассемблер должен поддержать вложенные repeat и скаляр-элемент {{item}}). featured - boolean СТРОГО true/false на тарифе (не строка!), true ровно у одного (обычно среднего); включает badge + класс pt-tariff--featured; badge заполнять только у featured. Цена визуально меньше ('179 тыс. ₽'). price_note типа 'цена требует утверждения'."
     },
     "accordion": {
       "file": "accordion.html",
