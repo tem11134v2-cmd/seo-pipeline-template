@@ -1,0 +1,20 @@
+{
+  "type": "setup-project",
+  "created": "2026-06-17T13:37:43Z",
+  "files": [
+    {
+      "source": ".claude/handoff-requests/files/ЗАКАЗЧИК.md",
+      "target": "ЗАКАЗЧИК.md",
+      "operation": "create"
+    },
+    {
+      "source": ".claude/handoff-requests/files/template.html",
+      "target": "template.html",
+      "operation": "create"
+    }
+  ],
+  "post_actions": [
+    "git config core.hooksPath .claude/git-hooks"
+  ],
+  "notes": "Первичная инициализация проекта thailand.xn----7sbba6bim7adm3h.xn--p1ai (инфо-портал о недвижимости в Таиланде). После применения main-проект готов к /seo-temi и /seo-statya."
+}
