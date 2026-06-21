@@ -549,9 +549,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `prototype-fixer` | Точечная правка прототипа (разбор голосовых PHASE-7 + паттерн article-fixer) (для /seo-tekst-fix) |
 | `faq-builder` | SEO-блок одной страницы: JM-анализ пробелов → FAQ (Schema.org) + возражения + плитка тегов + перелинковка с недостающими N-граммами (для /seo-faq, веер) |
 | `leader-block-scanner` | Скан композиции блоков 3-6 лидеров по типам страниц (Chrome → rendered, fetch → fallback) → матрица покрытия + фишки. Доказательный подбор блоков, особенно каталоги (для /seo-tekst, проектный) |
-| `copy-auditor` | Pre-flight копи-валидатор (v4): 14-пунктовый чек-лист COPY-AUDIT.md (стоп-листы + сверка чисел с facts.json + маркеры ИИ-текста) → чинит page.json свежим проходом перед HTML (для /seo-tekst, веер) |
+| `copy-auditor` | Pre-flight редактор продающего текста: чек-лист COPY-AUDIT.md (смысл+грамотность первым, удар в боль ЦА, чистота/штампы/утечка кухни Сургай-кастдев) → чинит page.json свежим проходом перед HTML; анти-ИИ-детект не делает (ADR-022) (для /seo-tekst, веер) |
 | `direction-scanner` | Контент-разведка одного направления: SERP топ-10 по маркеру -> фильтр однотипных -> фетч 3-5 страниц (Chrome/fetch) -> recon/<slug>.json: что публикует топ, must_have, gaps (для /seo-tekst, веер) |
-| `site-reviewer` | Финальный кросс-страничный аудит текстов сайта: межстраничные дубли, ИИ-узор сайта, уникальность H1/Title, консистентность decisions -> чинит + site_audit.json (для /seo-tekst, один на проект) |
+| `site-reviewer` | Финальный кросс-страничный аудит текстов сайта: межстраничные самоповторы, уникальность H1/Title, консистентность decisions и фактов -> чинит + site_audit.json (для /seo-tekst, один на проект) |
 
 ### 45 Node-скриптов
 
@@ -702,6 +702,7 @@ git commit -m "Update template from upstream"
 | [019](docs/adr/019-machinery-sync.md) | Синхронизация машинерии в существующие клоны: детерминированный движок sync-from-template.mjs + скилы /sync-from-template (один проект) и /sync-all (все разом), версионная метка `.claude/.machinery-version`, идемпотентные миграции данных |
 | [020](docs/adr/020-writer-context-diet-and-voice.md) | Диета контекста писателя + анти-ИИ слой: block-planner выносит выбор блоков из page-writer (blueprint на страницу), COPY.md распилен по читателям (VOICE.md писателю, COPY-AUDIT.md контролёру), чек-лист 14 пунктов (п.14 - маркеры ИИ-текста) |
 | [021](docs/adr/021-direction-recon-site-review-wireframe.md) | Контент-разведка направлений (direction-scanner) + кросс-страничный аудит (site-reviewer) + wireframe-прототипы (v5.1) |
+| [022](docs/adr/022-commercial-copy-not-anti-ai.md) | Коммерческий текст под боль ЦА, не под анти-ИИ-детект: анти-ИИ-слой убран, приоритет смысл+грамотность+боль, заслон утечки кухни (Сургай/кастдев) |
 
 ---
 
