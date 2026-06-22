@@ -1,6 +1,6 @@
 ---
 name: audit-recon
-description: Разведка и карточка сайта для техаудита - Вебмастер, Метрика, Keyso, возраст домена (Арсенкин), CMS/шаблон/тематика (fetch). Используется в /seo-tehaudit на шаге 1.
+description: Разведка и карточка сайта для техаудита - Вебмастер, Метрика, Keyso, возраст домена (Арсенкин), CMS/шаблон/тематика (seo_fetch_page). Используется в /seo-tehaudit на шаге 1.
 model: inherit
 ---
 
@@ -83,9 +83,9 @@ arsenkin_domains(domain="<domain>", check_type="whois")
 ### 1.7. Тематика, CMS, шаблон по главной
 
 ```
-mcp_fetch_page(url="https://<domain>/")
+seo_fetch_page(url="https://<domain>/", profile="raw")
 ```
-(основной; fallback - `WebFetch(url="https://<domain>/")`, если `mcp_fetch_page` недоступен/упал.)
+(основной; `profile="raw"` отдаёт сырой HTML/CSS и заголовки ответа - нужны для сигнатур CMS/шаблона в разметке: `/bitrix/`, `/wp-content/`, generator-meta, `/local/templates/`, бренд-цвета/шрифты; бонус - `audit.framework_hint` детектит фреймворк. Вторичный деградированный fallback - `WebFetch(url="https://<domain>/")`, если `seo_fetch_page` недоступен/упал; он теряет HTTP-статус и часть разметки.)
 
 Из HTML определи:
 - **`topic`** - тематика одной строкой по первому экрану + меню + контактам (например «B2B-производство нефтегазового оборудования», «E-commerce женской одежды», «Услуги детейлинга в Москве»).

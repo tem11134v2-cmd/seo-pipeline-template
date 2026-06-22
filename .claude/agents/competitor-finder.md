@@ -58,8 +58,8 @@ model: inherit
 Если `brief.city_not_in_keyso == true`:
 
 1. Основной сбор — через базу Москва (как в brief.keyso_base).
-2. Дополнительно: 2-3 запроса с топонимом клиента через `mcp_yandex_search(query="<запрос> <город>")` — это локальные игроки.
-3. Добавь найденные домены в общий список. Запиши в `candidates.json.note_yandex_search`: «Регион [X] не в базе Keyso. Локальные игроки собраны через mcp_yandex_search.»
+2. Дополнительно: 2-3 запроса с топонимом клиента через `arsenkin_top(queries=["<запрос> <город>"], region=<код>, depth=10)` — из доменов топа возьми локальных игроков.
+3. Добавь найденные домены в общий список. Запиши в `candidates.json.note_yandex_search`: «Регион [X] не в базе Keyso. Локальные игроки собраны через arsenkin_top.»
 
 ### 2. Фильтрация (15+ -> 8-15)
 
@@ -70,7 +70,7 @@ model: inherit
 - Маркетплейсы: `ozon.ru`, `wildberries.ru`, `aliexpress.ru`, `megamarket.ru`, `yandex.ru/market`
 - Классифайды и справочники: `zoon.ru`, `yell.ru`, `flamp.ru`
 
-**С проверкой (через `web_fetch` или `mcp_fetch_page` на главную):**
+**С проверкой (`seo_fetch_page(url="<главная>", profile="content")` — есть ли каталог/корзина, какое основное направление; деградированный fallback `web_fetch`, если seo_fetch недоступен):**
 - Информационные порталы (если клиент — коммерция): нет каталога/корзины, основной контент — статьи.
 - Нерелевантный ассортимент: основное направление не совпадает с `brief.niche` / `brief.assortment`.
 - Поддомены сайтов, основной домен которых уже в списке (оставить только основной).
@@ -205,4 +205,4 @@ domain_dashboard(domain="<X>", base="<keyso_base>")
 - Агрегаторы (avito, 2gis, profi, zoon, ozon, wb, классифайды) — **никогда** не в `direct`.
 - НЕ редактируй `brief.json` — он read-only после шага 1.
 - Длинное тире (—) и среднее (–) не использовать. Только дефис (-).
-- Бюджет: ≤20 MCP-вызовов на этот этап (1 `domain_competitors` + 3-5 `keyword_info` + 8-15 `domain_dashboard` + 2-3 `mcp_yandex_search` если регион не в Keyso + `web_fetch` для спорных доменов).
+- Бюджет: ≤20 MCP-вызовов на этот этап (1 `domain_competitors` + 3-5 `keyword_info` + 8-15 `domain_dashboard` + 2-3 `arsenkin_top` если регион не в Keyso + `seo_fetch_page` (profile="content") для спорных доменов).

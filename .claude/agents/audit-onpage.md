@@ -26,10 +26,12 @@ model: inherit
 Для **каждой** страницы из `page_list`:
 
 ```
-mcp_fetch_page(url="<url>", max_content_length=50000)
+seo_fetch_page(url="<url>", profile="audit")
 ```
 
-При ошибке fetch - повтор 1 раз через ~30 сек; не помогло - запись в `mcp_errors: [{tool, param, error}]` и пропустить страницу (остальные продолжать). `WebFetch` - fallback, если `mcp_fetch_page` недоступен. `render_js` НЕ использовать (вся проверка - по сырому HTML).
+Профиль `audit` отдаёт полный on-page разбор одним вызовом (title/description/canonical/robots-noindex/Schema/breadcrumbs/favicon/JS-детект) без сырого HTML - ровно то, что нужно этому шарду.
+
+При ошибке fetch - повтор 1 раз через ~30 сек; не помогло - запись в `mcp_errors: [{tool, param, error}]` и пропустить страницу (остальные продолжать). `WebFetch` - вторичный деградированный fallback (теряет HTTP-статус/мету/структуру), если `seo_fetch_page` недоступен. `render_js` НЕ использовать (вся проверка - по сырому HTML).
 
 Из HTML извлечь и записать элемент `sample[]`:
 

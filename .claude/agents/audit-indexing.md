@@ -23,7 +23,7 @@ model: inherit
 
 ## MCP-инструменты
 
-- Fetch: `mcp_fetch_page` (основной), `WebFetch` (fallback при ошибке fetch).
+- Fetch: `seo_fetch_page` (основной, профиль по задаче: `http` для проверки кодов/редиректов, не-HTML тело robots/sitemap приходит в `body_raw`), `WebFetch` (вторичный деградированный fallback при ошибке fetch - теряет HTTP-статус).
 - Вебмастер: `wm_sitemaps`, `wm_diagnostics`, `wm_broken_links`, `wm_pages_in_search`, `wm_indexing`, `wm_important_urls`, `wm_sqi_history`, `wm_external_links` (все с `host_id` из recon).
 - Ошибка MCP (таймаут/5xx/connection): повтор 1 раз через ~30 сек; не помогло - запись в `mcp_errors: [{tool, param, error}]` и продолжай (не блокируй остальные проверки).
 
@@ -31,7 +31,7 @@ model: inherit
 
 ### 2.1. robots.txt → `robots`
 
-`mcp_fetch_page(url="https://<domain>/robots.txt")`. Заполни `robots`:
+`seo_fetch_page(url="https://<domain>/robots.txt")` (robots.txt - не-HTML, тело придёт в `body_raw`, профиль по умолчанию ок). Заполни `robots`:
 - `exists` - false если 404 → проблема critical «robots.txt отсутствует».
 - `content` - полное содержимое (строкой, для приложения).
 - `disallow_all` - true если `Disallow: /` для `User-agent: *` или Yandex → critical «Сайт закрыт от индексации».
@@ -42,7 +42,7 @@ model: inherit
 
 ### 2.2. sitemap.xml → `sitemap` + `wm_sitemap`
 
-`mcp_fetch_page(url="https://<domain>/sitemap.xml")`. Заполни `sitemap`:
+`seo_fetch_page(url="https://<domain>/sitemap.xml")` (sitemap.xml - не-HTML, тело придёт в `body_raw`, профиль по умолчанию ок). Заполни `sitemap`:
 - `exists` - false если 404 → critical «sitemap.xml отсутствует».
 - `valid` - false при ошибке парсинга XML → critical «sitemap.xml невалиден».
 - `is_index` - true если это sitemap-index (содержит `<sitemap><loc>` на другие карты).
@@ -97,13 +97,13 @@ model: inherit
 
 ### 2.7. Склейка зеркал и редиректы → `redirects`
 
-Серия `mcp_fetch_page` - для каждой фиксируй код ответа и финальный URL. Заполни `redirects` (значение `"ok"` либо строка-описание проблемы), каждая проблема также идёт в `problems` (critical):
-- `http_to_https`: `mcp_fetch_page("http://<domain>/")` - ждём 301 → `https://<domain>/`. Нет → «Нет редиректа http → https».
-- `www`: `mcp_fetch_page("https://www.<domain>/")` - ждём 301 на одно зеркало. Если оба (www и без) отвечают 200 → «Не настроена склейка www - дубли».
-- `index_html`: `mcp_fetch_page("https://<domain>/index.html")` - ждём 301 или 404. 200 → «Дубль главной: /index.html доступен отдельно».
-- `index_php`: `mcp_fetch_page("https://<domain>/index.php")` - аналогично index_html.
+Серия `seo_fetch_page(..., profile="http", follow_redirects=false)` (нужны сами HTTP-коды и факт редиректа, поэтому `follow_redirects=false`) - для каждой фиксируй код ответа и финальный URL. Заполни `redirects` (значение `"ok"` либо строка-описание проблемы), каждая проблема также идёт в `problems` (critical):
+- `http_to_https`: `seo_fetch_page("http://<domain>/", profile="http", follow_redirects=false)` - ждём 301 → `https://<domain>/`. Нет → «Нет редиректа http → https».
+- `www`: `seo_fetch_page("https://www.<domain>/", profile="http", follow_redirects=false)` - ждём 301 на одно зеркало. Если оба (www и без) отвечают 200 → «Не настроена склейка www - дубли».
+- `index_html`: `seo_fetch_page("https://<domain>/index.html", profile="http", follow_redirects=false)` - ждём 301 или 404. 200 → «Дубль главной: /index.html доступен отдельно».
+- `index_php`: `seo_fetch_page("https://<domain>/index.php", profile="http", follow_redirects=false)` - аналогично index_html.
 - `trailing_slash`: возьми ОДНУ внутреннюю страницу из `sitemap.all_urls` (плоского списка, не из sitemap-index). Дёрни без слеша и со слешем - одна версия должна 301 на другую. Обе 200 с одинаковым контентом → «Не настроен редирект слеша - дубли».
-- `soft_404`: `mcp_fetch_page("https://<domain>/absolutely-nonexistent-page-xyz789")` - ждём HTTP 404. 200 → «Мягкие 404: несуществующие страницы не возвращают 404».
+- `soft_404`: `seo_fetch_page("https://<domain>/absolutely-nonexistent-page-xyz789", profile="http", follow_redirects=false)` - ждём HTTP 404. 200 → «Мягкие 404: несуществующие страницы не возвращают 404».
 - `ssl`: если шаг http→https дал 200 без редиректа → «SSL не работает / нет редиректа». Если fetch на `https://` даёт connection error → «SSL-сертификат невалиден или просрочен». Иначе `"ok"`.
 
 ### 2.8. Ссылочный профиль → `external_links`
@@ -175,4 +175,4 @@ model: inherit
 - `NOT_IN_SPRAV` - НЕ 🔴 здесь и НЕ в `problems`; только `not_in_sprav_candidate` для audit-analytics.
 - НЕ оценивай ссылочный профиль (это шаг 4.6) - в §2.8 только сбор данных в `external_links`.
 - НЕ скань десятки страниц fetch'ем: выборка и проверка мета-тегов - работа audit-onpage. Тебе нужны только: robots, sitemap (+ вложенные), 7 проверок редиректов на главной/одной внутренней, 404.
-- `mcp_fetch_page` основной, `WebFetch` - fallback только при ошибке fetch.
+- `seo_fetch_page` основной (профиль по задаче: `http` для редиректов/404, не-HTML robots/sitemap - в `body_raw`), `WebFetch` - вторичный деградированный fallback только при ошибке fetch.

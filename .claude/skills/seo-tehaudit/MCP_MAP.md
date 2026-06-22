@@ -14,13 +14,13 @@
 | `ym_counters`, `ym_counter_info` | counter_id, дата создания (возраст счётчика), число целей | 2 |
 | `domain_dashboard` | метрики Keyso (ТОП-10/50, видимость, трафик); каскад msk->spb при пустых | 1-3 |
 | `arsenkin_domains` (check_type="whois") | возраст домена | 1 |
-| `mcp_fetch_page` (главная) | CMS / шаблон / тематика / регион / контакты | 1 |
+| `seo_fetch_page` (главная, `profile="raw"`) | CMS / шаблон / тематика / регион / контакты (нужен сырой HTML/CSS - сигнатуры CMS, бренд-разметка) | 1 |
 
 ### Шаг 2 - audit-indexing (индексация)
 
 | Тул | Что даёт | Лимит |
 |---|---|---|
-| `mcp_fetch_page` | robots.txt, sitemap.xml + все вложенные карты, 6-7 проверок редиректов/склейки/404 | 8-20 |
+| `seo_fetch_page` (`profile="http"`) | robots.txt, sitemap.xml + все вложенные карты (не-HTML тело придёт в `body_raw`), 6-7 проверок редиректов/склейки/404 (для проверки самих редиректов - `follow_redirects=false`) | 8-20 |
 | `wm_sitemaps` | sitemap в Вебмастере (статус, расхождения) | 1 |
 | `wm_diagnostics` | FATAL/CRITICAL/WARNING + кандидат NOT_IN_SPRAV | 1 |
 | `wm_broken_links` | битые ссылки | 1 |
@@ -34,7 +34,7 @@
 
 | Тул | Что даёт | Лимит |
 |---|---|---|
-| `mcp_fetch_page` | HTML страниц своего батча (Title/H1/Desc/noindex/canonical/Schema/favicon/JS) | ~8 на шард, всего ~`<--pages>` (по умолчанию 24) |
+| `seo_fetch_batch` (`profile="audit"`) | страницы своего батча (Title/H1/Desc/noindex/canonical/Schema/breadcrumbs/favicon/JS-детект; без сырого HTML) - веер по списку URL шарда | ~8 на шард, всего ~`<--pages>` (по умолчанию 24) |
 
 ### Шаг 4 - audit-analytics (аналитика + ссылки) - ПАРАЛЛЕЛЬНО с шагом 3
 
@@ -84,7 +84,7 @@
 | MCP | Почему |
 |---|---|
 | **JustMagic** (jm_*) | Для текстов/статей, не для техаудита |
-| **Wordstat** (mcp_wordstat_*) | Частотность не нужна для техаудита |
+| **Wordstat / частотность** | Частотность не нужна для техаудита |
 | **SpeedyIndex** | Индексацию проверяем через Вебмастер, не через отправку на переобход |
 | **Sheets** | Артефакты - markdown и docx |
 | **domain_competitors / keyword_info** (Keyso) | Это конкурентный анализ (/seo-analiz), не техаудит |
@@ -101,6 +101,6 @@
 | Повтор не помог | Запись в `mcp_errors: [{tool, param, error}]` агента, продолжить (раздел «Не удалось проверить» в A12) |
 | Вебмастер не подключён | `webmaster_connected=false`, пропустить wm_*, только fetch-проверки |
 | Метрика не подключена | `metrika_connected=false`, пропустить ym_*, §4.6/4.7 всё равно выполнить |
-| `mcp_fetch_page` 403/404/timeout | Попробовать `WebFetch`; оба не работают - `fetch_failed`, пропустить страницу |
+| `seo_fetch_page`/`seo_fetch_batch` 403/404/timeout | Вторичный деградированный fallback - `WebFetch` (теряет HTTP-статус/мету/структуру); оба не работают - `fetch_failed`, пропустить страницу |
 | Keyso пустой на домене клиента | Каскад базы msk->spb; если всё 0 - пометка «не в базах», выборка onpage из sitemap |
 | Превышен бюджет MCP | Прекратить добор, перейти к следующему шагу |

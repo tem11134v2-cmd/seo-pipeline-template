@@ -29,23 +29,23 @@ keyword_info(keyword="запрос", base="spb")
 domain_pages(domain="leader.ru", base="spb", sort="it50|desc", per_page=10)
 ```
 
-### Wordstat MCP
+### SERP и фетч
 
 | Тул | Что даёт | На каких шагах |
 |---|---|---|
-| `mcp_yandex_search` | Поиск в Яндексе | 2 (если `brief.city_not_in_keyso == true` — локальные игроки) |
-| `mcp_fetch_page` | Парсинг страницы с метаданными | 2 (проверка спорных доменов на агрегатор / инфопортал / релевантность) + 5 (скан страниц топ-3 лидеров) |
+| `arsenkin_top` | Топ Яндекса по запросу+регион (домены/URL) | 2 (если `brief.city_not_in_keyso == true` — локальные игроки) |
+| `seo_fetch_page` / `seo_fetch_batch` | Статический фетч + разбор HTML (JS не рендерит), объём по профилю | 2 (проверка спорных доменов на агрегатор / инфопортал / релевантность, `profile="content"`) + 5 (скан страниц топ-3 лидеров, `profile="content"`) |
 
 ```
-mcp_yandex_search(query="<запрос> <город>")
-mcp_fetch_page(url="https://leader.ru/services/teambuilding")
+arsenkin_top(queries=["<запрос> <город>"], region=213, depth=10, is_snippet=true)
+seo_fetch_page(url="https://leader.ru/services/teambuilding", profile="content")
 ```
 
 ### Встроенные Claude
 
 | Тул | На каких шагах |
 |---|---|
-| `web_fetch` | 2 (fallback если mcp_fetch_page не работает) + 5 (то же) |
+| `web_fetch` | 2 (вторичный деградированный fallback к `seo_fetch_page`: теряет мету/структуру/HTTP-статус) + 5 (то же) |
 
 ---
 
@@ -57,7 +57,7 @@ mcp_fetch_page(url="https://leader.ru/services/teambuilding")
 | **Webmaster** (wm_*) | Доступы клиента не запрашиваются на предпроектном этапе |
 | **Метрика** (ym_*) | То же |
 | **SpeedyIndex** (speedyindex_*) | Не нужно проверять индексацию для предпроектного анализа |
-| **Arsenkin** (arsenkin_*) | Дублирует Keyso для этой задачи |
+| **Arsenkin** (arsenkin_*) | Дублирует Keyso для этой задачи. Исключение: `arsenkin_top` для топа Яндекса по локальным игрокам вне базы Keyso (шаг 2); при необходимости `arsenkin_commerce` для проверки геозависимости запроса |
 | **Telegram** (tg_*) | Не относится |
 | **Sheets** | Все артефакты — markdown и docx, не электронные таблицы |
 | **Drive** (gdrive-*) | Расшаривание не предусмотрено в скиле (можно сделать вручную если нужно) |
@@ -74,17 +74,17 @@ mcp_fetch_page(url="https://leader.ru/services/teambuilding")
 2.  domain_competitors(клиент)                    # Путь A
     ИЛИ keyword_info(× 3-5 запросов) + опорный    # Путь B
     ИЛИ keyword_info(× 5-7 запросов)              # Путь C/D
-3.  mcp_yandex_search(× 2-3)                      # если регион не в Keyso
-4.  mcp_fetch_page(× до 5)                        # проверка спорных доменов
+3.  arsenkin_top(× 2-3)                            # если регион не в Keyso (локальные игроки)
+4.  seo_fetch_page(profile="content", × до 5)     # проверка спорных доменов
 5.  domain_dashboard(× 8-15)                      # метрики финальных кандидатов
 
 --- serp-verdict (шаг 4) ---
 6.  keyword_info(× 3-5 коммерческих запросов)     # SERP-анализ
-7.  mcp_fetch_page(× до 3)                        # тип страницы top-1/2/3 в спорных случаях
+7.  seo_fetch_page(profile="outline", × до 3)     # тип страницы top-1/2/3 в спорных случаях
 
 --- leader-scanner (шаг 5) ---
 8.  domain_pages(× 3 лидера)                      # выбор страниц для скана
-9.  mcp_fetch_page(× 9-12 страниц)                # скан смыслов
+9.  seo_fetch_page(profile="content", × 9-12)     # скан смыслов
 
 --- analysis-writer (шаг 6) ---
    (без MCP — только Read/Write/Edit)
@@ -114,6 +114,6 @@ mcp_fetch_page(url="https://leader.ru/services/teambuilding")
 |---|---|
 | Keyso вернул пустые данные на домен клиента | `path = "B"`, метку «нет данных Keyso» в `brief.domain_dashboard_snapshot.note`, продолжать |
 | Keyso вернул пустые данные на домене конкурента | Пометить `"keyso_data": "missing"` в его записи, оставить в списке (тип и тематика важнее) |
-| `mcp_fetch_page` 403/404/timeout | Попробовать `web_fetch`. Если оба не работают — `"fetch_failed": true`, пропустить страницу, продолжать |
-| `mcp_yandex_search` не работает | Пропустить шаг 1.5 (расширение для регионов вне Keyso), отметить в `candidates.json.note_yandex_search` |
+| `seo_fetch_page` 403/404/timeout | Попробовать вторичный fallback `web_fetch` (теряет мету/структуру/HTTP-статус). Если оба не работают — `"fetch_failed": true`, пропустить страницу, продолжать |
+| `arsenkin_top` не работает | Альтернатива: Keyso `check_top` / `history_serp`. Если и они недоступны — пропустить шаг 1.5 (расширение для регионов вне Keyso), отметить в `candidates.json.note_yandex_search` |
 | Превышен бюджет MCP (>40 вызовов) | Прекратить добор кандидатов, перейти к следующему этапу с тем что есть |

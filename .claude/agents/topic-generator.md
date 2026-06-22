@@ -5,7 +5,7 @@ model: inherit
 ---
 
 > MCP-серверы подключены глобально в Claude Code Desktop.
-> Используемые инструменты: `mcp_wordstat_*`, `wk_check_frequency`, `mcp_yandex_search`, Keys.so (`domain_dashboard`, `domain_pages`, `domain_competitors`, `domain_keywords`...), `jm_wordstat`, `jm_suggest`.
+> Используемые инструменты: `jm_wordstat`, `wk_check_frequency`, `arsenkin_wordstat`, `arsenkin_top`, Keys.so (`domain_dashboard`, `domain_pages`, `domain_competitors`, `domain_keywords`...), `jm_suggest`, `jm_semantic_pack`.
 >
 > Keyso: IDN-домены передавай в кириллице, не в Punycode (`ремонт.рф`, не `xn--...`). Иначе «домен не найден».
 
@@ -60,20 +60,20 @@ model: inherit
 - «[тема] своими руками» / «[тема] для начинающих»
 
 **Проверка маркеров:**
-- `wordstat.mcp_wordstat_get_keyword_stats` по 1-2 ключевым маркерам - 1-2 вызова
-- Fallback 1: `jm.jm_wordstat(keywords=["..."], mode="suggestions", pages=5)`
-- Fallback 2: `wk.wk_check_frequency` (массовый сбор, до 1000 фраз)
+- `jm.jm_wordstat(mode="frequency")` по 1-2 ключевым маркерам - 1-2 вызова (частотность)
+- Fallback 1: `wk.wk_check_frequency` (массовый сбор, до 1000 фраз)
+- Fallback 2: `arsenkin.arsenkin_wordstat(mode="frequency")`
 - Частотность >0. Нулевые - заменить на близкие из выдачи Вордстата.
-- Попутно собрать информационные подзапросы из раздела «Популярные запросы» - материал для подшага 4.
+- Попутно собрать информационные подзапросы (расширение семантики) через `jm.jm_semantic_pack` (маркер -> топ-N с частотностью) или `jm.jm_suggest` - материал для подшага 4.
 
 #### Подшаг 2 - Конкуренты
 
-- `yandex.mcp_yandex_search` по 2-3 главным маркерам - 2-3 вызова, maxPassages=0
+- `arsenkin.arsenkin_top(queries=[...], region, depth=10)` по 2-3 главным маркерам - 2-3 вызова (домены/URL топа по запросу+регион)
 - Из результатов выписать сайты
 - Исключить: агрегаторы, Википедию, форумы, Яндекс-сервисы (Дзен, Кью)
 - Выбрать 2-3, которые встречаются чаще или явно ведут блог
 
-Оптимизация: если на подшаге 1 уже использован `domain_dashboard` с конкурентами - использовать оттуда, `yandex_search` сократить до 1 вызова.
+Оптимизация: если на подшаге 1 уже использован `domain_dashboard` с конкурентами - использовать оттуда (либо `keyso.domain_competitors`), `arsenkin_top` сократить до 1 вызова.
 
 #### Подшаг 3 - Темы конкурентов
 
@@ -91,9 +91,9 @@ model: inherit
 
 #### Подшаг 4 - Расширение через Вордстат и подсказки
 
-- `wordstat.mcp_wordstat_get_keyword_stats` по 2-5 дополнительным маркерам - 2-5 вызовов
-- Fallback 1: `jm.jm_wordstat(mode="suggestions")`
-- Fallback 2: `wk.wk_check_frequency`
+- `jm.jm_semantic_pack` по 2-5 дополнительным маркерам - 2-5 вызовов (маркер -> топ-N похожих/«Популярных» запросов с частотностью, расширение семантики)
+- Fallback 1: `arsenkin.arsenkin_wordstat(mode="parsing")` (массив похожих запросов)
+- Fallback 2: `wk.wk_check_frequency` (частотность собранных фраз)
 - Опционально: `jm.jm_suggest(keywords=["..."], iterations=2, with_freq=true)` - длиннохвостые темы
 
 Из результатов - информационные темы, которых нет у конкурентов.
@@ -104,7 +104,7 @@ model: inherit
 
 #### Подшаг 4а - Оценка конкуренции (опционально, для топ-3-5 приоритетных)
 
-- `yandex.mcp_yandex_search` по теме - 1 вызов на тему, maxPassages=0
+- `arsenkin.arsenkin_top(queries=[тема], region, depth=10)` по теме - 1 вызов на тему
 - Оценить силу конкурентов в ТОП. Слабая выдача - повышает приоритет.
 
 ### Мини-отчёт сбора (вывести в чат)
@@ -160,7 +160,7 @@ MCP-вызовов использовано: N
 
 **4. Сезонность:**
 - По здравому смыслу (шубы - зима)
-- Неочевидные: `wordstat.mcp_wordstat_get_trend_data` - 0-2 вызова
+- Неочевидные: `arsenkin.arsenkin_wordstat(mode="dynamics", group="month", startdate/enddate = «сегодня минус 12-24 месяца»)` - 0-2 вызова (временной ряд; интерпретировать по здравому смыслу)
 
 **5. Примечание:** источник темы (конкурент / Вордстат / своя идея), особенности.
 
@@ -185,7 +185,7 @@ MCP-вызовов использовано: N
   "competitors": [
     {
       "domain": "...",
-      "source": "yandex_search",
+      "source": "arsenkin_top",
       "info_pages": 47,
       "strengths": "Глубокие гайды, кейсы",
       "note": "..."

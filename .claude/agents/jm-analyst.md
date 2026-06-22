@@ -5,7 +5,7 @@ model: inherit
 ---
 
 > MCP-серверы подключены глобально в Claude Code Desktop.
-> Используемые инструменты: `jm_account`, `jm_text_generate`, `jm_text_analyze`, `jm_task`, `jm_wordstat`, `jm_suggest`, `mcp_wordstat_get_keyword_stats`, `wk_check_frequency`, `mcp_yandex_search`.
+> Используемые инструменты: `jm_account`, `jm_text_generate`, `jm_text_analyze`, `jm_task`, `jm_wordstat`, `jm_suggest`, `wk_check_frequency`, `arsenkin_wordstat`, `arsenkin_top`.
 
 # jm-analyst
 
@@ -22,9 +22,9 @@ model: inherit
 
 ### Шаг A. Собрать кластер 9 запросов
 
-- `wordstat.mcp_wordstat_get_keyword_stats` по маркерному запросу — 1 вызов
-- Fallback 1: `jm.jm_wordstat(mode="suggestions")`
-- Fallback 2: `wk.wk_check_frequency` (массовый сбор)
+- `jm.jm_wordstat(mode="frequency")` по маркерному запросу — 1 вызов (частотность кластера)
+- Расширение семантики (массив похожих запросов): `jm.jm_semantic_pack` (маркер -> топ-N с частотностью) или `jm.jm_suggest`, или `arsenkin.arsenkin_wordstat(mode="parsing")`
+- Fallback по частотности: `wk.wk_check_frequency` (массовый сбор) или `arsenkin.arsenkin_wordstat(mode="frequency")`
 
 Из результатов выбрать 9 информационных запросов кластера.
 
@@ -79,7 +79,7 @@ JM примет эту строку как запрос и посчитает г
 
 ### Шаг D. Стоп-лист
 
-- `yandex.mcp_yandex_search` по маркерному запросу — 1 вызов, maxPassages=0
+- `arsenkin.arsenkin_top(queries=["<маркерный запрос>"], region=region_code, depth=10, is_snippet=false)` — 1 вызов (берём домены топа, сниппеты не нужны). Альтернативы: `keyso.check_top` / `keyso.history_serp`
 
 Из выдачи определить нерелевантные домены:
 - Агрегаторы

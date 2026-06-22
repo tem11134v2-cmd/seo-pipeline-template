@@ -30,20 +30,25 @@ keyword_info(keyword="запрос", base="spb")                              # 
 domain_pages(domain="leader.ru", base="msk", sort="it50|desc", per_page=10)  # лидеры: msk
 ```
 
-### Wordstat MCP
+### Частотность и сезонность (Wordstat-данные)
 
 | Тул | Что даёт | Когда |
 |---|---|---|
-| `mcp_wordstat_get_keyword_stats` | Частотность + популярные подзапросы | Таблицы точек роста (5-10 вызовов) |
-| `mcp_wordstat_get_dynamics` | Динамика во времени | Проверка сезонности (опц., 1 вызов) |
-| `mcp_yandex_search` | Поиск в Яндексе | Если город не в базе Keyso |
-| `mcp_fetch_page` | Парсинг страницы с SEO-метаданными | Скан сайта клиента + ключевые страницы конкурентов |
+| `jm_wordstat` (mode=frequency) | Частотность запроса (primary); альтернативы `wk_check_frequency`, `arsenkin_wordstat` (mode=frequency) | Таблицы точек роста (5-10 вызовов) |
+| `jm_semantic_pack` / `jm_suggest` / `arsenkin_wordstat` (mode=parsing) | Расширение семантики: маркер → топ-N похожих запросов с частотностью (вместо «популярных подзапросов») | Когда нужен массив похожих запросов |
+| `arsenkin_wordstat` (mode=dynamics, group=month) | Динамика во времени (сезонность) | Проверка сезонности (опц., 1 вызов) |
+| `arsenkin_top` | Домены/URL топа по запросу+регион (queries[], region, depth=10/20/30, is_snippet); альтернативы keyso `check_top` / `history_serp` | Если город не в базе Keyso (топонимный запрос) |
+| `seo_fetch_page` / `seo_fetch_batch` (profile="content") | Статический HTTP-фетч + разбор основного текста/контента страницы (JS не рендерится) | Скан сайта клиента + ключевые страницы конкурентов |
 
 ```
-mcp_wordstat_get_keyword_stats(keyword="запрос", region_id=2)   # для СПб
-mcp_wordstat_get_dynamics(phrases=["запрос"], period="2y")
-mcp_fetch_page(url="https://site.ru/")
+jm_wordstat(keyword="запрос", region=2, mode="frequency")            # частотность, СПб
+arsenkin_wordstat(keyword="запрос", mode="dynamics", group="month",
+                  startdate="<сегодня минус 24 мес>", enddate="<сегодня>")  # сезонность
+seo_fetch_page(url="https://site.ru/", profile="content")            # один URL
+seo_fetch_batch(urls=["https://site.ru/", "https://site.ru/uslugi/"], profile="content")  # веер
 ```
+
+Регион Wordstat: дерево регионов живым инструментом не отдаётся, берём код из зашитого списка (Москва 213, СПб 2, ...) или дефолт 213. Геозависимость запроса при необходимости проверяет `arsenkin_commerce`.
 
 ### Арсенкин (точечно)
 
@@ -65,7 +70,7 @@ mcp_fetch_page(url="https://site.ru/")
 
 | Тул | Когда |
 |---|---|
-| `web_fetch` | robots.txt, sitemap.xml, детальный просмотр страницы конкурента |
+| `web_fetch` | Вторичный деградированный fallback к `seo_fetch_page` (теряет мету/структуру/HTTP-статус): детальный просмотр страницы конкурента, если seo-fetch недоступен. robots.txt / sitemap.xml лучше брать через `seo_fetch_page(url)` (не-HTML тело придёт в `body_raw`) |
 | `web_search` | Поиск ниши/клиента, если MCP не покрывает |
 
 ---
@@ -110,10 +115,10 @@ mcp_fetch_page(url="https://site.ru/")
 
 ```
 --- strategy-scanner ---
-0a. mcp_fetch_page(главная)                  → title, desc, регион, CMS, тип
-0b. mcp_fetch_page(2-3 внутренних)           → структура, контент, SEO-элементы
-0c. web_fetch(robots.txt)                    → блокировки, sitemap
-0d. web_fetch(sitemap.xml)                   → кол-во URL
+0a. seo_fetch_page(главная, profile="content")        → title, desc, регион, CMS, тип, контент
+0b. seo_fetch_batch(2-3 внутренних, profile="content") → структура, контент, SEO-элементы
+0c. seo_fetch_page(robots.txt)               → блокировки, sitemap (не-HTML тело в body_raw)
+0d. seo_fetch_page(sitemap.xml)              → кол-во URL (не-HTML тело в body_raw)
 1.  domain_dashboard(клиент, include_history=true)
 2.  [если доступ] wm_summary, wm_diagnostics
 3.  [если доступ] ym_dashboard, ym_traffic
@@ -125,11 +130,11 @@ mcp_fetch_page(url="https://site.ru/")
 7.  domain_dashboard(конкурент × 5-8)
 8.  keyword_info(× 3-5 запросов)
 9.  domain_pages(топ-3 прямых)
-10. mcp_fetch_page(× 2-3 страницы каждого из топ-3)
+10. seo_fetch_batch(× 2-3 страницы каждого из топ-3, profile="content")
 
 --- growth-strategist ---
-11. mcp_wordstat_get_keyword_stats(× 5-10 запросов с region_id)
-12. [опц.] mcp_wordstat_get_dynamics(основной запрос)
+11. jm_wordstat(× 5-10 запросов с region, mode="frequency")   # альт: wk_check_frequency / arsenkin_wordstat (mode=frequency)
+12. [опц.] arsenkin_wordstat(основной запрос, mode="dynamics", group="month")
 ```
 
 **Бюджет:** ~30-45 вызовов на стратегию. Опциональные (Вебмастер, Метрика) +5-8.

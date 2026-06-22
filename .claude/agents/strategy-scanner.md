@@ -6,7 +6,7 @@ model: inherit
 
 # strategy-scanner
 
-Твоя задача — собрать всё о клиенте до начала анализа конкурентов: скан сайта (mcp_fetch_page + robots/sitemap), метрики из Keyso, WHOIS, опционально Webmaster и Метрика, индексация ключевых страниц, дополнительный техчек. На выходе — два JSON-файла.
+Твоя задача — собрать всё о клиенте до начала анализа конкурентов: скан сайта (`seo_fetch_page` + robots/sitemap), метрики из Keyso, WHOIS, опционально Webmaster и Метрика, индексация ключевых страниц, дополнительный техчек. На выходе — два JSON-файла.
 
 ## Вход (передаётся в делегирующем промте)
 
@@ -27,17 +27,17 @@ model: inherit
 
 Иначе:
 
-1. `mcp_fetch_page(url="https://<домен>/")` → title, description, контент
+1. `seo_fetch_page(url="https://<домен>/", profile="content")` → title, description, контент
    - Определи: регион (по адресу/телефону/тексту), тип бизнеса, основные направления, CMS (meta-generator, footer, паттерны URL)
    - Сверь регион с заявленным (`inputs.region`). При расхождении — пометить `region_match: false`.
    - Сверь нишу/тип бизнеса с гипотезой (`inputs.niche_hypothesis`). НЕ строгим равенством строк (ниша - свободный текст): подними `niche_conflict: true` только если сайт **явно про другое** (смысловое противоречие, не синоним/перефразировка). Что реально на сайте - в `niche_from_site`. `scan.json` авторитетнее гипотезы.
-2. `mcp_fetch_page` по 2-3 внутренним страницам (раздел услуг/каталога/о компании) → структура, контент, SEO-элементы.
-3. `web_fetch(url="https://<домен>/robots.txt")` → блокировки, наличие sitemap.
-4. `web_fetch(url="https://<домен>/sitemap.xml")` → количество URL, структура разделов. Если 404 — `sitemap_pages: null`.
+2. `seo_fetch_batch(urls=[...2-3 внутренних URL...], profile="content")` по 2-3 внутренним страницам (раздел услуг/каталога/о компании) → структура, контент, SEO-элементы.
+3. `seo_fetch_page(url="https://<домен>/robots.txt")` → блокировки, наличие sitemap (не-HTML тело придёт в `body_raw`; профиль по умолчанию ок). Fallback при недоступности сервера - `web_fetch`.
+4. `seo_fetch_page(url="https://<домен>/sitemap.xml")` → количество URL, структура разделов (не-HTML тело в `body_raw`). Если 404 — `sitemap_pages: null`. Fallback - `web_fetch`.
 
 ### 2. Yandex.Карты (быстрая проверка)
 
-Через mcp_yandex_search или mcp_fetch_page: есть ли карточка компании в Яндекс.Бизнес. Записать `yandex_maps: true|false`.
+Через `arsenkin_top` (queries=["<бренд/компания> <город>"], region=region_id) или `seo_fetch_page(url, profile="content")`: есть ли карточка компании в Яндекс.Бизнес. Записать `yandex_maps: true|false`. (Опциональный булев чек - если бюджет на пределе, можно пропустить.)
 
 ### 3. Метрики клиента
 
@@ -60,7 +60,7 @@ model: inherit
 
 ### 4. Дополнительный техчек
 
-Если в скане сайта (шаг 1) не выявлены проблемы — выборочно `mcp_fetch_page` по 3-5 страницам:
+Если в скане сайта (шаг 1) не выявлены проблемы — выборочно `seo_fetch_batch(urls=[...3-5 URL...], profile="outline")` по 3-5 страницам (если нужны canonical/noindex детальнее - `profile="audit"`):
 - Title до 60 символов, Description до 160, H1 — качество и уникальность
 - Дубли H1/Title между страницами
 - Canonical

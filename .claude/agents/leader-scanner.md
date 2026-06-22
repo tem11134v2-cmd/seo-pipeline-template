@@ -48,10 +48,16 @@ domain_pages(domain="<лидер>", base="<brief.keyso_base>", sort="it50|desc",
 По каждой странице:
 
 ```
-mcp_fetch_page(url="<URL>")
+seo_fetch_page(url="<URL>", profile="content")
 ```
 
-Если `mcp_fetch_page` возвращает ошибку или пустой контент — попробуй `web_fetch(url="<URL>")` как fallback. Если и оно не работает — пометь страницу `"fetch_failed": true` и пропусти (не блокировать весь скан).
+Для нескольких URL сразу удобнее веер одним вызовом:
+
+```
+seo_fetch_batch(urls=["<URL1>", "<URL2>", ...], profile="content")
+```
+
+`seo-fetch` отдаёт основной текст/контент страницы (профиль `content`), JS не рендерит. Если `seo_fetch_page` возвращает ошибку или пустой контент — попробуй `web_fetch(url="<URL>")` как вторичный деградированный fallback (он теряет мету/структуру/HTTP-статус, но текст обычно достаёт). Если и оно не работает — пометь страницу `"fetch_failed": true` и пропусти (не блокировать весь скан).
 
 **Для каждой страницы зафиксируй три блока данных:**
 
@@ -236,4 +242,4 @@ mcp_fetch_page(url="<URL>")
 - НЕ ищи новых конкурентов и не меняй топ-3 — они зафиксированы в `competitors.leaders_top3`.
 - НЕ редактируй `brief.json`, `competitors.json`, `serp.json` — все read-only.
 - Длинное тире (—) и среднее (–) не использовать. Только дефис (-).
-- Бюджет: 3 `domain_pages` + 9-12 `mcp_fetch_page` (с fallback на `web_fetch` если нужно). ≤20 MCP-вызовов суммарно — если страница не открывается за 1-2 попытки, ставь `fetch_failed: true` и иди дальше.
+- Бюджет: 3 `domain_pages` + 9-12 `seo_fetch_page` (profile="content"; или `seo_fetch_batch` веером, с fallback на `web_fetch` если нужно). ≤20 MCP-вызовов суммарно — если страница не открывается за 1-2 попытки, ставь `fetch_failed: true` и иди дальше.

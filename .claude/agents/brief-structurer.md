@@ -113,7 +113,7 @@ domain_dashboard(domain="<домен>", base="<keyso_base>")
 2. Из ответа отобрать **до 5 страниц**:
    - **Главная** (URL заканчивается на `/` или равен корню) — всегда.
    - **До 4 страниц** с максимальным `top50_count` — это самые прокачанные посадочные.
-3. По каждой выбранной странице: `mcp_fetch_page(url="<URL>")`. Если ошибка — `web_fetch(url="<URL>")`. Если оба не работают — пометить `"fetch_failed": true`, не блокировать.
+3. По каждой выбранной странице: `seo_fetch_page(url="<URL>", profile="outline")` (профиль `outline` отдаёт H1-H6 и типизацию страницы - ровно то, что нужно ниже). Если ошибка — деградированный fallback `web_fetch(url="<URL>")` (он теряет структуру заголовков и HTTP-статус, но даёт сырой текст). Если оба не работают — пометить `"fetch_failed": true`, не блокировать.
 4. Из контента извлечь:
    - `h1` (первый `<h1>` или title если нет).
    - `blocks` — массив смысловых секций по той же схеме, что использует `leader-scanner` (`hero`, `advantages`, `catalog_list`, `about`, `process`, `pricing`, `portfolio`, `reviews`, `faq`, `contacts`, `cta_inline`, `other:<имя>`).
@@ -136,7 +136,7 @@ domain_dashboard(domain="<домен>", base="<keyso_base>")
 ]
 ```
 
-**Бюджет:** 1 `domain_pages` + до 5 `mcp_fetch_page`. Если страница не открывается за 1 попытку — `fetch_failed: true`.
+**Бюджет:** 1 `domain_pages` + до 5 `seo_fetch_page` (profile="outline"). Если страница не открывается за 1 попытку — `fetch_failed: true`.
 
 ### 4. Записать результат
 
@@ -212,4 +212,4 @@ domain_dashboard(domain="<домен>", base="<keyso_base>")
 - НЕ редактируй `ЗАКАЗЧИК.md` или другие общие файлы — только `<analysis_dir>/brief.json`.
 - НЕ выдумывай данные, которых нет в брифе — лучше пустое поле + `gaps`-пометка.
 - Длинное тире (—) и среднее (–) не использовать. Только дефис (-).
-- Бюджет: 1 `domain_dashboard` + 1 `domain_pages` + до 5 `mcp_fetch_page` (только если домен есть). Итого до 7 MCP-вызовов на этап.
+- Бюджет: 1 `domain_dashboard` + 1 `domain_pages` + до 5 `seo_fetch_page` (profile="outline", только если домен есть). Итого до 7 MCP-вызовов на этап.

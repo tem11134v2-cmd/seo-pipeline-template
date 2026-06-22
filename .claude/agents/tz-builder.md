@@ -5,7 +5,7 @@ model: inherit
 ---
 
 > MCP-серверы подключены глобально в Claude Code Desktop.
-> Используемые инструменты: `jm_suggest`, `mcp_wordstat_get_keyword_stats`, `arsenkin_parse`, `mcp_fetch_page`, `mcp_yandex_search`.
+> Используемые инструменты: `jm_suggest`, `jm_wordstat`, `arsenkin_parse`, `arsenkin_top`, `seo_fetch_page`.
 > JM-данные брать из `<article_dir>/jm/*.json` — повторно `jm_text_generate` / `jm_text_analyze` не вызывать.
 
 # tz-builder
@@ -30,7 +30,7 @@ JM-данные (cluster, lsi, analyze, stop-domains) **уже получены*
 
 ### Подшаг 1 — Конкуренты
 
-- Если `<article_dir>/jm/stop-domains.json` есть — там же лежит выдача `yandex_search` (если сохранена). Если нет — `yandex.mcp_yandex_search` по `main_query`, maxPassages=0 — 1 вызов.
+- Если `<article_dir>/jm/stop-domains.json` есть — там же лежит выдача топа (если сохранена). Если нет — `arsenkin.arsenkin_top(queries=["<main_query>"], region, depth=10)` — 1 вызов.
 - Выбрать 5-7 URL информационных статей.
 - Исключить: каталоги, карточки товаров, форумы, Яндекс-сервисы (Дзен, Кью), Википедию.
 - Зафиксировать: URL, домен, заголовок.
@@ -38,7 +38,7 @@ JM-данные (cluster, lsi, analyze, stop-domains) **уже получены*
 ### Подшаг 2 — Парсинг структуры
 
 1. `arsenkin.arsenkin_parse(mode="url", urls=[5-7 URL])` — **ВСЕГДА первый выбор**, одним списком — 1 вызов
-2. `fetch.fetch` — только если arsenkin вернул ошибку — 3-5 вызовов, извлечь Title, H1, H2, H3 из HTML
+2. `seo_fetch_page(url, profile="content")` — только если arsenkin вернул ошибку — 3-5 вызовов, извлечь Title, H1, H2, H3 из разобранного контента (вторичный путь: arsenkin_parse остаётся primary)
 3. `web_search` — НЕ использовать для парсинга
 
 Зафиксировать для каждого URL: Title, Description, H1, все H2/H3/H4 с вложенностью.
@@ -46,8 +46,8 @@ JM-данные (cluster, lsi, analyze, stop-domains) **уже получены*
 ### Подшаг 3 — Боли аудитории
 
 - `jm.jm_suggest(keywords=["<main_query>"], iterations=2, with_freq=true)` — 1 вызов
-- `wordstat.mcp_wordstat_get_keyword_stats` по `main_query` — 1 вызов (если ещё не вызван)
-- Fallback: `jm.jm_wordstat(mode="suggestions")` или `wk.wk_check_frequency`
+- `jm.jm_wordstat(mode="frequency")` по `main_query` — 1 вызов (если ещё не вызван)
+- Альтернативы: `wk.wk_check_frequency` или `arsenkin.arsenkin_wordstat(mode="frequency")`
 
 Сформировать карту потребностей:
 - **Основной мотив** — зачем пользователь ищет тему (1 предложение)
@@ -65,8 +65,8 @@ JM-данные (cluster, lsi, analyze, stop-domains) **уже получены*
 
 ### Подшаг 5 — Расширение микротем
 
-- `wordstat.mcp_wordstat_get_keyword_stats` по 1-3 дополнительным маркерам — 1-3 вызова
-- Fallback: `jm.jm_wordstat`, `wk.wk_check_frequency`
+- `jm.jm_wordstat(mode="frequency")` по 1-3 дополнительным маркерам — 1-3 вызова
+- Альтернативы: `wk.wk_check_frequency`, `arsenkin.arsenkin_wordstat(mode="frequency")`
 
 Маркеры выбирать из:
 - Вариаций основного запроса

@@ -74,9 +74,9 @@ domain_pages(domain="<competitor.domain>", base="<brief.keyso_base>", sort="traf
 | `/blog/`, `/article/`, `/stati/`, `/journal/`, `/news/` | `article` |
 | `/about/`, `/contacts/`, `/dostavka/`, `/oplata/`, `/garantiya/`, `/payment/`, `/delivery/` | `info` |
 
-**Если по URL тип неясен** (например, `/page-42/`, `/uslugi-1/` без явного контекста) - **обязательно** `mcp_fetch_page(url="<URL>")`. По H1 + первой секции решай. Если `mcp_fetch_page` упал - попробуй `web_fetch`. Если оба не работают - пометь `fetch_failed: true`, поставь тип `other`.
+**Если по URL тип неясен** (например, `/page-42/`, `/uslugi-1/` без явного контекста) - **обязательно** `seo_fetch_page(url="<URL>", profile="outline")` (нужны H1-H6 + типизация страницы). По H1 + первой секции решай. Если `seo_fetch_page` упал - вторичный деградированный fallback `web_fetch` (теряет структуру/HTTP-статус). Если оба не работают - пометь `fetch_failed: true`, поставь тип `other`.
 
-Бюджет на типизацию: до 10 `mcp_fetch_page`. Если конкурентов много и неясных URL > 10 - бери самые крупные (по `top50_count`).
+Бюджет на типизацию: до 10 `seo_fetch_page` (profile="outline"). Если конкурентов много и неясных URL > 10 - бери самые крупные (по `top50_count`).
 
 ### 3. Нормализация и агрегация
 
@@ -155,7 +155,7 @@ domain_pages(domain="<brief.domain>", base="<brief.keyso_base>", sort="it50|desc
 
 Если домен есть и `domain_pages` дал мало результатов:
 ```
-mcp_fetch_page(url="https://<brief.domain>/sitemap.xml")
+seo_fetch_page(url="https://<brief.domain>/sitemap.xml")
 ```
 
 Из sitemap собери URL'ы, которых нет в Keyso (могут быть страницы без позиций, но они существуют).
@@ -173,7 +173,7 @@ mcp_fetch_page(url="https://<brief.domain>/sitemap.xml")
 | Не совпадает, но `top50_count > 0` | **Обсудить** (статус `discuss`) |
 | Есть позиции, отсутствует в мастер-списке | **Добавить** в мастер-список (`source = "client_existing"`, `coverage = "0 из ..."`) |
 
-**Спорные URL** (нечитаемые, непонятное содержание) - `mcp_fetch_page` (до 5 штук). По H1 + контенту определи тип и смысл.
+**Спорные URL** (нечитаемые, непонятное содержание) - `seo_fetch_page(url="<URL>", profile="outline")` (до 5 штук). По H1 + контенту определи тип и смысл.
 
 #### 5d. Обнови мастер-список
 
@@ -284,7 +284,7 @@ mcp_fetch_page(url="https://<brief.domain>/sitemap.xml")
 - Уникальные фишки: `<P>` пунктов
 - Спаривание выполнено: `<да/нет>` (если да - сколько существующих / 301 / удалить / обсудить / новых; если нет - указать `pairing_skipped_reason`)
 - Чужих ниш отсечено: `<Z>` (с причинами в notes)
-- MCP-вызовов: `domain_pages <K>` (2 прохода x конкуренты), `mcp_fetch_page <F>`
+- MCP-вызовов: `domain_pages <K>` (2 прохода x конкуренты), `seo_fetch_page <F>` (profile="outline")
 - ⚠️ Не проверено: sitemap не открылся (если случилось); глубина карточек/типоразмеров (заполняется по линейке клиента)
 
 ## Запреты
@@ -298,4 +298,4 @@ mcp_fetch_page(url="https://<brief.domain>/sitemap.xml")
 - НЕ выдумывай конкретные модели/SKU/типоразмеры - строй каркас категории, глубину заполняет линейка клиента.
 - НЕ путай `keyso_base` (для Keyso, типа `spb`) и `region_yandex` (для JM/Арсенкин, типа `2`). Используй `keyso_base` из brief.
 - Длинное тире (—) и среднее (–) не использовать. Только дефис (-).
-- Бюджет MCP: ~2 прохода `domain_pages` x 6-10 конкурентов + 1 `domain_pages` (клиент, если есть) + до 10 `mcp_fetch_page`. Итого до ~35.
+- Бюджет MCP: ~2 прохода `domain_pages` x 6-10 конкурентов + 1 `domain_pages` (клиент, если есть) + до 10 `seo_fetch_page` (profile="outline"). Итого до ~35.

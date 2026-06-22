@@ -5,7 +5,7 @@
 | 2 (гейт) | `jm_account` | проверка баланса >= 5 перед анализом | обязательно |
 | 4 `faq-builder` | `jm_text_analyze` | анализ пробелов текста vs топ-10 -> недостающие ключи/N-граммы (ядро) | обязательно |
 | 4 `faq-builder` | `jm_stop_domains` | исключить агрегаторы из топ-10 при анализе | желательно |
-| 4 `faq-builder` | `jm_page_optimize` / `mcp_fetch_page` | если источник - живой URL без текста | только --url |
+| 4 `faq-builder` | `seo_fetch_page(profile="content")` / `jm_page_optimize` | если источник - живой URL без текста (основной текст страницы) | только --url |
 | 4 `faq-builder` | `jm_text_check` (Акварель) | контроль переспама итогового FAQ-текста | желательно |
 | 6 Drive | `mcp__gdrive-piotr__uploadFile` | FAQ_<slug>.docx -> Google Doc (ключ `texts_folder_id`) | желательно (скип если нет ключа) |
 
