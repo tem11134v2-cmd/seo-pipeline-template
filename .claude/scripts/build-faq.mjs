@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 // build-faq.mjs
-// Рендер SEO-блока одной страницы: FAQ (аккордеон + Schema.org FAQPage) + возражения +
-// плитка тегов + перелинковка. Вставляется в конец готовой страницы (фаза У6-Ф2).
-// Классы pt- совпадают с китом /seo-tekst - блок ложится и в прототип, и в любую страницу.
+// Рендер SEO-блока одной страницы: ТОЛЬКО FAQ (аккордеон + Schema.org FAQPage) с
+// контекстными ссылками ВНУТРИ ответов. Вставляется в конец готовой страницы (фаза У6-Ф2).
+// Классы pt- совпадают с китом /seo-tekst.
+//
+// ВНИМАНИЕ: faq.html - СЛУЖЕБНЫЙ артефакт (гейт для verify-faq), НЕ клиентский.
+// Клиенту уходит FAQ_<slug>.docx (build-faq-docx.mjs). См. ТЗ /seo-faq.
 //
 // Вход:  <page_dir>/faq_blocks.json
-// Выход: <page_dir>/faq.html  (вставляемый сниппет)  +  <page_dir>/faq.md (читабельно)
+// Выход: <page_dir>/faq.html (служебный гейт) + <page_dir>/faq.md (читабельно)
 // Использование: node build-faq.mjs <page_dir>
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { sameUrl, resolveSelfUrl } from "./_faq-util.mjs";
 
 const pageDir = process.argv[2] ? resolve(process.argv[2]) : null;
 if (!pageDir) { console.error("[build-faq] usage: node build-faq.mjs <page_dir>"); process.exit(1); }
@@ -22,80 +26,85 @@ const escAttr = (s) => esc(s).replace(/"/g, "&quot;");
 const arr = (x) => (Array.isArray(x) ? x : []);
 
 const faq = arr(b.faq);
-const objections = arr(b.objections);
-const tagTiles = arr(b.tag_tiles);
-const interlinks = arr(b.interlinks);
+const selfUrl = resolveSelfUrl(pageDir, b.slug);
+
+// --resume на старой папке: предупредить про устаревшие поля (не падаем, авто-миграцию не делаем).
+if (arr(b.objections).length || arr(b.tag_tiles).length || arr(b.interlinks).length) {
+  console.warn("[build-faq] ! обнаружены устаревшие поля (objections/tag_tiles/interlinks) - они НЕ рендерятся. Перегенерируй faq-builder для контекстных ссылок.");
+}
+
+// Рендер ответа с возможной inline-ссылкой - ЕДИНСТВЕННЫЙ источник <a> в pt-faq-a.
+// ИНВАРИАНТ (синхрон с build-faq-docx): точка разреза = ПЕРВОЕ вхождение анкора.
+// build-faq режет по esc(a), docx - по сырому a; точки идентичны, т.к. esc порядко-сохраняющая
+// (esc(before) === esc(a).slice(0,idx)). Менять indexOf на lastIndexOf/regex ЗАПРЕЩЕНО.
+function renderAnswerHtml(a, link, self) {
+  let h = esc(a); // эскейпим ВЕСЬ ответ
+  if (link && link.anchor && link.url && !sameUrl(link.url, self)) {
+    const aEsc = esc(link.anchor);
+    const idx = h.indexOf(aEsc); // ПЕРВОЕ вхождение, по esc-строке
+    if (idx !== -1) {
+      // В href пишется ИСХОДНЫЙ link.url (нормализация - только для sameUrl-сравнения).
+      h = h.slice(0, idx) + `<a href="${escAttr(link.url)}">${aEsc}</a>` + h.slice(idx + aEsc.length);
+    } else {
+      console.warn(`[build-faq] анкор не найден в ответе, ссылка пропущена: "${link.anchor}"`);
+    }
+  }
+  return h;
+}
 
 // ---------- HTML ----------
 const parts = [];
-parts.push(`<!-- SEO-блок (/seo-faq): FAQ + плитка тегов + перелинковка. Вставить в конец страницы. -->`);
+parts.push(`<!-- SEO-блок (/seo-faq): только FAQ + Schema.org. Вставить в конец готовой страницы. -->`);
 parts.push(`<section class="pt-section pt-faq-seo">`);
 parts.push(`  <div class="container">`);
 
+let linked = 0;
+const targets = new Set();
 if (faq.length) {
   parts.push(`    <div class="pt-section__head"><h2 class="pt-h2">${esc(b.faq_h2 || "Частые вопросы")}</h2></div>`);
   parts.push(`    <div class="pt-faq">`);
   for (const item of faq) {
-    parts.push(`      <details class="pt-faq__item"><summary>${esc(item.q)}</summary><div class="pt-faq-a">${esc(item.a)}</div></details>`);
+    const link = arr(item.links)[0];
+    const aHtml = renderAnswerHtml(item.a, link, selfUrl);
+    if (link && link.anchor && link.url && !sameUrl(link.url, selfUrl) && esc(item.a).indexOf(esc(link.anchor)) !== -1) {
+      linked++; targets.add(link.url);
+    }
+    parts.push(`      <details class="pt-faq__item"><summary>${esc(item.q)}</summary><div class="pt-faq-a">${aHtml}</div></details>`);
   }
-  parts.push(`    </div>`);
-}
-// возражения (если есть) - тем же аккордеоном, отдельной группой
-if (objections.length) {
-  parts.push(`    <div class="pt-section__head" style="margin-top:32px;"><h2 class="pt-h2">${esc(b.objections_h2 || "Сомнения и возражения")}</h2></div>`);
-  parts.push(`    <div class="pt-faq">`);
-  for (const item of objections) {
-    parts.push(`      <details class="pt-faq__item"><summary>${esc(item.q)}</summary><div class="pt-faq-a">${esc(item.a)}</div></details>`);
-  }
-  parts.push(`    </div>`);
-}
-// плитка тегов
-if (tagTiles.length) {
-  parts.push(`    <div class="pt-tag-tiles" style="margin-top:32px;">`);
-  for (const t of tagTiles) {
-    const url = t.url || "#lead";
-    parts.push(`      <a href="${escAttr(url)}" class="pt-tag-tile">${esc(t.label)}</a>`);
-  }
-  parts.push(`    </div>`);
-}
-// перелинковка
-if (interlinks.length) {
-  parts.push(`    <div class="pt-interlinks" style="margin-top:24px;"><span class="pt-interlinks__label">Смежные услуги:</span>`);
-  parts.push(`      ` + interlinks.map((l) => `<a href="${escAttr(l.url || "#")}">${esc(l.anchor)}</a>`).join(" · "));
   parts.push(`    </div>`);
 }
 parts.push(`  </div>`);
 parts.push(`</section>`);
 
-// Schema.org FAQPage (только по faq, не по возражениям - чтобы разметка соответствовала видимым Q/A)
+// Schema.org FAQPage - acceptedAnswer.text ВСЕГДА чистый faq[].a (без <a>).
 if (faq.length) {
   const schema = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: faq.map((i) => ({ "@type": "Question", name: String(i.q || ""), acceptedAnswer: { "@type": "Answer", text: String(i.a || "") } })),
+    mainEntity: faq.map((i) => ({ "@type": "Question", name: String(i.q || ""), acceptedAnswer: { "@type": "Answer", text: String(i.a == null ? "" : i.a) } })),
   };
-  parts.push(`<script type="application/ld+json">${JSON.stringify(schema)}</script>`);
+  // Компактно (как было) + защита от обрыва </script>.
+  parts.push(`<script type="application/ld+json">${JSON.stringify(schema).replace(/<\//g, "<\\/")}</script>`);
 }
 
 writeFileSync(join(pageDir, "faq.html"), parts.join("\n") + "\n", "utf8");
 
-// ---------- Markdown (для клиента/Google Doc) ----------
+// ---------- Markdown (читабельный дамп) ----------
 const md = [];
-md.push(`## SEO-блок: ${b.slug || ""}`.trim());
+md.push(`## FAQ: ${b.slug || ""}`.trim());
 if (b.marker) md.push(`Маркер: ${b.marker}`);
 if (arr(b.normalized_keywords).length) md.push(`\n**Нормализованные ключи/N-граммы:** ${arr(b.normalized_keywords).join(", ")}`);
 if (faq.length) {
   md.push(`\n### ${b.faq_h2 || "Частые вопросы"}`);
-  for (const i of faq) md.push(`\n**${i.q}**\n\n${i.a}`);
+  for (const i of faq) {
+    md.push(`\n**${i.q}**\n\n${i.a}`);
+    const link = arr(i.links)[0];
+    if (link && link.anchor && link.url) md.push(`(ссылка: ${link.anchor} -> ${link.url})`);
+  }
 }
-if (objections.length) {
-  md.push(`\n### ${b.objections_h2 || "Сомнения и возражения"}`);
-  for (const i of objections) md.push(`\n**${i.q}**\n\n${i.a}`);
-}
-if (tagTiles.length) md.push(`\n### Плитка тегов\n` + tagTiles.map((t) => `- ${t.label}${t.url ? ` (${t.url})` : ""}`).join("\n"));
-if (interlinks.length) md.push(`\n### Перелинковка\n` + interlinks.map((l) => `- ${l.anchor} -> ${l.url || ""}`).join("\n"));
 writeFileSync(join(pageDir, "faq.md"), md.join("\n") + "\n", "utf8");
 
+const ratio = faq.length ? (linked / faq.length).toFixed(2) : "0.00";
 console.log(`[build-faq] ${pageDir}`);
-console.log(`  FAQ: ${faq.length}, возражения: ${objections.length}, теги: ${tagTiles.length}, перелинковка: ${interlinks.length}`);
+console.log(`  FAQ: ${faq.length}, со ссылкой: ${linked}/${faq.length} (доля ${ratio}), уникальных целей: ${targets.size}`);
 console.log(`  нормализовано ключей: ${arr(b.normalized_keywords).length}, Schema FAQPage: ${faq.length ? "да" : "нет"}`);
