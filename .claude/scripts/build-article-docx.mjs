@@ -5,7 +5,8 @@
 //
 // Вход:
 //   <article_dir>/article.md             — текст статьи (Markdown)
-//   <article_dir>/report.md              — метатеги (Title, Description, Анонс)
+//   <article_dir>/metatags.json          — метатеги {h1,title,description,announce} (Block A, источник истины)
+//   <article_dir>/report.md              — fallback метатегов, если нет metatags.json (старые статьи)
 //   <article_dir>/photos/urls.json       — Cloudinary URLs
 //   <article_dir>/photos/prompts.md      — alt-тексты (опционально)
 //   <article_dir>/faq.html               — FAQ (опционально)
@@ -13,7 +14,7 @@
 //   <project_root>/ЗАКАЗЧИК.md           — автор, домен, URL блога
 //
 // Выход:
-//   <article_dir>/Article_<slug>.docx
+//   <article_dir>/Article_<NNN>_<slug>.docx   (Block F: номер темы в имени)
 //
 // Зависимости: docx, marked (уже есть в package.json).
 //
@@ -26,7 +27,7 @@
 //   3 — docx собран, но встроено меньше фото чем ожидалось (неполный) — не заливать в Drive
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, basename } from "node:path";
 import { marked } from "marked";
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
@@ -45,6 +46,7 @@ const projectRoot = resolve(articleDir, "..", "..");
 const articleMdPath = join(articleDir, "article.md");
 const reportPath = join(articleDir, "report.md");
 const metaPath = join(articleDir, "meta.json");
+const metatagsPath = join(articleDir, "metatags.json");
 const photosUrlsPath = join(articleDir, "photos", "urls.json");
 const photosPromptsPath = join(articleDir, "photos", "prompts.md");
 const faqPath = join(articleDir, "faq.html");
@@ -64,6 +66,7 @@ function readRequired(path) {
 const articleMd = readRequired(articleMdPath);
 const reportMd = readIfExists(reportPath);
 const metaRaw = readIfExists(metaPath);
+const metatagsRaw = readIfExists(metatagsPath);
 const photosUrlsRaw = readIfExists(photosUrlsPath);
 const photosPromptsRaw = readIfExists(photosPromptsPath);
 const faqHtml = readIfExists(faqPath);
@@ -71,7 +74,12 @@ const clientMd = readIfExists(clientPath);
 
 const meta = metaRaw ? JSON.parse(metaRaw) : {};
 const slug = (meta.slug || "article").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
-const outputPath = join(articleDir, `Article_${slug}.docx`);
+// Block F: номер темы в имени файла (NNN из basename папки) - чтобы docx сам себя называл
+// в общей папке Drive «Статьи». NNN не уникален (у темы бывает несколько статей), но
+// внутри своей папки файл один; в Drive номер сортирует и отличает статьи между темами.
+const nnnMatch = basename(articleDir).match(/^(\d{2,4})-/);
+const nnn = nnnMatch ? nnnMatch[1] : "000";
+const outputPath = join(articleDir, `Article_${nnn}_${slug}.docx`);
 
 // ═══ Дизайн-токены ═══
 const C = {
@@ -111,15 +119,26 @@ const clientAuthor =
   "Редакция";
 const clientCompany = pickClientField(clientMd, "Название компании") || clientDomain;
 
-// ═══ Метатеги из report.md ═══
+// ═══ Метатеги: metatags.json (источник истины) с fallback на report.md ═══
+// Block A: финализатор пишет machine-readable metatags.json. Старые статьи (до Block A)
+// его не имеют - тогда парсим прозу report.md (как раньше).
 function extractMeta(md, label) {
   const re = new RegExp("\\*\\*" + label + ":\\*\\*\\s*([^\\n]+)", "i");
   const m = md.match(re);
   return m ? m[1].trim() : "";
 }
-const metaTitle = extractMeta(reportMd, "Title");
-const metaDescription = extractMeta(reportMd, "Description");
-const metaAnnounce = extractMeta(reportMd, "Анонс");
+let metatagsJson = null;
+if (metatagsRaw) {
+  try {
+    metatagsJson = JSON.parse(metatagsRaw);
+  } catch (e) {
+    console.warn("[build-article-docx] metatags.json invalid JSON, fallback на report.md:", e.message);
+  }
+}
+const metaH1 = (metatagsJson && metatagsJson.h1) || "";
+const metaTitle = (metatagsJson && metatagsJson.title) || extractMeta(reportMd, "Title");
+const metaDescription = (metatagsJson && metatagsJson.description) || extractMeta(reportMd, "Description");
+const metaAnnounce = (metatagsJson && metatagsJson.announce) || extractMeta(reportMd, "Анонс");
 
 // ═══ Фото ═══
 let photosUrls = [];
@@ -467,7 +486,7 @@ docChildren.push(new Table({
     metaTableRow("Description", metaDescription),
     metaTableRow("Анонс", metaAnnounce),
     metaTableRow("URL", `https://${clientDomain}${clientBlogUrl.startsWith("/") ? "" : "/"}${clientBlogUrl}${slug}/`),
-    metaTableRow("H1", extractH1(articleMd) || meta.topic || ""),
+    metaTableRow("H1", metaH1 || extractH1(articleMd) || meta.topic || ""),
     metaTableRow("Хлебные крошки", `Главная / Блог / ${meta.topic || ""}`),
   ],
 }));

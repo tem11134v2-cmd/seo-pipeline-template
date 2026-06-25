@@ -73,6 +73,17 @@ fi
 
 ### 2. Финальный коммит (auto)
 
+**Серийный режим (несколько статей в одной worktree).** Если задача - батч статей
+(`/seo-statya 11-20`), в `current-task.txt` несколько строк - по папке на статью.
+Pre-commit hook (Block D) разрешает коммит файлов всех перечисленных задач разом, без
+`--no-verify`. Перед коммитом обнови производный индекс (для пост-merge проверки ниже):
+
+```
+.claude\scripts\_node.cmd .claude\scripts\rebuild-index.mjs articles
+```
+
+(`_index.json` gitignored - не коммитится, это локальный кеш.)
+
 Если `git status --porcelain` непуст:
 
 1. Сформировать сообщение:
@@ -94,6 +105,13 @@ fi
 
 ### 3. Merge в main
 
+**Снимок до merge (страховка для серии, Block D):** запомни число статей в main, чтобы
+после merge убедиться, что ни одна ранее завершённая статья не пропала:
+
+```bash
+BEFORE=$(ls -d "$MAIN_WT"/articles/*/ 2>/dev/null | wc -l)
+```
+
 ```bash
 git -C "$MAIN_WT" checkout "$BASE_BRANCH"
 git -C "$MAIN_WT" merge "$CURRENT_BRANCH" --no-ff -m "Handoff: $CURRENT_BRANCH"
@@ -106,6 +124,17 @@ git -C "$MAIN_WT" merge "$CURRENT_BRANCH" --no-ff -m "Handoff: $CURRENT_BRANCH"
 - **Остановиться. Не удалять worktree.**
 
 Если merge прошёл — продолжить.
+
+**Пост-merge проверка (Block D):** число статей в main не должно уменьшиться.
+
+```bash
+AFTER=$(ls -d "$MAIN_WT"/articles/*/ 2>/dev/null | wc -l)
+```
+
+Если `AFTER < BEFORE` - **стоп, не удалять worktree**: merge что-то затёр (аномалия,
+обычно так не бывает - статьи это отдельные папки). Сообщи пользователю числа и попроси
+проверить `git -C "$MAIN_WT" log --oneline -5` и `git -C "$MAIN_WT" status` вручную, прежде
+чем удалять ветку. Если `AFTER >= BEFORE` - всё штатно, продолжить.
 
 ### 4. Удаление ветки и worktree
 

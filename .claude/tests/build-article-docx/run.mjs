@@ -104,13 +104,14 @@ console.log("Sandbox: " + sandboxDir);
 console.log("");
 
 let documentXml = "";
-const docxPath = join(articleDir, "Article_test-article.docx");
+// Block F: имя docx теперь Article_<NNN>_<slug>.docx (NNN из basename папки 999-test).
+const docxPath = join(articleDir, "Article_999_test-article.docx");
 
 // === Тест 1: сборка ===
 await step("build-article-docx.mjs runs, exit 0, docx создан", () => {
   const r = runScript("build-article-docx.mjs", articleDir);
   if (r.code !== 0) return `exit ${r.code}, stderr=${r.stderr.trim()}`;
-  if (!existsSync(docxPath)) return "Article_test-article.docx не создан";
+  if (!existsSync(docxPath)) return "Article_999_test-article.docx не создан (Block F naming)";
   return true;
 });
 

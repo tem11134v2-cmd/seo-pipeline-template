@@ -1,6 +1,6 @@
 ---
 name: share-article
-description: Загружает Article_<slug>.docx из articles/NNN/ на Google Drive (с автоконверсией в Google Doc) и записывает delivery-ссылку в meta.json. По умолчанию /seo-statya делает это сам в шаге 13 — этот скил нужен если шаг пропустили (Drive был недоступен) или после ручных правок локального docx. Аргументы: <NNN> [--redo].
+description: Загружает docx статьи (Article_NNN_<slug>.docx) из articles/NNN/ на Google Drive (с автоконверсией в Google Doc) и записывает delivery-ссылку в meta.json. По умолчанию /seo-statya делает это сам в шаге 13 — этот скил нужен если шаг пропустили (Drive был недоступен) или после ручных правок локального docx. Аргументы: <NNN> [--redo].
 ---
 
 # share-article
@@ -23,7 +23,7 @@ description: Загружает Article_<slug>.docx из articles/NNN/ на Goog
 ## Предусловия
 
 - MCP `gdrive-piotr` подключён, OAuth пройден.
-- В `articles/<NNN>-*/` есть собранный `Article_<slug>.docx` (создаётся через `build-article-docx.mjs` — шаг сборки в `/seo-statya`).
+- В `articles/<NNN>-*/` есть собранный docx `Article_*.docx` (Block F: `Article_<NNN>_<slug>.docx`; создаётся через `build-article-docx.mjs` — шаг сборки в `/seo-statya`).
 - `~/.claude/seo-knowledge/DRIVE.md` содержит якорь `Статьи` с Drive folder ID. Если якоря нет — стоп с инструкцией: «Добавь в DRIVE.md строку таблицы `| **Статьи** | Конвертированные Google Doc статей клиентов | <folder_id> |`. Папку создай в Drive вручную, расшарь anyone-with-link → reader, скопируй её ID.»
 
 ## Алгоритм
@@ -47,7 +47,7 @@ redo = true если --redo
 
 Прочитать:
 - `<article_dir>/meta.json` — `slug`, `topic`, `state`. Если `state < assembled` — стоп: «Статья ещё не собрана. Запусти `/seo-statya <N> --resume`.»
-- `docx_path = <article_dir>/Article_<slug>.docx` — обязателен. Если нет — стоп: «Файл `Article_<slug>.docx` не найден. Запусти `node .claude/scripts/build-article-docx.mjs <article_dir>` (или `/seo-statya <N> --resume`).»
+- `docx_path` — найти docx в папке статьи **глобом `Article_*.docx`** (Block F: новое имя `Article_<NNN>_<slug>.docx`, у старых статей `Article_<slug>.docx` - глоб ловит оба). Если файлов несколько - взять самый свежий по mtime. Если нет ни одного — стоп: «docx не найден. Запусти `node .claude/scripts/build-article-docx.mjs <article_dir>` (или `/seo-statya <N> --resume`).»
 
 ### 2. Развилка по meta.share
 
@@ -75,7 +75,7 @@ redo = true если --redo
 ```
 mcp__gdrive-piotr__uploadFile(
   localPath: <абсолютный docx_path>,
-  name: Article_<slug>,
+  name: <имя файла без .docx, напр. Article_<NNN>_<slug>>,
   parentFolderId: <articles_folder_id из DRIVE.md>,
   mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   convertToGoogleFormat: true

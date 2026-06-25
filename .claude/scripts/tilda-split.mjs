@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // tilda-split.mjs
-// Разделяет output.html на два блока для Тильды:
+// Разделяет собранный HTML (output-NNN.html, Block F; fallback output.html) на два блока для Тильды:
 //   tilda/head.html — стили + Schema.org + Тильда-фиксы
 //   tilda/t123.html — содержимое <body> без обёрток
 //
@@ -9,8 +9,8 @@
 // Использование:
 //   node .claude/scripts/tilda-split.mjs <article_dir>
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
+import { join, resolve, basename } from "node:path";
 import { JSDOM } from "jsdom";
 
 const articleDirArg = process.argv[2];
@@ -19,7 +19,22 @@ if (!articleDirArg) {
   process.exit(1);
 }
 const articleDir = resolve(articleDirArg);
-const inputPath = join(articleDir, "output.html");
+// Block F: основной HTML теперь output-NNN.html. Fallback на старый output.html
+// (статьи до Block F) и на любой output-*.html, чтобы скрипт оставался совместимым.
+function resolveOutputHtml(dir) {
+  const m = basename(dir).match(/^(\d{2,4})-/);
+  const nnn = m ? m[1] : "000";
+  const numbered = join(dir, `output-${nnn}.html`);
+  if (existsSync(numbered)) return numbered;
+  const legacy = join(dir, "output.html");
+  if (existsSync(legacy)) return legacy;
+  try {
+    const any = readdirSync(dir).find((f) => /^output-\d+\.html$/i.test(f));
+    if (any) return join(dir, any);
+  } catch { /* ignore */ }
+  return numbered; // не нашли - вернём ожидаемое имя, проверка ниже даст понятную ошибку
+}
+const inputPath = resolveOutputHtml(articleDir);
 const tildaDir = join(articleDir, "tilda");
 const headPath = join(tildaDir, "head.html");
 const t123Path = join(tildaDir, "t123.html");
