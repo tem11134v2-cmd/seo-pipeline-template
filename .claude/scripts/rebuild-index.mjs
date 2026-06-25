@@ -57,6 +57,16 @@ for (const name of readdirSync(root)) {
     console.warn(`[rebuild-index] ${name}/meta.json не распарсился: ${e.message}`);
     continue;
   }
+  // Block A: машиночитаемые метатеги (если финализатор записал metatags.json).
+  let metatags = null;
+  const mtPath = join(dir, "metatags.json");
+  if (existsSync(mtPath)) {
+    try {
+      metatags = JSON.parse(readFileSync(mtPath, "utf8").replace(/^﻿/, ""));
+    } catch (e) {
+      console.warn(`[rebuild-index] ${name}/metatags.json не распарсился: ${e.message}`);
+    }
+  }
   const nnnMatch = name.match(/^(\d{2,4})-/);
   records.push({
     key: name, // полный basename папки - единственный уникальный ключ записи
@@ -72,6 +82,7 @@ for (const name of readdirSync(root)) {
     completed_at:
       meta.state === "completed" ? meta.updated || null : null,
     share_url: meta.share?.docx_url || null,
+    metatags: metatags,
     updated: meta.updated || null,
   });
 }

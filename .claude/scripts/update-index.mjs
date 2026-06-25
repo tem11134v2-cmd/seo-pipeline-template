@@ -53,6 +53,18 @@ if (!existsSync(metaPath)) {
 
 const meta = JSON.parse(readFileSync(metaPath, "utf8").replace(/^﻿/, ""));
 
+// Block A: машиночитаемые метатеги (если финализатор записал metatags.json).
+// Тянем в индекс, чтобы батч-сводка серии собиралась из одного места без парсинга прозы.
+let metatags = null;
+const mtPath = join(articleDir, "metatags.json");
+if (existsSync(mtPath)) {
+  try {
+    metatags = JSON.parse(readFileSync(mtPath, "utf8").replace(/^﻿/, ""));
+  } catch (e) {
+    console.warn(`[update-index] metatags.json повреждён: ${e.message}`);
+  }
+}
+
 // nnn выводим из имени папки (001-foo → "001")
 const dirName = basename(articleDir);
 const nnnMatch = dirName.match(/^(\d{2,4})-/);
@@ -92,6 +104,7 @@ if (!rec) {
     started: meta.started || now,
     completed_at: null,
     share_url: null,
+    metatags: metatags,
     updated: meta.updated || now,
   };
   index.articles.push(rec);
@@ -103,6 +116,7 @@ if (!rec) {
   rec.genre = meta.genre || rec.genre;
   rec.platform_target = meta.platform_target || rec.platform_target;
   rec.topic_id = meta.topic_id ?? rec.topic_id;
+  if (metatags) rec.metatags = metatags;
   rec.updated = meta.updated || now;
 }
 

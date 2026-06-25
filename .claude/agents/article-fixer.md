@@ -1,6 +1,6 @@
 ---
 name: article-fixer
-description: Применяет одну правку к готовому output.html (или article.md). Возвращает дифф, не весь файл.
+description: Применяет одну правку к собранному HTML статьи (output-NNN.html) или article.md. Возвращает дифф, не весь файл.
 tools: Read, Write, Edit
 model: inherit
 ---
@@ -18,7 +18,7 @@ model: inherit
 ## Обязательное чтение перед правкой
 
 1. Целевой файл — определить по типу правки:
-   - Текстовая правка после `assemble-html.mjs` → `<article_dir>/output.html`
+   - Текстовая правка после `assemble-html.mjs` → собранный HTML `<article_dir>/output-NNN.html` (найди глобом `output-*.html`; у старых статей `output.html`)
    - Текстовая правка до `assemble-html.mjs` → `<article_dir>/article.md`
    - Правка в Тильда-блоках → `<article_dir>/tilda/head.html` или `<article_dir>/tilda/t123.html`
 2. `<project_root>/ЗАКАЗЧИК.md` — если правка касается дизайна / бренда / автора
@@ -45,7 +45,7 @@ model: inherit
 
 ```
 ═══ Правка ═══
-Файл: <article_dir>/output.html
+Файл: <article_dir>/output-NNN.html
 Тип: <текстовая / дизайн / баг-фикс>
 Место: <строка / ближайший якорь / заголовок>
 
@@ -69,9 +69,9 @@ model: inherit
 
 ## Если файл — Тильда (есть `tilda/head.html` и `tilda/t123.html`)
 
-После правки `output.html` нужно **перезапустить `tilda-split.mjs`**, иначе Тильда-блоки рассинхронизируются.
+После правки `output-NNN.html` нужно **перезапустить `tilda-split.mjs`**, иначе Тильда-блоки рассинхронизируются.
 
-В чате сообщить: «Правка в output.html применена. Перезапусти `tilda-split.mjs`, чтобы обновить tilda/head.html и tilda/t123.html.»
+В чате сообщить: «Правка в output-NNN.html применена. Перезапусти `tilda-split.mjs`, чтобы обновить tilda/head.html и tilda/t123.html.»
 
 (Сам `tilda-split.mjs` запускает скил `fix-article`, не агент.)
 

@@ -90,33 +90,47 @@ EOF
   exit 1
 fi
 
-task_dir=$(head -n 1 "${TASK_FILE}" | tr -d '\r\n')
-
-# Преобразуем task_dir в относительный путь относительно PROJECT_ROOT
-case "${task_dir}" in
-  /*|[a-zA-Z]:*)
-    case "${task_dir}" in
-      "${PROJECT_ROOT}"/*) task_rel="${task_dir#${PROJECT_ROOT}/}" ;;
-      *) task_rel="${task_dir}" ;;
-    esac
-    ;;
-  *) task_rel="${task_dir}" ;;
-esac
-
-# Убираем хвостовой слэш
-task_rel="${task_rel%/}"
-
-if [ -z "${task_rel}" ]; then
-  echo "pre-commit: current-task.txt содержит пустой путь — отказ в коммите" >&2
-  exit 1
-fi
-
-# Список разрешённых префиксов
+# Серийный режим (Block D): current-task.txt может содержать НЕСКОЛЬКО задач -
+# по одной на строку. Так серия статей, написанных в одной worktree-сессии
+# (/seo-statya 11-20), коммитится и хендофится одним разом без --no-verify.
+# Каждая непустая строка = папка задачи, которой владеет эта сессия. Одна строка -
+# обычный одиночный режим (полная обратная совместимость).
 allowed_prefixes=(
-  "${task_rel}/"
   ".claude/tmp/"
   ".claude/handoff-requests/"
 )
+task_rels=""   # для сообщения об ошибке
+task_count=0
+
+while IFS= read -r raw_line || [ -n "${raw_line}" ]; do
+  task_dir=$(printf '%s' "${raw_line}" | tr -d '\r\n')
+  [ -z "${task_dir}" ] && continue
+
+  # Преобразуем task_dir в относительный путь относительно PROJECT_ROOT
+  case "${task_dir}" in
+    /*|[a-zA-Z]:*)
+      case "${task_dir}" in
+        "${PROJECT_ROOT}"/*) task_rel="${task_dir#${PROJECT_ROOT}/}" ;;
+        *) task_rel="${task_dir}" ;;
+      esac
+      ;;
+    *) task_rel="${task_dir}" ;;
+  esac
+
+  # Убираем хвостовой слэш
+  task_rel="${task_rel%/}"
+  [ -z "${task_rel}" ] && continue
+
+  allowed_prefixes+=("${task_rel}/")
+  task_rels="${task_rels}
+  - ${task_rel}/"
+  task_count=$((task_count + 1))
+done < "${TASK_FILE}"
+
+if [ "${task_count}" -eq 0 ]; then
+  echo "pre-commit: current-task.txt содержит только пустые строки — отказ в коммите" >&2
+  exit 1
+fi
 
 # Дополнительно разрешённые файлы по точному имени.
 # (ADR-013) Реестры _index.json больше НЕ коммитятся - это производные кеши,
@@ -160,9 +174,9 @@ if [ -n "${violations}" ]; then
   cat >&2 <<EOF
 pre-commit: В worktree запрещено менять файлы вне текущей задачи.
 
-Задача: ${task_rel}
+Задачи этой сессии (current-task.txt):${task_rels}
 Разрешённые зоны:
-  - ${task_rel}/      (своя задача)
+  - <папка каждой задачи выше>/  (своя задача / задачи серии)
   - .claude/tmp/       (служебные файлы сессии)
   - .claude/handoff-requests/  (запросы для main)
 

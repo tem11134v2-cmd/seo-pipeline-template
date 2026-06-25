@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // assemble-html.mjs
-// Собирает финальный output.html: article.md + enhancements.html + faq.html + schema.json + photos/urls.json,
-// и подставляет в template.html.
+// Собирает финальный output-NNN.html (Block F: номер темы в имени): article.md + enhancements.html
+// + faq.html + schema.json + photos/urls.json, и подставляет в template.html.
 //
 // Стратегия (v2 после roadmap 2026-05-28):
 //   1. Markdown → HTML через marked. Метки [ТАБЛИЦА:], [ФОТО:] и т.п. заменяются на
@@ -29,7 +29,7 @@
 //   node .claude/scripts/assemble-html.mjs <article_dir>
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, basename } from "node:path";
 import { marked } from "marked";
 import { JSDOM } from "jsdom";
 
@@ -50,7 +50,11 @@ const photosPromptsPath = join(articleDir, "photos", "prompts.md");
 const reportPath = join(articleDir, "report.md");
 const templatePath = join(projectRoot, "template.html");
 const clientPath = join(projectRoot, "ЗАКАЗЧИК.md");
-const outputPath = join(articleDir, "output.html");
+// Block F: имя выходного HTML несёт номер темы (NNN из basename папки), чтобы файл
+// сам себя называл вне своей папки (батч-экспорт серии копирует именно его).
+const nnnMatch = basename(articleDir).match(/^(\d{2,4})-/);
+const nnn = nnnMatch ? nnnMatch[1] : "000";
+const outputPath = join(articleDir, `output-${nnn}.html`);
 
 function readIfExists(path) {
   return existsSync(path) ? readFileSync(path, "utf8").replace(/^﻿/, "") : "";

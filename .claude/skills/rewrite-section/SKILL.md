@@ -64,7 +64,7 @@ description: Перепишет один раздел (H2) уже написан
    - `<article_dir>/article.md` — переименовать в `article.before-rewrite-<NN>.md` (резерв).
    - `<article_dir>/audit.md`, `<article_dir>/applied.json`, `<article_dir>/diff.md` — если есть, переименовать с суффиксом `.stale`.
    - `<article_dir>/enhancements.html`, `faq.html`, `schema.json` — устарели, переименовать.
-   - `<article_dir>/output.html`, `Article_<slug>.docx` — устарели.
+   - `<article_dir>/output-NNN.html` (глоб `output-*.html`), `Article_*.docx` — устарели.
 4. `update-meta.sh <article_dir> writing`.
 
 ### 3. Перезапуск section-writer
@@ -88,8 +88,8 @@ project_root: <...>
 
 После успешной записи раздела — пройти оставшиеся шаги основного скила:
 1. `update-meta.sh <article_dir> sections-done`
-2. Делегировать `article-finalizer` (создаст новый `article.md`).
-3. Запустить `verify-markers.mjs`.
+2. Делегировать `article-finalizer` (создаст новый `article.md` + `metatags.json`).
+3. Запустить `verify-markers.mjs` и `verify-article-metatags.mjs` (Block A). Exit 2 - ретрай финализатора (лимит 2).
 4. `update-meta.sh <article_dir> finalized`.
 5. Делегировать `text-auditor` + `article-fixer-batch` (если включён auto-режим — `--auto` режим по умолчанию для `/rewrite-section`).
 6. Делегировать `enhancer` → новые enhancements/faq/schema.
@@ -105,7 +105,7 @@ project_root: <...>
 Раздел: <H2 название>
 Старая версия в резерве: article.before-rewrite-<NN>.md
 
-Обновлены: article.md, output.html, Article_<slug>.docx
+Обновлены: article.md, output-NNN.html, Article_NNN_<slug>.docx
 Заменена в Drive: <docx_url>
 ═════════════════════════
 ```
