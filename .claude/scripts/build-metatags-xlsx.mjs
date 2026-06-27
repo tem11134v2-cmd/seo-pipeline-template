@@ -233,10 +233,17 @@ ws2.views = [{ state: "frozen", xSplit: 2, ySplit: 1 }];
 // ──────────────────────────────────────────────────────────────────────────
 const ws3 = workbook.addWorksheet("Сводка");
 const depthCounts = {};
+let degradedCount = 0;
+let weakSerpCount = 0;
+let aquaSkippedCount = 0;
 for (const { mt } of analyticsRows) {
   if (!mt) continue;
   const d = (mt.analytics && mt.analytics.depth) || "?";
   depthCounts[d] = (depthCounts[d] || 0) + 1;
+  const flags = Array.isArray(mt.flags) ? mt.flags : [];
+  if (flags.includes("mcp_degraded") || flags.includes("mcp_degraded_final")) degradedCount++;
+  if (flags.includes("weak_serp")) weakSerpCount++;
+  if (flags.includes("aqua_skipped")) aquaSkippedCount++;
 }
 const summaryRows = [
   ["Проект", inputs.slug || "-"],
@@ -249,6 +256,10 @@ const summaryRows = [
   ["Глубина", Object.entries(depthCounts).map(([d, c]) => `${d}: ${c}`).join(", ") || "-"],
   ["Title > 60 симв.", titleOver],
   ["Description > 160 симв.", descOver],
+  // Деградация под нагрузкой (выводим только если была) - честность артефакта.
+  ...(degradedCount ? [["Собрано по PLAYBOOK (выдача arsenkin недоступна)", degradedCount]] : []),
+  ...(weakSerpCount ? [["Эталоны по частичной выдаче (3-5/10)", weakSerpCount]] : []),
+  ...(aquaSkippedCount ? [["Title без Акварель-самопроверки", aquaSkippedCount]] : []),
   ["Собрано", new Date().toISOString()],
 ];
 let r3 = 1;

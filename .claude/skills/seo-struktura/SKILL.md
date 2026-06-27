@@ -463,8 +463,8 @@ git commit -m "Structure <NNN> for <slug>: A6 ready (<N> target pages, <M> defer
 1. `.claude\scripts\_node.cmd .claude\scripts\read-metatags-input.mjs metatags/<NNN>-<slug>/ --from-structure structures/<NNN>-<slug>/` -> `pages.json`. Exit 2 (все «нет») -> стоп с пометкой (метатегам нечего делать). `update-meta.sh metatags/<NNN>-<slug>/ pages-ready`.
 2. Делегировать `metatag-researcher` (маркер expected -> `research.json`) -> `researched`.
 3. `.claude\scripts\_node.cmd .claude\scripts\select-variations.mjs metatags/<NNN>-<slug>/` -> `shortlist.json` -> `shortlisted`.
-4. Делегировать `metatag-writer`: `deep` - **параллельным веером** (1 вызов = 1 страница, пачки по ~6-8, без expected-маркеров); `bulk` - чанками по 15-25. -> `pages/<n>.json` -> `written`.
-5. `.claude\scripts\_node.cmd .claude\scripts\verify-metatags.mjs metatags/<NNN>-<slug>/`. Exit 2 -> пере-делегировать недостающие/нарушенные страницы (макс 2 повтора), потом снова verify. -> `verified`.
+4. Делегировать `metatag-writer`: `deep` - **СТРОГО ПОСЛЕДОВАТЕЛЬНО, по одной странице** (concurrency 1, без expected-маркеров - см. /seo-metategi шаг 5: arsenkin/JM общие, параллельный веер давал таймауты и cross-talk; в промт включи «Надёжная работа с MCP»: backoff arsenkin, анти-cross-talk JM, при отказе MCP - флаг `mcp_degraded`); `bulk` - чанками по 15-25 (без MCP, можно параллелить). -> `pages/<n>.json` -> `written`.
+5. `.claude\scripts\_node.cmd .claude\scripts\verify-metatags.mjs metatags/<NNN>-<slug>/`. Exit 2 -> пере-делегировать недостающие/нарушенные (макс 2 повтора) и деградировавшие (`mcp_degraded` - 1 спокойный повтор по одной), потом снова verify с `--accept-degraded`. -> `verified`. (Деталь шага 6 - в /seo-metategi.)
 6. `.claude\scripts\_node.cmd .claude\scripts\build-metatags-xlsx.mjs metatags/<NNN>-<slug>/` -> `A7_<slug>.xlsx` -> `xlsx-built`.
 7. Drive: прочитать `metatags_folder_id` из `~/.claude/seo-knowledge/DRIVE.md`. Нет/`TODO_` -> `update-meta.sh ... xlsx-built skip_reason="..."`, оставить локальный xlsx. Есть -> `uploadFile` (как в /seo-metategi шаг 8), `share.json` -> `shared`.
 8. `update-meta.sh metatags/<NNN>-<slug>/ completed`.
@@ -515,6 +515,6 @@ Title > 60 / Description > 160: <x> / <y> (подсвечены в A7)
 - НЕ пропускай состояния - каждое `update-meta.sh` обязательно.
 - НЕ редактируй общие файлы (`ЗАКАЗЧИК.md`, `template.html`, `topics.xlsx`) - read-only из worktree.
 - НЕ редактируй файлы в `analyses/NNN/` - они read-only для этого скила (только чтение).
-- НЕ ставь expected-маркеры на параллельных `metatag-writer` в deep-хвосте (ломает hook на веере) - полноту проверяет `verify-metatags.mjs`.
+- НЕ запускай `metatag-writer` в deep-хвосте пачкой/параллельно - только по одной (анти-overload arsenkin + анти-cross-talk JM, см. /seo-metategi). Параллель допустима лишь в bulk (он без MCP). Expected-маркеры на них не ставь - полноту/деградацию проверяет `verify-metatags.mjs`.
 - НЕ используй длинное тире (—) и среднее (–). Только дефис (-).
 - НЕ запускай `/seo-statya`, `/seo-strategiya`, `/seo-analiz`, `/seo-temi` из этой же сессии - отдельные worktree-задачи.
