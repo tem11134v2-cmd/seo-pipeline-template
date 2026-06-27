@@ -1,23 +1,30 @@
 #!/usr/bin/env node
 // verify-metatags.mjs
 // Механическая проверка сгенерированных метатегов (Фаза 4 /seo-metategi).
-// Заменяет hook: на параллельном веере writer'ов hook с маркером одного файла
-// давал бы ложные отказы (см. ADR-011 п.3). Скрипт проверяет всю пачку РАЗОМ
-// после завершения writer'ов и говорит скилу, какие страницы недоделаны.
+// Заменяет hook: на веере writer'ов hook с маркером одного файла давал бы ложные
+// отказы (см. ADR-012 п.3). Скрипт проверяет всю пачку файлов РАЗОМ после writer'ов
+// и говорит скилу, какие страницы недоделаны/деградировали. (deep идёт последовательно,
+// bulk - параллельно, но проверка одинаково пакетная по pages/<n>.json.)
 //
 // Использование:
-//   node .claude/scripts/verify-metatags.mjs <metatags_dir>
+//   node .claude/scripts/verify-metatags.mjs <metatags_dir> [--accept-degraded]
 //
 // Вход:
 //   <metatags_dir>/pages.json        - канонический список целевых страниц
 //   <metatags_dir>/pages/<n>.json    - результат writer'а на страницу
 //   <metatags_dir>/inputs.json       - forbidden_phrasings[] (опц.)
 // Выход (stdout):
-//   построчный отчёт: missing pages + violations
+//   построчный отчёт: missing pages + violations + degraded
+//
+// Флаги:
+//   --accept-degraded - страницы с флагом mcp_degraded (arsenkin/Акварель не
+//     поднялись под нагрузкой, собрано по PLAYBOOK) НЕ блокируют (уходят в
+//     предупреждение). Скил ставит этот флаг ПОСЛЕ 1 спокойного повтора, чтобы
+//     не зациклиться, если сервер так и не отвечает.
 //
 // Exit:
-//   0 - все страницы есть и без критичных нарушений
-//   2 - есть отсутствующие страницы ИЛИ критичные нарушения (скил пере-делегирует/поправит)
+//   0 - все страницы есть, без критичных нарушений и (без --accept-degraded) без деградации
+//   2 - есть отсутствующие / критичные нарушения / деградировавшие страницы (скил пере-делегирует)
 //   1 - ошибка запуска (нет pages.json, битый JSON)
 
 import { readFileSync, existsSync } from "node:fs";
@@ -26,9 +33,11 @@ import { join, resolve } from "node:path";
 const TITLE_MAX = 60;
 const DESC_MAX = 160;
 
-const dirArg = process.argv[2];
+const rawArgs = process.argv.slice(2);
+const acceptDegraded = rawArgs.includes("--accept-degraded");
+const dirArg = rawArgs.find((a) => !a.startsWith("--"));
 if (!dirArg) {
-  console.error("[verify-metatags] usage: node verify-metatags.mjs <metatags_dir>");
+  console.error("[verify-metatags] usage: node verify-metatags.mjs <metatags_dir> [--accept-degraded]");
   process.exit(1);
 }
 const metatagsDir = resolve(dirArg);
@@ -78,6 +87,7 @@ const INFO_TYPES = new Set(["info", "article"]);
 const missing = [];
 const violations = [];
 const warnings = [];
+const degraded = [];
 
 for (const page of pages) {
   const n = page.n;
@@ -93,6 +103,23 @@ for (const page of pages) {
   }
 
   const label = `n${n} «${mt.name || page.name || page.url}»`;
+
+  // 0. Деградация: выдача arsenkin не поднялась под нагрузкой - страница собрана
+  // вслепую по PLAYBOOK. Это transient-сбой, а не брак контента. Два состояния:
+  //   mcp_degraded       - свежая деградация: скил даёт 1 спокойный повтор (блокирует
+  //                        exit 2, если не передан --accept-degraded).
+  //   mcp_degraded_final - терминальная: writer выставил её на спокойном повторе, когда
+  //                        выдача ТАК И не поднялась. Машинный стоп зацикливания - НИКОГДА
+  //                        не блокирует, даже без --accept-degraded.
+  // Само наличие флага не мешает остальным проверкам ниже (длина/тире/вхождение).
+  const flags = Array.isArray(mt.flags) ? mt.flags : [];
+  const isFinalDeg = flags.includes("mcp_degraded_final");
+  if (flags.includes("mcp_degraded") || isFinalDeg) {
+    const note = String(mt.notes || "").trim();
+    const text = `${label}${note ? ` - ${note}` : " - выдача/Акварель arsenkin не пришла, собрано по PLAYBOOK"}`;
+    degraded.push({ text, isFinal: isFinalDeg });
+  }
+
   const h1 = String(mt.h1 || "");
   const title = String(mt.title || "");
   const desc = String(mt.description || "");
@@ -158,15 +185,37 @@ if (violations.length) {
   console.log(`\nНАРУШЕНИЯ (${violations.length}):`);
   for (const v of violations) console.log(`  - ${v}`);
 }
+// Деградация. Свежая (mcp_degraded) блокирует, пока не передан --accept-degraded
+// (скил даёт 1 спокойный повтор). Терминальная (mcp_degraded_final) - машинный стоп
+// зацикливания: writer ставит её, когда повтор тоже не дозвался до arsenkin; не
+// блокирует НИКОГДА, даже без флага - так цикл сходится кодом, а не дисциплиной LLM.
+const freshDeg = degraded.filter((d) => !d.isFinal);
+const finalDeg = degraded.filter((d) => d.isFinal);
+const degradeBlocks = freshDeg.length > 0 && !acceptDegraded;
+if (freshDeg.length) {
+  if (acceptDegraded) {
+    console.log(`\nДЕГРАДАЦИЯ свежая (${freshDeg.length}, принято с --accept-degraded, не блокирует) - собрано по PLAYBOOK, отметить в финальной сводке:`);
+  } else {
+    console.log(`\nДЕГРАДАЦИЯ свежая (${freshDeg.length}) - mcp_degraded, скил даёт 1 спокойный повтор (deep, по одной), затем verify с --accept-degraded:`);
+  }
+  for (const d of freshDeg) console.log(`  - ${d.text}`);
+}
+if (finalDeg.length) {
+  console.log(`\nДЕГРАДАЦИЯ терминальная (${finalDeg.length}, mcp_degraded_final - выдача так и не поднялась после повтора, не блокирует) - отметить в финальной сводке:`);
+  for (const d of finalDeg) console.log(`  - ${d.text}`);
+}
 if (warnings.length) {
   console.log(`\nПРЕДУПРЕЖДЕНИЯ (${warnings.length}, не блокируют):`);
   for (const w of warnings) console.log(`  - ${w}`);
 }
 
-if (missing.length || violations.length) {
-  console.log(`\n[verify-metatags] НЕ ПРОЙДЕНО (отсутствует ${missing.length}, нарушений ${violations.length}).`);
+if (missing.length || violations.length || degradeBlocks) {
+  console.log(
+    `\n[verify-metatags] НЕ ПРОЙДЕНО (отсутствует ${missing.length}, нарушений ${violations.length}, деградировало свежих ${degradeBlocks ? freshDeg.length : 0}).`
+  );
   process.exit(2);
 }
 
-console.log(`\n[verify-metatags] OK: все ${pages.length} страниц на месте, критичных нарушений нет.`);
+const tail = degraded.length ? ` (деградировало ${degraded.length}: терминальных ${finalDeg.length} - принято, по PLAYBOOK)` : "";
+console.log(`\n[verify-metatags] OK: все ${pages.length} страниц на месте, критичных нарушений нет${tail}.`);
 process.exit(0);
