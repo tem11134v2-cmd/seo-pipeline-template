@@ -1,0 +1,106 @@
+{
+  "total_pages": 4,
+  "pairing_performed": false,
+  "client_domain": null,
+  "client_pages_total": null,
+  "use_sections": true,
+  "sections": [
+    {
+      "id": "katalog",
+      "name": "Каталог сантехники",
+      "axis": "тип товара",
+      "note": "верхний уровень меню шапки"
+    },
+    {
+      "id": "info",
+      "name": "Информация",
+      "axis": "сервис",
+      "note": "доставка, оплата и т.п."
+    }
+  ],
+  "competitor_url_depth": {
+    "median_segments": 3,
+    "dominant_pattern": "two_level",
+    "examples": [
+      "leader.ru/katalog/vanny/akrilovye-vanny",
+      "comp2.ru/catalog/smesiteli/dlya-kuhni"
+    ],
+    "note": "у 4 из 6 конкурентов вложенность /razdel/kategoriya/tovar"
+  },
+  "url_nesting_recommendation": {
+    "mode": "nested",
+    "rationale": "конкуренты явно вкладывают (two_level), сайт новый - низкий риск миграции",
+    "migration_needed": false
+  },
+  "unique_features": ["Подбор по параметрам (3 из 8)"],
+  "pages": [
+    {
+      "n": 1,
+      "name": "Каталог сантехники",
+      "type": "category",
+      "url_pattern": "/katalog/",
+      "coverage": "8 из 8",
+      "coverage_pct": 100,
+      "source": "competitors",
+      "competitors_with_page": ["leader.ru", "comp2.ru"],
+      "client_current_url": null,
+      "client_top50_count": 0,
+      "migration_decision": "new",
+      "migration_target_url": null,
+      "section": "Каталог сантехники",
+      "category": "",
+      "notes": ""
+    },
+    {
+      "n": 2,
+      "name": "Акриловые ванны",
+      "type": "category",
+      "url_pattern": "/katalog/vanny/akrilovye/",
+      "coverage": "7 из 8",
+      "coverage_pct": 88,
+      "source": "competitors",
+      "competitors_with_page": ["leader.ru"],
+      "client_current_url": null,
+      "client_top50_count": 0,
+      "migration_decision": "new",
+      "migration_target_url": null,
+      "section": "Каталог сантехники",
+      "category": "Ванны",
+      "notes": ""
+    },
+    {
+      "n": 3,
+      "name": "Смесители для кухни",
+      "type": "category",
+      "url_pattern": "/katalog/smesiteli/dlya-kuhni/",
+      "coverage": "6 из 8",
+      "coverage_pct": 75,
+      "source": "competitors",
+      "competitors_with_page": ["leader.ru", "comp2.ru"],
+      "client_current_url": null,
+      "client_top50_count": 0,
+      "migration_decision": "new",
+      "migration_target_url": null,
+      "section": "Каталог сантехники",
+      "category": "Смесители",
+      "notes": ""
+    },
+    {
+      "n": 4,
+      "name": "Доставка",
+      "type": "info",
+      "url_pattern": "/dostavka/",
+      "coverage": "0 из 8",
+      "coverage_pct": 0,
+      "source": "brief",
+      "competitors_with_page": [],
+      "client_current_url": null,
+      "client_top50_count": 0,
+      "migration_decision": "new",
+      "migration_target_url": null,
+      "section": "Информация",
+      "category": "",
+      "notes": "из брифа"
+    }
+  ]
+}

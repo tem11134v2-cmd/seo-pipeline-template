@@ -1,0 +1,10 @@
+{
+  "analysis_dir": ".claude/tests/seo-structure/fixtures/analyses/999-test/",
+  "slug": "hier",
+  "domain": null,
+  "keyso_base": "msk",
+  "region_yandex": "213",
+  "region_name": "Москва",
+  "competitors_source": ".claude/tests/seo-structure/fixtures/analyses/999-test/competitors.json",
+  "stop_list_source": ".claude/tests/seo-structure/fixtures/analyses/999-test/A3.md"
+}

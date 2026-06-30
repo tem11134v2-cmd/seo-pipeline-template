@@ -268,6 +268,96 @@ await step("import-structure.mjs all empty -> exit 4", async () => {
   return true;
 });
 
+// === Тест 4: иерархия (use_sections + товарный category) ===
+// Отдельная фикстура fixtures/hierarchy_dir: товарный сайт с use_sections=true,
+// per-page section + category, top-level competitor_url_depth + url_nesting_recommendation.
+// Цель - убедиться, что колонки «Раздел»/«Категория» появляются в Листе 1, значения
+// section/category доезжают в ячейки, и category переживает import round-trip.
+const hierarchyDir = join(projectRoot, ".claude", "tmp", "seo-structure-test-hier");
+if (existsSync(hierarchyDir)) rmSync(hierarchyDir, { recursive: true, force: true });
+mkdirSync(hierarchyDir, { recursive: true });
+cpSync(join(fixturesDir, "hierarchy_dir"), hierarchyDir, { recursive: true });
+
+// Хелпер: вернуть карту имя_колонки -> 1-based индекс из строки заголовков (строка 2).
+function headerColMap(ws) {
+  const map = {};
+  ws.getRow(2).eachCell((cell, c) => {
+    const v = String(cell.value || "").trim();
+    if (v) map[v] = c;
+  });
+  return map;
+}
+
+await step("hierarchy: select-top10 + build-structure-xlsx run on hierarchy fixture", () => {
+  const r1 = runScript("select-top10.mjs", hierarchyDir);
+  if (r1.code !== 0) return `select-top10 exit ${r1.code}, stderr=${r1.stderr.trim()}`;
+  if (!existsSync(join(hierarchyDir, "top10.json"))) return "top10.json not created";
+  const r2 = runScript("build-structure-xlsx.mjs", hierarchyDir);
+  if (r2.code !== 0) return `build-structure-xlsx exit ${r2.code}, stderr=${r2.stderr.trim()}`;
+  if (!existsSync(join(hierarchyDir, "A6_hier.xlsx"))) return "A6_hier.xlsx not created";
+  return true;
+});
+
+await step("hierarchy: top10.json carries section + category per page", () => {
+  const top = JSON.parse(readFileSync(join(hierarchyDir, "top10.json"), "utf8"));
+  // select-top10 должен копировать section/category из master в каждую страницу (иначе теряются).
+  const p2 = top.pages.find((p) => p.n === 2);
+  const p3 = top.pages.find((p) => p.n === 3);
+  if (!p2 || !p3) return "не нашёл страницы n=2 / n=3 в top10.json";
+  if (p2.section !== "Каталог сантехники") return `top10 n=2 section="${p2.section}" (ожидал «Каталог сантехники»)`;
+  if (p2.category !== "Ванны") return `top10 n=2 category="${p2.category}" (ожидал «Ванны»)`;
+  if (p3.category !== "Смесители") return `top10 n=3 category="${p3.category}" (ожидал «Смесители»)`;
+  return true;
+});
+
+await step("hierarchy: Лист 1 имеет колонки «Раздел» и «Категория» в правильном порядке", async () => {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(join(hierarchyDir, "A6_hier.xlsx"));
+  const ws = wb.getWorksheet("Структура");
+  const cols = headerColMap(ws);
+  if (!cols["Раздел"]) return "нет колонки «Раздел» при use_sections=true";
+  if (!cols["Категория"]) return "нет колонки «Категория» при наличии товарных category";
+  // Порядок: «Раздел» и «Категория» идут после «Название» и перед «Нужна?» (как в fixedLeft).
+  if (!(cols["Название"] < cols["Раздел"])) return `позиция: «Раздел» (${cols["Раздел"]}) должна быть после «Название» (${cols["Название"]})`;
+  if (!(cols["Раздел"] < cols["Категория"])) return `позиция: «Категория» (${cols["Категория"]}) должна быть после «Раздел» (${cols["Раздел"]})`;
+  if (!(cols["Категория"] < cols["Нужна?"])) return `позиция: «Категория» (${cols["Категория"]}) должна быть перед «Нужна?» (${cols["Нужна?"]})`;
+  return true;
+});
+
+await step("hierarchy: значения section/category попадают в ячейки Листа 1", async () => {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(join(hierarchyDir, "A6_hier.xlsx"));
+  const ws = wb.getWorksheet("Структура");
+  const cols = headerColMap(ws);
+  // Находим строку с n=2 (Акриловые ванны: section=«Каталог сантехники», category=«Ванны»).
+  let row2 = 0;
+  for (let r = 3; r <= ws.rowCount; r++) {
+    if (Number(ws.getRow(r).getCell(1).value) === 2) { row2 = r; break; }
+  }
+  if (!row2) return "не нашёл строку n=2";
+  const section = String(ws.getCell(row2, cols["Раздел"]).value || "").trim();
+  const category = String(ws.getCell(row2, cols["Категория"]).value || "").trim();
+  if (section !== "Каталог сантехники") return `ячейка «Раздел» n=2 = "${section}" (ожидал «Каталог сантехники»)`;
+  if (category !== "Ванны") return `ячейка «Категория» n=2 = "${category}" (ожидал «Ванны»)`;
+  return true;
+});
+
+await step("hierarchy: section + category переживают import round-trip", async () => {
+  // Round-trip: A6_hier.xlsx (как «вернул клиент») -> import-structure -> structure_data.json.
+  // Все «да» по умолчанию (build проставил «да» обычным страницам) -> exit 0.
+  copyFileSync(join(hierarchyDir, "A6_hier.xlsx"), join(hierarchyDir, "client_filled.xlsx"));
+  const r = runScript("import-structure.mjs", hierarchyDir);
+  if (r.code !== 0) return `import exit ${r.code}, stderr=${r.stderr.trim()}`;
+  const sd = JSON.parse(readFileSync(join(hierarchyDir, "structure_data.json"), "utf8"));
+  const p2 = sd.pages.find((p) => p.n === 2);
+  const p3 = sd.pages.find((p) => p.n === 3);
+  if (!p2 || !p3) return "не нашёл страницы n=2 / n=3 в structure_data.json";
+  if (p2.section !== "Каталог сантехники") return `import n=2 section="${p2.section}" не пережил round-trip`;
+  if (p2.category !== "Ванны") return `import n=2 category="${p2.category}" не пережил round-trip`;
+  if (p3.category !== "Смесители") return `import n=3 category="${p3.category}" не пережил round-trip`;
+  return true;
+});
+
 // === Финал ===
 console.log("");
 const passed = results.filter((r) => r.ok).length;
@@ -285,4 +375,5 @@ if (failed > 0) {
 
 // Чистим sandbox если всё ок
 rmSync(sandboxDir, { recursive: true, force: true });
+rmSync(hierarchyDir, { recursive: true, force: true });
 process.exit(0);

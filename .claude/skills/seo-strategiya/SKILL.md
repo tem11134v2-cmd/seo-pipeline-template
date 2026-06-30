@@ -60,6 +60,9 @@ slug = slugify(domain)   // vasya.ru → vasya-ru; none → no-site-<timestamp>
 - Ниша / описание бизнеса (1-2 предложения) - или из `--niche`; пишется как `niche_hypothesis`
 - Есть ли доступ к Вебмастеру и Метрике на аккаунт tem11134? (Y/n)
 - Бюджет клиента, если озвучен (опц.)
+- Средний чек / стоимость заказа (₽), если известен - для перевода прогноза трафика в деньги (опц., иначе оценим по нише и пометим «оценочно»)
+- Ориентировочная конверсия сайта в заявку, если знаете (опц., иначе берём типовую по нише)
+- Маржинальность бизнеса (%), если готовы озвучить - для расчёта окупаемости и ROI в смете (опц., иначе оценим по нише)
 - Заметки и пожелания (опц.)
 
 **Если `URL == none` (домена нет — нужен запуск с нуля)** — дополнительно спроси:
@@ -114,6 +117,11 @@ strategy_dir = strategies/<NNN>-<slug>/
   "access_webmaster": true,
   "access_metrika": true,
   "budget": null,
+  "avg_check": null,
+  "avg_check_source": null,
+  "conversion_rate": null,
+  "close_rate": null,
+  "margin": null,
   "notes": "",
   "date": "Май 2026"
 }
@@ -211,7 +219,7 @@ project_root: <project root>
 ```
 strategy_dir: <strategy_dir>
 project_root: <project root>
-Прочитай strategy_data.json, tariffs.json, TARIFFS.md. Сформируй прозу для 6 разделов стратегии (без цен в разделе 4). Сохрани strategy_content.json.
+Прочитай strategy_data.json, tariffs.json, TARIFFS.md. Сформируй прозу для 6 разделов стратегии (без цен в разделе 4). Сохрани seo-strategiya_content.json.
 ```
 
 После завершения:
@@ -223,7 +231,7 @@ project_root: <project root>
 .claude\scripts\_node.cmd .claude\scripts\build-strategy-docx.mjs <strategy_dir>
 ```
 
-Скрипт читает `strategy_content.json` + `tariffs.json` + `inputs.json`, генерирует `<strategy_dir>/SEO_Strategy_<domain>.docx`.
+Скрипт читает `seo-strategiya_content.json` + `tariffs.json` + `inputs.json`, генерирует `<strategy_dir>/SEO_Strategy_<domain>.docx`.
 
 `bash .claude/hooks/update-meta.sh <strategy_dir> docx-done`
 
@@ -233,7 +241,7 @@ project_root: <project root>
 .claude\scripts\_node.cmd .claude\scripts\build-smeta-xlsx.mjs <strategy_dir>
 ```
 
-Скрипт читает `tariffs.json` + `inputs.json`, генерирует `<strategy_dir>/Smeta_<domain>.xlsx` (3 вкладки Старт/Рост/Максимум, формулы SUM).
+Скрипт читает `tariffs.json` + `inputs.json` + `seo-strategiya_data.json`, генерирует `<strategy_dir>/Smeta_<domain>.xlsx` (3 вкладки Старт/Рост/Максимум с формулами SUM + 4-я вкладка «Декомпозиция и окупаемость»: трафик -> лиды -> продажи -> выручка через средний чек + окупаемость и ROI к стоимости каждого тарифа). Если `seo-strategiya_data.json` нет или в нём нет `decomposition`/`forecast` - 4-я вкладка просто пропускается.
 
 `bash .claude/hooks/update-meta.sh <strategy_dir> xlsx-done`
 

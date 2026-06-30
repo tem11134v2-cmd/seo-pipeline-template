@@ -1,0 +1,47 @@
+{
+  "state": "completed",
+  "markers_sent": ["сантехника москва", "акриловые ванны купить", "смеситель для кухни купить"],
+  "cost_estimate": 7.5,
+  "balance_before": 450,
+  "balance_after_estimate": 442.5,
+  "region_yandex": "213",
+  "total_queries": 13,
+  "pages_with_results": 3,
+  "pages_without_results": 0,
+  "pages": [
+    {
+      "n": 1,
+      "name": "Каталог сантехники",
+      "marker": "сантехника москва",
+      "queries": [
+        {"query": "сантехника москва", "freq_base": 6200, "freq_exact": 4200, "source": "WS", "frequency_source": "jm_semantic_pack"},
+        {"query": "сантехника интернет магазин", "freq_base": 3300, "freq_exact": 2100, "source": "WS", "frequency_source": "jm_semantic_pack"},
+        {"query": "купить сантехнику недорого", "freq_base": 1400, "freq_exact": 900, "source": "WS", "frequency_source": "jm_semantic_pack"}
+      ],
+      "semantic_warning": null
+    },
+    {
+      "n": 2,
+      "name": "Акриловые ванны",
+      "marker": "акриловые ванны купить",
+      "queries": [
+        {"query": "акриловые ванны купить", "freq_base": 3100, "freq_exact": 1900, "source": "WS", "frequency_source": "jm_semantic_pack"},
+        {"query": "акриловая ванна цена", "freq_base": 2400, "freq_exact": 1500, "source": "WS", "frequency_source": "jm_semantic_pack"},
+        {"query": "ванна акрил 170", "freq_base": 880, "freq_exact": 520, "source": "WS", "frequency_source": "jm_semantic_pack"}
+      ],
+      "semantic_warning": null
+    },
+    {
+      "n": 3,
+      "name": "Смесители для кухни",
+      "marker": "смеситель для кухни купить",
+      "queries": [
+        {"query": "смеситель для кухни купить", "freq_base": 4100, "freq_exact": 2600, "source": "WS", "frequency_source": "jm_semantic_pack"},
+        {"query": "смеситель для кухни цена", "freq_base": 2900, "freq_exact": 1700, "source": "WS", "frequency_source": "jm_semantic_pack"},
+        {"query": "кухонный смеситель с краном", "freq_base": 760, "freq_exact": 410, "source": "WS", "frequency_source": "jm_semantic_pack"}
+      ],
+      "semantic_warning": null
+    }
+  ],
+  "budget_used": {"jm_account": 2, "jm_semantic_pack": 1, "jm_wordstat": 0, "wk_check_frequency": 0, "keyword_similar": 0}
+}

@@ -112,5 +112,24 @@
     {"period": "3 мес", "top10": 30, "top50": 180, "dr": 8, "traffic_month": 3500, "pages_index": 65},
     {"period": "6 мес", "top10": 55, "top50": 350, "dr": 12, "traffic_month": 7000, "pages_index": 80},
     {"period": "12 мес", "top10": 90, "top50": 500, "dr": 18, "traffic_month": 12000, "pages_index": 95}
-  ]
+  ],
+
+  "traffic_month_estimated": false,
+  "$comment_traffic": "traffic_month_estimated=true, если базовый traffic_month оценён (нет Метрики/тонкая база Keyso). Строка SEO-трафик в прогнозе ВСЕГДА число, не null.",
+
+  "decomposition": {
+    "$comment": "Денежная воронка для тарифа Рост. Считается growth-strategist. Две ступени (услуги/лидген): leads=traffic*conversion_rate, sales=leads*close_rate, revenue=sales*avg_check. Одна ступень (e-comm): revenue=traffic*conversion_rate*avg_check, close_rate=1. Если avg_check не дал клиент - оценка по нише, avg_check_source='estimated'. Цен тарифов тут НЕТ - окупаемость/ROI считаются только в смете (xlsx, 4-я вкладка) и от ПРИБЫЛИ (revenue*margin), а не от валовой выручки.",
+    "model": "two_step",
+    "avg_check": 25000,
+    "avg_check_source": "estimated",
+    "conversion_rate": 0.02,
+    "close_rate": 0.3,
+    "margin": 0.35,
+    "basis": "SEO-трафик тарифа Рост (рекомендованный)",
+    "rows": [
+      {"period": "сейчас", "traffic": 1200, "leads": 24, "sales": 7, "revenue": 175000},
+      {"period": "6 мес", "traffic": 7000, "leads": 140, "sales": 42, "revenue": 1050000},
+      {"period": "12 мес", "traffic": 12000, "leads": 240, "sales": 72, "revenue": 1800000}
+    ]
+  }
 }

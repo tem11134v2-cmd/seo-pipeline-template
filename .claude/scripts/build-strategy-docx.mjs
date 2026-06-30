@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // build-strategy-docx.mjs
-// Генерирует SEO-стратегию (.docx) на основе strategy_content.json + tariffs.json + inputs.json.
+// Генерирует SEO-стратегию (.docx) на основе seo-strategiya_content.json + tariffs.json + inputs.json.
 // Используется в /seo-strategiya после strategy-writer.
 //
 // Зависимости: docx (npm install docx) — добавлен в package.json.
@@ -29,7 +29,7 @@ if (!strategyDirArg) {
 }
 const strategyDir = resolve(strategyDirArg);
 
-const contentPath = join(strategyDir, "strategy_content.json");
+const contentPath = join(strategyDir, "seo-strategiya_content.json");
 const inputsPath = join(strategyDir, "inputs.json");
 
 if (!existsSync(contentPath)) {

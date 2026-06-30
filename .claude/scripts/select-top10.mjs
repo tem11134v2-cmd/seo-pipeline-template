@@ -2,7 +2,7 @@
 // select-top10.mjs
 // Детерминированная фильтрация JM semantic_pack → топ-10 на страницу + детекция каннибализации.
 //
-// Используется в /seo-struktura на шаге 4а (перед агентом cannibalization-resolver).
+// Используется в /seo-struktura на шаге 5а (перед агентом cannibalization-resolver).
 //
 // Использование:
 //   node .claude/scripts/select-top10.mjs <structure_dir>
@@ -172,6 +172,8 @@ for (const master of masterList.pages) {
       id: pageId,
       name: master.name,
       type: master.type,
+      section: master.section || "",
+      category: master.category || "",
       marker: null,
       ws_exact: null,
       queries: [],
@@ -189,6 +191,8 @@ for (const master of masterList.pages) {
       id: pageId,
       name: master.name,
       type: master.type,
+      section: master.section || "",
+      category: master.category || "",
       marker: mk.marker,
       ws_exact: mk.ws_exact,
       queries: [{
@@ -274,6 +278,8 @@ for (const master of masterList.pages) {
     id: pageId,
     name: master.name,
     type: master.type,
+    section: master.section || "",
+    category: master.category || "",
     marker: mk.marker,
     ws_exact: mk.ws_exact,
     queries: top,

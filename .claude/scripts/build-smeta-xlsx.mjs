@@ -72,16 +72,16 @@ const TARIFF_NAMES = {
 };
 
 const SERVICE_NAMES = {
-  // Разовые - структура и контент
+  // Разовые - анализ, структура и контент
+  PA: "Предпроектный анализ конкурентов",
   SY: "Сбор СЯ и проектирование структуры страниц сайта",
   NG: "Сбор n-грамм и написание SEO-контента для страниц сайта",
   // Разовые - тех. работа
   BS: "Базовое SEO для Tilda (прописывание метатегов + ВМ/Метрика/IndexNow)",
   FA: "Полный технический SEO-аудит сайта",
   KF: "Исследование КФ и КНДР конкурентов-лидеров ниши",
-  // Разовые - метатеги
-  MF: "Составление метатегов по ВЧ-запросам (быстрое)",
-  MD: "Индивидуальное составление метатегов (с разрешением омонимии)",
+  // Разовые - метатеги (отдельной услугой, если нет SY)
+  MT: "Составление метатегов под ВЧ-запросы (Title/Description/H1)",
   // Разовые - контент
   IT: "Полный сбор СЯ под информационный трафик с картой тем",
   ART: "Тестовая SEO-статья (без сбора тем)",
@@ -100,9 +100,9 @@ const SERVICE_NAMES = {
 };
 
 const SERVICE_DEADLINES = {
-  SY: "5 дней", NG: "5 дней",
+  PA: "3-5 дней", SY: "5 дней", NG: "5 дней",
   BS: "3 дня", FA: "5 дней", KF: "5 дней",
-  MF: "2 сут.", MD: "3 сут.",
+  MT: "2-3 сут.",
   IT: "3 дня", ART: "3 дня",
   BR: "1 нед.", YB: "8 дней",
   ST: "2 нед.",
@@ -110,13 +110,13 @@ const SERVICE_DEADLINES = {
 };
 
 const SERVICE_DESCRIPTIONS = {
-  SY: "Парсинг запросов, кластеризация, ТЗ списка страниц с метатегами и URL",
+  PA: "Бриф, конкуренты, SERP-вердикт, скан смыслов лидеров, отчёт A2",
+  SY: "Парсинг запросов, кластеризация, ТЗ списка страниц с готовыми метатегами и URL",
   NG: "Анализ ТОП-10, сбор n-грамм, ТЗ из 2-5 текстовых блоков на страницы",
   BS: "Прописывание метатегов в Tilda + настройка Вебмастера, Метрики, GSC, IndexNow (только Tilda)",
   FA: "Полный аудит 100+ пунктов с чек-листом и приоритетами (для не-Tilda)",
   KF: "Сравнение топ-5 лидеров по 50+ блокам и элементам, ТЗ для редизайна",
-  MF: "Готовые Title/Description/H1 по ВЧ-запросам для всех страниц",
-  MD: "Индивидуальные метатеги с разрешением омонимии (для сложных ниш)",
+  MT: "Готовые Title/Description/H1 по ВЧ-запросам для всех страниц (если нет структуры SY)",
   IT: "Выгрузка запросов конкурентов, расширение, карта тем для статей",
   ART: "Одна статья 1500-3000 слов по теме клиента (без сбора тем)",
   BR: "Чек-лист площадок (карты, каталоги, отзовики, соцсети) + опция 2к/площадка",
@@ -131,13 +131,13 @@ const SERVICE_DESCRIPTIONS = {
 };
 
 const SERVICE_RESULTS = {
+  PA: "Отчёт A2: вердикт, конкуренты, точки роста, сравнение с лидерами, стоп-лист",
   SY: "ТЗ: список страниц с H1, Title, Description, URL",
   NG: "ТЗ: 2-5 блоков текста для каждой страницы",
   BS: "Прописанные в Tilda метатеги, настроенные Вебмастер/Метрика/GSC, IndexNow-сабмит",
   FA: "Аудит 100+ пунктов с комментариями и приоритетами",
   KF: "ТЗ: 50+ блоков и элементов с рекомендацией важности",
-  MF: "ТЗ-таблица с готовыми метатегами для всех страниц",
-  MD: "ТЗ-таблица с индивидуальными метатегами для сложных ниш",
+  MT: "ТЗ-таблица с готовыми метатегами для всех страниц",
   IT: "Структурированный список тем для статей",
   ART: "Готовая SEO-статья 1500-3000 слов с метатегами",
   BR: "Чек-лист площадок с URL, приоритетами и рекомендациями",
@@ -150,6 +150,9 @@ const SERVICE_RESULTS = {
   AR: "Готовые к публикации статьи (10/мес) с метатегами и ТЗ",
   RP: "Полная прозрачность продвижения",
 };
+
+// Алиасы устаревших ID услуг -> актуальные (старые tariffs.json после слияния MF/MD -> MT)
+const SERVICE_ID_ALIASES = { MF: "MT", MD: "MT" };
 
 // ═══ Хелперы стилей ═══
 const thinBorder = {
@@ -227,13 +230,13 @@ function writeTariffSheet(workbook, tariffKey, tariffData) {
   const onetimeStartRow = row;
   const onetimeServices = tariffData.onetime || [];
   onetimeServices.forEach((service, i) => {
-    const sid = service.id;
+    const sid = SERVICE_ID_ALIASES[service.id] || service.id;
     const isAlt = i % 2 === 1;
 
-    // Описание + опц. price_note через перенос строки (помогает обосновать переменную цену для BS/MF/MD/PF/PFP)
+    // Описание + опц. price_note через перенос строки (помогает обосновать переменную цену для BS/PF/PFP)
     let description = service.description || SERVICE_DESCRIPTIONS[sid] || "";
     if (service.price_note) {
-      description = description ? `${description}\n— ${service.price_note}` : `— ${service.price_note}`;
+      description = description ? `${description}\n- ${service.price_note}` : `- ${service.price_note}`;
     }
 
     const values = [
@@ -300,13 +303,13 @@ function writeTariffSheet(workbook, tariffKey, tariffData) {
   const monthlyStartRow = row;
   const monthlyServices = tariffData.monthly || [];
   monthlyServices.forEach((service, i) => {
-    const sid = service.id;
+    const sid = SERVICE_ID_ALIASES[service.id] || service.id;
     const isAlt = i % 2 === 1;
 
     // Описание + опц. price_note (для PF/PFP — обоснование выбора базового/продвинутого по конкурентности)
     let description = service.description || SERVICE_DESCRIPTIONS[sid] || "";
     if (service.price_note) {
-      description = description ? `${description}\n— ${service.price_note}` : `— ${service.price_note}`;
+      description = description ? `${description}\n- ${service.price_note}` : `- ${service.price_note}`;
     }
 
     const values = [
@@ -420,6 +423,152 @@ function writeTariffSheet(workbook, tariffKey, tariffData) {
   ws.views = [{ state: "frozen", ySplit: 1 }];
 }
 
+// ═══ 4-я вкладка: Декомпозиция и окупаемость ═══
+// Читает seo-strategiya_data.json (forecast тарифа Рост + decomposition: avg_check, конверсии).
+// Для каждого тарифа масштабирует трафик (Старт x0.6 / Рост x1.0 / Максимум x1.3),
+// считает воронку трафик->лиды->продажи->выручка и окупаемость к стоимости тарифа.
+const TARIFF_SCALE = { start: 0.6, growth: 1.0, max: 1.3 };
+
+function periodToMonth(label) {
+  if (/сейчас/i.test(label)) return 0;
+  const m = String(label).match(/\d+/);
+  return m ? parseInt(m[0], 10) : 0;
+}
+
+// Линейная интерполяция трафика на месяц m по точкам forecast {month, traffic}.
+function interpTraffic(points, m) {
+  if (!points.length) return 0;
+  if (m <= points[0].month) return points[0].traffic;
+  if (m >= points[points.length - 1].month) return points[points.length - 1].traffic;
+  for (let i = 1; i < points.length; i++) {
+    if (m <= points[i].month) {
+      const a = points[i - 1], b = points[i];
+      const t = b.month === a.month ? 0 : (m - a.month) / (b.month - a.month);
+      return a.traffic + (b.traffic - a.traffic) * t;
+    }
+  }
+  return points[points.length - 1].traffic;
+}
+
+function computeCase(tariffData, points, dec, scale) {
+  const cr = dec.conversion_rate ?? 0.02;
+  const close = dec.close_rate ?? (dec.model === "one_step" ? 1 : 0.3);
+  const avg = dec.avg_check ?? 0;
+  const margin = dec.margin ?? 0.35;
+  const onetime = tariffData.total_onetime ?? 0;
+  const monthly = tariffData.total_monthly ?? 0;
+
+  // Окупаемость считается от ПРИБЫЛИ (выручка x маржа), а не от валовой выручки.
+  let cumRev = 0, payback = null;
+  for (let m = 1; m <= 12; m++) {
+    const traffic = interpTraffic(points, m) * scale;
+    cumRev += traffic * cr * close * avg;       // валовая выручка нарастающим итогом
+    const cumProfit = cumRev * margin;          // вклад в прибыль (до затрат на SEO)
+    const cumCost = onetime + monthly * m;
+    if (payback === null && cumProfit >= cumCost) payback = m;
+  }
+  const t12 = interpTraffic(points, 12) * scale;
+  const leads12 = t12 * cr;
+  const sales12 = leads12 * close;
+  const yearCost = onetime + monthly * 12;
+  const yearProfit = cumRev * margin;           // прибыль с маржой за 12 мес
+  const yearNet = yearProfit - yearCost;        // чистый результат после затрат на SEO
+  const roi = yearCost > 0 ? (yearNet / yearCost) * 100 : 0;
+  return {
+    traffic12: Math.round(t12),
+    leads12: Math.round(leads12),
+    sales12: Math.round(sales12),
+    revMonth12: Math.round(sales12 * avg),
+    yearCost,
+    yearGross: Math.round(cumRev),
+    yearProfit: Math.round(yearProfit),
+    yearNet: Math.round(yearNet),
+    payback,
+    roi: Math.round(roi),
+  };
+}
+
+function writeDecompositionSheet(workbook, tariffsByKey, data) {
+  const dec = data.decomposition;
+  const forecast = Array.isArray(data.forecast) ? data.forecast : [];
+  if (!dec || !forecast.length) return false;
+  const points = forecast
+    .map(f => ({ month: periodToMonth(f.period), traffic: Number(f.traffic_month) || 0 }))
+    .sort((a, b) => a.month - b.month);
+
+  const ws = workbook.addWorksheet("Декомпозиция и окупаемость");
+  [4, 38, 18, 18, 18].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  let row = 1;
+
+  ws.mergeCells(row, 1, row, 5);
+  const t = ws.getCell(row, 1);
+  t.value = "ДЕКОМПОЗИЦИЯ И ОКУПАЕМОСТЬ";
+  t.font = { name: FONT_FAMILY, size: FONT_SIZE_TITLE, bold: true, color: { argb: COLORS.header_bg } };
+  ws.getRow(row).height = 22; row++;
+
+  ws.mergeCells(row, 1, row, 5);
+  const sub = ws.getCell(row, 1);
+  sub.value = `${domain} - SEO-продвижение | ${date}`;
+  sub.font = { name: FONT_FAMILY, size: FONT_SIZE, color: { argb: COLORS.muted } };
+  row += 2;
+
+  const crp = Math.round((dec.conversion_rate ?? 0.02) * 1000) / 10;
+  const closep = Math.round((dec.close_rate ?? (dec.model === "one_step" ? 1 : 0.3)) * 100);
+  const avg = dec.avg_check ?? 0;
+  const marginPct = Math.round((dec.margin ?? 0.35) * 100);
+  ws.mergeCells(row, 1, row, 5);
+  const a = ws.getCell(row, 1);
+  a.value = `Допущения: конверсия в заявку ${crp}%, заявка в продажу ${closep}%, средний чек ${avg.toLocaleString("ru-RU")} руб${dec.avg_check_source === "estimated" ? " (оценочный)" : ""}, маржинальность ${marginPct}%. Окупаемость и ROI считаются от прибыли (выручка x маржа). Трафик масштабирован по тарифам (Старт x0.6 / Рост x1.0 / Максимум x1.3). Оценка, не гарантия.`;
+  a.font = { name: FONT_FAMILY, size: FONT_SIZE, italic: true, color: { argb: COLORS.muted } };
+  a.alignment = { wrapText: true, vertical: "top" };
+  ws.getRow(row).height = 50;
+  row += 2;
+
+  const headers = ["", "Показатель", "Старт", "Рост", "Максимум"];
+  headers.forEach((h, i) => { const c = ws.getCell(row, i + 1); c.value = h; applyHeader(c); });
+  row++;
+
+  const cases = {
+    start: tariffsByKey.start ? computeCase(tariffsByKey.start, points, dec, TARIFF_SCALE.start) : null,
+    growth: tariffsByKey.growth ? computeCase(tariffsByKey.growth, points, dec, TARIFF_SCALE.growth) : null,
+    max: tariffsByKey.max ? computeCase(tariffsByKey.max, points, dec, TARIFF_SCALE.max) : null,
+  };
+
+  const money = '#,##0 "₽"';
+  const defs = [
+    ["Трафик через 12 мес, переходов/мес", c => c.traffic12, "num"],
+    ["Обращения/лиды через 12 мес, /мес", c => c.leads12, "num"],
+    ["Продажи через 12 мес, /мес", c => c.sales12, "num"],
+    ["Выручка через 12 мес, руб/мес", c => c.revMonth12, money],
+    ["Выручка за 12 мес (накопл.), руб", c => c.yearGross, money],
+    [`Прибыль с маржой ${marginPct}% за 12 мес, руб`, c => c.yearProfit, money],
+    ["Затраты на SEO за 12 мес, руб", c => c.yearCost, money],
+    ["Чистый результат за 12 мес, руб", c => c.yearNet, money],
+    ["Окупаемость (по прибыли)", c => (c.payback ? `${c.payback} мес` : "> 12 мес"), "str"],
+    ["ROI за 12 мес (по прибыли), %", c => `${c.roi}%`, "str"],
+  ];
+
+  defs.forEach((d, i) => {
+    const [label, getter, fmt] = d;
+    const isAlt = i % 2 === 1;
+    ws.mergeCells(row, 1, row, 2);
+    const lc = ws.getCell(row, 1);
+    lc.value = label; applyBody(lc, isAlt, false);
+    ["start", "growth", "max"].forEach((k, j) => {
+      const c = ws.getCell(row, j + 3);
+      const cs = cases[k];
+      const v = cs ? getter(cs) : "-";
+      c.value = v;
+      applyBody(c, isAlt, true);
+      if (typeof v === "number") c.numFmt = fmt === "num" ? "#,##0" : (fmt === money ? money : "General");
+    });
+    row++;
+  });
+
+  ws.views = [{ state: "frozen", ySplit: 1 }];
+  return true;
+}
+
 // ═══ MAIN ═══
 const workbook = new ExcelJS.Workbook();
 workbook.creator = "TIMUR SEO";
@@ -445,6 +594,27 @@ const expected = ["Старт", "Рост", "Максимум"];
 const missing = expected.filter(name => !sheetTitles.includes(name));
 if (missing.length > 0) {
   console.warn(`[build-smeta-xlsx] WARNING: missing sheets: ${missing.join(", ")}. tariffs.json keys: ${Object.keys(tariffs).join(", ")}`);
+}
+
+// 4-я вкладка: декомпозиция и окупаемость (если есть seo-strategiya_data.json с decomposition + forecast)
+const dataPath = join(strategyDir, "seo-strategiya_data.json");
+if (existsSync(dataPath)) {
+  try {
+    const data = JSON.parse(readFileSync(dataPath, "utf8").replace(/^﻿/, ""));
+    const normTariffs = {};
+    for (const rawKey of Object.keys(tariffs)) {
+      const ck = KEY_ALIASES[rawKey] || rawKey;
+      if (KNOWN_TARIFFS.has(ck)) normTariffs[ck] = tariffs[rawKey];
+    }
+    const ok = writeDecompositionSheet(workbook, normTariffs, data);
+    console.log(ok
+      ? "[build-smeta-xlsx] added sheet: Декомпозиция и окупаемость"
+      : "[build-smeta-xlsx] decomposition skipped (no decomposition/forecast in seo-strategiya_data.json)");
+  } catch (e) {
+    console.warn(`[build-smeta-xlsx] decomposition skipped: ${e.message}`);
+  }
+} else {
+  console.warn("[build-smeta-xlsx] seo-strategiya_data.json not found - decomposition sheet skipped");
 }
 
 await workbook.xlsx.writeFile(outputPath);

@@ -57,18 +57,29 @@ init -> master-list-done -> markers-done -> semantic-done ->
 structures/NNN-<domain-slug>/
 ├── meta.json                  # state machine + drive_file_id + источник анализа
 ├── inputs.json                # snapshot: analysis_dir + slug + region + keyso_base + ссылки на JSON
-├── master_list.json           # мастер-список страниц после спаривания
+├── master_list.json           # мастер-список страниц после спаривания + группировка (use_sections/sections/section/category) + competitor_url_depth + url_nesting_recommendation
 ├── markers.json               # маркер + источник + частотность на каждую страницу
 ├── semantic_pack.json         # топ-30 JM на каждый маркер
-├── top10.json                 # отфильтрованные топ-10 на каждую страницу
+├── top10.json                 # отфильтрованные топ-10 на каждую страницу (с копией section + category на странице)
 ├── cannibalization.json       # список конфликтов + разрешения + рекомендации по расширению
 ├── decisions.json             # журнал авто-решений алгоритма (роль/синоним/блог/свёртка) + confidence
-├── A6_<slug>.xlsx             # ФИНАЛ-1 (для клиента): 4 листа
+├── A6_<slug>.xlsx             # ФИНАЛ-1 (для клиента): 4 листа (лист «Структура» с колонками «Раздел» + «Категория»)
 ├── client_filled.xlsx         # после шага --import (правленая клиентом версия)
 ├── structure_data.json        # машиночитаемый разбор client_filled.xlsx
-├── A6.md                      # ФИНАЛ-2 (в проект для У5+): целевые + отложенные + рекомендации + миграция
+├── A6.md                      # ФИНАЛ-2 (в проект для У5+): целевые + отложенные + рекомендации + Архитектура меню (шапка) + Блок перелинковки в шапке + миграция
 └── share.json                 # ссылка Drive + drive_file_id + shared_at
 ```
+
+**Поля иерархии в `master_list.json`** (продюсер - `master-list-builder`; консьюмеры - `build-structure-xlsx`, `import-structure`, `select-top10`, `structure-writer`):
+
+- `use_sections` (bool): группировка включена. ВСЕГДА true когда целевых страниц >= 5 и есть хотя бы 1 осмысленная ось группировки; false только для совсем плоского мелкого набора (< 5 страниц или нет осей).
+- `sections` (array, top-level): определения разделов/хабов (верхний уровень меню шапки), формат `[{ "id", "name", "axis", "note" }]`.
+- per-page `section` (string): раздел (хаб) страницы; заполняется ВСЕГДА когда use_sections=true. (Существующее поле - читают xlsx и import.)
+- per-page `category` (string, опц.): третий уровень для ТОВАРНЫХ сайтов (подкатегория внутри раздела). Для услуг обычно "".
+- `competitor_url_depth` (object, top-level): анализ вложенности URL конкурентов из domain_pages - `{ "median_segments", "dominant_pattern": "flat"|"one_level"|"two_level"|"deep", "examples": [...], "note" }`.
+- `url_nesting_recommendation` (object, top-level): `{ "mode": "flat"|"nested", "rationale", "migration_needed" }`. mode="nested" (с 301-миграцией) только когда конкуренты явно вкладывают (dominant_pattern two_level/deep) и сайт новый/малый/низкий риск; иначе "flat" (группировка только в шапке + перелинковка, URL не трогаем).
+
+Совместимость - новые колонки/поля парсятся с -1 guard (как существующий COL_SECTION); `top10.json` копирует `section` и `category` в каждую страницу.
 
 ## Алгоритм
 
@@ -183,6 +194,16 @@ analysis_dir: <analysis_dir>
 project_root: <project root>
 
 Прочитай brief.json + competitors.json из analysis_dir. Собери страницы конкурентов через domain_pages, типизируй (с web_fetch для спорных), нормализуй (объединение синонимов), дополни из brief.assortment. Если brief.domain не null и есть данные - сделай спаривание с client_pages + domain_pages клиента. Сохрани master_list.json.
+
+Дополнительно (всегда):
+- Проанализируй вложенность URL конкурентов из УЖЕ полученных domain_pages (счёт сегментов пути, без доп. MCP-вызовов) и запиши top-level объект `competitor_url_depth`: { "median_segments": <число>, "dominant_pattern": "flat"|"one_level"|"two_level"|"deep", "examples": ["competitor.ru/razdel/usluga", ...], "note": "<сколько из N конкурентов вкладывают по шаблону /razdel/usluga>" }.
+- Сгруппируй страницы в хабы/разделы/категории ВСЕГДА (для шапки сайта и блока перелинковки), даже если в нише принято делать плоские URL. Группировка отдельно от решения о вложенности самих URL.
+  - `use_sections` (bool): включай ВСЕГДА, когда целевых страниц >= 5 и есть хотя бы 1 осмысленная ось группировки. `false` только для совсем плоского мелкого набора (< 5 страниц или нет осей). Прежний гейт ">= 12 страниц" не применяй.
+  - top-level `sections` (array): [{ "id": "uslugi", "name": "Услуги ремонта", "axis": "тип услуги", "note": "..." }] - определения разделов/хабов (верхний уровень меню шапки). Формат сохрани.
+  - per-page `section` (string): name/id раздела (хаба) страницы. Заполняй ВСЕГДА когда use_sections=true. Существующее поле - НЕ переименовывай (его читают xlsx и import).
+  - per-page `category` (string, опц.): третий уровень для ТОВАРНЫХ сайтов (подкатегория внутри раздела). Для услуг обычно "" (пусто).
+  - Уровни по типу сайта (авто по brief.business_type / типу сайта из scan): Услуги - 2 уровня раздел(hub) -> страница (category пусто); Товары - 3 уровня каталог/раздел(hub) -> категория -> товар (используется category).
+- Запиши top-level объект `url_nesting_recommendation`: { "mode": "flat"|"nested", "rationale": "...", "migration_needed": <bool> }. Политика: группировка в шапке ВСЕГДА; mode="nested" (с рекомендацией 301-миграции, migration_needed=true) ТОЛЬКО когда конкуренты явно вкладывают (competitor_url_depth.dominant_pattern two_level/deep) И сайт новый/малый/низкий риск; иначе mode="flat" (URL не трогаем, группируем только в шапке + перелинковка).
 ```
 
 После завершения:
@@ -277,6 +298,8 @@ project_root: <project root>
 ```
 
 Скрипт читает `inputs.json` + `master_list.json` + `top10.json` + `cannibalization.json` + `analyses/NNN/competitors.json` и собирает `A6_<slug>.xlsx` с 4 листами: «Структура», «Рекомендации», «Конкуренты», «Миграция».
+
+Лист «Структура» содержит колонку «Раздел» (из `page.section`, когда `use_sections`) и колонку «Категория» (из `page.category`, показывается когда хотя бы у одной страницы есть непустой `category`). Обе редактируемы клиентом. (Парс новых колонок с -1 guard, как существующий COL_SECTION.)
 
 `bash .claude/hooks/update-meta.sh <structure_dir> xlsx-built`
 
@@ -388,7 +411,12 @@ structure_dir: <structure_dir>
 analysis_dir: <analysis_dir>
 project_root: <project root>
 
-Прочитай structure_data.json + cannibalization.json + master_list.json + inputs.json + decisions.json (если есть) + semantic_pack.json (для degraded) + analyses/NNN/A3.md. Собери A6.md по фиксированному шаблону - шапка проекта + Замечания прогона (реконструкция/регион/деградация/спаривание) + Целевые + Рекомендации + Наши SEO-решения (журнал, low-confidence отдельным чек-листом) + Конкуренты + Миграция + Отложенные (с причинами).
+Прочитай structure_data.json + cannibalization.json + master_list.json (вкл. sections/section/category + competitor_url_depth + url_nesting_recommendation) + inputs.json + decisions.json (если есть) + semantic_pack.json (для degraded) + analyses/NNN/A3.md. Собери A6.md по фиксированному шаблону - шапка проекта + Замечания прогона (реконструкция/регион/деградация/спаривание) + Целевые + Рекомендации + Наши SEO-решения (журнал, low-confidence отдельным чек-листом) + Архитектура меню (шапка) + Блок перелинковки в шапке + Конкуренты + Миграция + Отложенные (с причинами).
+
+Новые разделы (ВСЕГДА):
+- «Архитектура меню (шапка)» - дерево раздел -> (категория) -> страницы из sections/section/category. Если реальной группировки нет (use_sections=false) - плоский список.
+- «Блок перелинковки в шапке» - какие сгруппированные страницы кросс-линкуются в шапке (по разделам/категориям).
+Если `url_nesting_recommendation.mode == "nested"` - добавь в раздел «Миграция» рекомендацию вложенных URL (по dominant_pattern из competitor_url_depth) + 301-редиректы. При mode="flat" - явно отметь, что URL остаются плоскими, группировка только в шапке.
 ```
 
 После завершения:
