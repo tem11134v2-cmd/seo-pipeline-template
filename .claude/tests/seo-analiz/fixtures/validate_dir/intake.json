@@ -1,0 +1,11 @@
+{
+  "sources": [
+    { "id": "brief", "type": "бриф", "path": "brief_raw.txt", "label": "Опросник клиента" }
+  ],
+  "facts": [
+    { "field": "niche", "value": "ремонт квартир", "source": "brief", "quote": "делаем ремонт квартир", "decision_impact": false }
+  ],
+  "gaps": [],
+  "conflicts": [],
+  "summary": "Клиент из Москвы, продвигает ремонт квартир под ключ."
+}

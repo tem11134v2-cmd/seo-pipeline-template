@@ -1,0 +1,8 @@
+{
+  "direct": [
+    { "domain": "leader.ru", "pages_keyso": 120, "top10": 45, "top50": 320, "dr": 15, "traffic_month": 4500 },
+    { "domain": "second.ru", "pages_keyso": 80, "top10": 20, "top50": 150, "dr": 10, "traffic_month": 2000 }
+  ],
+  "indirect": [],
+  "leaders_top3": ["leader.ru"]
+}

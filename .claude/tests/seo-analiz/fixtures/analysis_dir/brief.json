@@ -1,0 +1,22 @@
+{
+  "slug": "romashka",
+  "domain": "romashka.ru",
+  "company_name": "ООО Ромашка",
+  "keyso_base": "moskva_i_mo",
+  "niche": "ремонт квартир",
+  "region": "Москва",
+  "business_type": "services",
+  "assortment": ["Ремонт квартир под ключ", "Ремонт ванной"],
+  "not_in_assortment": [],
+  "utp_technical": ["Собственная бригада"],
+  "utp_service": [],
+  "utp_social": [],
+  "forbidden_wordings": [],
+  "client_target_queries": [],
+  "client_competitors": [],
+  "yandex_maps": true,
+  "seasonality": "нет",
+  "ca_data": "",
+  "gaps": ["регион не уточнен явно", "данные ЦА отсутствуют"],
+  "client_pages": []
+}

@@ -10,9 +10,9 @@
 
 | Тул | Что даёт | На каких шагах | Лимит |
 |---|---|---|---|
-| `domain_dashboard` | DR, ТОП-10/50, трафик, страниц в базе | 1 (проверка домена клиента, если есть) + 3 (по каждому из 8-15 отфильтрованных конкурентов) | 1 + 8-15 |
-| `domain_competitors` | Список конкурентов по пересечению семантики | 2 (Путь A, Путь B опорный, Путь C/D через топ-3 первичных) | 1-3 |
-| `keyword_info` | SERP по запросу: ТОП-50 + частотность | 2 (Путь B/C/D — сбор кандидатов по 3-7 запросам) + 4 (SERP-анализ по 3-5 коммерческим запросам) | 3-7 + 3-5 |
+| `domain_dashboard` | DR, ТОП-10/50, трафик, страниц в базе | 2 (проверка домена клиента, если есть) + 3 (по каждому из 8-15 отфильтрованных конкурентов) | 1 + 8-15 |
+| `domain_competitors` | Список конкурентов по пересечению семантики | 3 (Путь A, Путь B опорный, Путь C/D через топ-3 первичных) | 1-3 |
+| `keyword_info` | SERP по запросу: ТОП-50 + частотность | 3 (Путь B/C/D — сбор кандидатов по 3-7 запросам) + 4 (SERP-анализ по 3-5 коммерческим запросам) | 3-7 + 3-5 |
 | `domain_pages` | Страницы домена с числом запросов в ТОП | 5 (по каждому из 3 лидеров — топ-10 страниц) | 3 |
 
 **Параметры:**
@@ -33,8 +33,8 @@ domain_pages(domain="leader.ru", base="spb", sort="it50|desc", per_page=10)
 
 | Тул | Что даёт | На каких шагах |
 |---|---|---|
-| `arsenkin_top` | Топ Яндекса по запросу+регион (домены/URL) | 2 (если `brief.city_not_in_keyso == true` — локальные игроки) |
-| `seo_fetch_page` / `seo_fetch_batch` | Статический фетч + разбор HTML (JS не рендерит), объём по профилю | 2 (проверка спорных доменов на агрегатор / инфопортал / релевантность, `profile="content"`) + 5 (скан страниц топ-3 лидеров, `profile="content"`) |
+| `arsenkin_top` | Топ Яндекса по запросу+регион (домены/URL) | 3 (если `brief.city_not_in_keyso == true` — локальные игроки) |
+| `seo_fetch_page` / `seo_fetch_batch` | Статический фетч + разбор HTML (JS не рендерит), объём по профилю | 3 (проверка спорных доменов на агрегатор / инфопортал / релевантность, `profile="content"`) + 5 (скан страниц топ-3 лидеров, `profile="content"`) |
 
 ```
 arsenkin_top(queries=["<запрос> <город>"], region=213, depth=10, is_snippet=true)
@@ -45,7 +45,7 @@ seo_fetch_page(url="https://leader.ru/services/teambuilding", profile="content")
 
 | Тул | На каких шагах |
 |---|---|
-| `web_fetch` | 2 (вторичный деградированный fallback к `seo_fetch_page`: теряет мету/структуру/HTTP-статус) + 5 (то же) |
+| `web_fetch` | 3 (вторичный деградированный fallback к `seo_fetch_page`: теряет мету/структуру/HTTP-статус) + 5 (то же) |
 
 ---
 
@@ -57,20 +57,35 @@ seo_fetch_page(url="https://leader.ru/services/teambuilding", profile="content")
 | **Webmaster** (wm_*) | Доступы клиента не запрашиваются на предпроектном этапе |
 | **Метрика** (ym_*) | То же |
 | **SpeedyIndex** (speedyindex_*) | Не нужно проверять индексацию для предпроектного анализа |
-| **Arsenkin** (arsenkin_*) | Дублирует Keyso для этой задачи. Исключение: `arsenkin_top` для топа Яндекса по локальным игрокам вне базы Keyso (шаг 2); при необходимости `arsenkin_commerce` для проверки геозависимости запроса |
+| **Arsenkin** (arsenkin_*) | Дублирует Keyso для этой задачи. Исключение: `arsenkin_top` для топа Яндекса по локальным игрокам вне базы Keyso (шаг 3); при необходимости `arsenkin_commerce` для проверки геозависимости запроса |
 | **Telegram** (tg_*) | Не относится |
 | **Sheets** | Все артефакты — markdown и docx, не электронные таблицы |
-| **Drive** (gdrive-*) | Расшаривание не предусмотрено в скиле (можно сделать вручную если нужно) |
+
+(Drive исключен из этого списка: `/seo-analiz` заливает A2 в Drive на шаге 8 и читает ответы клиента на шаге 9.0 - см. раздел «Drive и импорт ответов» ниже.)
+
+---
+
+## Drive и импорт ответов (gdrive-piotr)
+
+| Тул | Что дает | На каких шагах |
+|---|---|---|
+| `uploadFile` / `deleteItem` | заливка `A2_<slug>.docx` в Drive (+ delete при revising) | 8 (оркестратор, не агент) |
+| `readGoogleDoc(format="markdown")` | чтение Google Doc клиента с его ответами | 9.0 режим `--answers` (оркестратор) |
+
+Doc_id клиента - в `<analysis_dir>/share.json.drive_file_id`. Все вызовы Drive делает оркестратор, не субагенты. Fallback `readGoogleDoc` (не Google Doc / Docs API не активна) - ручная вставка ответов текстом (см. SKILL 9.0d).
 
 ---
 
 ## Типовой порядок вызовов (всего ~25-40 на анализ)
 
 ```
---- brief-structurer (шаг 1) ---
+--- intake-analyst (шаг 1.5) ---
+   (без MCP — только Read/Write по путям к вводной фактуре)
+
+--- brief-structurer (шаг 2) ---
 1.  domain_dashboard(клиент)                      # только если домен есть
 
---- competitor-finder (шаги 2-3) ---
+--- competitor-finder (шаг 3) ---
 2.  domain_competitors(клиент)                    # Путь A
     ИЛИ keyword_info(× 3-5 запросов) + опорный    # Путь B
     ИЛИ keyword_info(× 5-7 запросов)              # Путь C/D
@@ -89,8 +104,17 @@ seo_fetch_page(url="https://leader.ru/services/teambuilding", profile="content")
 --- analysis-writer (шаг 6) ---
    (без MCP — только Read/Write/Edit)
 
+--- analysis-verifier (шаг 6b) ---
+   (без MCP — только Read/Write)
+
 --- build-analysis-docx.mjs (шаг 7, опц.) ---
    (без MCP — Node-скрипт)
+
+--- Drive upload (шаг 8, оркестратор) ---
+    uploadFile / deleteItem                       # заливка A2_<slug>.docx
+
+--- answer-extractor (шаг 9.0, режим --answers) ---
+   (без MCP — Read/Write по путям; Google Doc читает оркестратор через readGoogleDoc)
 ```
 
 **Бюджет:** ~25-40 MCP-вызовов на анализ. Если упёрся в лимит — не дробить запросы дальше, идти к следующему этапу.
@@ -100,7 +124,7 @@ seo_fetch_page(url="https://leader.ru/services/teambuilding", profile="content")
 ## Когда нет домена клиента
 
 Если `brief.domain == null`:
-- Пропустить `domain_dashboard` клиента на шаге 1.
+- Пропустить `domain_dashboard` клиента на шаге 2 (брифование).
 - `brief-structurer` ставит `path = "C"` (если есть `client_target_queries`) или `path = "D"` (если только ниша + регион).
 - `competitor-finder` идёт путём C или D: 5-7 маркерных запросов → `keyword_info` → топ-3 первичных → `domain_competitors` каждого.
 - `serp-verdict` всё равно работает: коммерческие запросы есть.
@@ -115,5 +139,5 @@ seo_fetch_page(url="https://leader.ru/services/teambuilding", profile="content")
 | Keyso вернул пустые данные на домен клиента | `path = "B"`, метку «нет данных Keyso» в `brief.domain_dashboard_snapshot.note`, продолжать |
 | Keyso вернул пустые данные на домене конкурента | Пометить `"keyso_data": "missing"` в его записи, оставить в списке (тип и тематика важнее) |
 | `seo_fetch_page` 403/404/timeout | Попробовать вторичный fallback `web_fetch` (теряет мету/структуру/HTTP-статус). Если оба не работают — `"fetch_failed": true`, пропустить страницу, продолжать |
-| `arsenkin_top` не работает | Альтернатива: Keyso `check_top` / `history_serp`. Если и они недоступны — пропустить шаг 1.5 (расширение для регионов вне Keyso), отметить в `candidates.json.note_yandex_search` |
+| `arsenkin_top` не работает | Альтернатива: Keyso `check_top` / `history_serp`. Если и они недоступны — пропустить расширение arsenkin_top (локальные игроки вне базы Keyso, в рамках шага 3), отметить в `candidates.json.note_yandex_search` |
 | Превышен бюджет MCP (>40 вызовов) | Прекратить добор кандидатов, перейти к следующему этапу с тем что есть |

@@ -12,6 +12,8 @@
 //   <analysis_dir>/A2.md          — финальный отчёт (5 разделов в markdown)
 //   <analysis_dir>/brief.json     — для имени файла (slug или domain) и заголовка
 //   <analysis_dir>/serp.json      — для определения цвета вердикта
+//   <analysis_dir>/questions.json - раздел «0. Вопросы к вам» (опционален; нет файла - legacy,
+//                                    раздел 0 рендерится как обычный markdown без покраски)
 // Выход:
 //   <analysis_dir>/A2_<safe_name>.docx
 //
@@ -27,6 +29,7 @@ import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Footer, AlignmentType, BorderStyle, WidthType, ShadingType, PageBreak, TableLayoutType,
 } from "docx";
+import { questionsToRows, optionMatchesRecommended } from "./_questions.mjs";
 
 const analysisDirArg = process.argv[2];
 if (!analysisDirArg) {
@@ -75,6 +78,17 @@ if (existsSync(serpPath)) {
     const serp = JSON.parse(readFileSync(serpPath, "utf8").replace(/^﻿/, ""));
     verdictType = (serp.verdict && serp.verdict.type) || "";
   } catch { /* ignore */ }
+}
+
+// questions.json - раздел «0. Вопросы к вам» (единый источник рендера; см. build-analysis-docx
+// секция «Раздел 0»). Отсутствует - legacy-анализ, раздел 0 рендерится как обычный markdown.
+let questions = [];
+const questionsPath = join(analysisDir, "questions.json");
+if (existsSync(questionsPath)) {
+  try {
+    const parsed = JSON.parse(readFileSync(questionsPath, "utf8").replace(/^﻿/, ""));
+    questions = Array.isArray(parsed.questions) ? parsed.questions : [];
+  } catch { /* ignore - graceful: рендерим markdown как есть */ }
 }
 
 // ═══ Дизайн-токены ═══
@@ -243,6 +257,44 @@ function bulletParagraph(text) {
   });
 }
 
+// ═══ Раздел «0. Вопросы к вам» - рендер из questions.json (единый источник, не markdown) ═══
+// Карточки: номер+текст жирным accent; варианты буллетами, рекомендованный - зеленым жирным
+// (по образцу покраски вердикта); строка «Наша рекомендация: ...» - зеленым.
+function renderQuestions(questions) {
+  const out = [];
+  out.push(new Paragraph({
+    spacing: { before: 120, after: 120 },
+    children: [makeRun(
+      normDashYo("Ниже - главные вопросы по проекту. Отметьте вариант или напишите свой. Можно ответить словами «согласен с рекомендованным»."),
+      { italics: true },
+    )],
+  }));
+  questionsToRows(questions).forEach((q) => {
+    out.push(new Paragraph({
+      spacing: { before: 200, after: 60 },
+      children: [makeRun(normDashYo(`${q.n}. ${q.question}`), { bold: true, size: F.size_h3, color: C.accent })],
+    }));
+    for (const opt of q.options) {
+      const rec = optionMatchesRecommended(opt, q.recommended);
+      out.push(new Paragraph({
+        bullet: { level: 0 },
+        spacing: { before: 20, after: 20 },
+        children: [makeRun(normDashYo(opt), rec ? { bold: true, color: C.verdict_green } : {})],
+      }));
+    }
+    if (q.note) {
+      out.push(new Paragraph({
+        spacing: { after: 120 },
+        children: [
+          makeRun("Наша рекомендация: ", { bold: true, color: C.verdict_green }),
+          makeRun(normDashYo(q.note), { italics: true }),
+        ],
+      }));
+    }
+  });
+  return out;
+}
+
 // ═══ Парсер markdown -> блоки ═══
 // Поддерживаемые элементы:
 //  - # / ## / ### заголовки
@@ -344,8 +396,19 @@ function renderBlocks(blocks) {
   let firstH1Seen = false;
   let lastWasHr = false;
   let afterExecutiveSummary = false;
+  // Пока true - глушим markdown-дубликат раздела «0. Вопросы к вам» (он уже отрисован из
+  // questions.json сразу после заголовка). Сбрасывается на следующем level-2 заголовке.
+  let skipUntilNextH2 = false;
 
   for (const b of blocks) {
+    if (skipUntilNextH2) {
+      if (b.type === "heading" && b.level === 2) {
+        skipUntilNextH2 = false; // дошли до следующего раздела - дальше рендерим как обычно
+      } else {
+        continue; // проглатываем markdown-прозу раздела 0 (дубликат questions.json)
+      }
+    }
+
     switch (b.type) {
       case "heading": {
         // h1 → крупный, h2 → раздел, h3 → подраздел
@@ -364,9 +427,14 @@ function renderBlocks(blocks) {
             out.push(heading(b.text, 1));
           }
         } else {
+          const isQuestionsHeading = b.level === 2 && /^0\.\s*Вопрос/i.test(b.text.trim());
           out.push(heading(b.text, b.level));
           if (b.level === 2 && /executive summary/i.test(b.text)) {
             afterExecutiveSummary = true;
+          }
+          if (isQuestionsHeading && questions.length > 0) {
+            out.push(...renderQuestions(questions));
+            skipUntilNextH2 = true;
           }
         }
         lastWasHr = false;

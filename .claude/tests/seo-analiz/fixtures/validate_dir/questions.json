@@ -1,0 +1,17 @@
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "В каком регионе продвигаемся в первую очередь?",
+      "options": ["а) Москва и область", "б) Вся Россия", "в) свой вариант: ___"],
+      "recommended": "а",
+      "recommended_note": "По данным сайта основной спрос из Москвы.",
+      "answer": null,
+      "source_gap": "intake.conflict:гео",
+      "rerun_hint": "brief"
+    }
+  ],
+  "free_comments": [],
+  "answers_source": null,
+  "answers_imported_at": null
+}
