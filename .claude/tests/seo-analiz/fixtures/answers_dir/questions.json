@@ -1,0 +1,37 @@
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "В каком регионе продвигаемся в первую очередь?",
+      "options": ["а) Москва и область", "б) Вся Россия", "в) свой вариант: ___"],
+      "recommended": "а",
+      "recommended_note": "По данным сайта основной спрос из Москвы; вся РФ - вторым этапом.",
+      "answer": null,
+      "source_gap": "intake.conflict:гео",
+      "rerun_hint": "brief"
+    },
+    {
+      "id": "q2",
+      "question": "Расширяем ассортимент под смежные направления сразу?",
+      "options": ["а) да, сразу", "б) нет, пока рано", "в) свой вариант: ___"],
+      "recommended": "б",
+      "recommended_note": "Ресурсов на старте немного, лучше сфокусироваться на основном ассортименте.",
+      "answer": null,
+      "source_gap": "intake.gap:assortment",
+      "rerun_hint": "brief"
+    },
+    {
+      "id": "q3",
+      "question": "Оставляем формулировку «доставка за 1 день» без оговорок?",
+      "options": ["а) да, как есть", "б) добавить оговорку про регионы", "в) свой вариант: ___"],
+      "recommended": "б",
+      "recommended_note": "Не во все регионы РФ доставка укладывается в сутки.",
+      "answer": null,
+      "source_gap": "intake.conflict:utp_technical",
+      "rerun_hint": "writer"
+    }
+  ],
+  "free_comments": [],
+  "answers_source": null,
+  "answers_imported_at": null
+}

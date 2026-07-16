@@ -1,0 +1,13 @@
+{
+  "leaders": [
+    { "domain": "leader.ru", "pages": [{ "url": "https://leader.ru/", "page_type": "main" }] }
+  ],
+  "summary": {
+    "common_blocks": ["цены", "портфолио"],
+    "common_messages": ["гарантия 2 года"],
+    "client_utp_matched": [],
+    "comparison_basis": "leader.ru",
+    "client_missing": [],
+    "unique_features": []
+  }
+}

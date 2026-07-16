@@ -14,6 +14,8 @@
 //   <analysis_dir>/competitors.json  - канон competitor-finder
 //   <analysis_dir>/serp.json         - канон serp-verdict
 //   <analysis_dir>/leader_scan.json  - опционален (НЕ блокирует)
+//   <analysis_dir>/intake.json       - опционален (НЕ блокирует; этап 3, warn-only)
+//   <analysis_dir>/questions.json    - опционален (НЕ блокирует; этап 3, warn-only)
 // Выход (stdout):
 //   построчный отчёт + (если есть _import_meta) предупреждение о реконструированном входе
 //
@@ -139,6 +141,11 @@ if (serp) {
 // === leader_scan.json - опционален, только предупреждение ===
 const leaderScanMissing = !existsSync(join(analysisDir, "leader_scan.json"));
 
+// === intake.json / questions.json (этап 3) - опциональны, только предупреждение ===
+// НЕ блокируют: legacy-анализы (собранные до этапа 3) должны проходить гейт как раньше.
+const intakeMissing = !existsSync(join(analysisDir, "intake.json"));
+const questionsMissing = !existsSync(join(analysisDir, "questions.json"));
+
 // === Реконструированный вход (не блокирует, но surface) ===
 const reconstructed = brief && brief._import_meta ? brief._import_meta : null;
 
@@ -156,6 +163,12 @@ if (problems.length > 0) {
 console.log(`[validate-analysis-inputs] OK: ${analysisDir} - канон-схема цела`);
 if (leaderScanMissing) {
   console.log("  i leader_scan.json отсутствует (опционален - рекомендации по расширению будут беднее)");
+}
+if (intakeMissing) {
+  console.log("  i intake.json отсутствует (легаси-анализ без интейк-этапа - провенанс фактов недоступен)");
+}
+if (questionsMissing) {
+  console.log("  i questions.json отсутствует (легаси-анализ без раздела «0. Вопросы к вам»)");
 }
 if (reconstructed) {
   console.log("  ⚠ ВНИМАНИЕ: анализ реконструирован (brief._import_meta присутствует).");

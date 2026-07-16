@@ -1,0 +1,8 @@
+{
+  "stop_list": ["avito.ru"],
+  "verdict": {
+    "type": "ИДЁМ",
+    "reasoning": "Преобладают прямые конкуренты того же типа сайта.",
+    "recommendations": []
+  }
+}
