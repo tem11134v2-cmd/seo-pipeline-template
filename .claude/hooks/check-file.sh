@@ -51,13 +51,19 @@ elif [ -n "${agent}" ]; then
   candidate=$(ls -t "${TMP_DIR}"/expected-"${agent}"-*.txt 2>/dev/null | head -n 1 || true)
   [ -n "${candidate}" ] && expected_file="${candidate}"
 fi
-if [ -z "${expected_file}" ]; then
+if [ -z "${expected_file}" ] && [ -z "${agent}" ]; then
+  # Глобальный fallback ТОЛЬКО когда агент вообще не распарсен. Если агент известен,
+  # но его собственного маркера нет - не берем чужой (защита от параллельных
+  # субагентов: иначе можно провалидировать файл ЧУЖОГО агента).
   prune_stale_markers
   candidate=$(ls -t "${TMP_DIR}"/expected-*.txt 2>/dev/null | head -n 1 || true)
   [ -n "${candidate}" ] && expected_file="${candidate}"
 fi
 
 if [ -z "${expected_file}" ] || [ ! -f "${expected_file}" ]; then
+  if [ -n "${agent}" ]; then
+    echo "check-file: агент «${agent}» известен, но его маркер (expected-${agent}-*.txt) не найден - пропускаю проверку (не проверяю файл чужого агента)." >&2
+  fi
   # Маркера нет — пропускаем проверку.
   exit 0
 fi

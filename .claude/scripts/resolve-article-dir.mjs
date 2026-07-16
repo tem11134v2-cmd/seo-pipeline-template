@@ -4,7 +4,7 @@
 //
 // Зачем (ADR-013): после перехода «номер папки = номер темы» NNN больше НЕ уникален -
 // у одной темы может быть несколько статей (разные жанры/площадки), все с префиксом <TTT>-.
-// Скилы fix-article / rewrite-section / share-article / write-article --rebuild-docx
+// Скилы fix-article / rewrite-section / share-article / seo-statya --rebuild-docx
 // должны не молча брать первую, а явно разрулить неоднозначность.
 //
 // id может быть:

@@ -69,7 +69,7 @@ description: Перепишет один раздел (H2) уже написан
 
 ### 3. Перезапуск section-writer
 
-Записать `.claude/tmp/current-task.txt = <article_dir>`.
+Записать `.claude/tmp/current-task.txt = <article_dir>` и `.claude/tmp/current-article.txt = <article_dir>` (однострочный указатель активной статьи для хуков `check-section.sh`/`mark-finalized.sh` в серийном режиме).
 
 Делегировать `section-writer` с расширенным промтом:
 ```
@@ -93,8 +93,12 @@ project_root: <...>
 4. `update-meta.sh <article_dir> finalized`.
 5. Делегировать `text-auditor` + `article-fixer-batch` (если включён auto-режим — `--auto` режим по умолчанию для `/rewrite-section`).
 6. Делегировать `enhancer` → новые enhancements/faq/schema.
-7. `photo-promter` + авто-фото (если фото менялись из-за нового текста — иначе пропускаем шаг 9-9b если в новом разделе нет новых меток `[ФОТО:]` относительно старого).
-8. `assemble-html.mjs` + `metrics-report.mjs` + `build-article-docx.mjs` (если уже был docx) + автозагрузка в Drive (`--redo`).
+7. `photo-promter` (промты/alt) → делегировать `photo-producer` (генерирует и публикует фото, пишет `urls.json` - это агент, не оркестратор; шаг 9-9b) - если фото менялись из-за нового текста, иначе пропускаем шаг 9-9b, если в новом разделе нет новых меток `[ФОТО:]` относительно старого.
+8. `assemble-html.mjs` + `metrics-report.mjs` → делегировать `article-verifier` (шаг 10c
+   пайплайна, до сборки .docx): `pass` → дальше; `needs-fix` → `article-fixer-batch`
+   (source `verify_report.json`, лимит 2 цикла) + повторный `assemble-html.mjs` +
+   повторная верификация. После `verified` - `build-article-docx.mjs` (если уже был
+   docx) + автозагрузка в Drive (`--redo`).
 
 ### 5. Вывод
 

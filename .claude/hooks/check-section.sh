@@ -6,9 +6,12 @@
 #   3. Объём в пределах ТЗ ±30%
 #   4. Нет длинных тире (—) и средних (–)
 #
-# Контракт: текущая активная статья хранится в .claude/tmp/current-task.txt
-# (путь к articles/NNN-slug/). Делегирующий промт скила write-article
-# обновляет этот файл перед каждым вызовом section-writer.
+# Контракт: текущая активная статья хранится в .claude/tmp/current-article.txt
+# (однострочный указатель, путь к articles/NNN-slug/). Делегирующий промт скила
+# seo-statya обновляет этот файл перед каждым вызовом section-writer. Если
+# current-article.txt нет - fallback на первую строку .claude/tmp/current-task.txt
+# (одиночный режим / старые сессии; в серийном режиме там несколько строк - по
+# одной на статью батча, и первая строка не обязательно активная).
 #
 # exit 0 — ОК, exit 2 + stderr — критичное нарушение.
 
@@ -25,14 +28,19 @@ set -u
 
 PROJECT_ROOT="$(pwd)"
 TMP_DIR="${PROJECT_ROOT}/.claude/tmp"
+ACTIVE_FILE="${TMP_DIR}/current-article.txt"
 CURRENT_FILE="${TMP_DIR}/current-task.txt"
 
-if [ ! -f "${CURRENT_FILE}" ]; then
+if [ ! -f "${ACTIVE_FILE}" ] && [ ! -f "${CURRENT_FILE}" ]; then
   # Не знаем, какая статья активна — пропускаем
   exit 0
 fi
 
-article_dir=$(head -n 1 "${CURRENT_FILE}" | tr -d '\r\n')
+if [ -f "${ACTIVE_FILE}" ]; then
+  article_dir=$(head -n 1 "${ACTIVE_FILE}" | tr -d '\r\n')
+else
+  article_dir=$(head -n 1 "${CURRENT_FILE}" | tr -d '\r\n')   # fallback
+fi
 case "${article_dir}" in
   /*|[a-zA-Z]:*) ;;
   *) article_dir="${PROJECT_ROOT}/${article_dir}" ;;
