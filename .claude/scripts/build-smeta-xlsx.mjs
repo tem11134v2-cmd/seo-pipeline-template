@@ -17,6 +17,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import ExcelJS from "exceljs";
+import { TARIFF_SCALE, TARIFF_KEYS, computeScenarioTariff } from "./_forecast-money.mjs";
 
 const strategyDirArg = process.argv[2];
 if (!strategyDirArg) {
@@ -424,10 +425,13 @@ function writeTariffSheet(workbook, tariffKey, tariffData) {
 }
 
 // ═══ 4-я вкладка: Декомпозиция и окупаемость ═══
-// Читает seo-strategiya_data.json (forecast тарифа Рост + decomposition: avg_check, конверсии).
-// Для каждого тарифа масштабирует трафик (Старт x0.6 / Рост x1.0 / Максимум x1.3),
-// считает воронку трафик->лиды->продажи->выручка и окупаемость к стоимости тарифа.
-const TARIFF_SCALE = { start: 0.6, growth: 1.0, max: 1.3 };
+// Читает seo-strategiya_data.json. Два формата данных:
+// - НОВЫЙ (`forecast_scenarios`) - два самосогласованных сценария («Вход 3-6 мес» / «Год
+//   работы»), денежная математика полностью в общем модуле `_forecast-money.mjs`
+//   (см. writeScenarioSheet).
+// - СТАРЫЙ (`decomposition` + `forecast`, без `forecast_scenarios`) - легаси-рендер
+//   одной моделью затрат на 12 мес, БЕЗ изменения чисел, но с пометкой «Старый формат»
+//   (writeLegacyDecompositionSheet) - отданные клиентам сметы не должны молча меняться.
 
 function periodToMonth(label) {
   if (/сейчас/i.test(label)) return 0;
@@ -435,7 +439,7 @@ function periodToMonth(label) {
   return m ? parseInt(m[0], 10) : 0;
 }
 
-// Линейная интерполяция трафика на месяц m по точкам forecast {month, traffic}.
+// Линейная интерполяция трафика на месяц m по точкам forecast {month, traffic} (legacy-путь).
 function interpTraffic(points, m) {
   if (!points.length) return 0;
   if (m <= points[0].month) return points[0].traffic;
@@ -450,7 +454,9 @@ function interpTraffic(points, m) {
   return points[points.length - 1].traffic;
 }
 
-function computeCase(tariffData, points, dec, scale) {
+// Старая модель расчета (одна кривая, затраты за все 12 мес) - оставлена бит-в-бит для legacy-пути,
+// чтобы уже отданные клиентам сметы при пересборке давали те же числа.
+function legacyComputeCase(tariffData, points, dec, scale) {
   const cr = dec.conversion_rate ?? 0.02;
   const close = dec.close_rate ?? (dec.model === "one_step" ? 1 : 0.3);
   const avg = dec.avg_check ?? 0;
@@ -488,10 +494,22 @@ function computeCase(tariffData, points, dec, scale) {
   };
 }
 
+// Диспетчер: новый сценарный формат / старый легаси-формат / ничего.
 function writeDecompositionSheet(workbook, tariffsByKey, data) {
+  if (data.forecast_scenarios && Array.isArray(data.forecast_scenarios.scenarios)
+      && data.forecast_scenarios.scenarios.length) {
+    return writeScenarioSheet(workbook, tariffsByKey, data.forecast_scenarios);
+  }
+  if (data.decomposition && Array.isArray(data.forecast) && data.forecast.length) {
+    return writeLegacyDecompositionSheet(workbook, tariffsByKey, data);
+  }
+  return false;
+}
+
+// ═══ Legacy-рендер (старый формат данных, без forecast_scenarios) ═══
+function writeLegacyDecompositionSheet(workbook, tariffsByKey, data) {
   const dec = data.decomposition;
   const forecast = Array.isArray(data.forecast) ? data.forecast : [];
-  if (!dec || !forecast.length) return false;
   const points = forecast
     .map(f => ({ month: periodToMonth(f.period), traffic: Number(f.traffic_month) || 0 }))
     .sort((a, b) => a.month - b.month);
@@ -512,6 +530,14 @@ function writeDecompositionSheet(workbook, tariffsByKey, data) {
   sub.font = { name: FONT_FAMILY, size: FONT_SIZE, color: { argb: COLORS.muted } };
   row += 2;
 
+  ws.mergeCells(row, 1, row, 5);
+  const notice = ws.getCell(row, 1);
+  notice.value = "Старый формат: расчет по одной модели затрат (12 мес). Актуальная методика - два сценария (\"Вход 3-6 мес\" и \"Год работы\"), доступна при пересборке стратегии.";
+  notice.font = { name: FONT_FAMILY, size: FONT_SIZE, bold: true, italic: true, color: { argb: COLORS.header_bg } };
+  notice.alignment = { wrapText: true, vertical: "top" };
+  ws.getRow(row).height = 30;
+  row += 2;
+
   const crp = Math.round((dec.conversion_rate ?? 0.02) * 1000) / 10;
   const closep = Math.round((dec.close_rate ?? (dec.model === "one_step" ? 1 : 0.3)) * 100);
   const avg = dec.avg_check ?? 0;
@@ -529,9 +555,9 @@ function writeDecompositionSheet(workbook, tariffsByKey, data) {
   row++;
 
   const cases = {
-    start: tariffsByKey.start ? computeCase(tariffsByKey.start, points, dec, TARIFF_SCALE.start) : null,
-    growth: tariffsByKey.growth ? computeCase(tariffsByKey.growth, points, dec, TARIFF_SCALE.growth) : null,
-    max: tariffsByKey.max ? computeCase(tariffsByKey.max, points, dec, TARIFF_SCALE.max) : null,
+    start: tariffsByKey.start ? legacyComputeCase(tariffsByKey.start, points, dec, TARIFF_SCALE.start) : null,
+    growth: tariffsByKey.growth ? legacyComputeCase(tariffsByKey.growth, points, dec, TARIFF_SCALE.growth) : null,
+    max: tariffsByKey.max ? legacyComputeCase(tariffsByKey.max, points, dec, TARIFF_SCALE.max) : null,
   };
 
   const money = '#,##0 "₽"';
@@ -569,6 +595,144 @@ function writeDecompositionSheet(workbook, tariffsByKey, data) {
   return true;
 }
 
+// ═══ Новый сценарный рендер (forecast_scenarios) ═══
+// Для каждого тарифа (Старт/Рост/Максимум) - блок «Вход 3-6 мес» vs «Год работы» бок о бок,
+// с точкой окупаемости и строкой-выводом по рекомендованному тарифу (Рост).
+function writeScenarioSheet(workbook, tariffsByKey, fs) {
+  const scenarios = fs.scenarios;
+  const assumptions = fs.assumptions || {};
+  const money = '#,##0 "₽"';
+
+  const ws = workbook.addWorksheet("Декомпозиция и окупаемость");
+  [42, 22, 22].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  let row = 1;
+
+  ws.mergeCells(row, 1, row, 3);
+  const t = ws.getCell(row, 1);
+  t.value = "ДЕКОМПОЗИЦИЯ И ОКУПАЕМОСТЬ";
+  t.font = { name: FONT_FAMILY, size: FONT_SIZE_TITLE, bold: true, color: { argb: COLORS.header_bg } };
+  ws.getRow(row).height = 22; row++;
+
+  ws.mergeCells(row, 1, row, 3);
+  const sub = ws.getCell(row, 1);
+  sub.value = `${domain} - SEO-продвижение | ${date}`;
+  sub.font = { name: FONT_FAMILY, size: FONT_SIZE, color: { argb: COLORS.muted } };
+  row += 2;
+
+  // Легенда допущений (единая на оба сценария).
+  const crp = Math.round((assumptions.conversion_rate ?? 0.02) * 1000) / 10;
+  const closep = Math.round((assumptions.close_rate ?? (assumptions.model === "one_step" ? 1 : 0.3)) * 100);
+  const avg = assumptions.avg_check ?? 0;
+  const marginPct = Math.round((assumptions.margin ?? 0.35) * 100);
+  ws.mergeCells(row, 1, row, 3);
+  const legend = ws.getCell(row, 1);
+  legend.value = `Допущения (едины на оба сценария): конверсия в заявку ${crp}%, заявка в продажу ${closep}%, средний чек ${avg.toLocaleString("ru-RU")} руб${assumptions.avg_check_source === "estimated" ? " (оценочный)" : ""}, маржинальность ${marginPct}%. ROMI считается по марже, не по выручке. Окупаемость - по накопленному кэшфлоу от прибыли. Трафик масштабирован по тарифам (Старт x0.6 / Рост x1.0 / Максимум x1.3). Оценка, не гарантия.`;
+  legend.font = { name: FONT_FAMILY, size: FONT_SIZE, italic: true, color: { argb: COLORS.muted } };
+  legend.alignment = { wrapText: true, vertical: "top" };
+  ws.getRow(row).height = 50;
+  row += 1;
+
+  // Методики обоих сценариев.
+  scenarios.forEach((sc) => {
+    ws.mergeCells(row, 1, row, 3);
+    const m = ws.getCell(row, 1);
+    m.value = `${sc.label}${sc.recommended ? " (рекомендуем)" : ""}: ${sc.methodology_note || ""}`;
+    m.font = { name: FONT_FAMILY, size: FONT_SIZE, italic: true, color: { argb: COLORS.muted } };
+    m.alignment = { wrapText: true, vertical: "top" };
+    ws.getRow(row).height = 34;
+    row++;
+  });
+  row++;
+
+  const entryScenario = scenarios.find((s) => !s.recommended) || scenarios[0];
+  const yearScenario = scenarios.find((s) => s.recommended) || scenarios[scenarios.length - 1];
+
+  const rowDefs = [
+    ["Активные месяцы услуг", (r) => `${r.costMonths} мес`, "str"],
+    ["Трафик к 12 мес, переходов/мес", (r) => r.traffic12, "num"],
+    ["Обращения/лиды к 12 мес, /мес", (r) => r.leads12, "num"],
+    ["Продажи к 12 мес, /мес", (r) => r.sales12, "num"],
+    ["Выручка к 12 мес, руб/мес", (r) => r.revMonth12, money],
+    ["Выручка накопл. за 12 мес, руб", (r) => r.yearGross, money],
+    [`Прибыль с маржой ${marginPct}% за 12 мес, руб`, (r) => r.yearProfit, money],
+    ["Затраты на SEO (разовые + N мес), руб", (r) => r.yearCost, money],
+    ["Чистый результат за 12 мес, руб", (r) => r.yearNet, money],
+    ["Точка окупаемости", (r) => (r.payback ? `${r.payback} мес` : "> 12 мес"), "str"],
+    ["ROMI за 12 мес (по марже), %", (r) => `${r.romi}%`, "str"],
+  ];
+
+  let recoResults = null;
+
+  for (const tariffKey of TARIFF_KEYS) {
+    const tariffData = tariffsByKey[tariffKey];
+    if (!tariffData) continue;
+    const onetime = tariffData.total_onetime ?? 0;
+    const monthly = tariffData.total_monthly ?? 0;
+
+    const resByScenario = {};
+    for (const sc of scenarios) {
+      resByScenario[sc.id] = computeScenarioTariff({
+        assumptions,
+        checkpoints: sc.traffic_checkpoints,
+        activeMonths: sc.active_months,
+        tariffKey,
+        onetime,
+        monthly,
+      });
+    }
+
+    // Заголовок блока тарифа.
+    ws.mergeCells(row, 1, row, 3);
+    const title = ws.getCell(row, 1);
+    const isReco = tariffKey === "growth";
+    title.value = `ТАРИФ «${TARIFF_NAMES[tariffKey].toUpperCase()}»${isReco ? " (рекомендованный)" : ""}`;
+    title.font = { name: FONT_FAMILY, size: FONT_SIZE_SECTION, bold: true, color: { argb: COLORS.header_bg } };
+    row++;
+
+    // Заголовок таблицы блока: Показатель | <label сценария 1> | <label сценария 2>.
+    const headers = ["Показатель", entryScenario.label, yearScenario.label];
+    headers.forEach((h, i) => { const c = ws.getCell(row, i + 1); c.value = h; applyHeader(c); });
+    row++;
+
+    rowDefs.forEach((d, i) => {
+      const [label, getter, fmt] = d;
+      const isAlt = i % 2 === 1;
+      const lc = ws.getCell(row, 1);
+      lc.value = label; applyBody(lc, isAlt, false);
+      [entryScenario, yearScenario].forEach((sc, j) => {
+        const c = ws.getCell(row, j + 2);
+        const r = resByScenario[sc.id];
+        const v = getter(r);
+        c.value = v;
+        applyBody(c, isAlt, true);
+        if (typeof v === "number") c.numFmt = fmt === "num" ? "#,##0" : (fmt === money ? money : "General");
+      });
+      row++;
+    });
+    row++;
+
+    if (isReco) recoResults = { entry: resByScenario[entryScenario.id], year: resByScenario[yearScenario.id] };
+  }
+
+  // Строка-вывод по рекомендованному тарифу (Рост) - цифрами, без давления.
+  if (recoResults) {
+    const { entry, year } = recoResults;
+    const paybackYear = year.payback ? `${year.payback} мес` : "позже 12 мес";
+    const paybackEntry = entry.payback ? `${entry.payback} мес` : "позже 12 мес";
+    ws.mergeCells(row, 1, row, 3);
+    const summary = ws.getCell(row, 1);
+    summary.value = `Рекомендуем годовой формат (тариф «Рост»): к 12 мес выручка ~${year.yearGross.toLocaleString("ru-RU")} руб против ~${entry.yearGross.toLocaleString("ru-RU")} руб, ROMI ${year.romi}% против ${entry.romi}%, окупаемость на ${paybackYear} против ${paybackEntry}.`;
+    summary.font = { name: FONT_FAMILY, size: FONT_SIZE, bold: true, color: { argb: COLORS.text } };
+    summary.alignment = { wrapText: true, vertical: "top" };
+    summary.fill = { type: "pattern", pattern: "solid", fgColor: { argb: COLORS.total_bg } };
+    ws.getRow(row).height = 40;
+    row += 2;
+  }
+
+  ws.views = [{ state: "frozen", ySplit: 1 }];
+  return true;
+}
+
 // ═══ MAIN ═══
 const workbook = new ExcelJS.Workbook();
 workbook.creator = "TIMUR SEO";
@@ -596,7 +760,7 @@ if (missing.length > 0) {
   console.warn(`[build-smeta-xlsx] WARNING: missing sheets: ${missing.join(", ")}. tariffs.json keys: ${Object.keys(tariffs).join(", ")}`);
 }
 
-// 4-я вкладка: декомпозиция и окупаемость (если есть seo-strategiya_data.json с decomposition + forecast)
+// 4-я вкладка: декомпозиция и окупаемость (форматы data.json - см. writeDecompositionSheet)
 const dataPath = join(strategyDir, "seo-strategiya_data.json");
 if (existsSync(dataPath)) {
   try {
@@ -606,10 +770,16 @@ if (existsSync(dataPath)) {
       const ck = KEY_ALIASES[rawKey] || rawKey;
       if (KNOWN_TARIFFS.has(ck)) normTariffs[ck] = tariffs[rawKey];
     }
+    const hasScenarios = !!(data.forecast_scenarios && Array.isArray(data.forecast_scenarios.scenarios) && data.forecast_scenarios.scenarios.length);
+    const hasLegacy = !!(data.decomposition && Array.isArray(data.forecast) && data.forecast.length);
     const ok = writeDecompositionSheet(workbook, normTariffs, data);
-    console.log(ok
-      ? "[build-smeta-xlsx] added sheet: Декомпозиция и окупаемость"
-      : "[build-smeta-xlsx] decomposition skipped (no decomposition/forecast in seo-strategiya_data.json)");
+    if (ok && hasScenarios) {
+      console.log("[build-smeta-xlsx] added sheet: Декомпозиция и окупаемость (scenario sheet)");
+    } else if (ok && hasLegacy) {
+      console.log("[build-smeta-xlsx] added sheet: Декомпозиция и окупаемость (legacy sheet)");
+    } else {
+      console.log("[build-smeta-xlsx] decomposition skipped (no forecast_scenarios/decomposition+forecast in seo-strategiya_data.json)");
+    }
   } catch (e) {
     console.warn(`[build-smeta-xlsx] decomposition skipped: ${e.message}`);
   }
@@ -618,4 +788,5 @@ if (existsSync(dataPath)) {
 }
 
 await workbook.xlsx.writeFile(outputPath);
-console.log(`[build-smeta-xlsx] wrote ${outputPath} (sheets: ${sheetTitles.join(", ")})`);
+const finalSheetTitles = workbook.worksheets.map(ws => ws.name);
+console.log(`[build-smeta-xlsx] wrote ${outputPath} (sheets: ${finalSheetTitles.join(", ")})`);

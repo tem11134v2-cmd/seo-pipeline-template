@@ -12,18 +12,27 @@
 //
 // Вход:
 //   <strategy_dir>/seo-strategiya_content.json - обязательный (проверяемый артефакт).
+//   <strategy_dir>/seo-strategiya_data.json - опциональный, нефатальный (для блока
+//     СЦЕНАРНАЯ СОГЛАСОВАННОСТЬ, этап 8: forecast_scenarios).
+//   <strategy_dir>/tariffs.json - опциональный, нефатальный (нужен там же для
+//     сверки cost_months/ROMI с ценами тарифов).
 //
 // Выход (stdout): построчный отчет по блокам:
-//   ЦЕНЫ В ПРОЗЕ ТАРИФОВ, СТОП-ПАТТЕРНЫ ВОДЫ, ТИРЕ/Е-С-ТОЧКАМИ, ОБЪЕМ (warning), СТРУКТУРА
+//   ЦЕНЫ В ПРОЗЕ ТАРИФОВ, СТОП-ПАТТЕРНЫ ВОДЫ, ТИРЕ/Е-С-ТОЧКАМИ, ОБЪЕМ (warning), СТРУКТУРА,
+//   СЦЕНАРНАЯ СОГЛАСОВАННОСТЬ (независимый пересчет ROMI/cost из forecast_scenarios;
+//   legacy-файлы без forecast_scenarios не валятся - секция помечается как пропущенная).
 //
 // Exit:
 //   0 - нет нарушений (предупреждения по объему допустимы, печатаются).
-//   2 - есть нарушения (цены / стоп-паттерны / тире-е / нет раздела 4). Скил
-//       пере-делегирует strategy-writer.
+//   2 - есть нарушения (цены / стоп-паттерны / тире-е / нет раздела 4 / сценарная
+//       рассинхронизация). Блок СЦЕНАРНАЯ СОГЛАСОВАННОСТЬ - дефект forecast_scenarios
+//       (артефакт growth-strategist), а не прозы - скил пере-делегирует growth-strategist
+//       для этого блока, а не strategy-writer (см. SKILL.md, шаг 6.5а).
 //   1 - ошибка запуска (нет content.json, битый JSON, содержимое не объект).
 
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { computeScenarioTariff, resolveActiveMonths, TARIFF_KEYS } from "./_forecast-money.mjs";
 
 const rawArgs = process.argv.slice(2);
 const dirArg = rawArgs.find((a) => !a.startsWith("--"));
@@ -312,6 +321,137 @@ if (proseChars < 3500) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// 7. СЦЕНАРНАЯ СОГЛАСОВАННОСТЬ (этап 8) - forecast_scenarios <-> tariffs.json.
+// Независимый пересчет cost/ROMI (не только через модуль - инлайн-формула тут
+// же, чтобы ловить регресс самого _forecast-money.mjs). Читает
+// seo-strategiya_data.json и tariffs.json НЕФАТАЛЬНО: на этом шаге они уже
+// должны существовать (шаги 4 и 5), но их отсутствие не должно валить
+// проверку прозы content.json - секция просто помечается как пропущенная.
+// Legacy-файлы (без forecast_scenarios) тоже не валятся - это старый формат
+// (см. build-smeta-xlsx.mjs, writeLegacyDecompositionSheet).
+// ──────────────────────────────────────────────────────────────────────────
+
+const scenarioViolations = [];
+let scenarioSkipped = false;
+let scenarioSkipReason = "";
+
+const scenarioData = readJson(join(strategyDir, "seo-strategiya_data.json"), false);
+const scenarioTariffs = readJson(join(strategyDir, "tariffs.json"), false);
+const forecastScenarios = scenarioData && scenarioData.forecast_scenarios;
+
+if (
+  !forecastScenarios ||
+  !Array.isArray(forecastScenarios.scenarios) ||
+  !forecastScenarios.scenarios.length
+) {
+  scenarioSkipped = true;
+  scenarioSkipReason = "нет forecast_scenarios (legacy)";
+} else if (!scenarioTariffs) {
+  scenarioSkipped = true;
+  scenarioSkipReason = "данные сценариев есть, но tariffs.json отсутствует - цены недоступны";
+} else {
+  const KEY_ALIASES = { rost: "growth" };
+  const byKey = {};
+  for (const k of Object.keys(scenarioTariffs)) {
+    const ck = KEY_ALIASES[k] || k;
+    if (TARIFF_KEYS.includes(ck)) byKey[ck] = scenarioTariffs[k];
+  }
+
+  const recos = forecastScenarios.scenarios.filter((s) => s && s.recommended);
+  if (forecastScenarios.scenarios.length !== 2) {
+    scenarioViolations.push(`ожидалось 2 сценария, найдено ${forecastScenarios.scenarios.length}`);
+  }
+  if (recos.length !== 1) {
+    scenarioViolations.push(`ровно один сценарий должен быть recommended, найдено ${recos.length}`);
+  }
+
+  const assumptions = forecastScenarios.assumptions || {};
+  if (!(assumptions.conversion_rate > 0 && assumptions.conversion_rate <= 1)) {
+    scenarioViolations.push(`conversion_rate вне (0,1]: ${assumptions.conversion_rate}`);
+  }
+  if (!(assumptions.close_rate > 0 && assumptions.close_rate <= 1)) {
+    scenarioViolations.push(`close_rate вне (0,1]: ${assumptions.close_rate}`);
+  }
+  if (!(assumptions.avg_check > 0)) {
+    scenarioViolations.push(`avg_check должен быть > 0: ${assumptions.avg_check}`);
+  }
+  if (!(assumptions.margin > 0 && assumptions.margin <= 1)) {
+    scenarioViolations.push(`margin вне (0,1]: ${assumptions.margin}`);
+  }
+
+  const resById = {}; // {scenId: {tariffKey: res}}
+  for (const sc of forecastScenarios.scenarios) {
+    if (!sc || typeof sc !== "object") continue;
+
+    // (г) монотонность checkpoints внутри сценария
+    const cp = sc.traffic_checkpoints || {};
+    const order = ["m0", "m3", "m6", "m9", "m12"].map((k) => Number(cp[k]));
+    for (let i = 1; i < order.length; i++) {
+      if (Number.isFinite(order[i]) && Number.isFinite(order[i - 1]) && order[i] < order[i - 1]) {
+        scenarioViolations.push(`[${sc.id}] checkpoints убывают: ${order.join(" -> ")}`);
+        break;
+      }
+    }
+
+    resById[sc.id] = {};
+    for (const tk of TARIFF_KEYS) {
+      const t = byKey[tk];
+      if (!t) continue;
+      const am = resolveActiveMonths(sc.active_months, tk);
+      if (am < 1 || am > 12) {
+        scenarioViolations.push(`[${sc.id}/${tk}] active_months вне 1..12: ${am}`);
+      }
+      if (sc.recommended && am !== 12) {
+        scenarioViolations.push(`[${sc.id}/${tk}] recommended сценарий должен иметь active_months=12, а не ${am}`);
+      }
+      if (!sc.recommended && am >= 12) {
+        scenarioViolations.push(`[${sc.id}/${tk}] сценарий "вход" должен иметь active_months<12, а не ${am}`);
+      }
+
+      const onetime = Number(t.total_onetime) || 0;
+      const monthly = Number(t.total_monthly) || 0;
+      const res = computeScenarioTariff({
+        assumptions,
+        checkpoints: cp,
+        activeMonths: sc.active_months,
+        tariffKey: tk,
+        onetime,
+        monthly,
+      });
+      resById[sc.id][tk] = res;
+
+      // (а) cost_months === active_months сценария - независимая формула (не через модуль).
+      const yearCostExpected = onetime + monthly * am;
+      if (res.yearCost !== Math.round(yearCostExpected)) {
+        scenarioViolations.push(
+          `[${sc.id}/${tk}] cost_months рассинхрон: yearCost ${res.yearCost} != ожид ${Math.round(yearCostExpected)} (active_months=${am})`
+        );
+      }
+
+      // (б) ROMI пересчитывается независимо от прибыли и совпадает (допуск +/-1 п.п. - округления).
+      const romiExpected =
+        yearCostExpected > 0 ? Math.round(((res.yearProfit - yearCostExpected) / yearCostExpected) * 100) : 0;
+      if (Math.abs(res.romi - romiExpected) > 1) {
+        scenarioViolations.push(`[${sc.id}/${tk}] ROMI рассинхрон: ${res.romi}% != пересчет ${romiExpected}%`);
+      }
+    }
+  }
+
+  // (в) санити: выручка "год" >= "вход" на m12, по каждому тарифу.
+  const reco = recos[0];
+  const other = forecastScenarios.scenarios.find((s) => s && !s.recommended);
+  if (reco && other) {
+    for (const tk of TARIFF_KEYS) {
+      const ry = resById[reco.id]?.[tk];
+      const re = resById[other.id]?.[tk];
+      if (ry && re && ry.revMonth12 < re.revMonth12) {
+        scenarioViolations.push(`[${tk}] revenue года (${ry.revMonth12}) < входа (${re.revMonth12}) на m12`);
+      }
+    }
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Отчет
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -329,12 +469,27 @@ if (volumeWarning) {
   console.log(`  - в норме: ${proseChars} симв. (ориентир 3500-24000, точную оценку дает strategy-verifier)`);
 }
 
+if (scenarioSkipped) {
+  console.log(`\nСЦЕНАРНАЯ СОГЛАСОВАННОСТЬ: пропущена - ${scenarioSkipReason}.`);
+} else {
+  printCapped("СЦЕНАРНАЯ СОГЛАСОВАННОСТЬ", scenarioViolations);
+  if (scenarioViolations.length === 0) {
+    console.log(
+      `\nСЦЕНАРНАЯ СОГЛАСОВАННОСТЬ: OK (2 сценария, cost/ROMI сходятся с независимым пересчетом, монотонность соблюдена).`
+    );
+  }
+}
+
 const totalViolations =
-  priceViolations.length + stopViolations.length + dashYoViolations.length + structureViolations.length;
+  priceViolations.length +
+  stopViolations.length +
+  dashYoViolations.length +
+  structureViolations.length +
+  scenarioViolations.length;
 
 if (totalViolations > 0) {
   console.log(
-    `\n[verify-strategy] НЕ ПРОЙДЕНО (цены ${priceViolations.length}, стоп-паттерны ${stopViolations.length}, тире/Е-с-точками ${dashYoViolations.length}, структура ${structureViolations.length}).`
+    `\n[verify-strategy] НЕ ПРОЙДЕНО (цены ${priceViolations.length}, стоп-паттерны ${stopViolations.length}, тире/Е-с-точками ${dashYoViolations.length}, структура ${structureViolations.length}, сценарии ${scenarioViolations.length}).`
   );
   process.exit(2);
 }

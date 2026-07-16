@@ -1,6 +1,6 @@
 {
   "$schema": "Спецификация формата strategy_data.json. Это контракт между growth-strategist (заполняет всё кроме tariffs) и tariff-architect/strategy-writer (читают).",
-  "$version": "2.0",
+  "$version": "3.0",
 
   "domain": "site.ru",
   "region": "Санкт-Петербург",
@@ -118,7 +118,7 @@
   "$comment_traffic": "traffic_month_estimated=true, если базовый traffic_month оценён (нет Метрики/тонкая база Keyso). Строка SEO-трафик в прогнозе ВСЕГДА число, не null.",
 
   "decomposition": {
-    "$comment": "Денежная воронка для тарифа Рост. Считается growth-strategist. Две ступени (услуги/лидген): leads=traffic*conversion_rate, sales=leads*close_rate, revenue=sales*avg_check. Одна ступень (e-comm): revenue=traffic*conversion_rate*avg_check, close_rate=1. Если avg_check не дал клиент - оценка по нише, avg_check_source='estimated'. Цен тарифов тут НЕТ - окупаемость/ROI считаются только в смете (xlsx, 4-я вкладка) и от ПРИБЫЛИ (revenue*margin), а не от валовой выручки.",
+    "$comment": "DEPRECATED (v3.0): деньги перенесены в скрипт сметы, growth-strategist это поле больше НЕ заполняет. Оставлено как алиас для чтения СТАРЫХ файлов (обратная совместимость 4-й вкладки, legacy-рендер). Новые файлы содержат forecast_scenarios вместо decomposition. Историческая семантика: денежная воронка для тарифа Рост (leads=traffic*conversion_rate, sales=leads*close_rate, revenue=sales*avg_check), окупаемость/ROMI считались от прибыли (revenue*margin) только в смете.",
     "model": "two_step",
     "avg_check": 25000,
     "avg_check_source": "estimated",
@@ -130,6 +130,37 @@
       {"period": "сейчас", "traffic": 1200, "leads": 24, "sales": 7, "revenue": 175000},
       {"period": "6 мес", "traffic": 7000, "leads": 140, "sales": 42, "revenue": 1050000},
       {"period": "12 мес", "traffic": 12000, "leads": 240, "sales": 72, "revenue": 1800000}
+    ]
+  },
+
+  "forecast_scenarios": {
+    "$comment": "Два самосогласованных сценария для 4-й вкладки сметы. assumptions едины на оба (конверсия/чек/маржа). У каждого сценария своя кривая трафика (checkpoints тарифа Рост, скрипт масштабирует на Старт x0.6 / Максимум x1.3) и свое число активных месяцев ежемесячных услуг. Деньги (лиды/выручка/кэшфлоу/ROMI/окупаемость) СКРИПТ считает сам из checkpoints+assumptions+затрат тарифа - агент денег НЕ считает.",
+    "assumptions": {
+      "model": "two_step",
+      "conversion_rate": 0.02,
+      "close_rate": 0.3,
+      "avg_check": 25000,
+      "avg_check_source": "estimated",
+      "margin": 0.35,
+      "basis": "SEO-трафик, масштабируется по тарифам"
+    },
+    "scenarios": [
+      {
+        "id": "entry_3_6",
+        "label": "Вход 3-6 мес",
+        "recommended": false,
+        "active_months": { "start": 3, "growth": 4, "max": 6 },
+        "traffic_checkpoints": { "m0": 1200, "m3": 3000, "m6": 4600, "m9": 5200, "m12": 5400 },
+        "methodology_note": "Клиент оплачивает ежемесячные услуги 3-6 мес (по тарифу). После остановки публикаций рост затухает к плато - лаг индексации 2-4 мес доносит уже набранное, дальше кривая выполаживается. К 12-му мес - умеренный результат."
+      },
+      {
+        "id": "year",
+        "label": "Год работы",
+        "recommended": true,
+        "active_months": { "start": 12, "growth": 12, "max": 12 },
+        "traffic_checkpoints": { "m0": 1200, "m3": 3500, "m6": 7000, "m9": 9600, "m12": 12000 },
+        "methodology_note": "Контент добавляется весь год. Прирост привязан к накопленному объему опубликованного контента с лагом 2-4 мес - кривая продолжает расти к 12-му мес. Оба прогноза выведены из одних исходных данных Wordstat/конкурентов."
+      }
     ]
   }
 }
