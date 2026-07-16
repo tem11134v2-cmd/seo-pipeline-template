@@ -45,9 +45,9 @@
 
 > `wm_external_links` на шаге 4 **повторно НЕ вызывать** - данные уже в `indexing.external_links`.
 
-### Шаги 5-6 - audit-writer + рендеры
+### Шаги 5-6 + 5b - audit-writer + рендеры + факт-чек
 
-Без MCP. `audit-writer` (Read/Write/Edit), `render-audit-md.mjs` / `build-audit-docx.mjs` / `verify-audit.mjs` (Node).
+Без MCP. `audit-writer` (Read/Write/Edit), `render-audit-md.mjs` / `build-audit-docx.mjs` / `verify-audit.mjs` (Node). Шаг 5b - `audit-verifier` (Read/Write): смысловой факт-чек `audit_data.json` против 4 локальных JSON (recon/indexing/onpage/analytics.json) перед сборкой .docx; MCP не использует.
 
 ### Шаг 7 - Drive
 

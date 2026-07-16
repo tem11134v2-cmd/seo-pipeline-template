@@ -14,6 +14,9 @@
 //           мета-таблица/аналитика). Приложения исключены - там {Название} легитимны как
 //           dev-шаблоны.
 //   [error] значения карточки не пустые
+//   [error] карточка card - ровно 22 строки (§5.5 audit-writer.md)
+//   [error] карточка card - порядок строк совпадает с эталоном CARD_LABELS
+//   [error] meta_table.rows[].schema - строка (склеена), не массив/объект
 //   [warn]  критичная/важная проблема есть, а чеклист для этого приоритета пуст
 //   [warn]  приложение не упомянуто ни в одной задаче чеклиста (сирота)
 //
@@ -40,6 +43,22 @@ try {
   console.error(`[verify-audit] невалидный JSON: ${e.message}`);
   process.exit(2);
 }
+
+// Эталон карточки §5.5 audit-writer.md - состав и ПОРЯДОК 22 строк.
+// Держать синхронно с audit-writer.md §5.5 (при правке там - править здесь).
+const CARD_LABELS = [
+  "Домен", "Тематика", "CMS", "Шаблон", "Возраст", "ИКС",
+  "Страниц в поиске", "Исключенных страниц",
+  "Трафик (Keyso, оценка)", "Трафик (Метрика, визиты/мес)",
+  "ТОП-10 / ТОП-50", "Страниц в базе Keyso", "База Keyso", "Доля мобильных",
+  "Вебмастер", "Верификация", "Главное зеркало", "Метрика",
+  "Возраст счетчика", "Цели", "Яндекс Бизнес", "Ссылки (доменов-доноров)",
+];
+// Нормализация метки перед сравнением: writer/промпт местами пишут ё и тире по-разному,
+// render всё равно приводит ё->е; сравниваем по нормализованной форме, а не байт-в-байт.
+const normLabel = (s) => String(s ?? "")
+  .replace(/[—–]/g, "-").replace(/ё/g, "е").replace(/Ё/g, "Е")
+  .replace(/\s+/g, " ").trim().toLowerCase();
 
 const errors = [];
 const warns = [];
@@ -111,6 +130,28 @@ for (const row of data.card || []) {
   const v = (row && row.value != null) ? String(row.value).trim() : "";
   if (v === "") errors.push(`карточка: пустое значение у "${(row && row.label) || "?"}"`);
 }
+
+// 4b. Состав и порядок карточки (эталон §5.5)
+const card = Array.isArray(data.card) ? data.card : [];
+if (card.length !== CARD_LABELS.length) {
+  errors.push(`карточка: ${card.length} строк, ожидается ${CARD_LABELS.length} (§5.5 audit-writer)`);
+}
+for (let i = 0; i < CARD_LABELS.length; i++) {
+  const actual = normLabel(card[i] && card[i].label);
+  const expect = normLabel(CARD_LABELS[i]);
+  if (actual !== expect) {
+    errors.push(`карточка: строка ${i + 1} - ожидалась "${CARD_LABELS[i]}", получено "${(card[i] && card[i].label) || "(нет)"}"`);
+  }
+}
+
+// 6. meta_table.rows[].schema - строка (склеена), не массив/объект
+const mtRows = (data.meta_table && Array.isArray(data.meta_table.rows)) ? data.meta_table.rows : [];
+mtRows.forEach((row, i) => {
+  const sch = row ? row.schema : undefined;
+  if (Array.isArray(sch) || (sch !== null && typeof sch === "object")) {
+    errors.push(`meta_table.rows[${i}].schema - ${Array.isArray(sch) ? "массив" : "объект"}, ожидается строка (склеить через запятую)`);
+  }
+});
 
 // 5. покрытие чеклистом
 if (len(data.critical_problems) > 0 && len(cl.critical) === 0) {
