@@ -357,7 +357,7 @@ if (nxArticle) {
   const contentMarkerRe = /<!--\s*CONTENT[\s\S]*?-->/i;
   if (contentMarkerRe.test(html)) {
     const replaced = html.replace(contentMarkerRe, (match) => match + "\n" + innerParts.join("\n"));
-    writeFileSync(outputPath, injectSchema(replaced, schemaScripts), "utf8");
+    writeFileSync(outputPath, normYoFinal(injectSchema(replaced, schemaScripts)), "utf8");
     reportSummary();
     process.exit(0);
   } else {
@@ -371,11 +371,19 @@ let finalHtml = tDom.serialize();
 finalHtml = injectSchema(finalHtml, schemaScripts);
 finalHtml = injectSocialMeta(finalHtml, socialMetaScripts);
 finalHtml = injectExtraStyles(finalHtml, extraHeadStyles);
+// буква ё запрещена в клиентских текстах (как и тире) - нормализуем ё->е/Ё->Е по всей
+// сериализованной HTML-строке перед записью на диск (URL не содержат сырую ё, безопасно).
+// Тире здесь не трогаем.
+finalHtml = normYoFinal(finalHtml);
 
 writeFileSync(outputPath, finalHtml, "utf8");
 reportSummary();
 
 // --- helpers ---
+
+function normYoFinal(html) {
+  return String(html).replace(/ё/g, "е").replace(/Ё/g, "Е");
+}
 
 function injectSchema(html, scripts) {
   if (!scripts) return html;

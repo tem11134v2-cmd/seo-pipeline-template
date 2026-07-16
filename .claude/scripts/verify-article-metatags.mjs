@@ -34,6 +34,7 @@ const reportPath = join(articleDir, "report.md");
 const articleMdPath = join(articleDir, "article.md");
 
 const DASH_RE = /[—–]/;
+const YO_RE = /[ёЁ]/;
 
 function norm(s) {
   return String(s || "").toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
@@ -112,6 +113,12 @@ if (DASH_RE.test(mt.h1)) violations.push("длинное/среднее тире
 if (DASH_RE.test(mt.title)) violations.push("длинное/среднее тире в Title");
 if (DASH_RE.test(mt.description)) violations.push("длинное/среднее тире в Description");
 if (DASH_RE.test(mt.announce)) violations.push("длинное/среднее тире в Анонсе");
+
+// 3б. Буква ё
+if (YO_RE.test(mt.h1)) violations.push("буква ё в H1");
+if (YO_RE.test(mt.title)) violations.push("буква ё в Title");
+if (YO_RE.test(mt.description)) violations.push("буква ё в Description");
+if (YO_RE.test(mt.announce)) violations.push("буква ё в Анонсе");
 
 // 4. H1 != Title (не дубль)
 if (mt.h1.trim() && mt.title.trim() && norm(mt.h1) === norm(mt.title)) {

@@ -1,7 +1,7 @@
 ---
 name: metatag-writer
 description: Фаза 3 /seo-metategi. Генерирует финальные H1/Title/Description для ОДНОЙ страницы (deep - с анализом выдачи и Акварелью) или для ПАЧКИ страниц (bulk - по PLAYBOOK + батч-данные, без MCP). Сохраняет metatags/NNN/pages/<n>.json.
-model: inherit
+model: opus
 ---
 
 # metatag-writer
@@ -175,3 +175,4 @@ jm_text_check(mode="single", keyword="<финальная форма>", text="<T
 - НЕ проверяй Description Акварелью (она под маркер, Description под УТП+CTA).
 - НЕ редактируй `shortlist.json`, `research.json`, `inputs.json`, `pages.json` - только Read. Пишешь только `pages/<n>.json`.
 - Длинное тире (—) и среднее (–) не использовать. Только дефис (-). (Разделитель Title `|`/`-`/`:` это не тире в тексте.)
+- НЕ используй букву ё - всегда пиши е. Правило для всех клиентских текстов и метатегов (как и запрет тире).

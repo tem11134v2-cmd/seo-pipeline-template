@@ -89,6 +89,8 @@ const allText = faq.map((i) => `${i.q} ${i.a}`).join(" ").toLowerCase();
 for (const s of STOP) if (allText.includes(s)) V(`стоп-формула: «${s}»`);
 const dashes = (html.match(/—|–/g) || []).length;
 if (dashes > 0) V(`длинное/среднее тире (— –): ${dashes} (только дефис)`);
+const yos = (html.match(/[ёЁ]/g) || []).length;
+if (yos > 0) V(`буква ё: ${yos} (заменить на е)`);
 
 // --- контекстные ссылки ---
 const allHrefs = [];

@@ -81,6 +81,8 @@ function norm(s) {
 }
 // Длинное/среднее тире
 const DASH_RE = /[—–]/;
+// Буква ё (запрещена в клиентских метатегах, как и тире)
+const YO_RE = /[ёЁ]/;
 
 const INFO_TYPES = new Set(["info", "article"]);
 
@@ -144,6 +146,11 @@ for (const page of pages) {
   if (DASH_RE.test(h1)) violations.push(`${label}: длинное/среднее тире в H1`);
   if (DASH_RE.test(title)) violations.push(`${label}: длинное/среднее тире в Title`);
   if (DASH_RE.test(desc)) violations.push(`${label}: длинное/среднее тире в Description`);
+
+  // 3б. Буква ё
+  if (YO_RE.test(h1)) violations.push(`${label}: буква ё в H1`);
+  if (YO_RE.test(title)) violations.push(`${label}: буква ё в Title`);
+  if (YO_RE.test(desc)) violations.push(`${label}: буква ё в Description`);
 
   // 4. Точное вхождение формы в H1 и Title (кроме info-страниц без маркера)
   if (!INFO_TYPES.has(type) && norm(form)) {

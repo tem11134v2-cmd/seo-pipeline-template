@@ -68,7 +68,7 @@ const border = { style: BorderStyle.SINGLE, size: 4, color: C.gray_medium };
 const headerBorder = { style: BorderStyle.SINGLE, size: 4, color: C.header_bg };
 const cellMargins = { top: 60, bottom: 60, left: 100, right: 100 };
 
-const dash = (s) => String(s ?? "").replace(/[—–]/g, "-");
+const dash = (s) => String(s ?? "").replace(/[—–]/g, "-").replace(/ё/g, "е").replace(/Ё/g, "Е");
 
 function makeRun(text, opts = {}) {
   return new TextRun({

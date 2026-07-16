@@ -168,6 +168,7 @@ Bash: xdg-open .claude/handoff-requests/files/template.html || open .claude/hand
 - Не пиши `ЗАКАЗЧИК.md` или `template.html` в корень проекта напрямую — только в `.claude/handoff-requests/files/`. Иначе pre-commit hook откажет в коммите.
 - Не запускай `/seo-temi`, `/seo-statya` из этой же сессии — это отдельные worktree-задачи.
 - Не используй длинное тире (—) и среднее (–). Только дефис (-).
+- НЕ используй букву ё - всегда пиши е. Правило для всех клиентских текстов и метатегов (как и запрет тире).
 
 ## Состояние
 
