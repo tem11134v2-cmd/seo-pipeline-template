@@ -276,7 +276,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── git-hooks/                           ← git hooks (НЕ Claude Code)
 │   │   └── pre-commit                       (whitelist путей в worktree)
 │   │
-│   ├── scripts/                             ← обёртки + 45 .mjs
+│   ├── scripts/                             ← обёртки + 55 .mjs
 │   │   ├── _node.cmd / _node.sh             (обёртки, ищут node)
 │   │   ├── _client.mjs                      (общий helper)
 │   │   ├── finalize-setup.mjs               (git init + первый коммит)
@@ -302,7 +302,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── verify-audit.mjs                 (проверка audit_data.json)
 │   │   ├── select-audit-pages.mjs           (indexing.json → page_plan.json: выборка+шарды)
 │   │   ├── merge-onpage.mjs                 (onpage_*.json шарды → onpage.json)
-│   │   └── ...                              (всего 45 .mjs - полный список в таблице «Node-скрипты» ниже)
+│   │   └── ...                              (всего 55 .mjs - полный список в таблице «Node-скрипты» ниже)
 │   │
 │   ├── handoff-requests/                    ← запросы worktree → main
 │   │   ├── .gitkeep
@@ -470,6 +470,11 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ## Компоненты
 
+Три сквозных паттерна, общих для большинства рабочих скилов:
+- **Финальный верификатор.** Перед сборкой итогового документа почти каждый пайплайн ставит независимого `opus`-агента `<domain>-verifier` (например `article-verifier`, `structure-verifier`, `strategy-verifier`, `audit-verifier`, `analysis-verifier`, `topics-verifier`): он ничего не чинит, только пишет `verify_report.json` и переводит задачу в состояние `*-verified`. Решение — [ADR-025](docs/adr/025-final-verifiers.md); методология для новых скилов — раздел «Финальный верификатор» в [docs/SKILL-ADAPTATION-GUIDE.md](docs/SKILL-ADAPTATION-GUIDE.md).
+- **Ядро + REFERENCE.md.** У самых длинных скилов (`seo-statya`) `SKILL.md` разрезан на компактное ядро (шаги оркестрации) и `REFERENCE.md` (справочные секции по якорям — форматы, чек-листы, edge-кейсы), чтобы не грузить контекст оркестратора тем, что нужно редко.
+- **Серийный режим на очереди.** `/seo-statya` умеет писать пачку тем за одну worktree-сессию через `.claude/scripts/batch-queue.mjs` и `.claude/tmp/batch-queue.json` — детерминированная очередь `init/next/set/status`, переживающая авто-компакт контекста.
+
 ### 28 скилов (14 рабочих, 9 share-утилит, 4 управляющих, 1 справочный)
 
 | Скил | Зона | Назначение |
@@ -512,6 +517,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `client-profiler` | Собирает данные с сайта клиента → ЗАКАЗЧИК.md |
 | `template-designer` | Генерирует template.html на базе TEMPLATE-MASTER + ЗАКАЗЧИК.md |
 | `topic-generator` | Собирает 15-25 тем через Wordstat / Keys.so / Yandex |
+| `topics-verifier` | Лёгкая проверка батча тем перед показом пользователю: дубли/пересечения с existing_queries.json, неполные поля, нерелевантность нише → verify_report.json, ничего не чинит (для /seo-temi, шаг 4.5) |
 | `jm-analyst` | text_generate + text_analyze, сохраняет в jm/*.json |
 | `tz-builder` | Собирает ТЗ статьи (вариант A или B) на основе JM-данных и конкурентов |
 | `section-writer` | Пишет один H2-раздел статьи (используется `opus`) |
@@ -519,6 +525,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `text-auditor` | Вычитка: AI-маркеры, орфография, законность РФ, повествование |
 | `enhancer` | HTML-элементы по меткам + FAQ + Schema.org JSON-LD |
 | `photo-promter` | Промты для фото по меткам `[ФОТО: ...]` |
+| `photo-producer` | Генерирует и публикует фото статьи: читает prompts.md, вызывает MCP генерации (Nano Banana 2) + Cloudinary напрямую → photos/urls.json (для /seo-statya, шаг 9b) |
+| `article-verifier` | Финальная независимая вычитка собранной статьи: article.md + output.html + report.md против ТЗ, свип е-с-точками/тире, сверка меток фото → verify_report.json, ничего не чинит (для /seo-statya, шаг 10c) |
 | `article-fixer` | Точечная правка статьи (по запросу из `/fix-article`) |
 | `article-fixer-batch` | Массовое применение правок аудита одним проходом (для `/seo-statya`) |
 | `strategy-scanner` | Скан сайта + первичные метрики клиента (для /seo-strategiya) |
@@ -526,16 +534,21 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `growth-strategist` | Точки роста + сборка strategy_data.json (для /seo-strategiya) |
 | `tariff-architect` | Подбор трёх тарифов из TARIFFS.md по правилам RULES.md |
 | `strategy-writer` | Проза для 6 разделов стратегии в strategy_content.json |
+| `strategy-verifier` | Финальная независимая вычитка strategy_content.json: нет цен в прозе тарифов, цифры против data/scan/metrics/competitors/serp, согласованность тарифов → verify_report.json, ничего не чинит (для /seo-strategiya, шаги 6.5а/6.5б) |
+| `intake-analyst` | Читает всю вводную фактуру (бриф, транскрибации, файлы, ЗАКАЗЧИК.md) → intake.json (факты с провенансом) + ВВОДНЫЕ.md (для /seo-analiz, шаг 1.5, до брифования) |
 | `brief-structurer` | Парсинг свободного брифа в 16 параметров + путь Keyso (для /seo-analiz) |
 | `competitor-finder` | Поиск + фильтрация + типизация + отбор 6-10 конкурентов + топ-3 лидера (для /seo-analiz) |
 | `serp-verdict` | SERP-анализ по запросам + вердикт совместимости + стоп-лист + смежные (для /seo-analiz) |
 | `leader-scanner` | Скан смыслов Э2-лайт: блоки/посылы/фишки 9-12 страниц топ-3 лидеров (для /seo-analiz) |
-| `analysis-writer` | Сборка A2.md (5 разделов) + A3.md (стоп-лист) из всех JSON-данных (для /seo-analiz) |
+| `analysis-writer` | Сборка A2.md (5 разделов, вкл. «0. Вопросы к вам») + A3.md (стоп-лист) из всех JSON-данных (для /seo-analiz) |
+| `answer-extractor` | Извлекает ответы клиента на questions.json из его правок в Google Doc + свободные комментарии → answers.json (для /seo-analiz, режим `--answers`) |
+| `analysis-verifier` | Финальная независимая вычитка A2.md: цифры против brief/intake/competitors/serp/leader_scan, полнота разделов, согласованность раздела 0 → verify_report.json, ничего не чинит (для /seo-analiz, шаг 6b) |
 | `master-list-builder` | Мастер-список страниц (типизация + нормализация + спаривание) на базе анализа (для /seo-struktura) |
 | `marker-finder` | Маркерные запросы на каждую страницу через каскад Keyso + фолбэки (для /seo-struktura) |
 | `semantic-expander` | JM semantic_pack: топ-30 запросов на маркер + проверка баланса (для /seo-struktura) |
 | `cannibalization-resolver` | Разрешение конфликтов каннибализации + рекомендации по расширению (для /seo-struktura) |
 | `structure-writer` | Финальный A6.md по фиксированному шаблону (для /seo-struktura) |
+| `structure-verifier` | Финальная независимая вычитка A6.md: цифры против источников, состав/порядок разделов, непротиворечивость вердикту анализа → verify_report.json, ничего не чинит (для /seo-struktura, шаг 9д) |
 | `site-scanner` | Скан живого сайта (sitemap + текущие H1/Title/Description + приоритет) → audit.json (для /seo-metategi, режим аудита) |
 | `metatag-researcher` | Варианты маркера по осям + батч частотности/коммерциализации/подсказок на весь проект → research.json (для /seo-metategi) |
 | `metatag-writer` | Финальные H1/Title/Description на страницу: deep (выдача + Акварель, параллельно) / bulk (по PLAYBOOK) → pages/N.json (для /seo-metategi) |
@@ -544,6 +557,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `audit-onpage` | URL/мета/Schema/JS для ОДНОГО батча страниц (шард, запускается параллельно) → onpage_<k>.json (для /seo-tehaudit, шаг 3) |
 | `audit-analytics` | Аналитика/поведенческие/ссылки + финальный вердикт Яндекс Бизнеса → analytics.json (для /seo-tehaudit, шаг 4) |
 | `audit-writer` | Сборка audit_data.json (карточка + проблемы + чеклист + динамические приложения) из 4 JSON (для /seo-tehaudit, шаг 5) |
+| `audit-verifier` | Финальная независимая вычитка audit_data.json против 4 JSON-источников: нет выдуманных проблем, ничего значимого не потеряно, бьются цифры карточки → verify_report.json, ничего не чинит (для /seo-tehaudit, шаг 5b) |
 | `audience-analyst` | Глубокий анализ ЦА (порт У5-Б): портреты/боли-сцены/страхи/возражения + компактная сводка → audience.json (для /seo-tekst, проектный) |
 | `offer-strategist` | Стратегия оффера: позиционирование + прогретость + идея + формула + 30 тезисов + палитра + materials-gate → strategy.json (для /seo-tekst, проектный) |
 | `block-planner` | Блок-план всех страниц одним проходом: BLOCKS.md + leader_blocks → blueprints/<slug>.json (блоки + цели + боли + слоты + char-лимиты); снимает каталоги с писателей (для /seo-tekst, проектный) |
@@ -559,7 +573,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `solution-writer` | Пишет решение по вопросу заказчика в выбранном формате (answer/recommendation/doc), клиентские части без SEO-жаргона → solution.md (+ answer_client.md) (для /custom-question) |
 | `solution-verifier` | Независимая вычитка решения: факт-чек по файлам проекта, простота языка, полнота ответа, честность блока «Что я не проверял» → verify_report.json (для /custom-question) |
 
-### 45 Node-скриптов
+### 55 Node-скриптов
 
 | Скрипт | Делает |
 |---|---|
@@ -572,21 +586,30 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `update-index.mjs` | поддержка `articles/_index.json` |
 | `rebuild-index.mjs` | пересборка производного кеша `_index.json` из per-folder meta.json (ADR-013, кеш не коммитится) |
 | `resolve-article-dir.mjs` | детерминированный резолв папки задачи по id темы (после ADR-013 номер NNN не уникален) |
+| `batch-queue.mjs` | движок очереди серийного режима `/seo-statya` (диапазон/список тем в одной worktree-сессии): `init/next/set/status` над `.claude/tmp/batch-queue.json` |
 | `assemble-html.mjs` | article.md + enhancements + faq + schema + photos + template → output.html |
 | `metrics-report.mjs` | метрики читаемости (слова, H2/H3, Flesch-RU) → раздел в report.md |
 | `verify-progress.mjs` | сверка sections/progress.json с фактическими секциями (exit 0/1/2) |
 | `verify-markers.mjs` | проверка, что финализатор сохранил все метки в article.md |
 | `verify-photo-budget.mjs` | число запланированных фото в tz.md попадает в жанровую вилку, независимо от числа таблиц |
 | `verify-photos.mjs` | кросс-чек фото: метки [ФОТО] в article.md = блоки prompts.md = записи photos/urls.json |
+| `verify-article-metatags.mjs` | механическая проверка H1/Title/Description ОДНОЙ статьи после article-finalizer; exit 2 → скил пере-делегирует финализатору (для `/seo-statya`) |
 | `build-article-docx.mjs` | article + фото из Cloudinary → `Article_<slug>.docx` |
+| `export-articles.mjs` | серийный финал `/seo-statya` (Block C): собирает папку-экспорт батча статей (по файлу на статью) + manifest.json |
+| `build-articles-xlsx.mjs` | серийный финал `/seo-statya` (Block C): manifest.json → сводная xlsx метатегов батча статей с подсветкой превышений |
 | `tilda-split.mjs` | output.html → tilda/head.html + tilda/t123.html (с !important фиксами) |
 | `preview-server.mjs` | минимальный статический HTTP-сервер для скриншот-самопроверки шаблона (Chrome MCP не открывает file://) |
 | `build-strategy-docx.mjs` | strategy_content.json + tariffs.json + inputs.json → SEO_Strategy_<domain>.docx |
 | `build-smeta-xlsx.mjs` | tariffs.json + inputs.json → Smeta_<domain>.xlsx (3 вкладки + формулы SUM) |
+| `verify-strategy.mjs` | механическая финальная проверка стратегии перед docx: цены в прозе тарифов, стоп-паттерны воды, тире/буква Ё, объём (для /seo-strategiya, шаг 6.5а) |
 | `build-analysis-docx.mjs` | A2.md → A2_<domain>.docx (Arial, цветной вердикт, таблицы) |
+| `_questions.mjs` | единый источник схемы/логики questions.json («0. Вопросы к вам»); импортируют build-analysis-docx.mjs и apply-answers.mjs (для /seo-analiz) |
+| `apply-answers.mjs` | ядро режима `/seo-analiz --answers`: сливает answers.json в questions.json, решает какие шаги перезапускать → rerun_plan.json |
+| `_slug.mjs` | единый источник транслита + построения slug/URL + валидации URL для /seo-struktura; импортируют build-structure-xlsx, select-top10, import-structure, verify-structure |
 | `select-top10.mjs` | semantic_pack.json → top10.json + cannibalization.json (детекция конфликтов) |
 | `build-structure-xlsx.mjs` | master_list + top10 + cannibalization + competitors → A6_<slug>.xlsx (4 листа) |
 | `import-structure.mjs` | client_filled.xlsx → structure_data.json (exit-коды 0/3/4 для развилок) |
+| `verify-structure.mjs` | механический финальный гейт A6.md перед смысловым structure-verifier: URL/структура/дубли, дёшево и детерминированно (для /seo-struktura, шаг 9г) |
 | `validate-analysis-inputs.mjs` | жёсткая валидация входа /seo-struktura: наличие файлов анализа + канонические поля брифа (ловит дрейф схемы) |
 | `read-metatags-input.mjs` | вход метатегов: структура / таблица / аудит → pages.json (exit 0/2/1) |
 | `select-variations.mjs` | research.json → shortlist.json (отсев Comm, сорт по exact, форма+резерв на страницу) |
@@ -603,6 +626,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `build-tekst-analysis-docx.mjs` | audience.json + strategy.json → Analysis_<slug>.docx (клиенту на согласование) |
 | `build-tekst-docx.mjs` | pages/*/page.json → Texts_<slug>.docx (финальные тексты клиенту) |
 | `read-faq-input.mjs` | tekst/таблица/url → pages.json (текст страницы + целевые запросы для JM) |
+| `_faq-util.mjs` | общие утилиты /seo-faq: единая нормализация URL + декод сущностей + резолв self-url; импортируют build-faq.mjs, build-faq-docx.mjs, verify-faq.mjs |
 | `build-faq.mjs` | faq_blocks.json → faq.html (аккордеон + Schema.org FAQPage + плитка тегов + перелинковка) + faq.md |
 | `verify-faq.mjs` | проверка SEO-блока: Schema валидна, объёмы FAQ, стоп-формулы, тире, normalized_keywords (exit 0/2) |
 | `build-faq-docx.mjs` | faq_blocks → FAQ_<slug>.docx (клиенту) |
