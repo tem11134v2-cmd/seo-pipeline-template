@@ -6,7 +6,7 @@
 //   - read-metatags-input.mjs  (3 источника + edge: все «нет» -> exit 2)
 //   - select-variations.mjs    (отсев Comm, all-low фолбэк, info passthrough, топоним)
 //   - build-metatags-xlsx.mjs  (3 листа, подсветка длины, заглушка для missing)
-//   - verify-metatags.mjs      (нарушения -> exit 2, чисто -> exit 0)
+//   - verify-metatags.mjs      (нарушения -> exit 2, чисто -> exit 0, финальный прогон после xlsx с --accept-degraded)
 //
 // Exit 0 - все тесты прошли. Exit 1 - есть провал.
 
@@ -291,6 +291,60 @@ step("verify-metatags: forbidden phrasing caught -> exit 2", () => {
   const r = runScript("verify-metatags.mjs", [fb]);
   if (r.code !== 2) return `exit ${r.code} (expect 2)`;
   if (!/лидер рынка/.test(r.stdout)) return "forbidden phrasing not reported";
+  return true;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// 5. Финальный verify после сборки xlsx (шаг 7.5а /seo-metategi)
+// ──────────────────────────────────────────────────────────────────────────
+
+// Полная чистая пачка: все pages/<n>.json на месте, без нарушений. Собираем xlsx,
+// затем прогоняем финальный verify с --accept-degraded (контракт шага 7.5а:
+// финальный прогон на готовом артефакте проходит).
+const finalDir = join(SANDBOX, "verify-final");
+writeJson(join(finalDir, "inputs.json"), { slug: "final", domain: "final.ru", region_name: "Москва", source: "table", forbidden_phrasings: ["лидер рынка"] });
+writeJson(join(finalDir, "pages.json"), {
+  source: "table", total: 2,
+  pages: [
+    { n: 1, url: "/", type: "home", name: "Главная", marker: "окна пвх спб", queries: [] },
+    { n: 2, url: "/catalog/", type: "category", name: "Каталог", marker: "окна купить", queries: [] },
+  ],
+});
+writeJson(join(finalDir, "pages", "1.json"), {
+  n: 1, url: "/", type: "home", name: "Главная", marker: "окна пвх спб", chosen_form: "окна пвх спб",
+  h1: "Окна пвх спб под ключ", title: "Окна пвх спб под ключ | Цена от 9000", description: "Окна пвх спб с монтажом. Замер бесплатно, гарантия 5 лет. Звоните.",
+  title_len: 36, desc_len: 65, analytics: { depth: "deep" }, flags: [], notes: "",
+});
+writeJson(join(finalDir, "pages", "2.json"), {
+  n: 2, url: "/catalog/", type: "category", name: "Каталог", marker: "окна купить", chosen_form: "окна купить",
+  h1: "Окна купить в каталоге", title: "Окна купить в спб недорого | Салон", description: "Окна купить с установкой. Рассрочка, скидки, гарантия. Оставьте заявку.",
+  title_len: 34, desc_len: 71, analytics: { depth: "bulk" }, flags: [], notes: "",
+});
+
+step("build-metatags-xlsx на чистой полной пачке -> A7_final.xlsx", () => {
+  const r = runScript("build-metatags-xlsx.mjs", [finalDir]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
+  if (!existsSync(join(finalDir, "A7_final.xlsx"))) return "A7_final.xlsx не создан";
+  return true;
+});
+
+step("verify-metatags финальный прогон после xlsx (--accept-degraded) -> exit 0", () => {
+  const r = runScript("verify-metatags.mjs", [finalDir, "--accept-degraded"]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
+  return true;
+});
+
+step("verify-metatags --accept-degraded не блокирует свежую деградацию -> exit 0", () => {
+  const dg = join(SANDBOX, "verify-degraded");
+  writeJson(join(dg, "inputs.json"), { slug: "dg", forbidden_phrasings: [] });
+  writeJson(join(dg, "pages.json"), { total: 1, pages: [{ n: 1, url: "/", type: "home", name: "Главная", marker: "двери спб", queries: [] }] });
+  writeJson(join(dg, "pages", "1.json"), {
+    n: 1, url: "/", type: "home", name: "Главная", marker: "двери спб", chosen_form: "двери спб",
+    h1: "Двери спб на заказ", title: "Двери спб на заказ | Салон дверей", description: "Двери спб на заказ. Замер, доставка, установка под ключ. Звоните.",
+    title_len: 33, desc_len: 64, analytics: { depth: "deep" }, flags: ["mcp_degraded"], notes: "выдача arsenkin не пришла",
+  });
+  const r = runScript("verify-metatags.mjs", [dg, "--accept-degraded"]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
   return true;
 });
 

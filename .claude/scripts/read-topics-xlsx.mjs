@@ -9,7 +9,7 @@
 //   node .claude/scripts/read-topics-xlsx.mjs [project_root]
 //
 // Вход:  <project_root>/topics.xlsx (опционально - если нет, вернёт пустой массив)
-// Выход (stdout, JSON):
+// Выход (stdout, JSON, полный режим - без флагов):
 //   {
 //     "exists": true|false,
 //     "topics_count": N,
@@ -23,16 +23,22 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import ExcelJS from "exceljs";
 
-// CLI: read-topics-xlsx.mjs [project_root] [--by-number N]
-//   Без флага  - вернёт все темы (для дедупликации в /seo-temi).
-//   --by-number N - вернёт ОДНУ тему по колонке № (n === N), для /seo-statya.
+// CLI: read-topics-xlsx.mjs [project_root] [--by-number N] [--main-only]
+//   Без флагов     - вернет все темы (полный дамп; handoff-process - дедуп-merge).
+//   --by-number N  - вернёт ОДНУ тему по колонке № (n === N), для /seo-statya.
+//   --main-only    - компактный дамп только main_query (для /seo-temi - дедуп
+//                    без раздувания контекста полным JSON тем). Если передан вместе
+//                    с --by-number, --by-number приоритетнее (он адресный).
 const rawArgs = process.argv.slice(2);
 let byNumber = null;
+let mainOnly = false;
 const positional = [];
 for (let i = 0; i < rawArgs.length; i++) {
   if (rawArgs[i] === "--by-number") {
     byNumber = Number(rawArgs[i + 1]);
     i++;
+  } else if (rawArgs[i] === "--main-only") {
+    mainOnly = true;
   } else {
     positional.push(rawArgs[i]);
   }
@@ -40,24 +46,39 @@ for (let i = 0; i < rawArgs.length; i++) {
 const projectRoot = resolve(positional[0] || process.cwd());
 const inputPath = join(projectRoot, "topics.xlsx");
 
-// Унифицированный вывод. В режиме --by-number находит тему по колонке № (поле n),
-// а не по физической строке xlsx, и возвращает available_numbers для внятной ошибки.
+// Унифицированный вывод.
+// - --by-number (приоритет над --main-only): находит тему по колонке № (поле n),
+//   а не по физической строке xlsx, и возвращает available_numbers для внятной ошибки.
+// - --main-only: компактный { exists, count, main_queries } - только непустые main_query.
+// - иначе: полный режим как раньше (payload как есть).
 function emit(payload) {
-  if (byNumber == null) {
-    console.log(JSON.stringify(payload));
+  if (byNumber != null) {
+    const list = payload.topics || [];
+    const topic = list.find((t) => Number(t.n) === byNumber) || null;
+    console.log(
+      JSON.stringify({
+        exists: payload.exists,
+        found: !!topic,
+        requested: byNumber,
+        topic,
+        available_numbers: list.map((t) => t.n),
+      }),
+    );
     return;
   }
-  const list = payload.topics || [];
-  const topic = list.find((t) => Number(t.n) === byNumber) || null;
-  console.log(
-    JSON.stringify({
-      exists: payload.exists,
-      found: !!topic,
-      requested: byNumber,
-      topic,
-      available_numbers: list.map((t) => t.n),
-    }),
-  );
+  if (mainOnly) {
+    const list = payload.topics || [];
+    const main_queries = list.map((t) => String(t.main_query || "").trim()).filter(Boolean);
+    console.log(
+      JSON.stringify({
+        exists: payload.exists,
+        count: main_queries.length,
+        main_queries,
+      }),
+    );
+    return;
+  }
+  console.log(JSON.stringify(payload));
 }
 
 if (!existsSync(inputPath)) {
