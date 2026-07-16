@@ -25,7 +25,7 @@ description: "Полный цикл технического SEO-аудита с
 
 ```
 init -> recon-done -> indexing-done -> collection-done -> report-done
-     -> docx-done -> shared -> client-review
+     -> audit-verified -> docx-done -> shared -> client-review
           (revising) -> docx-done -> shared -> client-review   (цикл правок)
      -> approved -> completed
 ```
@@ -35,6 +35,7 @@ init -> recon-done -> indexing-done -> collection-done -> report-done
 - `indexing-done` - собран `indexing.json` (robots, sitemap, диагностика, редиректы, доноры) - шаг 3.
 - `collection-done` - собраны `onpage.json` + `analytics.json` (параллельный шаг 4).
 - `report-done` - собран `audit_data.json`, отрендерен `A12.md`, пройден `verify-audit` - шаг 5.
+- `audit-verified` - пройден смысловой гейт факт-чека (`audit-verifier`, verdict=pass) - шаг 5b.
 - `docx-done` - собран `A12_<slug>.docx` - шаг 6. При `--no-share` - финальное состояние.
 - `shared` - .docx залит в Drive, ссылка получена - шаг 7.
 - `client-review` - скил ждёт фидбек клиента по ссылке.
@@ -56,6 +57,7 @@ audits/NNN-<domain-slug>/
 ├── onpage.json          # шаг 4: слитый on-page (merge-onpage.mjs): мета-теги, Title-заглушка, schema
 ├── analytics.json       # шаг 4: трафик, источники, отказы, цели, устройства, вердикт ЯБ
 ├── audit_data.json      # шаг 5: ЕДИНЫЙ структурированный отчёт (источник истины для рендеров)
+├── verify_report.json   # шаг 5b: вердикт факт-чека audit-verifier
 ├── A12.md               # ФИНАЛ - markdown-отчёт (рендер render-audit-md.mjs)
 ├── A12_<slug>.docx      # ФИНАЛ - клиентский документ (рендер build-audit-docx.mjs)
 └── share.json           # ссылка Drive + drive_file_id + shared_at + revisions[]
@@ -93,7 +95,7 @@ domain   = первый позиционный аргумент (не флаг)
 - Прочитать `meta.json`. `state = meta.state`. Записать `.claude/tmp/current-task.txt` = путь папки.
 - Спросить: «Найдено в состоянии `<state>`, обновлено `<updated>`. Продолжить? [Y/n]»
 - Если Y - перейти к шагу по карте (идемпотентность: каждый шаг пропускает работу, если его JSON уже есть):
-  - `recon-done` -> шаг 3; `indexing-done` -> шаг 4; `collection-done` -> шаг 5; `report-done` -> шаг 6; `docx-done` -> шаг 7 (если не `--no-share`); `shared` -> шаг 7e; `client-review` -> шаг 8; `revising` -> шаг 8d; `approved` -> шаг 9; `completed` -> стоп: «Аудит завершён. Используй `/share-audit <NNN> --redo` для перезаливки.»
+  - `recon-done` -> шаг 3; `indexing-done` -> шаг 4; `collection-done` -> шаг 5; `report-done` -> шаг 5b; `audit-verified` -> шаг 6; `docx-done` -> шаг 7 (если не `--no-share`); `shared` -> шаг 7e; `client-review` -> шаг 8; `revising` -> шаг 8d; `approved` -> шаг 9; `completed` -> стоп: «Аудит завершён. Используй `/share-audit <NNN> --redo` для перезаливки.»
   - **resume для шага 4 (шарды):** если `state==indexing-done`/`collection-done`, но нет `onpage.json` - восстановить `page_plan.json` (4a при отсутствии), до-запустить только недостающие шарды `onpage_<k>.json` и `analytics.json`, затем `merge-onpage.mjs` (4c).
 
 #### 1b. Если фрэш-старт
@@ -238,9 +240,32 @@ project_root: <project root>
 
 После прохождения verify:
 - `bash .claude/hooks/update-meta.sh <audit_dir> report-done`
-- Краткая сводка + пути к `A12.md`, `audit_data.json`. Автопереход к шагу 6.
+- Краткая сводка + пути к `A12.md`, `audit_data.json`. Автопереход к шагу 5b (смысловой гейт), НЕ сразу docx.
 
-### 6. Сборка .docx (если state == "report-done")
+### 5b. Смысловой гейт факт-чека (если state == "report-done")
+
+Независимая СМЫСЛОВАЯ вычитка `audit_data.json` против 4 источников: `verify-audit.mjs` (шаг 5) ловит только механику (counts, ссылки приложений, состав/порядок карточки, schema-строка); `audit-verifier` ловит фактическую корректность - нет ли выдуманных проблем, не потеряна ли значимая проблема источника, бьются ли цифры карточки. Точная калька шага 6b `/seo-analiz` (analysis-verifier ДО docx) и 9д `/seo-struktura`: чиним ДО docx и Drive, иначе клиент увидит выдуманную/неполную проблему.
+
+Маркер ожидаемого файла:
+```bash
+echo "audits/<NNN>-<slug>/verify_report.json" > .claude/tmp/expected-audit-verifier-<NNN>.txt
+```
+
+Делегировать `audit-verifier`:
+```
+audit_dir: <audit_dir>
+project_root: <project root>
+Прочитай audit_data.json + recon/indexing/onpage/analytics.json. Сверь: нет выдуманных проблем;
+значимые проблемы источников не потеряны (все 🔴 строго, существенные 🟡 по суждению); карточка -
+состав/порядок/цифры по эталону §5.5; чеклист согласован с проблемами; стиль без тире/ё. Ничего не
+чини. Запиши verify_report.json.
+```
+
+После возврата - прочитать `verify_report.json` точечно (`verdict` + `counters`, не весь файл) и ветвиться:
+- `verdict == pass` -> `bash .claude/hooks/update-meta.sh <audit_dir> audit-verified` -> шаг 6.
+- `verdict == needs-fix` / `fail` -> показать пользователю сводку issues и пере-делегировать `audit-writer` с инструкцией «исправь по verify_report.json: <issues>», затем повторить `render-audit-md.mjs` + `verify-audit.mjs` + `audit-verifier` (весь 5b). **Лимит - 2 повтора суммарно.** После 2 повторов без `pass` - показать оставшиеся issues пользователю и спросить, как быть (НЕ зацикливаться на opus-циклах).
+
+### 6. Сборка .docx (если state == "audit-verified")
 
 ```bash
 .claude\scripts\_node.cmd .claude\scripts\build-audit-docx.mjs audits\<NNN>-<slug>
@@ -384,11 +409,19 @@ mcp__gdrive-piotr__uploadFile(
 - **`analytics`:** `audit-analytics` (с пометкой), затем `audit-writer`.
 - **`writer`:** только `audit-writer` с инструкцией «учти правку: <описание>».
 
-#### 8e. Re-render + re-docx + re-upload
+#### 8e. Re-render + пере-верификация (5b) + re-docx + re-upload
 
 ```bash
 .claude\scripts\_node.cmd .claude\scripts\render-audit-md.mjs audits\<NNN>-<slug>
 .claude\scripts\_node.cmd .claude\scripts\verify-audit.mjs    audits\<NNN>-<slug>
+```
+
+**Пере-верификация (гейт 5b в цикле правок).** После `render-audit-md` + `verify-audit` прогнать `audit-verifier` (как в шаге 5b) - правка тоже могла внести выдуманную/неполную проблему, дешевле поймать до re-docx:
+- **Правка типа `edit` / `writer`** (тронут только `audit_data.json`) - **облегченный прогон**: делегировать `audit-verifier` один раз, сверяя только затронутые правкой разделы. При `needs-fix` - одна ре-делегация `audit-writer` (исправь по verify_report.json), затем `render-audit-md.mjs` + `verify-audit.mjs`; **без второго цикла фиксов** - дальше к re-docx (не зацикливаться). При `pass` - сразу к re-docx.
+- **Правка типа `recon` / `indexing` / `onpage` / `analytics`** (каскад с перезапуском цепочки) - **полный 5b**: та же развилка pass/needs-fix с лимитом 2 повтора, что и в шаге 5b (цепочка фактически перезапускает сбор -> факт-чек уместен целиком).
+
+Только при `pass` (или после исчерпания лимита с явным согласием пользователя) - собрать .docx:
+```bash
 .claude\scripts\_node.cmd .claude\scripts\build-audit-docx.mjs audits\<NNN>-<slug>
 ```
 Затем шаг 7b (delete старого) + 7c (upload нового). Дописать `share.json.revisions[]`:

@@ -1,0 +1,81 @@
+{
+  "domain": "example.ru",
+  "audit_date": "2026-07-16",
+  "prepared_by": "TIMUR SEO",
+  "card": [
+    { "label": "Домен", "value": "example.ru" },
+    { "label": "Тематика", "value": "Интернет-магазин мебели" },
+    { "label": "CMS", "value": "Bitrix" },
+    { "label": "Шаблон", "value": "custom" },
+    { "label": "Возраст", "value": "5 лет (рег. 2020-01-15)" },
+    { "label": "ИКС", "value": "120" },
+    { "label": "Страниц в поиске", "value": "340" },
+    { "label": "Исключённых страниц", "value": "45" },
+    { "label": "Трафик (Keyso, оценка)", "value": "1200/мес" },
+    { "label": "Трафик (Метрика, визиты/мес)", "value": "980" },
+    { "label": "ТОП-10 / ТОП-50", "value": "12 / 34" },
+    { "label": "Страниц в базе Keyso", "value": "410" },
+    { "label": "База Keyso", "value": "kaluga" },
+    { "label": "Доля мобильных", "value": "68%" },
+    { "label": "Вебмастер", "value": "подключён ✅" },
+    { "label": "Верификация", "value": "да ✅" },
+    { "label": "Главное зеркало", "value": "https://example.ru" },
+    { "label": "Метрика", "value": "подключена ✅" },
+    { "label": "Возраст счётчика", "value": "120 дней" },
+    { "label": "Цели", "value": "3 настроено" },
+    { "label": "Яндекс Бизнес", "value": "есть ✅" },
+    { "label": "Ссылки (доменов-доноров)", "value": "56" }
+  ],
+  "counts": {
+    "critical": 2,
+    "important": 1,
+    "nice_to_have": 1,
+    "ok": 2,
+    "not_checked": 1
+  },
+  "critical_problems": [
+    { "priority": "critical", "title": "Title-заглушка - фатальная ошибка CMS", "block": "Мета-теги", "details": "Title не генерируется динамически на большей части выборки." },
+    { "priority": "critical", "title": "Нет H1", "block": "Мета-теги", "details": "https://example.ru/catalog/shkafy" }
+  ],
+  "important_problems": [
+    { "priority": "important", "title": "Микроразметка Schema.org отсутствует", "block": "Мета-теги", "details": "На выборке не найдено JSON-LD." }
+  ],
+  "nice_problems": [
+    { "priority": "nice", "title": "Favicon не задан", "block": "Мета-теги", "details": "На главной нет link rel=icon." }
+  ],
+  "ok_items": [
+    "ЧПУ корректны, без множественных слешей",
+    "Title уникальны на выборке"
+  ],
+  "not_checked": [
+    "Скорость загрузки (Core Web Vitals) - вне контура этого аудита"
+  ],
+  "meta_table": {
+    "title": "Мета-теги (выборка)",
+    "rows": [
+      { "url": "/", "type": "Главная", "title_text": "Мебель для дома - example.ru", "title_len": 27, "h1_text": "Мебель для дома", "h1_count": 1, "desc_len": 130, "schema": "Organization, BreadcrumbList", "issues": "-" },
+      { "url": "/catalog/shkafy", "type": "Категория", "title_text": "Шкафы", "title_len": 5, "h1_text": "", "h1_count": 0, "desc_len": 0, "schema": "-", "issues": "нет H1, нет Description" }
+    ]
+  },
+  "analytics": {
+    "yandex_business": { "verdict": "есть", "note": "профиль найден и заполнен" },
+    "devices": { "mobile_pct": 68 },
+    "backlinks": { "donor_count": 56 }
+  },
+  "checklist": {
+    "critical": [
+      { "task": "Настроить динамическую генерацию Title по шаблону <H1> - <Категория> | <Компания>", "url": "весь сайт", "where": "CMS - код шаблона", "appendix": 1 },
+      { "task": "Добавить ровно один H1 на страницу категории Шкафы", "url": "/catalog/shkafy", "where": "CMS - шаблон категории", "appendix": null }
+    ],
+    "important": [
+      { "task": "Добавить микроразметку Organization и BreadcrumbList на все страницы", "url": "весь сайт", "where": "CMS - шаблон сайта", "appendix": 2 }
+    ],
+    "nice": [
+      { "task": "Добавить favicon (link rel=icon) на все страницы", "url": "весь сайт", "where": "CMS - шаблон head", "appendix": null }
+    ]
+  },
+  "appendices": [
+    { "title": "Пример шаблона Title", "content": "Пример: <H1> - <Категория> | <Компания>" },
+    { "title": "Пример базовой микроразметки Organization", "content": "Пример JSON-LD Organization для внедрения в head." }
+  ]
+}
