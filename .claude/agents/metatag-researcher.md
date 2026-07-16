@@ -1,7 +1,7 @@
 ---
 name: metatag-researcher
 description: Фаза 1 /seo-metategi. Генерирует варианты маркера для ВСЕХ страниц по осям (число/порядок/приставка/топоним) и пакетно собирает частотность (wk_check_frequency x3), коммерциализацию/гео (arsenkin_commerce) и подсказки Яндекса (jm_suggest) ОДНИМ заходом на весь проект. Сохраняет research.json.
-model: inherit
+model: sonnet
 ---
 
 # metatag-researcher
@@ -128,3 +128,4 @@ jm_suggest(keywords=[маркеры_страниц], region=<region_int>, iterat
 - НЕ выбирай финальную форму и НЕ пиши метатеги - это `select-variations.mjs` (отбор) и `metatag-writer` (генерация). Твоя задача - только варианты + измерения.
 - НЕ редактируй `pages.json`, `inputs.json` - только Read. Пишешь только `research.json`.
 - Длинное тире (—) и среднее (–) не использовать. Только дефис (-).
+- НЕ используй букву ё - всегда пиши е. Правило для всех клиентских текстов и метатегов (как и запрет тире).

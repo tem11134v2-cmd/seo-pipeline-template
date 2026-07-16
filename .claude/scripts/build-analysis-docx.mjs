@@ -116,10 +116,16 @@ const border = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
 const borders = { top: border, bottom: border, left: border, right: border };
 const cellMargins = { top: 80, bottom: 80, left: 120, right: 120 };
 
+// Нормализация текста под требования проекта: длинное/среднее тире -> дефис,
+// буква ё/Ё -> е/Е (не фатально, просто приводим к нужному виду).
+function normDashYo(text) {
+  return String(text ?? "").replace(/[—–]/g, "-").replace(/ё/g, "е").replace(/Ё/g, "Е");
+}
+
 // ═══ Парсер инлайн-markdown (поддерживает только **bold**) ═══
 function parseInline(text, opts = {}) {
   // Защищаем длинные тире на всякий случай: заменим на дефис (по требованию проекта).
-  const cleaned = String(text || "").replace(/[—–]/g, "-");
+  const cleaned = normDashYo(text);
   const parts = [];
   const re = /\*\*(.+?)\*\*/g;
   let last = 0;
@@ -168,7 +174,7 @@ function heading(text, level) {
   const beforeMap = { 1: 320, 2: 240, 3: 160 };
   return new Paragraph({
     spacing: { before: beforeMap[level] || 240, after: 120 },
-    children: [makeRun(text.replace(/[—–]/g, "-"), {
+    children: [makeRun(normDashYo(text), {
       size: sizeMap[level] || F.size_h2,
       bold: true,
       color: C.accent,
@@ -184,7 +190,7 @@ function headerCell(text, widthDxa) {
     margins: cellMargins,
     children: [new Paragraph({
       children: [new TextRun({
-        text: String(text).replace(/[—–]/g, "-"),
+        text: normDashYo(text),
         font: F.family, size: F.size_table, bold: true, color: C.text,
       })],
     })],
@@ -349,7 +355,7 @@ function renderBlocks(blocks) {
             out.push(new Paragraph({
               spacing: { before: 240, after: 200 },
               alignment: AlignmentType.CENTER,
-              children: [makeRun(b.text.replace(/[—–]/g, "-"), {
+              children: [makeRun(normDashYo(b.text), {
                 size: F.size_title + 8, bold: true, color: C.accent,
               })],
             }));
@@ -401,7 +407,7 @@ function renderBlocks(blocks) {
           spacing: { before: 240, after: 240 },
           children: [
             makeRun("Вердикт: ", { bold: true, size: F.size_h2 }),
-            makeRun(b.text.replace(/[—–]/g, "-"), { bold: true, size: F.size_h2, color }),
+            makeRun(normDashYo(b.text), { bold: true, size: F.size_h2, color }),
           ],
         }));
         lastWasHr = false;

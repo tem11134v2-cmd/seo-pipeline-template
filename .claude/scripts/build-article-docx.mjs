@@ -62,8 +62,13 @@ function readRequired(path) {
   }
   return readFileSync(path, "utf8").replace(/^﻿/, "");
 }
+// буква ё запрещена в клиентских текстах (как и тире) - нормализуем ё->е/Ё->Е на этапе
+// чтения строк для docx, файлы-источники (article.md/metatags.json) не трогаем.
+function normYo(s) {
+  return String(s ?? "").replace(/ё/g, "е").replace(/Ё/g, "Е");
+}
 
-const articleMd = readRequired(articleMdPath);
+const articleMd = normYo(readRequired(articleMdPath));
 const reportMd = readIfExists(reportPath);
 const metaRaw = readIfExists(metaPath);
 const metatagsRaw = readIfExists(metatagsPath);
@@ -135,10 +140,10 @@ if (metatagsRaw) {
     console.warn("[build-article-docx] metatags.json invalid JSON, fallback на report.md:", e.message);
   }
 }
-const metaH1 = (metatagsJson && metatagsJson.h1) || "";
-const metaTitle = (metatagsJson && metatagsJson.title) || extractMeta(reportMd, "Title");
-const metaDescription = (metatagsJson && metatagsJson.description) || extractMeta(reportMd, "Description");
-const metaAnnounce = (metatagsJson && metatagsJson.announce) || extractMeta(reportMd, "Анонс");
+const metaH1 = normYo((metatagsJson && metatagsJson.h1) || "");
+const metaTitle = normYo((metatagsJson && metatagsJson.title) || extractMeta(reportMd, "Title"));
+const metaDescription = normYo((metatagsJson && metatagsJson.description) || extractMeta(reportMd, "Description"));
+const metaAnnounce = normYo((metatagsJson && metatagsJson.announce) || extractMeta(reportMd, "Анонс"));
 
 // ═══ Фото ═══
 let photosUrls = [];

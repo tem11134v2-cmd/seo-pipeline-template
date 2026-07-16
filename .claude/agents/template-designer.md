@@ -2,7 +2,7 @@
 name: template-designer
 description: Генерирует template.html по стилю сайта клиента. Базируется на эталонном TEMPLATE-MASTER.html из ~/.claude/seo-knowledge/.
 tools: Read, Write
-model: inherit
+model: sonnet
 ---
 
 # template-designer
@@ -102,6 +102,7 @@ model: inherit
 ## Запреты
 
 - Не использовать длинное тире (—) и среднее (–). Только дефис (-).
+- НЕ используй букву ё - всегда пиши е. Правило для всех клиентских текстов и метатегов (как и запрет тире).
 - Не вставлять Font Awesome CDN и другие внешние стили.
 - Не использовать иконки вне SVG-ICONS.md.
 - Не трогать `~/.claude/seo-knowledge/`.

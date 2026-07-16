@@ -64,6 +64,12 @@ if grep -qE '[—–]' "${last_section}"; then
   errors="${errors}\n- Найдены длинные/средние тире в ${last_section##*/}:\n${bad_lines}"
 fi
 
+# 2б. Буква ё запрещена - используй е
+if grep -qE '[ёЁ]' "${last_section}"; then
+  bad_lines=$(grep -nE '[ёЁ]' "${last_section}" | head -n 3 | sed 's/^/    /')
+  errors="${errors}\n- Буква ё запрещена - используй е (${last_section##*/}):\n${bad_lines}"
+fi
+
 # 3. Стоп-слова бренда из ЗАКАЗЧИК.md (через единый Node-парсер _client.mjs)
 # Раньше тут был bash+awk парсер, который понимал только табличный формат и ломался
 # на запятых внутри пояснений. Теперь все скрипты (assemble-html, build-docx,

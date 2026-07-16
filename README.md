@@ -504,6 +504,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ### 46 субагентов (вызываются скилами)
 
+Каждый агент объявляет модель явно - ярус `sonnet` (механика: сбор данных, применение правок, парсинг/генерация по шаблону) или `opus` (клиентская проза, вердикты, аудит), а не `inherit`. Полная таблица ярусов и обоснований - в [docs/MODEL-POLICY.md](docs/MODEL-POLICY.md) ([ADR-024](docs/adr/024-subagent-model-policy.md)).
+
 | Агент | Делает |
 |---|---|
 | `client-profiler` | Собирает данные с сайта клиента → ЗАКАЗЧИК.md |
@@ -703,6 +705,8 @@ git commit -m "Update template from upstream"
 | [020](docs/adr/020-writer-context-diet-and-voice.md) | Диета контекста писателя + анти-ИИ слой: block-planner выносит выбор блоков из page-writer (blueprint на страницу), COPY.md распилен по читателям (VOICE.md писателю, COPY-AUDIT.md контролёру), чек-лист 14 пунктов (п.14 - маркеры ИИ-текста) |
 | [021](docs/adr/021-direction-recon-site-review-wireframe.md) | Контент-разведка направлений (direction-scanner) + кросс-страничный аудит (site-reviewer) + wireframe-прототипы (v5.1) |
 | [022](docs/adr/022-commercial-copy-not-anti-ai.md) | Коммерческий текст под боль ЦА, не под анти-ИИ-детект: анти-ИИ-слой убран, приоритет смысл+грамотность+боль, заслон утечки кухни (Сургай/кастдев) |
+| [023](docs/adr/023-yo-letter-ban.md) | Запрет буквы ё во всех клиентских текстах и метатегах (единый стандарт, рядом с запретом тире; enforcement в 3 слоя) |
+| [024](docs/adr/024-subagent-model-policy.md) | Ярусы моделей субагентов (sonnet - механика, opus - проза/суждение/аудит) вместо `inherit` - политика в [docs/MODEL-POLICY.md](docs/MODEL-POLICY.md) |
 
 ---
 

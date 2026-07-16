@@ -16,8 +16,22 @@ const dir = process.argv[2] ? resolve(process.argv[2]) : null;
 if (!dir) { console.error("[build-faq-docx] usage: <faq_dir>"); process.exit(1); }
 const readJson = (p) => (existsSync(p) ? JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, "")) : {});
 const arr = (x) => (Array.isArray(x) ? x : []);
+// буква ё запрещена в клиентских текстах (как и тире) - но, в отличие от тире (см. sweep
+// ниже, там сборка ПАДАЕТ), для ё сборка не падает: нормализуем ё->е/Ё->Е сразу после
+// чтения источников, ДО того как из них соберутся параграфы/схема - так и финальный sweep
+// по тире ниже её уже не увидит, и в самом docx ё не окажется.
+function normYo(v) {
+  if (typeof v === "string") return v.replace(/ё/g, "е").replace(/Ё/g, "Е");
+  if (Array.isArray(v)) return v.map(normYo);
+  if (v && typeof v === "object") {
+    const o = {};
+    for (const k of Object.keys(v)) o[k] = normYo(v[k]);
+    return o;
+  }
+  return v;
+}
 
-const inputs = readJson(join(dir, "inputs.json"));
+const inputs = normYo(readJson(join(dir, "inputs.json")));
 const slug = inputs.slug || (basename(dir).match(/^\d+-(.+)$/) || [, "site"])[1];
 const company = inputs.brand_name || inputs.company || inputs.domain || slug;
 const NAVY = "1F4E79";
@@ -66,7 +80,7 @@ function schemaFor(faq) {
 const pagesDir = join(dir, "pages");
 let pageDirs = [];
 if (existsSync(pagesDir)) pageDirs = readdirSync(pagesDir).map((d) => join(pagesDir, d)).filter((p) => { try { return statSync(p).isDirectory() && existsSync(join(p, "faq_blocks.json")); } catch { return false; } });
-const blocks = pageDirs.map((pd) => ({ pd, b: readJson(join(pd, "faq_blocks.json")) }));
+const blocks = pageDirs.map((pd) => ({ pd, b: normYo(readJson(join(pd, "faq_blocks.json"))) }));
 
 // ---------- Титул ----------
 out.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 60 }, children: [new TextRun({ text: track("FAQ для страниц сайта"), bold: true, color: NAVY, font: "Arial", size: 34 })] }));

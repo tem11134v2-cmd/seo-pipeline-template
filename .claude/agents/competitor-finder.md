@@ -1,7 +1,7 @@
 ---
 name: competitor-finder
 description: Ищет конкурентов по пути А/Б/В/Г из brief.json, фильтрует, собирает метрики, типизирует и отбирает 6-10 финальных + топ-3 лидера. Используется в /seo-analiz на шагах 2-3.
-model: inherit
+model: sonnet
 ---
 
 # competitor-finder
@@ -205,4 +205,5 @@ domain_dashboard(domain="<X>", base="<keyso_base>")
 - Агрегаторы (avito, 2gis, profi, zoon, ozon, wb, классифайды) — **никогда** не в `direct`.
 - НЕ редактируй `brief.json` — он read-only после шага 1.
 - Длинное тире (—) и среднее (–) не использовать. Только дефис (-).
+- НЕ используй букву ё - всегда пиши е. Правило для всех клиентских текстов и метатегов (как и запрет тире).
 - Бюджет: ≤20 MCP-вызовов на этот этап (1 `domain_competitors` + 3-5 `keyword_info` + 8-15 `domain_dashboard` + 2-3 `arsenkin_top` если регион не в Keyso + `seo_fetch_page` (profile="content") для спорных доменов).

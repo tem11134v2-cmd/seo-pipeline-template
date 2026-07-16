@@ -1,7 +1,7 @@
 ---
 name: leader-scanner
 description: Делает скан смыслов (Э2-лайт) по 3-4 страницам каждого из топ-3 лидеров. Извлекает блоки страниц, посылы и фишки. Сравнивает с УТП клиента из брифа. Используется в /seo-analiz на шаге 5.
-model: inherit
+model: opus
 ---
 
 # leader-scanner
@@ -242,4 +242,5 @@ seo_fetch_batch(urls=["<URL1>", "<URL2>", ...], profile="content")
 - НЕ ищи новых конкурентов и не меняй топ-3 — они зафиксированы в `competitors.leaders_top3`.
 - НЕ редактируй `brief.json`, `competitors.json`, `serp.json` — все read-only.
 - Длинное тире (—) и среднее (–) не использовать. Только дефис (-).
+- НЕ используй букву ё - всегда пиши е. Правило для всех клиентских текстов и метатегов (как и запрет тире).
 - Бюджет: 3 `domain_pages` + 9-12 `seo_fetch_page` (profile="content"; или `seo_fetch_batch` веером, с fallback на `web_fetch` если нужно). ≤20 MCP-вызовов суммарно — если страница не открывается за 1-2 попытки, ставь `fetch_failed: true` и иди дальше.

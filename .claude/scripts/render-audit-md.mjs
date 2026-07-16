@@ -29,7 +29,7 @@ if (!existsSync(dataPath)) {
 const data = JSON.parse(readFileSync(dataPath, "utf8").replace(/^﻿/, ""));
 
 // ── helpers ──
-const dash = (s) => String(s ?? "").replace(/[—–]/g, "-");
+const dash = (s) => String(s ?? "").replace(/[—–]/g, "-").replace(/ё/g, "е").replace(/Ё/g, "Е");
 // markdown table cell: no newlines, escape pipes, hyphens only
 const cell = (s) => dash(s).replace(/\r?\n+/g, " ").replace(/\|/g, "\\|").trim();
 // inline text (paragraph): keep, only normalize dashes
