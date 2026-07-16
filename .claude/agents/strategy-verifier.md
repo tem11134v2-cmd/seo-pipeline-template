@@ -23,7 +23,8 @@ model: opus
 
 1. `<strategy_dir>/seo-strategiya_content.json` - главный проверяемый артефакт (проза 6 разделов).
 2. `<strategy_dir>/seo-strategiya_data.json` - метрики, конкуренты, вердикт, точки роста, forecast,
-   decomposition (источник цифр, попавших в прозу).
+   forecast_scenarios (кривые двух сценариев + единые допущения; источник цифр, попавших в прозу).
+   Поле decomposition - deprecated, встречается только в старых файлах.
 3. `<strategy_dir>/tariffs.json` - состав тарифов (сверка прозы раздела 4 с фактическим набором услуг).
 4. `<strategy_dir>/inputs.json` - домен, ниша, регион, дата, avg_check/margin (сверка титульной +
    допущений декомпозиции).
@@ -46,8 +47,11 @@ model: opus
    - раздел 1 (данные клиента): DR/ИКС/ТОП-10/ТОП-50/страницы/трафик == `data.metrics`;
    - раздел 2 (конкуренты): домены/DR/ТОП/страницы == `data.competitors.direct` / `leaders`;
    - раздел 3 (точки роста): частотности и позиции таблиц == `data.growth_points[].evidence`;
-   - раздел 6 (прогноз): forecast == `data.forecast`; декомпозиция == `data.decomposition.rows` +
-     допущения (`conversion_rate` / `close_rate` / `avg_check` из inputs/data).
+   - раздел 6 (прогноз): forecast == `data.forecast`; таблицу потенциала выручки собирает
+     сборщик docx из `data.forecast_scenarios` (рекомендованный сценарий) - в прозе content.json
+     ее чисел обычно нет (маркер `decomposition_table`), поэтому сверяй допущения
+     (`conversion_rate` / `close_rate` / `avg_check` / `margin`) с `forecast_scenarios.assumptions`
+     (для legacy-файлов - `data.decomposition`). ROMI и окупаемость в прозе быть НЕ должно (только смета).
    Если есть первичные `scan/metrics/competitors/serp.json` - можно сверить глубже. Цифра в прозе,
    которой нет в источнике, -> kind `numeric` (или `fabricated`, если явно выдумана), severity `important`.
 3. **Тарифы в прозе согласованы с `tariffs.json` (important).** В разделе 4 три варианта
@@ -72,6 +76,13 @@ model: opus
    severity `important`.
 7. **Стиль (important).** Длинное/среднее тире, буква Е-с-точками в прозе (дублер механики -
    подстраховка). kind `textual`, severity `important`.
+8. **Сценарная согласованность прогноза и затрат (important).** Если в docx (раздел 6)
+   упоминаются оба сценария или окупаемость - проверь СМЫСЛ: прогноз трафика «Год» выше «Входа»
+   к 12 мес (плато входа - следствие остановки публикаций, годовая кривая - продолжение работы);
+   текст не обещает годовой результат при коротком входе; нет утечки цен/ROMI в прозу (ROMI и
+   окупаемость - только в смете, в docx максимум "окупаемость - см. смету"). Механику (пересчет
+   ROMI, cost_months==active_months, монотонность checkpoints) уже проверил verify-strategy.mjs -
+   ты берешь связность прозы со сценариями. kind `logic`, severity `important`.
 
 ## Вердикт
 

@@ -21,6 +21,7 @@ import {
   Header, Footer, AlignmentType, HeadingLevel, BorderStyle,
   WidthType, ShadingType, PageBreak, LevelFormat, TableLayoutType,
 } from "docx";
+import { TARIFF_SCALE, interpCheckpoints, computeScenarioTariff } from "./_forecast-money.mjs";
 
 const strategyDirArg = process.argv[2];
 if (!strategyDirArg) {
@@ -43,6 +44,14 @@ if (!existsSync(inputsPath)) {
 
 const content = JSON.parse(readFileSync(contentPath, "utf8").replace(/^﻿/, ""));
 const inputs = JSON.parse(readFileSync(inputsPath, "utf8").replace(/^﻿/, ""));
+
+// tariffs.json/seo-strategiya_data.json - опциональны (нужны только для блока decomposition_table,
+// этап 8). Их отсутствие не должно ронять сборку - старые content.json с готовой таблицей (case
+// "table") работают вообще без них.
+const tariffsPath = join(strategyDir, "tariffs.json");
+const dataPath = join(strategyDir, "seo-strategiya_data.json");
+const tariffs = existsSync(tariffsPath) ? JSON.parse(readFileSync(tariffsPath, "utf8").replace(/^﻿/, "")) : {};
+const stratData = existsSync(dataPath) ? JSON.parse(readFileSync(dataPath, "utf8").replace(/^﻿/, "")) : {};
 
 const domain = inputs.domain || "site";
 const date = inputs.date || new Date().toLocaleDateString("ru-RU", { year: "numeric", month: "long" });
@@ -165,6 +174,69 @@ function bulletList(items) {
   );
 }
 
+function fmtNum(n) {
+  return Number(n || 0).toLocaleString("ru-RU");
+}
+
+// ═══ Декомпозиция в деньги (этап 8) ═══
+// Числа больше не пишет strategy-writer - он кладет блок-маркер {"type":"decomposition_table"}.
+// Здесь считаем таблицу «потенциал выручки» из forecast_scenarios (рекомендованный сценарий,
+// тариф Рост) через общий модуль _forecast-money.mjs. ROMI/окупаемость сюда НЕ попадают -
+// они только в смете (сноска "см. смету").
+const TARIFF_KEY_ALIASES = { rost: "growth" };
+
+function getTariffData(tariffsObj, key) {
+  for (const rawKey of Object.keys(tariffsObj || {})) {
+    const canonical = TARIFF_KEY_ALIASES[rawKey] || rawKey;
+    if (canonical === key) return tariffsObj[rawKey];
+  }
+  return null;
+}
+
+function computeDecompositionRows(forecastScenarios, growthTariffData) {
+  if (!forecastScenarios || !Array.isArray(forecastScenarios.scenarios) || !forecastScenarios.scenarios.length) return null;
+  if (!growthTariffData) return null;
+
+  const scenario = forecastScenarios.scenarios.find((s) => s && s.recommended) || forecastScenarios.scenarios[0];
+  if (!scenario) return null;
+  const assumptions = forecastScenarios.assumptions || {};
+  const cr = Number(assumptions.conversion_rate) || 0.02;
+  const close = Number(assumptions.close_rate) || (assumptions.model === "one_step" ? 1 : 0.3);
+  const avg = Number(assumptions.avg_check) || 0;
+  const scale = TARIFF_SCALE.growth ?? 1;
+  const onetime = Number(growthTariffData.total_onetime) || 0;
+  const monthly = Number(growthTariffData.total_monthly) || 0;
+
+  const res = computeScenarioTariff({
+    assumptions, checkpoints: scenario.traffic_checkpoints, activeMonths: scenario.active_months,
+    tariffKey: "growth", onetime, monthly,
+  });
+
+  // Снимок трафик->лиды->продажи->выручка на конкретный месяц (та же методика, что модуль
+  // использует для traffic12/leads12/sales12/revMonth12 - округление на выходе каждого шага).
+  function snapshot(traffic) {
+    const leads = Math.round(traffic * cr);
+    const sales = Math.round(leads * close);
+    return { t: Math.round(traffic), leads, sales, revenue: Math.round(sales * avg) };
+  }
+
+  const traffic0 = interpCheckpoints(scenario.traffic_checkpoints, 0) * scale;
+  const traffic6 = res.series[5] ? res.series[5].traffic : interpCheckpoints(scenario.traffic_checkpoints, 6) * scale;
+
+  return {
+    scenarioLabel: scenario.label || "",
+    avgCheckSource: assumptions.avg_check_source,
+    crPct: Math.round(cr * 1000) / 10,
+    closePct: Math.round(close * 100),
+    avg,
+    now: snapshot(traffic0),
+    at6: snapshot(traffic6),
+    at12: { t: res.traffic12, leads: res.leads12, sales: res.sales12, revenue: res.revMonth12 },
+  };
+}
+
+const decompRows = computeDecompositionRows(stratData.forecast_scenarios, getTariffData(tariffs, "growth"));
+
 // ═══ Рендер блока ═══
 function renderBlock(block) {
   const out = [];
@@ -180,6 +252,32 @@ function renderBlock(block) {
     case "table":
       out.push(tableBlock(block.columns || [], block.rows || []));
       out.push(paragraph("")); // отступ
+      break;
+
+    case "decomposition_table":
+      // Плейсхолдер от strategy-writer - числа считает сборщик из forecast_scenarios
+      // (см. computeDecompositionRows выше). Писатель числа выручки НЕ пишет (этап 8).
+      if (decompRows) {
+        out.push(paragraph(
+          `Перевели прогноз трафика в бизнес-результат через средний чек (сценарий "${decompRows.scenarioLabel}", тариф Рост).`
+        ));
+        out.push(tableBlock(
+          ["Показатель", "Сейчас", "Через 6 мес", "Через 12 мес"],
+          [
+            ["Трафик (переходов/мес)", fmtNum(decompRows.now.t), fmtNum(decompRows.at6.t), fmtNum(decompRows.at12.t)],
+            ["Обращения/лиды", fmtNum(decompRows.now.leads), fmtNum(decompRows.at6.leads), fmtNum(decompRows.at12.leads)],
+            ["Продажи", fmtNum(decompRows.now.sales), fmtNum(decompRows.at6.sales), fmtNum(decompRows.at12.sales)],
+            ["Выручка (руб)", fmtNum(decompRows.now.revenue), fmtNum(decompRows.at6.revenue), fmtNum(decompRows.at12.revenue)],
+          ]
+        ));
+        out.push(paragraph(
+          `Допущения: конверсия в заявку ${decompRows.crPct}%, заявка в продажу ${decompRows.closePct}%, средний чек ${fmtNum(decompRows.avg)} руб${decompRows.avgCheckSource === "estimated" ? " (оценочный)" : ""}. Оценка, не гарантия.`
+        ));
+        out.push(paragraph("Расчет окупаемости - см. смету, вкладка Декомпозиция.", { italics: true, color: C.muted }));
+        out.push(paragraph(""));
+      } else {
+        console.warn("[build-strategy-docx] decomposition_table: нет forecast_scenarios или tariffs.json (тариф Рост) - блок пропущен");
+      }
       break;
 
     case "problem_block":
