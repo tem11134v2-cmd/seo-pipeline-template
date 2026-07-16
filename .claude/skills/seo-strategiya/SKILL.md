@@ -22,7 +22,7 @@ description: Полный цикл SEO-стратегии для клиента.
 
 ```
 init → scan-done → competitors-done → growth-done →
-  tariffs-done → content-done → docx-done → xlsx-done → shared → completed
+  tariffs-done → content-done → strategy-verified → docx-done → xlsx-done → shared → completed
 ```
 
 `meta.json` — единственный источник истины. Обновляется через `.claude/hooks/update-meta.sh <strategy_dir> <state>`.
@@ -99,6 +99,7 @@ strategy_dir = strategies/<NNN>-<slug>/
 - Прочитать `meta.json`. `state = meta.state`.
 - Спросить: «Найдено в состоянии `<state>`, last_completed=`<...>`. Продолжить? [Y/n]»
 - Если Y — перейти к ветке от следующего шага после `state`.
+- Заметка по гейту стратегии: если зашли на `content-done` - сперва прогнать шаг 6.5 (6.5а + 6.5б) до `strategy-verified`, и только потом шаг 7. Если зашли на `strategy-verified` - гейт уже пройден, сразу шаг 7.
 
 Иначе:
 - Создать `<strategy_dir>/`.
@@ -225,7 +226,61 @@ project_root: <project root>
 После завершения:
 - `bash .claude/hooks/update-meta.sh <strategy_dir> content-done`
 
-### 7. Сборка docx (если state == "content-done")
+### 6.5. Проверка стратегии (если state == "content-done")
+
+Двухслойный гейт ПЕРЕД сборкой docx (по образцу /seo-struktura шаги 9г+9д): дешевый
+детерминированный скрипт ловит механику, дорогой opus-верификатор ловит смысл. Общий бюджет
+повторов на оба под-гейта = **максимум 2 суммарно** (не по 2 на каждый). Ре-делегация - только
+`strategy-writer` (parent-fallback запрещен).
+
+#### 6.5а. Механический гейт
+
+```
+.claude\scripts\_node.cmd .claude\scripts\verify-strategy.mjs <strategy_dir>
+```
+
+Ловит: цены в прозе тарифов (только раздел 4), фиксированный стоп-лист воды, тире/букву
+Е-с-точками, грубый перебор объема (warning, не блок).
+
+- **Exit 0** - к смысловому гейту 6.5б. Предупреждения по объему (если печатались) отметить в
+  финальной сводке, не блок.
+- **Exit 2** - блок. Пере-делегировать `strategy-writer` с текстом нарушений (общий бюджет
+  повторов 6.5а+6.5б = максимум 2), затем повторить verify-strategy.mjs.
+- **Exit 1** - ошибка запуска (нет `seo-strategiya_content.json` / битый JSON) - показать stderr, стоп.
+
+#### 6.5б. Смысловой гейт (агент)
+
+Маркер: `.claude/tmp/expected-strategy-verifier-<run_id>.txt = <strategy_dir>/verify_report.json`
+
+Делегировать `strategy-verifier`:
+```
+strategy_dir: <strategy_dir>
+project_root: <project root>
+
+Прочитай seo-strategiya_content.json + seo-strategiya_data.json + tariffs.json + inputs.json
+(+ scan/metrics/competitors/serp.json если есть). Проверь: нет цен в прозе (раздел 4 и вся проза,
+кроме декомпозиции выручки раздела 6), цифры бьются с JSON-источниками, тарифы согласованы с
+tariffs.json, объем 5-7 стр, анти-вода сверх стоп-листа, вердикт не противоречит данным, стиль.
+Ничего не чини. Запиши verify_report.json.
+```
+
+После завершения - прочитать `verify_report.json` (точечно `verdict` + `counters`, не весь файл):
+- `verdict == pass` - оба гейта пройдены, перейти к обновлению state ниже, затем к шагу 7.
+- `verdict == needs-fix` / `fail` - пере-делегировать `strategy-writer` с issues из отчета (общий
+  бюджет повторов 6.5а+6.5б = максимум 2), затем повторить 6.5а (verify-strategy.mjs) и 6.5б. После
+  2 повторов без pass - стоп с показом issues пользователю (docx не собираем).
+
+**Ре-делегация strategy-writer при фиксах** - тот же промт, что шаг 6, плюс строкой:
+```
+Учти замечания verify_report.json: <краткий список kind+where+fix_hint>. Верни только
+seo-strategiya_content.json, содержимое в чат не выводи.
+```
+
+Когда ОБА гейта прошли (verify-strategy exit 0 И strategy-verifier verdict pass):
+- `bash .claude/hooks/update-meta.sh <strategy_dir> strategy-verified`
+- Переход к шагу 7.
+
+### 7. Сборка docx (если state == "strategy-verified")
 
 ```
 .claude\scripts\_node.cmd .claude\scripts\build-strategy-docx.mjs <strategy_dir>

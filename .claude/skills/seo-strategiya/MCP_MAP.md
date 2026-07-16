@@ -135,6 +135,10 @@ seo_fetch_batch(urls=["https://site.ru/", "https://site.ru/uslugi/"], profile="c
 --- growth-strategist ---
 11. jm_wordstat(× 5-10 запросов с region, mode="frequency")   # альт: wk_check_frequency / arsenkin_wordstat (mode=frequency)
 12. [опц.] arsenkin_wordstat(основной запрос, mode="dynamics", group="month")
+
+--- шаг 6.5 (проверка стратегии) + шаги 7-8 (сборка docx/xlsx) - БЕЗ MCP ---
+    verify-strategy.mjs (детерминированный скрипт) + strategy-verifier (opus, tools Read/Write) +
+    build-strategy-docx.mjs / build-smeta-xlsx.mjs - ни один MCP-инструмент не зовется.
 ```
 
 **Бюджет:** ~30-45 вызовов на стратегию. Опциональные (Вебмастер, Метрика) +5-8.

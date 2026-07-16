@@ -6,7 +6,7 @@
 - `build-metatags-xlsx.mjs` - сборка A7.xlsx (3 листа, подсветка длины, заглушка для missing)
 - `verify-metatags.mjs` - проверка пачки (нарушения/missing -> exit 2, чисто -> exit 0)
 
-## Что проверяют (13 тестов)
+## Что проверяют (16 тестов)
 
 | # | Тест | Что валидируется |
 |---|---|---|
@@ -23,6 +23,9 @@
 | 11 | verify violations + missing | exit 2, ловит missing page + Title>60 |
 | 12 | verify clean | exit 0 на корректной странице |
 | 13 | verify forbidden phrasing | exit 2, ловит запрещённую формулировку из inputs |
+| 14 | build-xlsx на чистой полной пачке | A7_final.xlsx создан (пред-условие финального verify) |
+| 15 | финальный verify после xlsx (--accept-degraded) | exit 0 на готовом артефакте (контракт шага 7.5а) |
+| 16 | --accept-degraded + свежая деградация | mcp_degraded не блокирует, exit 0 |
 
 ## Как запустить
 
