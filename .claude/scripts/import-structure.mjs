@@ -15,13 +15,15 @@
 //
 // Exit:
 //   0  - всё ок, структура распарсена и в файле есть и «да», и «нет»/«обсудить»
-//   3  - есть строки «обсудить» - скил спросит пользователя как их трактовать
+//   3  - есть строки «обсудить» и/или URL-нарушения в колонке «Адрес страницы» - скил спросит
+//        пользователя как их трактовать (две отдельно помеченные секции в выводе)
 //   4  - колонка «Целевая?» полностью пуста - скил спросит «считать все целевыми?»
 //   1  - критическая ошибка (нет файла, не открывается, нет листа «Структура»)
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import ExcelJS from "exceljs";
+import { validateUrl } from "./_slug.mjs";
 
 const structureDirArg = process.argv[2];
 if (!structureDirArg) {
@@ -127,6 +129,7 @@ function normalizeTarget(value) {
 
 const pages = [];
 let stats = { yes: 0, no: 0, discuss: 0, empty: 0, total: 0 };
+const urlIssues = [];
 
 for (let r = firstDataRow; r <= ws.rowCount; r++) {
   const row = ws.getRow(r);
@@ -175,6 +178,16 @@ for (let r = firstDataRow; r <= ws.rowCount; r++) {
     role: COL_ROLE > 0 && row.getCell(COL_ROLE).value ? String(row.getCell(COL_ROLE).value).trim() : "",
     client_notes: row.getCell(COL_NOTES).value ? String(row.getCell(COL_NOTES).value).trim() : "",
   };
+
+  // URL-валидация: пустой URL у не-info страниц пропускаем (structure-writer поставит «уточнить»);
+  // заполненный URL проверяем строго - клиент мог вписать кириллицу/пробелы/скобки.
+  if (page.url) {
+    const urlReasons = validateUrl(page.url, { maxLen: 70 });
+    if (urlReasons.length) {
+      page.url_issue = urlReasons.join("; ");
+      urlIssues.push(`n${page.n} «${page.name}»: ${page.url} - ${page.url_issue}`);
+    }
+  }
 
   pages.push(page);
   stats.total++;
@@ -228,14 +241,22 @@ console.log(`   target=no: ${stats.no}`);
 console.log(`   target=discuss: ${stats.discuss}`);
 console.log(`   target=empty: ${stats.empty}`);
 
+// URL-нарушения важнее «обсудить»: их надо развидеть до сборки A6.md.
+if (urlIssues.length) {
+  console.log(`\n[import-structure] URL-НАРУШЕНИЯ (${urlIssues.length}) - обсудить/поправить, не чиним молча:`);
+  for (const u of urlIssues.slice(0, 30)) console.log(`  - ${u}`);
+  if (urlIssues.length > 30) console.log(`  ... и еще ${urlIssues.length - 30}`);
+}
+
 if (stats.empty === stats.total) {
   // Колонка «Целевая?» вообще не заполнена.
   console.log("[import-structure] WARNING: колонка «Целевая?» полностью пуста.");
   process.exit(4);
 }
 
-if (stats.discuss > 0) {
-  console.log(`[import-structure] NOTE: ${stats.discuss} страниц требуют решения (обсудить).`);
+// exit 3 теперь охватывает и «обсудить», и URL-нарушения.
+if (stats.discuss > 0 || urlIssues.length) {
+  console.log(`[import-structure] NOTE: обсудить ${stats.discuss}, URL-нарушений ${urlIssues.length}.`);
   process.exit(3);
 }
 

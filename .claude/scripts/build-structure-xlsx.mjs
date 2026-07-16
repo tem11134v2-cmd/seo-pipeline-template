@@ -19,6 +19,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import ExcelJS from "exceljs";
+import { buildPageUrl } from "./_slug.mjs";
 
 const MAX_QUERIES = 9; // Запросов помимо маркера (всего 10 = маркер + 9)
 
@@ -109,40 +110,8 @@ function calcPriority(page, master) {
 const PRIO_RU = { high: "высокий", medium: "средний", low: "низкий" };
 
 // === ЧПУ-генератор ===
-function transliterate(str) {
-  const map = {
-    а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh",
-    з: "z", и: "i", й: "j", к: "k", л: "l", м: "m", н: "n", о: "o",
-    п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "c",
-    ч: "ch", ш: "sh", щ: "shch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya",
-  };
-  return str
-    .toLowerCase()
-    .split("")
-    .map((c) => map[c] ?? c)
-    .join("");
-}
-
-function makeUrl(page) {
-  if (page.client_current_url) return page.client_current_url;
-  if (page.migration_target_url) return page.migration_target_url;
-  const slug = transliterate(page.name)
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-  const prefixByType = {
-    home: "/",
-    category: "/catalog/",
-    service: "/uslugi/",
-    product: "/catalog/",
-    article: "/blog/",
-    info: "/",
-    other: "/",
-  };
-  if (page.type === "home") return "/";
-  const prefix = prefixByType[page.type] || "/";
-  return `${prefix}${slug}/`;
-}
+// Транслит + построение URL посадки вынесены в общий модуль _slug.mjs (buildPageUrl) -
+// единая карта транслита и единые правила (скобки/стоп-слова/лимиты/уникальность) с select-top10.mjs.
 
 // === Создание книги ===
 
@@ -216,12 +185,14 @@ const masterByNum = new Map(masterList.pages.map((p) => [p.n, p]));
 let row1 = 3;
 // Запомним строки с info_dominant warning - для красного шрифта на «Примечаниях».
 const rowsWithCommerceWarning = [];
+// Общий на весь проход счетчик коллизий URL - buildPageUrl разводит совпавшие slug-и (раздел 7.3 _slug.mjs).
+const usedUrls = new Map();
 
 for (const page of top10.pages) {
   const master = masterByNum.get(page.n);
   const markerData = markersByNum.get(page.n);
   const priority = calcPriority(page, master);
-  const url = makeUrl(master || page);
+  const url = buildPageUrl(master || page, { marker: markerData?.marker, usedUrls });
   const queries = page.queries || [];
   // queries[0] всегда маркер, потом 9 дополнительных
   const marker = queries[0]?.query || page.marker || "-";

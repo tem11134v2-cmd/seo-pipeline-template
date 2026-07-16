@@ -22,6 +22,7 @@
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { slugifyBase } from "./_slug.mjs";
 
 const N_TOP = 10;          // сколько запросов держим на странице
 const MIN_FREQ_KEEP = 0;   // точная частотность ниже этого выбрасывается (0 - safe default)
@@ -50,22 +51,8 @@ const inputs = readJson(join(structureDir, "inputs.json"));
 // === page_id (стабильный паспорт страницы) ===
 // master-list-builder проставляет master.id = slug(name). Если отсутствует (legacy/фикстуры) -
 // детерминированно выводим из названия. Используется как ключ журнала решений (а не плывущий n).
-function slugifyId(name) {
-  const map = {
-    а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i",
-    й: "j", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t",
-    у: "u", ф: "f", х: "h", ц: "c", ч: "ch", ш: "sh", щ: "shch", ъ: "", ы: "y", ь: "",
-    э: "e", ю: "yu", я: "ya",
-  };
-  return String(name || "page")
-    .toLowerCase()
-    .split("")
-    .map((c) => (c in map ? map[c] : c))
-    .join("")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "page";
-}
+// slugifyBase - общий модуль _slug.mjs, поведение бит-в-бит прежнее (та же карта, тот же slice(0,60),
+// без вырезания скобок/стоп-слов/лимита слов) - id-ключи decisions.json не сдвигаются.
 
 // === A3.md - доменный стоп-лист (как блок-фильтр для брендов в запросах) ===
 // Мы не блокируем все запросы по доменам - это не имеет смысла на уровне запросов,
@@ -158,7 +145,7 @@ const pagesOutput = [];
 for (const master of masterList.pages) {
   const sp = semanticByNum.get(master.n);
   const mk = markerByNum.get(master.n);
-  const pageId = master.id || (mk && mk.id) || slugifyId(master.name);
+  const pageId = master.id || (mk && mk.id) || slugifyBase(master.name);
 
   if (!mk) {
     // Нет записи в markers.json - пропускаем (возможно legacy данные).

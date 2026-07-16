@@ -1,0 +1,68 @@
+{
+  "imported_at": "2026-01-01T00:00:00.000Z",
+  "source_file": "client_filled.xlsx",
+  "stats": { "yes": 3, "no": 1, "discuss": 0, "empty": 0, "total": 4 },
+  "pages": [
+    {
+      "n": 1,
+      "url": "/",
+      "type": "Главная",
+      "name": "Главная",
+      "section": "",
+      "category": "",
+      "target_status": "yes",
+      "marker": "-",
+      "ws_exact": null,
+      "priority": "высокий",
+      "status": "новая",
+      "role": "Навигация",
+      "client_notes": ""
+    },
+    {
+      "n": 2,
+      "url": "/uslugi/remont-kvartir/",
+      "type": "Услуга",
+      "name": "Ремонт квартир",
+      "section": "Услуги",
+      "category": "",
+      "target_status": "yes",
+      "marker": "ремонт квартир москва",
+      "ws_exact": 5400,
+      "priority": "высокий",
+      "status": "новая",
+      "role": "Продвигаемая",
+      "client_notes": ""
+    },
+    {
+      "n": 3,
+      "url": "/uslugi/remont-vannoj/",
+      "type": "Услуга",
+      "name": "Ремонт ванной",
+      "section": "Услуги",
+      "category": "",
+      "target_status": "yes",
+      "marker": "ремонт ванной комнаты",
+      "ws_exact": 2800,
+      "priority": "средний",
+      "status": "существующая",
+      "role": "Продвигаемая",
+      "client_notes": ""
+    },
+    {
+      "n": 4,
+      "url": "/dostavka/",
+      "type": "Информация",
+      "name": "Доставка",
+      "section": "",
+      "category": "",
+      "target_status": "no",
+      "marker": "-",
+      "ws_exact": null,
+      "priority": "низкий",
+      "status": "к удалению",
+      "role": "info",
+      "client_notes": "Не нужна клиенту"
+    }
+  ],
+  "recommendations": []
+}

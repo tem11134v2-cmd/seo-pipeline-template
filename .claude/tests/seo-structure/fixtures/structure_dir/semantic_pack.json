@@ -1,12 +1,12 @@
 {
   "state": "completed",
-  "markers_sent": ["ремонт квартир москва", "ремонт квартир под ключ москва", "ремонт ванной комнаты"],
+  "markers_sent": ["ремонт квартир москва", "ремонт квартир под ключ москва", "ремонт ванной комнаты", "сепаратор центробежный"],
   "cost_estimate": 8.5,
   "balance_before": 450,
   "balance_after_estimate": 441.5,
   "region_yandex": "213",
-  "total_queries": 36,
-  "pages_with_results": 3,
+  "total_queries": 39,
+  "pages_with_results": 4,
   "pages_without_results": 0,
   "pages": [
     {
@@ -48,6 +48,17 @@
         {"query": "ремонт ванной комнаты под ключ", "freq_base": 1800, "freq_exact": 1200, "source": "WS", "frequency_source": "jm_semantic_pack"},
         {"query": "ремонт ванной комнаты цена", "freq_base": 1500, "freq_exact": 800, "source": "WS", "frequency_source": "jm_semantic_pack"},
         {"query": "ванная под ключ москва", "freq_base": 720, "freq_exact": 450, "source": "WS", "frequency_source": "jm_semantic_pack"}
+      ],
+      "semantic_warning": null
+    },
+    {
+      "n": 5,
+      "name": "Сепараторы (центробежные, факельные - уточнить у клиента)",
+      "marker": "сепаратор центробежный",
+      "queries": [
+        {"query": "сепаратор центробежный", "freq_base": 320, "freq_exact": 210, "source": "WS", "frequency_source": "jm_semantic_pack"},
+        {"query": "сепаратор центробежный купить", "freq_base": 180, "freq_exact": 120, "source": "WS", "frequency_source": "jm_semantic_pack"},
+        {"query": "сепаратор факельный цена", "freq_base": 140, "freq_exact": 90, "source": "WS", "frequency_source": "jm_semantic_pack"}
       ],
       "semantic_warning": null
     }
