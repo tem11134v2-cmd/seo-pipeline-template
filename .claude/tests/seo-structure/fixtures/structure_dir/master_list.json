@@ -1,5 +1,5 @@
 {
-  "total_pages": 4,
+  "total_pages": 5,
   "pairing_performed": false,
   "client_domain": null,
   "client_pages_total": null,
@@ -64,6 +64,21 @@
       "migration_decision": "new",
       "migration_target_url": null,
       "notes": "из брифа"
+    },
+    {
+      "n": 5,
+      "name": "Сепараторы (центробежные, факельные - уточнить у клиента)",
+      "type": "category",
+      "url_pattern": "/catalog/separatory/",
+      "coverage": "3 из 8",
+      "coverage_pct": 40,
+      "source": "competitors",
+      "competitors_with_page": ["leader.ru", "comp3.ru"],
+      "client_current_url": null,
+      "client_top50_count": 0,
+      "migration_decision": "new",
+      "migration_target_url": null,
+      "notes": "фикстура-ловушка регресса гигантского URL (Этап 2)"
     }
   ]
 }

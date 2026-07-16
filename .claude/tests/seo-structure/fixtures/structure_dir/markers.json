@@ -1,6 +1,6 @@
 {
-  "total_pages": 4,
-  "pages_with_marker": 3,
+  "total_pages": 5,
+  "pages_with_marker": 4,
   "pages_info_skipped": 1,
   "pages_product_inherited": 0,
   "pages": [
@@ -67,8 +67,24 @@
       "original_marker": null,
       "commerce_top10_sample": [],
       "notes": ""
+    },
+    {
+      "n": 5,
+      "name": "Сепараторы (центробежные, факельные - уточнить у клиента)",
+      "type": "category",
+      "marker": "сепаратор центробежный",
+      "ws_exact": 210,
+      "marker_source": "domain_keywords:leader.ru/catalog/separatory",
+      "frequency_source": "keyso",
+      "manual_warning": null,
+      "commercial_pct": 75,
+      "commerce_note": null,
+      "commerce_warning": null,
+      "original_marker": null,
+      "commerce_top10_sample": ["leader.ru", "comp3.ru"],
+      "notes": ""
     }
   ],
-  "budget_used": {"domain_keywords": 3, "keyword_info": 1, "keyword_similar": 1, "jm_wordstat": 0, "wk_check_frequency": 0, "arsenkin_commerce": 2, "arsenkin_top": 0},
-  "commerce_check_summary": {"checked": 3, "ok": 2, "borderline": 0, "replaced": 0, "info_dominant": 1, "not_verified": 0}
+  "budget_used": {"domain_keywords": 4, "keyword_info": 1, "keyword_similar": 1, "jm_wordstat": 0, "wk_check_frequency": 0, "arsenkin_commerce": 3, "arsenkin_top": 0},
+  "commerce_check_summary": {"checked": 4, "ok": 3, "borderline": 0, "replaced": 0, "info_dominant": 1, "not_verified": 0}
 }
