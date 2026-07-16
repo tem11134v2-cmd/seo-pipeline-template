@@ -170,7 +170,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── CLAUDE.md                            ← политика, читается каждой сессией
 │   ├── settings.json                        ← Claude Code hooks config
 │   │
-│   ├── agents/                              ← 46 субагентов (см. ниже)
+│   ├── agents/                              ← 58 субагентов (см. ниже)
 │   │   ├── client-profiler.md
 │   │   ├── template-designer.md
 │   │   ├── topic-generator.md
@@ -218,7 +218,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── prototype-fixer.md               ← /seo-tekst-fix
 │   │   └── faq-builder.md                   ← /seo-faq
 │   │
-│   ├── skills/                              ← 27 скилов
+│   ├── skills/                              ← 28 скилов
 │   │   ├── guide/SKILL.md                   (любая зона, справочник процесса)
 │   │   ├── seo-shablon/SKILL.md           (worktree, исследование сайта)
 │   │   ├── seo-temi/SKILL.md              (worktree, сбор тем)
@@ -470,7 +470,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ## Компоненты
 
-### 27 скилов (13 рабочих, 9 share-утилит, 4 управляющих, 1 справочный)
+### 28 скилов (14 рабочих, 9 share-утилит, 4 управляющих, 1 справочный)
 
 | Скил | Зона | Назначение |
 |---|---|---|
@@ -497,12 +497,13 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/share-tekst NNN [--redo]` | worktree | Утилита: перезалить Analysis/Texts.docx в Drive после правок, или догрузить если Drive был недоступен |
 | `/seo-faq [--from-tekst NNN\|--from-table\|--url] [--review\|--auto]` | worktree | SEO-нормализация: JM-анализ пробелов текста → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка с недостающими N-граммами. Выход: faq.html (вставляемый сниппет) на страницу + FAQ.docx (Google Doc) |
 | `/share-faq NNN [--redo]` | worktree | Утилита: перезалить FAQ.docx в Drive после правок, или догрузить если Drive был недоступен |
+| `/custom-question [<вопрос>\|<файл>] [--resume] [--format auto\|answer\|recommendation\|doc]` | worktree | Разбор нестандартного вопроса заказчика: контекст по файлам проекта → обязательный гейт трактовки (AskUserQuestion, опция «передать заказчику») → решение (ответ/рекомендация/документ) без SEO-жаргона → запись в общий QA-ЖУРНАЛ.md |
 | `/request-shared-edit "..."` | worktree | Отложенный запрос на правку общего файла |
 | `/handoff` | worktree | Финализация: commit → merge в main → cleanup |
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
 | `/sync-from-template [путь] [--apply]` | main | Обновление машинерии (`.claude/{scripts,agents,skills,hooks,git-hooks,migrations,tests}` + package.json) из локального шаблона; без `--apply` - dry-run |
 
-### 46 субагентов (вызываются скилами)
+### 58 субагентов (вызываются скилами)
 
 Каждый агент объявляет модель явно - ярус `sonnet` (механика: сбор данных, применение правок, парсинг/генерация по шаблону) или `opus` (клиентская проза, вердикты, аудит), а не `inherit`. Полная таблица ярусов и обоснований - в [docs/MODEL-POLICY.md](docs/MODEL-POLICY.md) ([ADR-024](docs/adr/024-subagent-model-policy.md)).
 
@@ -554,6 +555,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `copy-auditor` | Pre-flight редактор продающего текста: чек-лист COPY-AUDIT.md (смысл+грамотность первым, удар в боль ЦА, чистота/штампы/утечка кухни Сургай-кастдев) → чинит page.json свежим проходом перед HTML; анти-ИИ-детект не делает (ADR-022) (для /seo-tekst, веер) |
 | `direction-scanner` | Контент-разведка одного направления: SERP топ-10 по маркеру -> фильтр однотипных -> фетч 3-5 страниц (Chrome/fetch) -> recon/<slug>.json: что публикует топ, must_have, gaps (для /seo-tekst, веер) |
 | `site-reviewer` | Финальный кросс-страничный аудит текстов сайта: межстраничные самоповторы, уникальность H1/Title, консистентность decisions и фактов -> чинит + site_audit.json (для /seo-tekst, один на проект) |
+| `context-gatherer` | Собирает релевантный контекст по файлам проекта под нестандартный вопрос заказчика + 2-4 трактовки вопроса → context.json (для /custom-question) |
+| `solution-writer` | Пишет решение по вопросу заказчика в выбранном формате (answer/recommendation/doc), клиентские части без SEO-жаргона → solution.md (+ answer_client.md) (для /custom-question) |
+| `solution-verifier` | Независимая вычитка решения: факт-чек по файлам проекта, простота языка, полнота ответа, честность блока «Что я не проверял» → verify_report.json (для /custom-question) |
 
 ### 45 Node-скриптов
 
