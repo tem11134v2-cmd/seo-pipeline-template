@@ -38,7 +38,7 @@ COMMON_DIR=$(git rev-parse --git-common-dir)
 - `ambiguous == true` → показать `candidates` (имя папки / жанр / площадка / state), попросить уточнить полный id (напр. `005-ukladka-plitki-dko`). НЕ брать первую молча.
 - иначе `article_dir = <ответ>.dir`.
 
-После нахождения — записать `.claude/tmp/current-task.txt` с путём к этой папке. Это нужно, чтобы pre-commit hook разрешил коммит правок (в worktree-режиме).
+После нахождения — записать `.claude/tmp/current-task.txt` с путём к этой папке. Это нужно, чтобы pre-commit hook разрешил коммит правок (в worktree-режиме). Записать туда же (тем же путем) `.claude/tmp/current-article.txt` - однострочный указатель активной статьи для хуков `check-section.sh`/`mark-finalized.sh` в серийном режиме.
 
 ### 2. Определить целевой файл
 

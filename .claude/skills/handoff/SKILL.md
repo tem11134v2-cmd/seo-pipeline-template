@@ -182,7 +182,7 @@ Worktree: <удалена | папка <PROJECT_ROOT> осталась на ди
   Если эта задача сгенерировала handoff-requests (setup-project / new-topics / request-shared-edit):
     → Открой <MAIN_WT> в новой сессии БЕЗ worktree → /handoff-process
 
-  Если это была чистая per-task работа (write-article / fix-article без правок общих файлов):
+  Если это была чистая per-task работа (seo-statya / fix-article без правок общих файлов):
     → Ничего больше не нужно, файлы уже в main.
 
 Эту сессию Claude Code можно закрывать.
