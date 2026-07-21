@@ -271,8 +271,8 @@ const subs = {
   "<!--POPUP_TIME_SUB-->": escapeHtml(popups.time_sub || "Оставьте телефон - перезвоним за 5 минут и ответим на вопросы"),
   "<!--POPUP_TIME_CTA-->": escapeHtml(popups.time_cta || "Жду звонка"),
   "<!--POPUP_EXIT_TITLE-->": escapeHtml(popups.exit_title || "Уже уходите?"),
-  "<!--POPUP_EXIT_SUB-->": escapeHtml(popups.exit_sub || "Заберите расчёт стоимости - пришлём в мессенджер"),
-  "<!--POPUP_EXIT_CTA-->": escapeHtml(popups.exit_cta || "Получить расчёт"),
+  "<!--POPUP_EXIT_SUB-->": escapeHtml(popups.exit_sub || "Заберите расчет стоимости - пришлем в мессенджер"),
+  "<!--POPUP_EXIT_CTA-->": escapeHtml(popups.exit_cta || "Получить расчет"),
 };
 
 let html = shell;

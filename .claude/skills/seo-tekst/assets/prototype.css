@@ -1,7 +1,7 @@
 /* ============================================================
    prototype.css - компонентный CSS HTML-прототипа
    Использует токены темы (themes/theme-<niche>.css :root{}).
-   Никаких хардкод-цветов: всё через var(--...).
+   Никаких хардкод-цветов: все через var(--...).
    Префикс классов: pt- (prototype). Кнопки: .btn / .btn--primary.
    Линкуется ПОСЛЕ темы. Брейкпойнты: 900px, 520px.
    ============================================================ */
@@ -235,7 +235,7 @@ img { max-width: 100%; display: block; }
 }
 .pt-tag:hover { background: var(--accent-primary); color: var(--text-invert); }
 
-/* === CTA-MID (единственный тёмный блок) === */
+/* === CTA-MID (единственный темный блок) === */
 .pt-cta-mid { background: var(--bg-invert); color: var(--text-invert); padding: 56px 0; text-align: center; }
 .pt-cta-mid .pt-h2 { color: var(--text-invert); }
 .pt-cta-mid__text { color: var(--text-invert); opacity: 0.85; margin: 0 auto 24px; max-width: 640px; font-size: 15px; line-height: 1.55; }

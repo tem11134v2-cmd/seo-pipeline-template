@@ -4,7 +4,7 @@
    FAQ .pt-faq__item, бургер #burgerDrawer/#burgerOverlay,
    попапы #popupTime/#popupExit, cookie #cookieBanner,
    роутер-секции #thanksPage/#privacyPage/#personDataPage/#cookiePage,
-   обёртка контента #mainContent.
+   обертка контента #mainContent.
    Состояние-классы: is-open / is-active.
    ============================================================ */
 (function () {
