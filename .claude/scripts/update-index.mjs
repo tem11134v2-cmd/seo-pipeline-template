@@ -22,6 +22,7 @@
 //       "topic_id": 1,
 //       "slug": "...",
 //       "topic": "...",
+//       "query": "...",
 //       "genre": "Гайд",
 //       "platform_target": "site",
 //       "state": "completed",
@@ -65,14 +66,13 @@ if (existsSync(mtPath)) {
   }
 }
 
-// nnn выводим из имени папки (001-foo → "001")
+// nnn выводим из имени папки (001-foo → "001"). Папки без числового префикса
+// (fast-режим, свободная тема - "fast-<slug>-<rand3>", см. FAST.md Ветка B) -
+// это ожидаемо, nnn = null, а не повод пропустить индексацию (иначе такие
+// статьи не попадут в _index.json инкрементально между rebuild-index.mjs).
 const dirName = basename(articleDir);
 const nnnMatch = dirName.match(/^(\d{2,4})-/);
-if (!nnnMatch) {
-  console.error(`[update-index] не удалось извлечь NNN из ${dirName}`);
-  process.exit(0);
-}
-const nnn = nnnMatch[1];
+const nnn = nnnMatch ? nnnMatch[1] : null;
 
 const now = new Date().toISOString();
 
@@ -95,8 +95,9 @@ if (!rec) {
     key: dirName,
     nnn,
     topic_id: meta.topic_id ?? null,
-    slug: meta.slug || dirName.slice(nnn.length + 1),
+    slug: meta.slug || (nnn ? dirName.slice(nnn.length + 1) : dirName),
     topic: meta.topic || "",
+    query: meta.query || null, // main_query - для поиска JM-кеша по теме в --fast (FAST.md шаг 1, путь 2)
     genre: meta.genre || "",
     platform_target: meta.platform_target || "site",
     state: meta.state || "init",
@@ -113,6 +114,7 @@ if (!rec) {
   rec.state = meta.state || rec.state;
   rec.mode = meta.mode || rec.mode;
   rec.topic = meta.topic || rec.topic;
+  rec.query = meta.query || rec.query;
   rec.genre = meta.genre || rec.genre;
   rec.platform_target = meta.platform_target || rec.platform_target;
   rec.topic_id = meta.topic_id ?? rec.topic_id;

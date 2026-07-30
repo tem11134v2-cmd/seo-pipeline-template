@@ -37,6 +37,7 @@
 | [027](027-slug-engine-and-url-validation.md) | Единый `_slug.mjs` (URL из приоритетного источника, стоп-слова, лимит длины) + валидация «Адрес страницы»; writer копирует URL, не генерит | Принято |
 | [028](028-intake-provenance-and-questions.md) | intake-агент с провенансом (`source`+`quote`), раздел «0. Вопросы к вам» в A2, импорт ответов из Google Doc (`--answers`) | Принято |
 | [029](029-custom-question-skill.md) | Скил `/custom-question`: обязательный гейт трактовки (`AskUserQuestion` + «передать проджекту»), решение без жаргона, память в `QA-ЖУРНАЛ.md` | Принято |
+| [030](030-fast-article-mode.md) | Режим `--fast` для `/seo-statya`: агент fast-writer одним проходом, JM без `text_analyze` (LSI-кеш по `main_query`), механическая верификация вместо LLM-аудита, без фото/docx/Drive | Принято |
 
 ## Как добавить новый ADR
 

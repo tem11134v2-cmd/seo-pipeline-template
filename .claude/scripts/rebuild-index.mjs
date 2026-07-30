@@ -74,6 +74,7 @@ for (const name of readdirSync(root)) {
     topic_id: meta.topic_id ?? null,
     slug: meta.slug || "",
     topic: meta.topic || "",
+    query: meta.query || null, // main_query - для поиска JM-кеша по теме в --fast (FAST.md шаг 1, путь 2)
     genre: meta.genre || "",
     platform_target: meta.platform_target || "site",
     state: meta.state || "init",
