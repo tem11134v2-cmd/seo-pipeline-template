@@ -48,6 +48,7 @@ const schemaPath = join(articleDir, "schema.json");
 const photosUrlsPath = join(articleDir, "photos", "urls.json");
 const photosPromptsPath = join(articleDir, "photos", "prompts.md");
 const reportPath = join(articleDir, "report.md");
+const metatagsPath = join(articleDir, "metatags.json");
 const templatePath = join(projectRoot, "template.html");
 const clientPath = join(projectRoot, "ЗАКАЗЧИК.md");
 // Block F: имя выходного HTML несёт номер темы (NNN из basename папки), чтобы файл
@@ -70,6 +71,7 @@ const schemaRaw = readIfExists(schemaPath);
 const photosUrlsRaw = readIfExists(photosUrlsPath);
 const photosPromptsRaw = readIfExists(photosPromptsPath);
 const reportMd = readIfExists(reportPath);
+const metatagsRaw = readIfExists(metatagsPath);
 const templateHtml = readRequired(templatePath);
 const clientMd = readRequired(clientPath);
 
@@ -99,6 +101,21 @@ if (photosPromptsRaw) {
   }
 }
 
+// --- 1b. metatags.json - источник Title/Description для <head> (Баг 1) ---
+// Ни один другой шаг конвейера не пишет <title>/<meta name="description"> в
+// output-NNN.html - раньше там оставалась статичная заглушка из template.html
+// (демо-контент онбординга) для КАЖДОЙ статьи каждого клиента. metatags.json
+// уже лежит рядом (пишут article-finalizer/fast-writer, проверяет
+// verify-article-metatags.mjs) - просто не читался этим скриптом.
+let metatags = null;
+if (metatagsRaw) {
+  try {
+    metatags = JSON.parse(metatagsRaw);
+  } catch (e) {
+    console.warn("[assemble-html] metatags.json invalid JSON, title/description не будут обновлены:", e.message);
+  }
+}
+
 // --- 2. enhancements.html: блоки между маркерами «Элемент N» ---
 const enhancementBlocks = [];
 {
@@ -121,9 +138,17 @@ function pickClientField(md, label) {
     const v = tm[1].trim();
     if (v && !/_не заполнено_/i.test(v)) return v;
   }
-  const bulletRe = new RegExp("(?:^|\\n)[\\-\\*]\\s*\\*\\*?" + label + "\\*\\*?\\s*:?\\s*([^\\n]+)", "i");
+  // Баг 2: разные клиенты форматируют жирный лейбл по-разному - "**Label**: value"
+  // (двоеточие ПОСЛЕ закрывающих звёздочек), "**Label:** value" (двоеточие ВНУТРИ
+  // жирного, до звёздочек - kadrovy_element_rf) или вовсе без жирного "Label: value"
+  // (rus_campers). Старая регулярка требовала звёздочки СРАЗУ после лейбла и падала
+  // на двух последних вариантах - молча возвращала "" (фоллбэк на "Редакция"). Матчим
+  // лейбл свободно (звёздочки опциональны, 0-2), затем снимаем произвольный хвост из
+  // ":"/"*"/пробелов перед значением, а не фиксируем жёсткий порядок символов.
+  const bulletRe = new RegExp("(?:^|\\n)[\\-\\*]\\s*\\*{0,2}\\s*" + label + "\\s*([^\\n]*)", "i");
   const bm = md.match(bulletRe);
-  return bm ? bm[1].trim() : "";
+  if (!bm) return "";
+  return bm[1].replace(/^[:*\s]+/, "").trim();
 }
 const clientBlogUrl = pickClientField(clientMd, "URL блога") || "/blog/";
 const clientAuthor =
@@ -357,7 +382,8 @@ if (nxArticle) {
   const contentMarkerRe = /<!--\s*CONTENT[\s\S]*?-->/i;
   if (contentMarkerRe.test(html)) {
     const replaced = html.replace(contentMarkerRe, (match) => match + "\n" + innerParts.join("\n"));
-    writeFileSync(outputPath, normYoFinal(injectSchema(replaced, schemaScripts)), "utf8");
+    const withHead = injectTitleAndDescription(injectSchema(replaced, schemaScripts), metatags);
+    writeFileSync(outputPath, normYoFinal(withHead), "utf8");
     reportSummary();
     process.exit(0);
   } else {
@@ -366,8 +392,9 @@ if (nxArticle) {
   }
 }
 
-// Inject Schema.org + social meta + extracted styles в <head>
+// Inject Title/Description + Schema.org + social meta + extracted styles в <head>
 let finalHtml = tDom.serialize();
+finalHtml = injectTitleAndDescription(finalHtml, metatags);
 finalHtml = injectSchema(finalHtml, schemaScripts);
 finalHtml = injectSocialMeta(finalHtml, socialMetaScripts);
 finalHtml = injectExtraStyles(finalHtml, extraHeadStyles);
@@ -390,6 +417,29 @@ function injectSchema(html, scripts) {
   return html.replace(/<\/head>/i, `${scripts}</head>`);
 }
 
+// Баг 1: template.html несёт статичную заглушку <title> из онбординга и вовсе
+// не имеет <meta name="description">. metatags.json - источник истины (тот же,
+// что читает verify-article-metatags.mjs) - подставляем реальные Title/Description
+// этой статьи, заменяя заглушку целиком (не дописывая рядом).
+function injectTitleAndDescription(html, mt) {
+  if (!mt) return html;
+  let out = html;
+  if (mt.title) {
+    const titleTag = `<title>${escapeHtml(mt.title)}</title>`;
+    out = /<title>[\s\S]*?<\/title>/i.test(out)
+      ? out.replace(/<title>[\s\S]*?<\/title>/i, titleTag)
+      : out.replace(/<\/head>/i, `${titleTag}\n</head>`);
+  }
+  if (mt.description) {
+    // Снимаем любую существующую <meta name="description"> (в т.ч. заглушку
+    // template-designer, если появится) перед вставкой актуальной.
+    out = out.replace(/<meta\s+name=["']description["'][^>]*>\s*/gi, "");
+    const descTag = `<meta name="description" content="${escapeAttr(mt.description)}">`;
+    out = out.replace(/<\/head>/i, `${descTag}\n</head>`);
+  }
+  return out;
+}
+
 function injectSocialMeta(html, scripts) {
   if (!scripts) return html;
   // Удаляем существующие og:image / twitter:image (если template-designer внёс заглушки),
@@ -405,6 +455,7 @@ function injectExtraStyles(html, styles) {
 
 function reportSummary() {
   console.log(`[assemble-html] wrote ${outputPath}`);
+  console.log(`  Title/Description: ${metatags ? "applied from metatags.json" : "MISSING - metatags.json not found, шаблонная заглушка осталась"}`);
   console.log(`  H2 sections: ${h2List.length}`);
   console.log(`  Enhancements used: ${enhancementCursor}/${enhancementBlocks.length}`);
   console.log(`  Photos used: ${photosUrls.length}`);
@@ -451,10 +502,27 @@ function buildTagsBlock(reportMd, clientMd) {
   const linkSection = clientMd.match(/##\s*Перелинковка[^]*?(?=\n##|\n#|$)/i);
   if (linkSection) {
     const rows = linkSection[0].split(/\r?\n/);
+    // Баг 3, две причины одной поломки:
+    // (а) старая регулярка /^\/?[\w\-\/]+$/ не пропускала абсолютные https://
+    //     URL (там есть "." и ":", не входят в [\w\-\/]) - ломала плитку тегов
+    //     у КАЖДОГО клиента, который в "## Перелинковка" пишет полный URL, а
+    //     не только относительный путь (это большинство).
+    // (б) markdown-таблица с URL в бэктиках (`/kontrakt/`) тоже не проходила
+    //     фильтр - бэктики снимаем до проверки. Заодно явно пропускаем строку
+    //     заголовка ("URL") и строку-разделитель ("---") таблицы: раньше они
+    //     единственные проходили regex и становились ложным fallback-URL для
+    //     всех тегов (href="URL" в каждой ссылке плитки).
+    const urlRe = /^(https?:\/\/[^\s/]+)?\/[\w\-/]*$/;
     for (const row of rows) {
-      const cells = row.split("|").map((s) => s.trim()).filter(Boolean);
-      if (cells.length >= 2 && /^\/?[\w\-\/]+$/.test(cells[0])) {
-        linkRows.push({ url: cells[0], anchor: cells[1] });
+      const cells = row
+        .split("|")
+        .map((s) => s.trim().replace(/^`+|`+$/g, "").trim())
+        .filter(Boolean);
+      if (cells.length < 2) continue;
+      const urlCell = cells[0];
+      if (/^url$/i.test(urlCell) || /^-+$/.test(urlCell)) continue; // заголовок / разделитель таблицы
+      if (urlRe.test(urlCell)) {
+        linkRows.push({ url: urlCell, anchor: cells[1] });
       }
     }
   }
