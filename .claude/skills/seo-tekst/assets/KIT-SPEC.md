@@ -184,10 +184,10 @@ build-prototype.mjs заменяет HTML-комментарии-маркеры:
 | `<!--PHONE-->` | `legal.phone` (дефолт "+7 (000) 000-00-00"), в шапке и бургер-меню (escape) |
 | `<!--PHONE_RAW-->` | `legal.phone` без всех символов кроме цифр и `+` - для `href="tel:..."` |
 | `<!--SCHEDULE-->` | график работы: `meta.schedule` -> `legal.schedule` -> "Пн-Пт 9:00-19:00" |
-| `<!--POPUP_TIME_TITLE/SUB/CTA-->` | тексты попапа по таймеру: `manifest.popups.time_title/time_sub/time_cta`, дефолты "Не нашли что искали?" / "Оставьте телефон - перезвоним за 5 минут и ответим на вопросы" / "Жду звонка" |
-| `<!--POPUP_EXIT_TITLE/SUB/CTA-->` | тексты exit-попапа: `manifest.popups.exit_title/exit_sub/exit_cta`, дефолты "Уже уходите?" / "Заберите расчёт стоимости - пришлём в мессенджер" / "Получить расчёт" |
+| `<!--POPUP_TIME_TITLE/SUB/CTA-->` | тексты попапа по таймеру: `manifest.popups.time_title/time_sub/time_cta`, дефолты "Не нашли что искали?" / "Оставьте телефон - перезвоним и ответим на вопросы" / "Жду звонка" |
+| `<!--POPUP_EXIT_TITLE/SUB/CTA-->` | тексты exit-попапа: `manifest.popups.exit_title/exit_sub/exit_cta`, дефолты "Уже уходите?" / "Заберите расчет стоимости - пришлем в мессенджер" / "Получить расчет" |
 | `<!--BLOCKS-->` | конкатенация отрендеренных фрагментов блоков по порядку |
-| `<!--FOOTER-->` | legal/footer.html со слотами реквизитов |
+| `<!--FOOTER-->` | legal/footer.html со слотами реквизитов (пустые ИНН/ОГРН не печатаются - см. LEGAL.md) |
 | `<!--LEGAL_PAGES-->` | legal/page-*.html секции (роутятся по hash) |
 | `<!--COOKIE_BANNER-->` | legal/cookie-banner.html |
 | `<!--PROTOTYPE_JS-->` | `<script>` содержимое prototype.js |

@@ -231,9 +231,26 @@ blocksHtml = wrapFillNotes(blocksHtml);
 
 // ---------- legal + footer + cookie ----------
 const legal = manifest.legal || {};
-const footerHtml = footerTpl ? renderTemplate(footerTpl, legal) : "";
-const cookieHtml = cookieTpl ? renderTemplate(cookieTpl, legal) : "";
-const legalPagesHtml = legalPages.map((p) => renderTemplate(p, legal)).join("\n");
+
+// Производные слоты юр-скоупа (в manifest.legal их нет, считаем здесь):
+//   {{phone_raw}}  - телефон без разделителей, для href="tel:..." в футере
+//                    (в шапке ту же роль играет маркер <!--PHONE_RAW-->)
+//   {{requisites}} - готовая скобочная группа «(ИНН X, ОГРН Y, адрес: Z)» с ведущим
+//                    пробелом. Собирается только из непустых частей; если пусты все,
+//                    строка пустая - и группа исчезает целиком, а не печатается
+//                    скелетом «(ИНН , ОГРН , адрес: )».
+const legalReqParts = [];
+if (truthy(legal.inn)) legalReqParts.push(`ИНН ${legal.inn}`);
+if (truthy(legal.ogrn)) legalReqParts.push(`ОГРН ${legal.ogrn}`);
+if (truthy(legal.address)) legalReqParts.push(`адрес: ${legal.address}`);
+const legalScope = Object.assign({}, legal, {
+  phone_raw: String(legal.phone || "").replace(/[^\d+]/g, ""),
+  requisites: legalReqParts.length ? ` (${legalReqParts.join(", ")})` : "",
+});
+
+const footerHtml = footerTpl ? renderTemplate(footerTpl, legalScope) : "";
+const cookieHtml = cookieTpl ? renderTemplate(cookieTpl, legalScope) : "";
+const legalPagesHtml = legalPages.map((p) => renderTemplate(p, legalScope)).join("\n");
 
 // ---------- shell substitution ----------
 const meta = manifest.meta || {};
@@ -268,7 +285,7 @@ const subs = {
   "<!--COOKIE_BANNER-->": cookieHtml,
   "<!--PROTOTYPE_JS-->": prototypeJs,
   "<!--POPUP_TIME_TITLE-->": escapeHtml(popups.time_title || "Не нашли что искали?"),
-  "<!--POPUP_TIME_SUB-->": escapeHtml(popups.time_sub || "Оставьте телефон - перезвоним за 5 минут и ответим на вопросы"),
+  "<!--POPUP_TIME_SUB-->": escapeHtml(popups.time_sub || "Оставьте телефон - перезвоним и ответим на вопросы"),
   "<!--POPUP_TIME_CTA-->": escapeHtml(popups.time_cta || "Жду звонка"),
   "<!--POPUP_EXIT_TITLE-->": escapeHtml(popups.exit_title || "Уже уходите?"),
   "<!--POPUP_EXIT_SUB-->": escapeHtml(popups.exit_sub || "Заберите расчет стоимости - пришлем в мессенджер"),
@@ -280,7 +297,18 @@ for (const [marker, value] of Object.entries(subs)) {
   html = html.split(marker).join(value);
 }
 
+// буква ё запрещена в клиентских текстах (как и тире) - нормализуем ё->е/Ё->Е по всей
+// собранной HTML-строке перед записью на диск, как это делает assemble-html.mjs для
+// статей. Без этого шага любой новый фрагмент или текст писателя способен вернуть ё,
+// и verify-prototype.mjs будет краснеть на ровном месте. URL не содержат сырую ё,
+// поэтому замена по всему документу безопасна.
+html = normYoFinal(html);
+
 writeFileSync(outPath, html, "utf8");
+
+function normYoFinal(s) {
+  return String(s).replace(/ё/g, "е").replace(/Ё/g, "Е");
+}
 
 // ---------- summary ----------
 console.log(`[build-prototype] wrote ${outPath}`);

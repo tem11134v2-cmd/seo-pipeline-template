@@ -2,12 +2,12 @@
   <div class="container pt-footer__grid">
     <div class="pt-footer__col pt-footer__col--about">
       <div class="pt-footer__company">{{company}}</div>
-      <div class="pt-footer__req">ИНН {{inn}}</div>
-      <div class="pt-footer__req">ОГРН {{ogrn}}</div>
+      <!--IF:inn--><div class="pt-footer__req">ИНН {{inn}}</div><!--/IF:inn-->
+      <!--IF:ogrn--><div class="pt-footer__req">ОГРН {{ogrn}}</div><!--/IF:ogrn-->
     </div>
     <div class="pt-footer__col pt-footer__col--contacts">
       <div class="pt-footer__title">Контакты</div>
-      <a class="pt-footer__link pt-footer__phone" href="tel:{{phone}}">{{phone}}</a>
+      <a class="pt-footer__link pt-footer__phone" href="tel:{{phone_raw}}">{{phone}}</a>
       <a class="pt-footer__link pt-footer__email" href="mailto:{{email}}">{{email}}</a>
     </div>
     <div class="pt-footer__col pt-footer__col--address">
