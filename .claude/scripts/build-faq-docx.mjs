@@ -37,18 +37,24 @@ const company = inputs.brand_name || inputs.company || inputs.domain || slug;
 const NAVY = "1F4E79";
 const out = [];
 const sweep = []; // весь пользовательский текст для финальной проверки на тире
-const track = (t) => { sweep.push(String(t == null ? "" : t)); return t; };
+// track - единственные ворота, через которые текст попадает в параграф: он и нормализует.
+// normYo по входным JSON (стр. 34, 83) чистит только ДАННЫЕ; хардкод-литералы самого
+// скрипта (NOTE-пояснения и т.п.) шли мимо и текли в клиентский docx. Теперь любой текст,
+// откуда бы он ни пришел, нормализуется здесь, и хелперы берут ИМЕННО возврат track.
+const track = (t) => { const s = normYo(String(t == null ? "" : t)); sweep.push(s); return s; };
 
-const H1 = (t) => { track(t); out.push(new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 240, after: 120 }, children: [new TextRun({ text: t, bold: true, color: NAVY, font: "Arial", size: 30 })] })); };
-const H2 = (t) => { track(t); out.push(new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 160, after: 60 }, children: [new TextRun({ text: t, bold: true, color: NAVY, font: "Arial", size: 24 })] })); };
-const BOLDP = (t) => { track(t); out.push(new Paragraph({ spacing: { before: 100, after: 40 }, children: [new TextRun({ text: t, bold: true, font: "Arial", size: 22 })] })); };
-const Q = (t) => { track(t); out.push(new Paragraph({ spacing: { before: 80, after: 20 }, children: [new TextRun({ text: t, bold: true, font: "Arial", size: 22 })] })); };
+const H1 = (t) => { t = track(t); out.push(new Paragraph({ heading: HeadingLevel.HEADING_1, spacing: { before: 240, after: 120 }, children: [new TextRun({ text: t, bold: true, color: NAVY, font: "Arial", size: 30 })] })); };
+const H2 = (t) => { t = track(t); out.push(new Paragraph({ heading: HeadingLevel.HEADING_2, spacing: { before: 160, after: 60 }, children: [new TextRun({ text: t, bold: true, color: NAVY, font: "Arial", size: 24 })] })); };
+const BOLDP = (t) => { t = track(t); out.push(new Paragraph({ spacing: { before: 100, after: 40 }, children: [new TextRun({ text: t, bold: true, font: "Arial", size: 22 })] })); };
+const Q = (t) => { t = track(t); out.push(new Paragraph({ spacing: { before: 80, after: 20 }, children: [new TextRun({ text: t, bold: true, font: "Arial", size: 22 })] })); };
 const APARA = (runs) => out.push(new Paragraph({ spacing: { after: 60 }, children: runs }));
-const NOTE = (t) => { track(t); out.push(new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: t, italics: true, font: "Arial", size: 20, color: "888888" })] })); };
-const CODE = (line) => { track(line); out.push(new Paragraph({ children: [new TextRun({ text: line, font: "Courier New", size: 18 })], spacing: { after: 0 } })); };
+const NOTE = (t) => { t = track(t); out.push(new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text: t, italics: true, font: "Arial", size: 20, color: "888888" })] })); };
+const CODE = (line) => { line = track(line); out.push(new Paragraph({ children: [new TextRun({ text: line, font: "Courier New", size: 18 })], spacing: { after: 0 } })); };
 
 // Ответ -> массив run-ов с возможной inline-гиперссылкой.
 // ИНВАРИАНТ (синхрон с build-faq): точка разреза = ПЕРВОЕ вхождение анкора по СЫРОМУ a.
+// Поэтому здесь текст НЕ прогоняется через track: он пришел из faq_blocks.json и уже
+// нормализован на стр. 83, а лишняя нормализация анкора/ответа сдвинула бы точку разреза.
 function buildAnswerRuns(a, link, self) {
   a = String(a == null ? "" : a);
   if (link && link.anchor && link.url && !sameUrl(link.url, self)) {
@@ -89,7 +95,7 @@ NOTE("Документ состоит из двух разделов. Разде
 
 // ---------- РАЗДЕЛ 1: Текстовый FAQ ----------
 H1("Раздел 1. Текстовый FAQ (добавить на страницы)");
-NOTE("Это вопросы и ответы, которые мы добавляем в конец готовой страницы (они не заменяют существующий контент). Подсвеченные слова в ответах - это реальные ссылки на смежные страницы сайта; адрес каждой ссылки продублирован рядом в скобках, чтобы верстальщик понимал, куда она ведёт. Текст ответов менять не нужно.");
+NOTE("Это вопросы и ответы, которые мы добавляем в конец готовой страницы (они не заменяют существующий контент). Подсвеченные слова в ответах - это реальные ссылки на смежные страницы сайта; адрес каждой ссылки продублирован рядом в скобках, чтобы верстальщик понимал, куда она ведет. Текст ответов менять не нужно.");
 
 let pageCount = 0, faqTotal = 0;
 for (let i = 0; i < blocks.length; i++) {
