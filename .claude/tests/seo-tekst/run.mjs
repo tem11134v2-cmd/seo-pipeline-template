@@ -559,6 +559,146 @@ step("нет strategy.json -> слой регистра молчит (штатн
   return true;
 });
 
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== verify-copy.mjs (типографика, repeatables, сверка с blueprint) ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+// Страница + blueprint рядом: verify-copy ищет blueprints/<slug>.json на два уровня выше page.json
+function copyPageBp({ blocks, bpBlocks }) {
+  const dir = join(SANDBOX, "copy", `bp${++copyCase}`);
+  const pageDir = join(dir, "pages", "test");
+  mkdirSync(pageDir, { recursive: true });
+  mkdirSync(join(dir, "blueprints"), { recursive: true });
+  writeFileSync(join(dir, "inputs.json"), JSON.stringify({ brand_name: "ВентПро" }), "utf8");
+  writeFileSync(join(dir, "blueprints", "test.json"), JSON.stringify({ page: { slug: "test" }, blocks: bpBlocks }), "utf8");
+  writeFileSync(join(pageDir, "page.json"), JSON.stringify({
+    page: { slug: "test", title: "Монтаж вентиляции в Казани", description: "Монтируем вентиляцию под ключ, гарантия 3 года." },
+    h1: "Монтаж вентиляции в Казани",
+    blocks,
+  }), "utf8");
+  return pageDir;
+}
+const BP_HERO = { n: 1, type: "Первый экран (Hero)", fragment: "hero", limits: { h1: "20-60" } };
+
+step("число словом («три дня») -> W", () => {
+  const r = copyWarn("Отгружаем партию за три дня после оплаты.");
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0`;
+  if (!/цифр/i.test(r.stdout)) return "предупреждения про числа цифрами нет";
+  return true;
+});
+
+step("прямые кавычки в клиентском тексте -> W (в тексте только елочки)", () => {
+  const r = copyWarn('Работаем по договору "под ключ" с фиксированной сметой.');
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0`;
+  if (!/кавыч/i.test(r.stdout)) return "предупреждения про кавычки нет";
+  return true;
+});
+
+step("repeatable: 1 плашка при лимите «ровно 3» -> V (ломает сетку)", () => {
+  const r = run([VERIFY_COPY, copyPageBp({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", plates: [{ title: "Сроки", text: "Сдаем за 14 дней по договору" }] } }],
+    bpBlocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", limits: { h1: "20-60", plates: "ровно 3: title 10-30 + text 30-90" } }],
+  })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
+  if (!/plates|плашк/i.test(r.stdout)) return "в выводе не назван слот plates";
+  return true;
+});
+
+step("блок есть в blueprint, но текста нет -> V (собирать HTML нельзя)", () => {
+  const r = run([VERIFY_COPY, copyPageBp({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку" } }],
+    bpBlocks: [BP_HERO, { n: 2, type: "Цены", fragment: "pricing", function: "К", limits: { h2: "20-70" } }],
+  })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
+  if (!/blueprint|не написан|недоста/i.test(r.stdout)) return "не сказано, что блок blueprint остался без текста";
+  return true;
+});
+
+step("состав блоков совпадает с blueprint -> сверка молчит", () => {
+  const r = run([VERIFY_COPY, copyPageBp({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку" } }],
+    bpBlocks: [BP_HERO],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
+  return true;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== контракт передачи + build-handoff.mjs (ADR-035) ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+const BUILD_HANDOFF = join(PROJECT_ROOT, ".claude/scripts/build-handoff.mjs");
+
+step("собранный прототип несет контракт: машинный маркер + видимая плашка", () => {
+  const html = readFileSync(join(dirProto, "prototype.html"), "utf8");
+  if (!/name="prototype-contract"/.test(html)) return "нет машинного маркера prototype-contract";
+  if (!/ЭТО ПРОТОТИП, А НЕ МАКЕТ/i.test(html)) return "нет комментария-контракта в head";
+  if (!/pt-contract/.test(html)) return "нет видимой плашки в body";
+  const head = html.slice(0, html.indexOf("</head>"));
+  if (head.indexOf("charset") > 1024) return "meta charset уехал за окно предсканирования кодировки (1024 байта)";
+  return true;
+});
+
+step("verify-prototype ловит выпиленный контракт", () => {
+  const dirNoContract = join(SANDBOX, "proto-nocontract");
+  mkdirSync(dirNoContract, { recursive: true });
+  const html = readFileSync(join(dirProto, "prototype.html"), "utf8")
+    .replace(/<meta name="prototype-contract"[^>]*>/g, "")
+    .replace(/<div class="pt-contract"[\s\S]*?<\/div>\s*<\/div>/, "");
+  writeFileSync(join(dirNoContract, "prototype.html"), html, "utf8");
+  writeFileSync(join(dirNoContract, "manifest.json"), readFileSync(join(dirProto, "manifest.json"), "utf8"), "utf8");
+  const r = run([VERIFY_PROTO, dirNoContract]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
+  if (!/контракт|prototype-contract/i.test(r.stdout)) return "в выводе нет причины про контракт";
+  return true;
+});
+
+step("build-handoff: таблица блоков с функцией, режим шаблон и открытые плейсхолдеры", () => {
+  const dirH = join(SANDBOX, "handoff");
+  mkdirSync(join(dirH, "pages", "main"), { recursive: true });
+  mkdirSync(join(dirH, "blueprints"), { recursive: true });
+  writeFileSync(join(dirH, "inputs.json"), JSON.stringify({ slug: "vent", brand_name: "ВентПро" }), "utf8");
+  writeFileSync(join(dirH, "pages", "main", "page.json"), JSON.stringify({
+    page: { slug: "main", title: "Монтаж вентиляции", type: "Главная", url: "/" },
+    h1: "Монтаж вентиляции в Казани",
+    blocks: [
+      { n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани" }, fill_notes: ["реальное число объектов"] },
+      { n: 2, type: "Цены", fragment: "pricing", slots: { h2: "Сколько стоит" }, fill_notes: [] },
+    ],
+  }), "utf8");
+  writeFileSync(join(dirH, "blueprints", "main.json"), JSON.stringify({
+    page: { slug: "main" },
+    blocks: [
+      { n: 1, type: "Первый экран (Hero)", fragment: "hero", function: "Р", function_why: "показывает результат и срок", mode: "рабочий" },
+      { n: 2, type: "Цены", fragment: "pricing", function: "К", function_why: "человек находит свою группу", mode: "шаблон", empty_state: "Пока нет тарифов", limits: { h2: "20-70" } },
+    ],
+  }), "utf8");
+  writeFileSync(join(dirH, "strategy.json"), JSON.stringify({ materials_missing: ["2-3 кейса с числами"] }), "utf8");
+  writeFileSync(join(dirH, "facts.json"), JSON.stringify({ lexicon: { locked: [{ phrase: "под ключ и без субподряда", source: "созвон" }], canonical: [{ thought: "гарантия", wording: "Гарантия 3 года на монтаж", where: "все страницы" }] } }), "utf8");
+  const r = run([BUILD_HANDOFF, dirH]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
+  const md = readFileSync(join(dirH, "HANDOFF.md"), "utf8");
+  if (!/Р - результат|Р \| /.test(md)) return "функция блока не отрисована";
+  if (!/показывает результат и срок/.test(md)) return "обоснование блока потеряно";
+  if (!/шаблон/.test(md)) return "блок в режиме шаблон не попал в «чего намеренно нет»";
+  if (!/реальное число объектов/.test(md)) return "открытые плейсхолдеры не собраны";
+  if (!/под ключ и без субподряда/.test(md)) return "дословные слова заказчика не перечислены";
+  if (!/Гарантия 3 года на монтаж/.test(md)) return "сквозные формулировки не перечислены";
+  if (/[—–]/.test(md)) return "в документе передачи длинное/среднее тире";
+  return true;
+});
+
+step("build-handoff: нет страниц -> exit 1, файл не создан", () => {
+  const dirEmpty = join(SANDBOX, "handoff-empty");
+  mkdirSync(dirEmpty, { recursive: true });
+  const r = run([BUILD_HANDOFF, dirEmpty]);
+  if (r.code !== 1) return `exit ${r.code}, ожидался 1`;
+  if (existsSync(join(dirEmpty, "HANDOFF.md"))) return "HANDOFF.md создан при пустой задаче";
+  return true;
+});
+
 // === Итог ===
 rmSync(SANDBOX, { recursive: true, force: true });
 console.log("");

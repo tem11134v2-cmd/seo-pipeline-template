@@ -9,7 +9,10 @@
 // Exit: 0 ok | 2 есть нарушения (печатает построчно) | 1 фатально (нет файлов).
 
 import { readFileSync, existsSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ASSETS = resolve(dirname(fileURLToPath(import.meta.url)), "..", "skills", "seo-tekst", "assets");
 
 const pageDir = process.argv[2] ? resolve(process.argv[2]) : null;
 if (!pageDir) { console.error("[verify-prototype] usage: node verify-prototype.mjs <page_dir>"); process.exit(1); }
@@ -43,6 +46,18 @@ if (!/href="tel:\+?\d/.test(html)) V("нет кликабельного теле
 if (/href="tel:"/.test(html)) V("пустая tel-ссылка (href=\"tel:\") - телефон не подставился");
 if (!/id="cookieBanner"/.test(html)) V("нет cookie-баннера (#cookieBanner)");
 if (!/id="(privacyPage|personDataPage|cookiePage)"/.test(html)) W("нет юр-страниц (privacy/consent/cookie)");
+
+// контракт передачи (KIT-SPEC §6). Вшит в три места сразу, потому что неизвестно,
+// в каком виде прототип поедет дальше: файлом, скриншотом или текстом.
+// Без него дизайн-этап наследует служебную композицию, а заказчик видит ч/б каркас без объяснения.
+if (!/<meta\s+name=["']prototype-contract["']/i.test(html))
+  V('нет машинного маркера контракта (<meta name="prototype-contract" content="content-map-not-layout">) - прототип прочитают как макет');
+if (!/(class="[^"]*\bpt-contract\b|data-prototype-contract)/.test(html))
+  V("нет видимой плашки контракта (.pt-contract первым в <body>) - заказчик увидит ч/б каркас без предупреждения");
+else if (!/<body[^>]*>\s*(?:<!--[\s\S]*?-->\s*)*<[^>]*\bpt-contract\b/.test(html))
+  W("плашка контракта не первым элементом <body> (KIT-SPEC §6 - до шапки)");
+if (!/<head[^>]*>\s*<!--/i.test(html))
+  W("нет комментария-контракта первым в <head> (KIT-SPEC §6 - адресат: тот, кто откроет исходник)");
 
 // фреймворки / запрещённое
 const fw = [];
@@ -105,6 +120,30 @@ for (const b of blocks) {
         V(`product-listing: filters[].options фильтра «${f.name || "?"}» должен быть непустым массивом строк`);
     }
   }
+}
+
+// объявленное обязано быть реализовано: fragment блока должен существовать в ките.
+// Иначе сборщик молча подставит фолбэк-форму (вместо калькулятора - обычная форма,
+// вместо интерактива - таблица), и на прототип уедет не то, что обещано в манифесте.
+// Кит ищем от корня проекта, как build-prototype.mjs; нет кита рядом - проверку пропускаем.
+const fragManifestPath = join(ASSETS, "fragments-manifest.json");
+let knownFragments = null;
+if (existsSync(fragManifestPath)) {
+  try {
+    const fm = JSON.parse(readFileSync(fragManifestPath, "utf8").replace(/^﻿/, ""));
+    if (fm && fm.fragments && typeof fm.fragments === "object") knownFragments = new Set(Object.keys(fm.fragments));
+  } catch {}
+}
+if (knownFragments && knownFragments.size) {
+  const unknown = new Map();
+  blocks.forEach((b, i) => {
+    const f = b && typeof b.fragment === "string" ? b.fragment.trim() : "";
+    if (!f || knownFragments.has(f)) return;
+    if (!unknown.has(f)) unknown.set(f, []);
+    unknown.get(f).push(b.n || i + 1);
+  });
+  for (const [f, at] of unknown)
+    W(`фрагмента «${f}» нет в ките (блок ${at.join(", ")}) - сборщик подставит фолбэк, на прототип уедет не то, что объявлено`);
 }
 
 // H1 присутствует и содержит маркер

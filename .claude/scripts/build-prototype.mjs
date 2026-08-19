@@ -195,6 +195,70 @@ function wrapFillNotes(html) {
   return html.replace(/\[ЗАПОЛНИТЬ:[^\]]*\]/g, (m) => `<span class="nx-fill" data-fill>${escapeHtml(m)}</span>`);
 }
 
+// ---------- висячие предлоги ----------
+const NBSP = "\u00A0";
+
+// Короткие служебные слова липнут к СЛЕДУЮЩЕМУ слову: «в Казани», «под ключ», «не менее».
+const GLUE_NEXT = [
+  "в", "к", "с", "у", "о", "а", "и", "я",
+  "во", "ко", "со", "об", "от", "до", "за", "из", "на", "по", "то", "не", "ни", "но", "да", "ну",
+  "мы", "вы", "ты", "он", "их", "ее", "его", "им", "ей",
+  "обо", "изо", "ото", "для", "без", "при", "под", "над", "про", "или", "ибо",
+];
+// Частицы липнут к ПРЕДЫДУЩЕМУ слову: «так же», «если бы» - иначе отрываются в начало
+// следующей строки (после слова, к которому относятся).
+const GLUE_PREV = ["же", "бы", "ли", "б"];
+
+const LN = "\\p{L}\\p{N}";
+const RE_GLUE_NEXT = new RegExp(`(?<![${LN}])(${GLUE_NEXT.join("|")}) (?=\\S)`, "giu");
+const RE_GLUE_PREV = new RegExp(`(?<=[${LN}]) (?=(?:${GLUE_PREV.join("|")})(?![${LN}]))`, "giu");
+// Число не отрывается от того, что за ним: «3 дня», «от 900 000 руб.» - разрыв числа
+// и единицы читается хуже всего.
+const RE_NUM = /(?<=\d) (?=[\p{L}\d])/gu;
+
+// Куски, которые пропускаем целиком: HTML-комментарии (в т.ч. контракт передачи),
+// <script>/<style> (там неразрывный пробел ломает код), <title> (метатеги по контракту
+// не трогаем), <textarea>/<pre>/<code> (значимые пробелы) и ЛЮБОЙ тег - значения
+// атрибутов (href, src, class, alt) неразрывного пробела не переживают.
+// Кавычки в теге учтены, чтобы `>` внутри значения атрибута не обрывал разбор.
+const RE_SKIP =
+  /<!--[\s\S]*?-->|<(script|style|title|textarea|pre|code)\b[^>]*>[\s\S]*?<\/\1\s*>|<[a-zA-Z!/][^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/gi;
+
+function nbspInText(t) {
+  let out = t;
+  // два прохода: после первой замены рядом может остаться второе короткое слово («в к»),
+  // и его пробел тоже надо прибить.
+  for (let pass = 0; pass < 2; pass++) {
+    out = out
+      .replace(RE_GLUE_NEXT, (_m, w) => w + NBSP)
+      .replace(RE_GLUE_PREV, NBSP)
+      .replace(RE_NUM, NBSP);
+  }
+  return out;
+}
+
+function bindHanging(src) {
+  let out = "";
+  let last = 0;
+  let m;
+  RE_SKIP.lastIndex = 0;
+  while ((m = RE_SKIP.exec(src)) !== null) {
+    out += nbspInText(src.slice(last, m.index)) + m[0];
+    last = m.index + m[0].length;
+  }
+  out += nbspInText(src.slice(last));
+
+  // Страховка: замена обязана трогать ТОЛЬКО пробелы. Если длина изменилась или документ
+  // без учёта неразрывных пробелов перестал совпадать с исходным - что-то пошло не так,
+  // отдаём исходный HTML. Сломанная сборка хуже висячего предлога.
+  const flat = (s) => s.replace(/\u00A0/g, " ");
+  if (out.length !== src.length || flat(out) !== flat(src)) {
+    console.warn("[build-prototype] нормализация висячих предлогов изменила не только пробелы - шаг пропущен");
+    return src;
+  }
+  return out;
+}
+
 // ---------- render blocks ----------
 const blocks = Array.isArray(manifest.blocks) ? manifest.blocks : [];
 let blocksHtml = "";
@@ -313,11 +377,18 @@ for (const [marker, value] of Object.entries(subs)) {
 // поэтому замена по всему документу безопасна.
 html = normYoFinal(html);
 
+// висячие предлоги прибиваются КОДОМ, а не руками: исходные фрагменты и тексты писателей
+// держим чистыми (никаких &nbsp; в контентных файлах), неразрывные пробелы расставляем
+// здесь, на собранном документе. Идёт ПОСЛЕ подстановки фрагментов и ПОСЛЕ нормализации ё
+// (иначе список служебных слов пришлось бы держать в двух написаниях) и ДО записи файла.
+html = bindHanging(html);
+
 writeFileSync(outPath, html, "utf8");
 
 function normYoFinal(s) {
   return String(s).replace(/ё/g, "е").replace(/Ё/g, "Е");
 }
+
 
 // ---------- summary ----------
 console.log(`[build-prototype] wrote ${outPath}`);

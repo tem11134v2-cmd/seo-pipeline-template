@@ -16,9 +16,10 @@ const pjPath = existsSync(arg) && statSync(arg).isDirectory() ? join(arg, "page.
 if (!existsSync(pjPath)) { console.error(`[verify-copy] нет page.json: ${pjPath}`); process.exit(1); }
 const page = JSON.parse(readFileSync(pjPath, "utf8").replace(/^﻿/, ""));
 
-const violations = [], warnings = [];
+const violations = [], warnings = [], infos = [];
 const V = (m) => violations.push(m);
 const W = (m) => warnings.push(m);
+const I = (m) => infos.push(m); // информационная строка отчёта: не нарушение, просто цифра для оркестратора
 const arr = (x) => (Array.isArray(x) ? x : []);
 function collect(o, acc = []) {
   if (o == null) return acc;
@@ -215,6 +216,129 @@ if (longSent.length) {
   W(`предложения длиннее 20 слов${longSent.length > 3 ? ` (найдено ${longSent.length}, показаны 3)` : ""} - длинную мысль режь на две, второй кусок получает своё сказуемое - ${list}`);
 }
 
+// ---------------------------------------------------------------------------
+// Слой ТИПОГРАФИКИ. Всё здесь - предупреждения (W): у каждого правила есть
+// законные исключения, решение принимает copy-auditor.
+// Разбор слотов на две сетки: скаляры (строка в слоте) и элементы repeatables
+// (объект/строка внутри массива) - у них разные пороги «короткого элемента».
+// ---------------------------------------------------------------------------
+const scalarUnits = [], elementUnits = [];
+for (let i = 0; i < blocks.length; i++) {
+  const b = blocks[i] || {};
+  const bn = b.n != null ? b.n : i + 1;
+  if (!b.slots || typeof b.slots !== "object") continue;
+  for (const [slot, val] of Object.entries(b.slots)) {
+    if (typeof val === "string") { if (val.trim()) scalarUnits.push({ where: `блок ${bn}, слот «${slot}»`, text: val }); continue; }
+    if (!Array.isArray(val)) continue;
+    val.forEach((el, k) => {
+      if (typeof el === "string") { if (el.trim()) elementUnits.push({ where: `блок ${bn}, «${slot}»[${k + 1}]`, text: el }); return; }
+      if (el && typeof el === "object" && !Array.isArray(el)) {
+        for (const [f, fv] of Object.entries(el)) if (typeof fv === "string" && fv.trim()) elementUnits.push({ where: `блок ${bn}, «${slot}»[${k + 1}].${f}`, text: fv });
+      }
+    });
+  }
+}
+
+// T1. Числа - цифрами, не словами. Взгляд идёт по странице скачками: цифра его
+// останавливает, слово растворяется в строке. На плашках и в блоках цифр число
+// и есть всё сообщение, поэтому «три дня» -> «3 дня».
+const NUM_WORD = /(?<![а-яёa-z])(дв(?:а|е|ух|ум|умя)|тр(?:и|ех|ем|емя)|четыр(?:е|ех|ем|ьмя)|пят(?:ь|и|ью)|шест(?:ь|и|ью)|сем(?:ь|и|ью)|восем(?:ь|и)|восьм(?:и|ью)|девят(?:ь|и|ью)|десят(?:ь|и|ью)|одиннадцат(?:ь|и|ью)|двенадцат(?:ь|и|ью)|ст(?:о|а)|тысяч(?:а|и|у|ей|ам|ами))\s+([а-яёa-z][а-яёa-z-]+)(?![а-яёa-z])/gi;
+// ЗАКРЫТЫЙ список исключений (не эвристика): устойчивые обороты, где цифра выглядит дико.
+// «один/одна/одно» в регулярку не входит вовсе - это и значение «единственный», и половина оборотов.
+const NUM_WORD_OK = [
+  /в\s+один\s+клик/gi,
+  /на\s+все\s+сто/gi,
+  /(?:в\s+)?одн[оа]\s+окн[оае]/gi,
+  /едино(?:е|го|м)\s+окн[оае]/gi,
+  /перв(?:ый|ого|ом|ые|ых)\s+экран[а-яё]*/gi,
+  /в\s+два\s+счета/gi,
+  /на\s+все\s+четыре\s+сторон[а-яё]*/gi,
+  /тысяч[а-яё]*\s+и\s+одн[а-яё]*/gi,
+  /сто\s+лет\s+в\s+обед/gi,
+];
+const numHits = [];
+for (const u of textUnits) {
+  const skip = [];
+  for (const re of NUM_WORD_OK) for (const m of u.text.matchAll(re)) skip.push([m.index, m.index + m[0].length]);
+  for (const m of u.text.matchAll(/«[^»]*»/g)) skip.push([m.index, m.index + m[0].length]); // внутри ёлочек - вероятное название
+  for (const m of u.text.matchAll(NUM_WORD)) {
+    if (skip.some(([a, z]) => m.index >= a && m.index < z)) continue;
+    if (/^[А-ЯЁA-Z]/.test(m[1])) continue; // «Три Медведя» - часть названия
+    numHits.push({ where: u.where, frag: cut(u.text, m.index, m[0].length) });
+  }
+}
+warnHits(numHits, "число словом - записать цифрой («три дня» -> «3 дня»): взгляд по странице идёт скачками, цифра его останавливает, а слово растворяется; на плашках и в блоках цифр число и есть всё сообщение");
+
+// T2. Точка в конце коротких элементов: заголовок, пункт списка, текст карточки
+// или плашки, подпись, подзаголовок, alt, meta-description точкой не закрываются.
+const ABBR_TAIL = /(?:\.\.\.|т\.\s*д\.|т\.\s*п\.|др\.|пр\.|руб\.|шт\.|кв\.\s*м\.|мм\.|см\.|г\.)$/i;
+const dotHits = [], semiHits = [];
+function tailCheck(where, raw, limit, allowMulti) {
+  const t = String(raw == null ? "" : raw).trim();
+  if (!t || t.length > limit) return;
+  const tail = t.length > 46 ? "..." + t.slice(-46) : t;
+  if (/;$/.test(t)) { semiHits.push({ where, frag: tail }); return; }
+  if (!/\.$/.test(t) || ABBR_TAIL.test(t)) return;
+  const multi = /[.!?]\s+\S/.test(t.slice(0, -1));
+  if (multi && !allowMulti) return; // скаляр с внутренними точками-разделителями - это уже не «короткий элемент»
+  dotHits.push({ where: where + (multi ? " (несколько предложений: точки между ними остаются, снимается только последняя)" : ""), frag: tail });
+}
+for (const u of scalarUnits) tailCheck(u.where, u.text, 120, false);
+for (const u of elementUnits) tailCheck(u.where, u.text, 160, true);
+for (let i = 0; i < blocks.length; i++) { const b = blocks[i] || {}; if (b.h2) tailCheck(`блок ${b.n != null ? b.n : i + 1}, H2`, b.h2, 120, false); }
+if (metaDesc.trim()) tailCheck("мета Description", metaDesc, 300, false);
+warnHits(dotHits, "точка в конце короткого элемента - снять (заголовок, пункт списка, текст карточки/плашки, подпись, подзаголовок, alt, meta-description точкой не закрываются)");
+warnHits(semiHits, "точка с запятой в конце пункта - убрать: пункты списка не сшиваются пунктуацией");
+
+// T3. Плейсхолдеры. На этапе текста они законны (facts-gate), нарушением НЕ считаются,
+// но цифру оркестратор должен видеть: до выдачи они доехать не имеют права.
+const slotOnlyText = blocks.map((b) => collect(b.slots).join("  ")).join("\n");
+const phCount = (slotOnlyText.match(/\[ЗАПОЛНИТЬ/gi) || []).length + (slotOnlyText.match(/\[требует/gi) || []).length;
+if (phCount) I(`пометок для заказчика в тексте слотов: ${phCount} ([ЗАПОЛНИТЬ / [требует) - на этапе текста законны, до выдачи доехать не должны`);
+if (phCount > 15) W(`пометок [ЗАПОЛНИТЬ/[требует ${phCount} на страницу - страница слабая по фактуре, проверь facts.json (нечем набрать - блок снимают, а не заполняют скобками)`);
+
+// T4. Кавычки: в клиентском тексте только ёлочки («»).
+const quoteHits = findAll(/["“”„]/g)
+  .concat(findAll(/(?<![а-яёa-z0-9])['’](?=[а-яёa-z0-9])|(?<=[а-яёa-z0-9])['’](?![а-яёa-z0-9])/gi));
+warnHits(quoteHits, "кавычки: в клиентском тексте только ёлочки («»), программистские (\"\") и одинарные - заменить");
+
+// диапазон «N-M» / «N» / «от N до M» -> {lo,hi}; иначе null
+function parseRange(x) {
+  const s = String(x == null ? "" : x).trim();
+  let m = /^(\d+)\s*-\s*(\d+)$/.exec(s);
+  if (m) return { lo: +m[1], hi: +m[2] };
+  m = /^от\s+(\d+)\s+до\s+(\d+)$/i.exec(s);
+  if (m) return { lo: +m[1], hi: +m[2] };
+  m = /^(\d+)$/.exec(s);
+  if (m) return { lo: +m[1], hi: +m[1] };
+  return null;
+}
+// лимит массива в двух форматах:
+//   объектный (если block-planner отдаст его в будущем): {"count":"3","title":"10-30","text":"30-90"}
+//   строковый (то, что есть сейчас): «ровно 3: title 10-30 + text 30-90», «3-7 шт. по 20-60 симв.»
+// Возврат {count, fields, itemLen}; что не распозналось - null/пусто (свободный формат молча пропускаем).
+function parseRepeatLimit(lim) {
+  const out = { count: null, fields: {}, itemLen: null };
+  if (lim && typeof lim === "object" && !Array.isArray(lim)) {
+    for (const [k, v] of Object.entries(lim)) {
+      if (/^(?:count|кол-во|количество|шт)$/i.test(k)) out.count = parseRange(v);
+      else { const r = parseRange(v); if (r) out.fields[k.toLowerCase()] = r; }
+    }
+    return out;
+  }
+  const s = String(lim == null ? "" : lim);
+  let m;
+  if ((m = /ровно\s+(\d+)/i.exec(s))) out.count = { lo: +m[1], hi: +m[1] };
+  else if ((m = /от\s+(\d+)\s+до\s+(\d+)/i.exec(s))) out.count = { lo: +m[1], hi: +m[2] };
+  else if ((m = /(\d+)\s*-\s*(\d+)\s*(?:шт|элемент|сегмент|позици|пункт|карточ|плашк|строк|тариф|итем)/i.exec(s))) out.count = { lo: +m[1], hi: +m[2] };
+  else if ((m = /^\s*(\d+)\s*-\s*(\d+)\s*$/.exec(s))) out.count = { lo: +m[1], hi: +m[2] };
+  else if ((m = /^\s*(\d+)\s*$/.exec(s))) out.count = { lo: +m[1], hi: +m[1] };
+  // пары «имя_поля A-B» (имя поля всегда латиницей: title, text, features)
+  for (const f of s.matchAll(/([a-z_][a-z0-9_]*)\s*:?\s*(\d+)\s*-\s*(\d+)/gi)) out.fields[f[1].toLowerCase()] = { lo: +f[2], hi: +f[3] };
+  if ((m = /по\s+(\d+)\s*-\s*(\d+)\s*симв/i.exec(s))) out.itemLen = { lo: +m[1], hi: +m[2] };
+  return out;
+}
+
 // сверка длин scalar-слотов с limits из blueprint (только простые "N-M"; несущее ограничение вёрстки).
 // V лишь при превышении верхней границы более чем на 15% (ломает вёрстку); недобор/превышение до 15% - W.
 const pageSlug = String((page.page && page.page.slug) || basename(dirname(pjPath)));
@@ -225,21 +349,79 @@ if (!existsSync(bpPath)) {
   try {
     const bp = JSON.parse(readFileSync(bpPath, "utf8").replace(/^﻿/, ""));
     const bpBlocks = arr(bp.blocks);
+
+    // -----------------------------------------------------------------------
+    // PRE-FLIGHT: blueprint - канон структуры страницы. Состав блоков писатель
+    // менять не должен (см. запреты page-writer), поэтому расхождение - не вкус,
+    // а брак сдачи. Недостающий блок = текст не написан, собирать HTML нечем.
+    // -----------------------------------------------------------------------
+    const bpIds = bpBlocks.map((x, i) => (x && x.n != null ? x.n : i + 1));
+    const pgIds = blocks.map((b, i) => (b && b.n != null ? b.n : i + 1));
+    const bpSet = new Set(bpIds), pgSet = new Set(pgIds);
+    const label = (id, t) => `${id}${t ? ` (${t})` : ""}`;
+    const missing = bpIds.map((id, i) => label(id, (bpBlocks[i] && bpBlocks[i].type) || "")).filter((_, i) => !pgSet.has(bpIds[i]));
+    const extra = pgIds.map((id, i) => label(id, (blocks[i] && blocks[i].type) || "")).filter((_, i) => !bpSet.has(pgIds[i]));
+    if (missing.length) V(`pre-flight: в page.json нет блоков из blueprint - ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? ` и ещё ${missing.length - 3}` : ""} (не написано ${missing.length} из ${bpIds.length}) - текст не готов, HTML не собираем`);
+    if (extra.length) W(`pre-flight: в page.json блоки вне blueprint - ${extra.slice(0, 3).join(", ")}${extra.length > 3 ? ` и ещё ${extra.length - 3}` : ""}: состав блоков писатель менять не должен, замеченную проблему пишут в сводку`);
+    const commonPg = pgIds.filter((id) => bpSet.has(id)), commonBp = bpIds.filter((id) => pgSet.has(id));
+    if (commonPg.join(",") !== commonBp.join(",")) W(`pre-flight: порядок блоков разошёлся с blueprint (page.json ${commonPg.join(", ")}; blueprint ${commonBp.join(", ")})`);
+    // Баланс функций считаем ПО BLUEPRINT: page.json функцию не несёт, и это нормально.
+    const fns = bpBlocks.map((x) => String((x && x.function) || "").trim()).filter(Boolean);
+    const vFns = fns.filter((f) => /^[ВB]/i.test(f)).length;
+    if (fns.length && vFns * 2 > fns.length) W(`страница-оправдание: блоков функции «В» ${vFns} из ${fns.length} содержательных (больше половины) - человек пришёл покупать, а ему всю дорогу объясняют, почему бояться не нужно; проверь состав по ADR-032`);
+
+    // -----------------------------------------------------------------------
+    // Лимиты слотов: скаляры (простое "N-M") + repeatables (плашки, карточки,
+    // тарифы - «ровно 3: title 10-30 + text 30-90»). Длины элементов копим и
+    // печатаем одной строкой, чтобы не раздувать вывод.
+    // -----------------------------------------------------------------------
+    const repHard = [], repSoft = [];
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i];
       const bb = (b.n != null ? bpBlocks.find((x) => x.n === b.n) : bpBlocks[i]) || null;
       if (!bb || !bb.limits || !b.slots) continue;
+      const bn = b.n != null ? b.n : i + 1;
       for (const [slot, lim] of Object.entries(bb.limits)) {
-        const m = /^\s*(\d+)\s*-\s*(\d+)\s*$/.exec(String(lim));
-        if (!m) continue; // свободный формат («ровно 3: title 10-30 + ...») - не парсим, пропускаем
         const val = b.slots[slot];
+        if (Array.isArray(val)) {
+          const rl = parseRepeatLimit(lim);
+          if (rl.count) {
+            const { lo, hi } = rl.count, n = val.length;
+            if (n < lo || n > hi) {
+              const dev = n < lo ? lo - n : n - hi;
+              const norm = lo === hi ? `ровно ${lo}` : `${lo}-${hi}`;
+              if (dev > 1) V(`блок ${bn}: «${slot}» ${n} элем - лимит ${norm}, отклонение на ${dev} ломает сетку вёрстки`);
+              else W(`блок ${bn}: «${slot}» ${n} элем - лимит ${norm} (отклонение на 1)`);
+            }
+          }
+          val.forEach((el, k) => {
+            const at = `блок ${bn} «${slot}»[${k + 1}]`;
+            const one = (name, s, r) => {
+              const len = s.length;
+              if (len > Math.round(r.hi * 1.15)) repHard.push(`${at}${name ? "." + name : ""} ${len} симв (лимит ${r.lo}-${r.hi})`);
+              else if (len > r.hi) repSoft.push(`${at}${name ? "." + name : ""} ${len} симв - выше лимита ${r.lo}-${r.hi} (в пределах 15%)`);
+              else if (len < r.lo) repSoft.push(`${at}${name ? "." + name : ""} ${len} симв - ниже лимита ${r.lo}-${r.hi}`);
+            };
+            if (typeof el === "string") { if (el.trim() && rl.itemLen) one("", el, rl.itemLen); return; }
+            if (!el || typeof el !== "object" || Array.isArray(el)) return;
+            for (const [f, fv] of Object.entries(el)) {
+              const r = rl.fields[String(f).toLowerCase()];
+              if (r && typeof fv === "string" && fv.trim()) one(f, fv, r);
+            }
+          });
+          continue;
+        }
+        const m = /^\s*(\d+)\s*-\s*(\d+)\s*$/.exec(String(lim));
+        if (!m) continue; // свободный формат у скаляра - не парсим, пропускаем
         if (typeof val !== "string" || !val.trim()) continue;
         const len = val.length, lo = Number(m[1]), hi = Number(m[2]);
-        if (len > Math.round(hi * 1.15)) V(`блок ${b.n != null ? b.n : i + 1}: слот «${slot}» ${len} симв - выше лимита ${lo}-${hi} более чем на 15% (ломает вёрстку)`);
-        else if (len > hi) W(`блок ${b.n != null ? b.n : i + 1}: слот «${slot}» ${len} симв - выше лимита ${lo}-${hi} (в пределах 15%)`);
-        else if (len < lo) W(`блок ${b.n != null ? b.n : i + 1}: слот «${slot}» ${len} симв - ниже лимита ${lo}-${hi}`);
+        if (len > Math.round(hi * 1.15)) V(`блок ${bn}: слот «${slot}» ${len} симв - выше лимита ${lo}-${hi} более чем на 15% (ломает вёрстку)`);
+        else if (len > hi) W(`блок ${bn}: слот «${slot}» ${len} симв - выше лимита ${lo}-${hi} (в пределах 15%)`);
+        else if (len < lo) W(`блок ${bn}: слот «${slot}» ${len} симв - ниже лимита ${lo}-${hi}`);
       }
     }
+    if (repHard.length) V(`элементы repeatables выше лимита более чем на 15% (ломает вёрстку): ${repHard.slice(0, 3).join("; ")}${repHard.length > 3 ? ` и ещё ${repHard.length - 3}` : ""}`);
+    if (repSoft.length) W(`длины элементов repeatables вне лимита: ${repSoft.slice(0, 3).join("; ")}${repSoft.length > 3 ? ` и ещё ${repSoft.length - 3}` : ""}`);
   } catch { W("blueprint не разобран - длины слотов не сверены"); }
 }
 
@@ -343,6 +525,7 @@ if (axisA || axisB) {
 
 // отчёт
 console.log(`[verify-copy] ${pjPath}  (блоков ${blocks.length}, H1 ${h1.length} симв)`);
+if (infos.length) { for (const m of infos) console.log("   i " + m); }
 if (warnings.length) { console.log("  предупреждения (семантику добьёт copy-auditor):"); for (const w of warnings) console.log("   ~ " + w); }
 if (violations.length) { console.log("  НАРУШЕНИЯ (правим текст, HTML не собираем):"); for (const v of violations) console.log("   ! " + v); process.exit(2); }
 console.log("  OK - механические пункты чисто.");

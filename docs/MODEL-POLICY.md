@@ -103,6 +103,7 @@ frontmatter (`model: sonnet` или `model: opus`). Правило отнесе�
 | structure-verifier | opus | Смысловая вычитка A6.md - аудит |
 | structure-writer | opus | Финальный A6.md: формулировки и обоснования - клиентский документ |
 | tariff-architect | sonnet | Подбор трёх тарифов из TARIFFS.md по правилам RULES.md - механика |
+| tekst-verifier | opus | Независимая вычитка текстов сайта (факты против facts.json, функции и баланс блоков, словарь, решения заказчика) - аудит |
 | template-designer | sonnet | Генерация template.html из мастера + ЗАКАЗЧИК по шаблону |
 | text-auditor | opus | Вычитка (маркеры, законность РФ, повествование) - суждение |
 | topic-generator | opus | Генерация 15-25 тем для блога - креатив и суждение |

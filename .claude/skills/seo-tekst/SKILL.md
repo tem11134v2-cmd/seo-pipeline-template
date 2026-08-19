@@ -37,7 +37,7 @@ FAQ / возражения / плитку тегов / перелинковку 
 ```
 init -> pages-ready -> audience-done -> strategy-done -> analysis-shared
      -> [approved] -> blueprints-ready -> texts-written -> copy-audited
-     -> site-reviewed -> texts-shared -> prototypes-built -> completed
+     -> site-reviewed -> verified -> texts-shared -> prototypes-built -> completed
 
 --from-brief вставляет два состояния в начало:
 init -> intake-done -> pages-drafted -> pages-ready -> (дальше как обычно)
@@ -65,6 +65,8 @@ texts/NNN-<slug>/
 ├── strategy.json          # стратегия оффера (offer-strategist)
 ├── blueprints/<slug>.json # блок-план каждой страницы (block-planner): блоки + цели + боли + слоты + char-лимиты
 ├── site_audit.json        # кросс-страничный аудит: самоповторы/уникальность H1/консистентность фактов + вердикт (site-reviewer)
+├── verify_report.json     # независимая вычитка: функции/баланс блоков, факты, словарь, decisions, чистота (tekst-verifier, НЕ чинит)
+├── HANDOFF.md             # контракт передачи дизайнеру/разработчику: что сохранить дословно, что переопределяется, чего намеренно нет (build-handoff.mjs)
 ├── Analysis_<slug>.docx   # КЛИЕНТУ на согласование (-> Google Doc)
 ├── pages/<page-slug>/
 │   ├── page.json          # тексты блоков (page-writer)
@@ -95,6 +97,8 @@ GIT_DIR=$(git rev-parse --git-dir); COMMON=$(git rev-parse --git-common-dir)
 - `pages-ready`: если скан лидеров не отключён и `leader_blocks.json` отсутствует - сначала шаг 2b; если разведка не отключена и папки `recon/` нет - шаг 2c; затем шаг 3. **Для brief-источника порядок обратный: сначала 2c, потом 2b** (лидеры выводятся из recon, см. фазу разведки).
 - `approved`: проверить `blueprints/` - есть blueprint на КАЖДУЮ страницу pages.json -> считать `blueprints-ready`, к 6b (готовые blueprints НЕ перегенерировать - под них могли быть написаны page.json); blueprints неполные -> 6a с `pages_subset` = только недостающие slug.
 - `texts-written`: прогнать 6c заново (copy-auditor идемпотентен), state по завершении - `copy-audited`.
+- `site-reviewed`: к шагу 6e (верификатор). `verify_report.json` уже есть и вердикт не блокирующий - шаг пропустить, к 7.
+- `verified` и позже: как раньше. **Задачи, начатые до ADR-035** (нет `verify_report.json`, state `site-reviewed`) - прогнать 6e один раз и идти дальше; state `texts-shared` без `verify_report.json` не переигрывать (тексты уже у заказчика).
 
 **1b. Источник (фрэш-старт)** - если ни один `--from-*` не задан, спросить:
 ```
@@ -274,6 +278,8 @@ Chrome не подключён/упал -> fetch-фолбэк (медленне�
 ```
 Exit 2 (механические нарушения остались) - пере-делегировать `copy-auditor` этой страницы со списком (до 2). Exit 1 (нет page.json - copy-auditor тут не поможет) - пере-делегировать `page-writer` этой страницы как в 6b (до 2), затем повторить для неё copy-auditor + verify-copy. Аналог post-валидатора HTML, но для копирайта: не прошёл - правим ТЕКСТ, прототип не собираем. Пока идёт цикл правок state остаётся `texts-written`; когда verify-copy.mjs прошёл по всем страницам - `update-meta.sh <texts_dir> copy-audited`.
 
+**Аварийный выход из цикла (обязателен).** Третья неудача подряд по одной странице - НЕ тупик и не повод дать аудитору «дочинить» до зелёного: валидатор может ошибаться (законный отраслевой термин, честный дедлайн с датой), и тогда цикл заставляет портить корректный текст. Записать в `meta.json` массив `accepted_violations: [{page, rule, why}]` (что именно осталось и почему это сочтено ложным срабатыванием), вывести их в финальной сводке отдельной строкой и **идти дальше**. Решение о ложном срабатывании принимает человек, а не цикл.
+
 ### 6d. Кросс-страничный аудит сайта (state == copy-audited)
 То, что не видно на одной странице: сайт из 10 страниц, написанных под копирку одними фразами, читается лениво и подрывает доверие. Маркер: `.claude/tmp/expected-site-reviewer-<run_id>.txt = <texts_dir>/site_audit.json`. Делегировать `site-reviewer` (один вызов на проект): `texts_dir`. Он читает ВСЕ pages/*/page.json + VOICE.md + decisions + facts.json + точечно blueprints (limits/covers) и inputs (forbidden_wordings) и: межстраничные самоповторы **пояснительной прозы** -> переписывает по делу страницы; H1/Title - уникальность; consistency decisions; конфликты цифр между страницами -> по facts.json; сквозной проход по утечке кухни/сленгу/перегибу. **Канон (строки facts.json, включая `lexicon.locked` и `lexicon.canonical`, тексты decisions, дословные слова заказчика, формула H1) он повторяет дословно и НЕ перефразирует** - дословный повтор факта между страницами это признак цельного сайта, а не дефект (ADR-032).
 После его правок:
@@ -281,7 +287,18 @@ Exit 2 (механические нарушения остались) - пере
 2. **по списку `site_audit.json.touched[]`** пере-прогнать `copy-auditor` на каждой странице, где он что-то менял (не только при exit 2): механический валидатор не проверяет ни преувеличения, ни штампы, ни счёт метафор, а site-reviewer - последний, кто трогает текст. `touched` пуст -> шаг пропускается.
 `update-meta.sh <texts_dir> site-reviewed`.
 
-### 7. Тексты клиенту (state == site-reviewed)
+### 6e. Независимая вычитка - верификатор (state == site-reviewed)
+Слой суждения по [ADR-025](../../../docs/adr/025-final-verifiers.md): `copy-auditor` и `site-reviewer` **чинят**, а смешение вердикта и правки прячет ошибку. Верификатор ничего не чинит - он выносит вердикт и оставляет запись.
+
+Маркер: `.claude/tmp/expected-tekst-verifier-<run_id>.txt = <texts_dir>/verify_report.json`. Делегировать `tekst-verifier` (один вызов на проект): `texts_dir`, `project_root`. Он сверяет функции и баланс блоков (ADR-032), все числа против `facts.json` (включая `publish:"no"`), соблюдение словаря `lexicon` (ADR-033), выдержанность `decisions` включая регистр (ADR-034), чистоту клиентского текста и полноту (у каждого блока blueprint есть текст, метатеги заполнены).
+
+По `verify_report.json`:
+- `блокирующие` (число из facts.json не сходится, потерян `lexicon.locked`, блок без текста) -> пере-делегировать `copy-auditor` затронутых страниц со списком находок (до 2 кругов), затем перезапустить верификатор;
+- `есть замечания` -> не блокировать, вынести список в финальную сводку и в текст сообщения заказчику при `--review`;
+- `ok` -> дальше.
+`update-meta.sh <texts_dir> verified`.
+
+### 7. Тексты клиенту (state == verified)
 ```
 .claude\scripts\_node.cmd .claude\scripts\build-tekst-docx.mjs <texts_dir>
 ```
@@ -290,7 +307,16 @@ Exit 2 (механические нарушения остались) - пере
 
 ### 8. Прототипы - веер сборщиков (state == texts-shared)
 Делегировать `prototype-builder` **на каждую страницу, пачками по 6-8**. Промт: `texts_dir`, `project_root`, `page_slug`, `theme` (**по умолчанию `wireframe`** - ч/б согласование текста; цветную из strategy.design_theme передавать только если задан `--theme` или заказчик попросил). Каждый сам гоняет `build-prototype.mjs` + `verify-prototype.mjs` и чинит.
-После всех: для контроля прогнать `verify-prototype.mjs` по каждой `pages/<slug>/` (или довериться сводкам сборщиков); отсутствующие prototype.html - пере-делегировать (до 2). `update-meta.sh <texts_dir> prototypes-built`.
+После всех: для контроля прогнать `verify-prototype.mjs` по каждой `pages/<slug>/` (или довериться сводкам сборщиков); отсутствующие prototype.html - пере-делегировать (до 2).
+
+**Документ передачи (обязательно, [ADR-035](../../../docs/adr/035-prototype-handoff-and-modes.md)):**
+```
+.claude\scripts\_node.cmd .claude\scripts\build-handoff.mjs <texts_dir>
+```
+Собирает `HANDOFF.md` рядом с прототипами: что сохранить дословно (порядок блоков с обоснованием через функцию Р/Д/К/В, тексты, цифры, формулировки из `lexicon`), что переопределяется дизайном, чего в прототипе намеренно нет (блоки в режиме «шаблон»/«заглушка», недостающие материалы), открытые `[ЗАПОЛНИТЬ]` и правила заполнения. Контракт «это прототип, а не макет» вшит и в сам HTML - комментарием в `<head>`, машинным маркером `prototype-contract` и видимой плашкой в `<body>` (проверяется `verify-prototype.mjs`).
+**HANDOFF пересобирается при КАЖДОЙ новой версии прототипов** (в том числе после `/seo-tekst-fix`): порядок блоков меняется, и устаревший документ уведёт дизайн не туда.
+
+`update-meta.sh <texts_dir> prototypes-built`.
 
 ### 9. Финал (state == prototypes-built)
 `update-meta.sh <texts_dir> completed`. Финальный коммит:
@@ -303,10 +329,12 @@ git commit -m "Tekst <NNN> for <slug>: <N> страниц (прототипы + 
 ═══ ТЕКСТЫ + ПРОТОТИПЫ ГОТОВЫ ═══
 Клиент: <domain|slug>   Страниц: <N>   Палитра: <theme> (wireframe = ч/б для согласования)
 🧪 Кросс-аудит сайта: <site_audit.json verdict>
+🔍 Вычитка (verify_report.json): <вердикт> | замечаний: <N>
 📄 Тексты (Google Doc): <ссылка texts>
 📄 Анализ ЦА (Google Doc): <ссылка analysis>
 🖥 Прототипы (локальные .html, прикрепить заказчику):
    texts/<NNN>-<slug>/pages/<slug>/prototype.html   (xN)
+📎 Передача дизайнеру/разработчику: texts/<NNN>-<slug>/HANDOFF.md (прикладывать вместе с .html)
 📌 [ЗАПОЛНИТЬ]-пометки в текстах: <count> (реальные цифры/отзывы/фото)
 Дальше: /seo-faq <NNN> - добавить SEO-блоки (FAQ + нормализация) | /seo-tekst-fix <NNN> "..." - правки | цветная палитра по запросу: пересборка с --theme | /handoff - перенести в main.
 ═══════════════════════════
