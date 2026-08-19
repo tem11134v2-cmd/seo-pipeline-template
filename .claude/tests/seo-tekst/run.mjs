@@ -297,6 +297,103 @@ step("verify-prototype: пустой href=\"tel:\" блокирует сборк
   return true;
 });
 
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== verify-copy.mjs (ремонт ложных срабатываний + метатеги) ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+const VERIFY_COPY = join(PROJECT_ROOT, ".claude/scripts/verify-copy.mjs");
+
+// verify-copy ищет inputs.json и blueprints/ на два уровня выше page.json,
+// поэтому страница обязана лежать по канону: <texts_dir>/pages/<slug>/page.json
+let copyCase = 0;
+function copyPage({ title = "Монтаж вентиляции в Казани", description = "Монтируем вентиляцию под ключ за 14 дней, гарантия 3 года.", h1 = "Монтаж вентиляции в Казани", blocks }) {
+  const dir = join(SANDBOX, "copy", `case${++copyCase}`);
+  const pageDir = join(dir, "pages", "test");
+  mkdirSync(pageDir, { recursive: true });
+  writeFileSync(join(dir, "inputs.json"), JSON.stringify({ brand_name: "ВентПро" }), "utf8");
+  writeFileSync(join(pageDir, "page.json"), JSON.stringify({
+    page: { slug: "test", title, description, type: "Услуга", url: "/montazh/", marker: "монтаж вентиляции" },
+    h1,
+    blocks,
+  }, null, 2), "utf8");
+  return pageDir;
+}
+const HERO_OK = { n: 1, type: "Первый экран (Hero)", fragment: "hero", h2: null, slots: { h1: "Монтаж вентиляции в Казани", subhead: "Проектируем, монтируем и сдаем под пусконаладку", cta_label: "Рассчитать стоимость" } };
+
+step("чистая страница -> exit 0 (фикстура не ловит сама себя)", () => {
+  const r = run([VERIFY_COPY, copyPage({ blocks: [HERO_OK] })]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
+  return true;
+});
+
+step("метатеги проверяются: длинное тире в title и е-с-точками в description -> exit 2", () => {
+  const r = run([VERIFY_COPY, copyPage({
+    title: "Монтаж — под ключ",
+    description: "Ещё один вариант подачи, всё под ключ.",
+    blocks: [HERO_OK],
+  })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2 (метатеги мимо проверки)`;
+  if (!/тире/.test(r.stdout)) return "тире в title не поймано";
+  if (!/ё/.test(r.stdout)) return "ё в description не поймано";
+  return true;
+});
+
+step("жаргон с легальным омонимом (конверсия/сегмент в химии) -> W, не блокирует", () => {
+  const r = run([VERIFY_COPY, copyPage({
+    blocks: [HERO_OK, { n: 2, type: "Преимущества", fragment: "cards", h2: "Что вы получаете на выходе", slots: { items: [{ title: "Стабильный выход", text: "Конверсия метана 92 процента, сегмент трубы 400 мм по проекту." }] } }],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0: отраслевой термин заблокировал сборку`;
+  if (!/контекст ниши/.test(r.stdout)) return "нет предупреждения с оговоркой про контекст ниши";
+  return true;
+});
+
+step("утечка кухни без омонимов (кастдев) -> exit 2", () => {
+  const r = run([VERIFY_COPY, copyPage({
+    blocks: [HERO_OK, { n: 2, type: "Этапы", fragment: "steps", h2: "Как мы работаем", slots: { items: [{ title: "Шаг 1", text: "Проводим кастдев по вашей базе клиентов." }] } }],
+  })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
+  return true;
+});
+
+step("срочность с реальной датой в том же слоте -> W, не блокирует", () => {
+  const r = run([VERIFY_COPY, copyPage({
+    blocks: [HERO_OK, { n: 2, type: "Акция", fragment: "cta-mid", h2: "Субсидия на монтаж", slots: { text: "Успейте подать заявку до 15.09.2026 - прием документов закрывается." } }],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0: честный дедлайн вычищается как манипуляция`;
+  return true;
+});
+
+step("срочность без даты и остатка -> exit 2", () => {
+  const r = run([VERIFY_COPY, copyPage({
+    blocks: [HERO_OK, { n: 2, type: "Акция", fragment: "cta-mid", h2: "Скидка", slots: { text: "Успейте оставить заявку, предложение сгорит." } }],
+  })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
+  return true;
+});
+
+step("hero опознается по type, а не только по fragment (проверка первого экрана не отваливается)", () => {
+  const r = run([VERIFY_COPY, copyPage({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero-alt", h2: null, slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку 🚀" } }],
+  })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2: эмодзи на первом экране пропущено`;
+  if (!/перв/i.test(r.stdout)) return "в выводе нет причины про первый экран";
+  return true;
+});
+
+step("эмодзи больше чем в одном блоке -> W (счетное правило вместо «одного источника»)", () => {
+  const r = run([VERIFY_COPY, copyPage({
+    blocks: [
+      HERO_OK,
+      { n: 2, type: "Преимущества", fragment: "cards", h2: "Почему это выгодно", slots: { items: [{ title: "Сроки", text: "Сдаем за 14 дней ✅" }] } },
+      { n: 3, type: "Гарантии", fragment: "cards", h2: "Что вы получаете по договору", slots: { items: [{ title: "Гарантия", text: "3 года на монтаж 🔧" }] } },
+    ],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0 (эмодзи вне Hero - предупреждение)`;
+  if (!/эмодзи/i.test(r.stdout)) return "предупреждения про эмодзи нет";
+  return true;
+});
+
 // === Итог ===
 rmSync(SANDBOX, { recursive: true, force: true });
 console.log("");

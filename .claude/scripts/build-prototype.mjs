@@ -188,8 +188,11 @@ function renderTemplate(tpl, scope) {
 }
 
 // wrap [ЗАПОЛНИТЬ: ...] markers in a visible span (for client review)
+// Класс - .nx-fill: именно он стилизован в prototype.css (секция FILL MARKER), пунктирный
+// стикер. Любое другое имя (был .pt-fill) даёт пометку обычным текстом - заказчик не видит,
+// что именно надо дозаполнить. Атрибут data-fill - хук для поиска пометок в готовом HTML.
 function wrapFillNotes(html) {
-  return html.replace(/\[ЗАПОЛНИТЬ:[^\]]*\]/g, (m) => `<span class="pt-fill" data-fill>${escapeHtml(m)}</span>`);
+  return html.replace(/\[ЗАПОЛНИТЬ:[^\]]*\]/g, (m) => `<span class="nx-fill" data-fill>${escapeHtml(m)}</span>`);
 }
 
 // ---------- render blocks ----------
