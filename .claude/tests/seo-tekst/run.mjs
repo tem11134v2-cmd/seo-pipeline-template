@@ -396,6 +396,83 @@ step("эмодзи больше чем в одном блоке -> W (счетн
 
 // ──────────────────────────────────────────────────────────────────────────
 console.log("");
+console.log("=== build-tekst-analysis-docx.mjs (регистр + «Что нужно от вас») ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+const dirReg = join(SANDBOX, "register");
+mkdirSync(dirReg, { recursive: true });
+writeFileSync(join(dirReg, "inputs.json"), JSON.stringify({ slug: "regtest", brand_name: "ВентПро", niche: "монтаж вентиляции" }), "utf8");
+writeFileSync(join(dirReg, "audience.json"), JSON.stringify({ personas: [], summary: { pains: ["душно"] } }), "utf8");
+writeFileSync(join(dirReg, "strategy.json"), JSON.stringify({
+  decisions: {
+    register: {
+      variants: [
+        "Вентиляция под ключ за 30 дней · Смета за день, цена в договоре · Рассчитать стоимость",
+        "Вентиляция производств в Казани · Свой монтажный штат, гарантия 3 года · Рассчитать смету",
+        "Ведем три объекта одновременно, больше не берем · Полный цикл, от 900 000 руб. · Обсудить объект",
+      ],
+      recommended: 1,
+      rationale: ["импульс", "средний чек", "лимит загрузки"],
+      axes: [{ a: "продающий", b: "умеренный", c: "деловой-человеческий" }, { a: "деловой", b: "умеренный", c: "деловой-человеческий" }, { a: "отбирающий", b: "функциональный", c: "официальный" }],
+      chosen: null,
+    },
+    positioning: { variants: ["Монтируем вентиляцию под ключ"], recommended: 0, rationale: ["прямо"], chosen: null },
+  },
+  selling_theses: [
+    { thesis: "Собственный конструкторский отдел", label: "гордость" },
+    { thesis: "Аттестованная лаборатория", label: "гордость", repacked: "Выходите на приемку с полным пакетом документов" },
+    { thesis: "Свой монтажный штат", label: "выгода" },
+  ],
+  proof_inventory: [
+    { proof: "Лицензия N 12345 в открытом реестре", level: 1, artifact: "реестр" },
+    { proof: "600+ сделок", level: 3 },
+  ],
+  materials_have: ["фото объектов"],
+  materials_missing: ["2-3 кейса с числами"],
+}), "utf8");
+writeFileSync(join(dirReg, "facts.json"), JSON.stringify({
+  jur: { entity: "ООО ВентПро", requisites: { inn: "", ogrn: "1234567890123", address: "[ЗАПОЛНИТЬ: юридический адрес]" } },
+  product_guarantee: { what: "монтаж вентиляции", guarantee: "[ЗАПОЛНИТЬ: формулировка гарантии]", deadlines: "14 дней", prices: "" },
+  numbers: [
+    { label: "лет на рынке", value: "", publish: "as-is" },
+    { label: "маржа", value: "", publish: "no" },
+  ],
+}), "utf8");
+
+step("регистр: три варианта первого экрана отрисованы построчно, служебные оси НЕ показаны", () => {
+  const r = run([BUILD_DOCX, dirReg]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
+  const { text } = docxText(join(dirReg, "Analysis_regtest.docx"));
+  if (!text.includes("Тон общения с клиентом")) return "секции регистра нет";
+  if (!text.includes("Вентиляция под ключ за 30 дней")) return "варианты не отрисованы";
+  if (!/кнопка/i.test(text)) return "строка «кнопка:» не выделена - вариант напечатан одной строкой";
+  for (const axis of ["продающий", "деловой-человеческий", "отбирающий", "функциональный"]) {
+    if (text.includes(axis)) return `служебная координата «${axis}» утекла заказчику`;
+  }
+  return true;
+});
+
+step("секция «Что нужно от вас» собрана из дыр facts.json + materials_missing", () => {
+  const { text } = docxText(join(dirReg, "Analysis_regtest.docx"));
+  if (!text.includes("Что нужно от вас")) return "секции нет";
+  if (!/гарант/i.test(text)) return "дыра product_guarantee.guarantee не попала";
+  if (!/ИНН|инн/.test(text)) return "пустой ИНН не попал";
+  if (!text.includes("2-3 кейса с числами")) return "materials_missing не переехали в секцию";
+  if (/маржа/i.test(text)) return "число с publish:\"no\" попало в запрос - это не дыра, а запрет на публикацию";
+  return true;
+});
+
+step("тезисы и доказательства: объекты не утекают как [object Object], «гордость» без переупаковки скрыта", () => {
+  const { text } = docxText(join(dirReg, "Analysis_regtest.docx"));
+  if (text.includes("[object Object]")) return "объект уехал в документ как [object Object]";
+  if (text.includes("Собственный конструкторский отдел")) return "непереупакованная «гордость продавца» показана заказчику";
+  if (!text.includes("Выходите на приемку с полным пакетом документов")) return "переупакованный тезис потерян";
+  if (!/проверяемо третьей стороной/i.test(text)) return "уровень доказательства не отрисован";
+  return true;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
 console.log("=== verify-copy.mjs (греп-слой правил текста: только предупреждения) ===");
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -447,6 +524,38 @@ step("предложение длиннее 20 слов -> W (читаемост
   const r = copyWarn("Мы проектируем и монтируем системы вентиляции для производственных помещений любой сложности с учетом требований пожарной безопасности и санитарных норм вашего региона.");
   if (r.code !== 0) return `exit ${r.code}, ожидался 0`;
   if (!/20 слов|длин/i.test(r.stdout)) return "предупреждения про длину предложения нет";
+  return true;
+});
+
+step("регистр отбирающий: перебор мест с CTA -> W, сборку не блокирует", () => {
+  const dir = join(SANDBOX, "copy", "reg-cta");
+  const pageDir = join(dir, "pages", "test");
+  mkdirSync(pageDir, { recursive: true });
+  writeFileSync(join(dir, "inputs.json"), JSON.stringify({ brand_name: "ВентПро" }), "utf8");
+  writeFileSync(join(dir, "strategy.json"), JSON.stringify({
+    decisions: { register: { variants: ["a", "b", "c"], recommended: 1, axes: [{ a: "продающий" }, { a: "деловой" }, { a: "отбирающий" }], chosen: 2 } },
+  }), "utf8");
+  writeFileSync(join(pageDir, "page.json"), JSON.stringify({
+    page: { slug: "test", title: "Монтаж вентиляции в Казани", description: "Монтируем вентиляцию под ключ, гарантия 3 года." },
+    h1: "Монтаж вентиляции в Казани",
+    blocks: [
+      { n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Ведем три объекта одновременно", cta_label: "Получить расчет" } },
+      { n: 2, type: "CTA", fragment: "cta-mid", slots: { cta_label: "Получить смету" } },
+      { n: 3, type: "CTA", fragment: "cta-mid", slots: { cta_label: "Забрать прайс" } },
+      { n: 4, type: "Форма", fragment: "form", slots: { cta_label: "Оставить заявку" } },
+    ],
+  }), "utf8");
+  const r = run([VERIFY_COPY, pageDir]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0 (регистр только предупреждает)`;
+  if (!/CTA/i.test(r.stdout)) return "предупреждения про число мест с CTA нет";
+  if (!/отбирающ/i.test(r.stdout)) return "регистр не назван в предупреждениях";
+  return true;
+});
+
+step("нет strategy.json -> слой регистра молчит (штатная деградация)", () => {
+  const r = copyWarn("Считаем смету по объекту.");
+  if (r.code !== 0) return `exit ${r.code}`;
+  if (/регистр/i.test(r.stdout)) return "слой регистра сработал без strategy.json";
   return true;
 });
 

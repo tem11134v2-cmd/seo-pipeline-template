@@ -243,6 +243,104 @@ if (!existsSync(bpPath)) {
   } catch { W("blueprint не разобран - длины слотов не сверены"); }
 }
 
+// ---------------------------------------------------------------------------
+// Слой РЕГИСТРА (пятое смысловое решение заказчика). Источник - strategy.json на
+// два уровня выше page.json (там же, где inputs.json).
+// Читаем МЯГКО: нет файла / нет ключа / регистр не разложен в координаты - слой
+// молча не выполняется, без предупреждений об этом (штатная ситуация: старые
+// задачи и задачи без регистра).
+// Регистр РАСШИРЯЕТ разрешённое, но НЕ сужает запрещённое, поэтому весь слой -
+// только предупреждения (W): exit 2 отсюда невозможен. Жёсткие V-проверки выше
+// (утечка кухни, тире, ё, манипуляции без даты, лимиты H1) от регистра не зависят.
+// ---------------------------------------------------------------------------
+const A_VOCAB = ["продающий", "деловой", "отбирающий"];       // ось А: кто кого выбирает
+const B_VOCAB = ["функциональный", "умеренный", "образный"];  // ось Б: образность
+const strategyPath = join(dirname(pjPath), "..", "..", "strategy.json");
+let axisA = "", axisB = "";
+try {
+  if (existsSync(strategyPath)) {
+    const strategy = JSON.parse(readFileSync(strategyPath, "utf8").replace(/^﻿/, ""));
+    const reg = (strategy && strategy.decisions && strategy.decisions.register) || null;
+    const int = (x) => (typeof x === "number" && Number.isInteger(x) ? x : null);
+    // индекс варианта: выбор заказчика (число) -> свой текст заказчика (строка; координаты
+    // известны только через axes_from) -> не выбрано (null) -> recommended.
+    let idx = null;
+    if (reg) {
+      if (int(reg.chosen) != null) idx = int(reg.chosen);
+      else if (typeof reg.chosen === "string") idx = int(reg.axes_from);
+      else if (reg.chosen == null) idx = int(reg.recommended);
+    }
+    const ax = idx != null ? arr(reg.axes)[idx] : null;
+    if (ax && typeof ax === "object" && !Array.isArray(ax)) {
+      // ключ оси может называться иначе - подстрахуемся распознаванием по словарю значений
+      const pick = (key, vocab) => {
+        const direct = String(ax[key] == null ? "" : ax[key]).trim().toLowerCase();
+        if (vocab.includes(direct)) return direct;
+        for (const v of Object.values(ax)) {
+          const s = String(v == null ? "" : v).trim().toLowerCase();
+          if (vocab.includes(s)) return s;
+        }
+        return "";
+      };
+      axisA = pick("a", A_VOCAB);
+      axisB = pick("b", B_VOCAB);
+    }
+  }
+} catch { /* мягко: битый strategy.json не мешает проверке текста */ }
+
+if (axisA || axisB) {
+  // места с CTA: блок считается одним местом, даже если в нём и CTA-слот, и форма
+  const CTA_SLOT = /cta|btn|button|кнопк/i;
+  const CTA_FRAGMENT = /^(?:form|cta-mid)$/i;
+  const ctaUnits = [], ctaPlaces = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i] || {};
+    const bn = b.n != null ? b.n : i + 1;
+    let isCta = CTA_FRAGMENT.test(String(b.fragment || ""));
+    if (b.slots && typeof b.slots === "object") {
+      for (const [slot, val] of Object.entries(b.slots)) {
+        if (!CTA_SLOT.test(slot)) continue;
+        isCta = true;
+        const t = collect(val).join("  ");
+        if (t.trim()) ctaUnits.push({ where: `блок ${bn}, слот «${slot}»`, text: t });
+      }
+    }
+    if (isCta) ctaPlaces.push(`блок ${bn}`);
+  }
+
+  // 1. Ось А деловой/отбирающий: срочность и давление запрещены ДАЖЕ с датой.
+  // Пометка к п.5 (само место там уже названо) - не повтор, а поправка на регистр.
+  if (axisA === "деловой" || axisA === "отбирающий") {
+    for (const u of textUnits) {
+      if (!URGENCY.test(u.text)) continue;
+      W(`регистр «${axisA}» (ось А) к п.5, «${u.where}»: срочность и давление недопустимы даже с датой или остатком - в этом регистре условия сделки подаются как факт («приём документов до 15.09»), а не как подгон читателя`);
+    }
+  }
+
+  // 2. Число мест с CTA: продающий до 5, деловой 3-4, отбирающий 1-2.
+  const CTA_MAX = { "продающий": 5, "деловой": 4, "отбирающий": 2 };
+  const CTA_NORM = { "продающий": "до 5", "деловой": "3-4", "отбирающий": "1-2" };
+  if (axisA && ctaPlaces.length > CTA_MAX[axisA]) {
+    W(`регистр «${axisA}» (ось А): мест с CTA на странице ${ctaPlaces.length} (${ctaPlaces.join(", ")}), допустимо ${CTA_NORM[axisA]} - лишние призывы в этом регистре читаются как нужда, а не как приглашение`);
+  }
+
+  // 3. Ось А отбирающий: кнопка про ЗАПРОС, а не про получение.
+  if (axisA === "отбирающий") {
+    const GET_VERBS = /(?<![а-яёa-z])(?:получ(?:ить|ите|и)|забра(?:ть)|забери(?:те)?|скачать\s+бесплатно|оставить\s+заявку|оставьте\s+заявку|заказать\s+звонок|закажите\s+звонок)(?![а-яёa-z])/gi;
+    warnHits(findAll(GET_VERBS, ctaUnits), "регистр «отбирающий» (ось А): глагол про получение на кнопке - здесь кнопка про ЗАПРОС («Обсудить задачу», «Оставить запрос»), а не про раздачу");
+  }
+
+  // 4. Ось А отбирающий: несущая конструкция грепом не ловится - напоминание один раз.
+  if (axisA === "отбирающий") {
+    W("регистр отбирающий: проверь по первому экрану, названы ли ограничение и тот, кому не подходим - без них это просто тихий продающий");
+  }
+
+  // 5. Ось Б функциональный: метафора грепом не ловится - напоминание один раз.
+  if (axisB === "функциональный") {
+    W("ось образности функциональная: каждый H1/H2 должен читаться буквально, заголовок, требующий догадки, - брак");
+  }
+}
+
 // отчёт
 console.log(`[verify-copy] ${pjPath}  (блоков ${blocks.length}, H1 ${h1.length} симв)`);
 if (warnings.length) { console.log("  предупреждения (семантику добьёт copy-auditor):"); for (const w of warnings) console.log("   ~ " + w); }
