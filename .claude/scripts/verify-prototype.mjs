@@ -37,7 +37,10 @@ if (leadForms === 0) V("нет финальной формы (id=leadForm)");
 else if (leadForms > 1) V(`форм-захвата ${leadForms} (правило: ровно 1 в финале)`);
 if (!/id="f-agree"/.test(html)) V("в форме нет чекбокса согласия ПДн (#f-agree)");
 if (!/id="f-submit"[^>]*disabled/.test(html)) W("submit формы не disabled по умолчанию (проверь чекбокс-гейт)");
-if (!/href="tel:/.test(html)) V("нет кликабельного телефона (tel:)");
+// Требуем именно НЕПУСТОЙ tel: - пустой href="tel:" (нет legal.phone) прежний регексп
+// пропускал, и мёртвая ссылка уезжала в футере заказчику.
+if (!/href="tel:\+?\d/.test(html)) V("нет кликабельного телефона (tel: пуст или отсутствует)");
+if (/href="tel:"/.test(html)) V("пустая tel-ссылка (href=\"tel:\") - телефон не подставился");
 if (!/id="cookieBanner"/.test(html)) V("нет cookie-баннера (#cookieBanner)");
 if (!/id="(privacyPage|personDataPage|cookiePage)"/.test(html)) W("нет юр-страниц (privacy/consent/cookie)");
 

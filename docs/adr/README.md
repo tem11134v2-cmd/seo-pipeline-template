@@ -38,6 +38,7 @@
 | [028](028-intake-provenance-and-questions.md) | intake-агент с провенансом (`source`+`quote`), раздел «0. Вопросы к вам» в A2, импорт ответов из Google Doc (`--answers`) | Принято |
 | [029](029-custom-question-skill.md) | Скил `/custom-question`: обязательный гейт трактовки (`AskUserQuestion` + «передать проджекту»), решение без жаргона, память в `QA-ЖУРНАЛ.md` | Принято |
 | [030](030-fast-article-mode.md) | Режим `--fast` для `/seo-statya`: агент fast-writer одним проходом, JM без `text_analyze` (LSI-кеш по `main_query`), механическая верификация вместо LLM-аудита, без фото/docx/Drive | Принято |
+| [031](031-autonomous-brief-driven-texts.md) | Автономный источник `/seo-tekst --from-brief`: состав страниц из брифа (обобщённый intake-analyst + новый pages-planner), гейт состава в чате + секция 0 в Analysis.docx, лидеры из recon; предохранитель «деградация только отсутствием данных, не флагом режима» | Принято |
 
 ## Как добавить новый ADR
 

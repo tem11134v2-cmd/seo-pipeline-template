@@ -140,7 +140,8 @@ resume = true если --resume
 
 Делегировать `intake-analyst`:
 ```
-analysis_dir: <analysis_dir>
+task_dir: <analysis_dir>
+profile: analysis
 intake_sources: <список путей + ярлыков: brief_raw.txt и приложенные файлы/транскрибации>
 project_root: <project root>
 Прочитай всю фактуру по путям + ЗАКАЗЧИК.md (если есть). Собери intake.json (факты с source + цитатой, gaps, conflicts) + ВВОДНЫЕ.md. Провенанс обязателен для решающих фактов (УТП, запреты, гео, ассортимент, бюджеты).

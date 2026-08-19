@@ -8,12 +8,19 @@ model: opus
 
 ## Вход
 - `texts_dir`, `project_root`
-- `structure_dir` / `analysis_dir` - откуда взять лидеров
+- `structure_dir` / `analysis_dir` - откуда взять лидеров (когда есть SEO-артефакты)
+- `leaders` - (альтернатива) явный список доменов/URL лидеров, переданный оркестратором.
+  Задан - бери его как есть и НЕ ищи `structure_dir`/`analysis_dir`. Так работает автономный
+  источник `--from-brief`, где лидеры выведены из уже собранной разведки направлений
+  (`recon/*.json` -> самые часто встречающиеся домены-конкуренты), см. ADR-031.
 - `niche` - ниша (для понимания контекста)
 
 ## Обязательное чтение
 - `texts_dir/pages.json` - какие ТИПЫ страниц в работе (Услуга / Категория / Товар / Главная / Подуслуга / ...)
-- Лидеры: `structure_dir/competitors*.json` / `analysis_dir/competitors.json` + `analysis_dir/leader_scan.json` (топ-3 лидера + ориентиры, их домены/URL). Бери 3-6 лучших.
+- Лидеры - по одному из двух путей:
+  - задан `leaders` -> работаешь по нему (3-6 доменов), ничего дополнительно не читаешь;
+  - иначе `structure_dir/competitors*.json` / `analysis_dir/competitors.json` + `analysis_dir/leader_scan.json` (топ-3 лидера + ориентиры, их домены/URL). Бери 3-6 лучших.
+  - нет ни того, ни другого -> не выдумывай лидеров: запиши `leaders: []`, `notes` с причиной и выйди (block-planner упадёт на статическую матрицу).
 - `.claude/skills/seo-tekst/assets/fragments-manifest.json` (поле `block_to_fragment`) и `BLOCKS.md` - **целевой словарь** типов блоков (маппь увиденное в эти имена, не выдумывай новые).
 
 ## Метод

@@ -3,9 +3,14 @@
 // Клиентский документ согласования: анализ ЦА + стратегия оффера, ДО написания текстов.
 // Заказчик читает -> OK или правки -> revising-цикл (паттерн /seo-analiz).
 //
-// Вход:  <texts_dir>/inputs.json, audience.json, strategy.json
+// Вход:  <texts_dir>/inputs.json, audience.json, strategy.json (+ pages.json для автономного источника)
 // Выход: <texts_dir>/Analysis_<slug>.docx
 // Использование: node build-tekst-analysis-docx.mjs <texts_dir>
+//
+// Секция «0. Состав страниц» рендерится ТОЛЬКО когда страницы собраны из брифа
+// (pages.json.source начинается с "brief:", источник --from-brief, ADR-031): структуры сайта
+// в таком проекте нет, и состав должен получить подпись заказчика здесь. Для источников
+// structure/analysis/table состав уже согласован раньше - секция не нужна.
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
@@ -18,6 +23,7 @@ const readJson = (p) => (existsSync(p) ? JSON.parse(readFileSync(p, "utf8").repl
 const inputs = readJson(join(dir, "inputs.json"));
 const audience = readJson(join(dir, "audience.json"));
 const strategy = readJson(join(dir, "strategy.json"));
+const pagesData = readJson(join(dir, "pages.json"));
 
 const slug = inputs.slug || (basename(dir).match(/^\d+-(.+)$/) || [, "site"])[1];
 const company = inputs.brand_name || inputs.company || inputs.domain || slug;
@@ -32,11 +38,31 @@ const LI = (t) => out.push(new Paragraph({ bullet: { level: 0 }, spacing: { afte
 const SPACER = () => out.push(new Paragraph({ children: [new TextRun({ text: "" })] }));
 const arr = (x) => (Array.isArray(x) ? x : x ? [x] : []);
 
+// Состав страниц показываем только автономному источнику (--from-brief): структуры нет,
+// подпись под списком страниц берём здесь.
+const pagesList = arr(pagesData.pages);
+const showPages = pagesList.length > 0 && /^brief:/.test(String(pagesData.source || ""));
+
 // ---------- шапка ----------
 out.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 60 }, children: [new TextRun({ text: "Анализ ЦА и стратегия текстов", bold: true, color: NAVY, font: "Arial", size: 36 })] }));
 out.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [new TextRun({ text: company + (inputs.niche ? "  -  " + inputs.niche : ""), italics: true, font: "Arial", size: 24, color: "666666" })] }));
-P("Документ на согласование ПЕРЕД написанием текстов. Проверьте: верно ли пойман портрет клиента, боли, позиционирование и оффер. После вашего OK (или правок) пишем тексты страниц.", { italics: true, color: "888888" });
+P("Документ на согласование ПЕРЕД написанием текстов. Проверьте: " + (showPages ? "состав страниц, " : "") + "верно ли пойман портрет клиента, боли, позиционирование и оффер. После вашего OK (или правок) пишем тексты страниц.", { italics: true, color: "888888" });
 SPACER();
+
+// ---------- состав страниц (только автономный источник) ----------
+if (showPages) {
+  H1("0. Состав страниц - подтвердите");
+  P("Список собран из вашей вводной информации. Проверьте: все ли нужные страницы на месте и нет ли лишних. Тексты пишем ровно по этому списку - добавить страницу позже дороже, чем сейчас.", { italics: true, color: "888888" });
+  // Нумерация своя, поэтому НЕ через LI (bullet) - иначе в Word выйдет «• 1. ...».
+  // Тип страницы первым: заказчик читает документ как список страниц сайта, а не как семантику.
+  pagesList.forEach((p, i) => {
+    const what = p.marker || p.slug || "";
+    const line = `${i + 1}. ${p.type || "Страница"}${what ? " - " + what : ""}`;
+    P(line + (p.url ? `   ${p.url}` : ""), { size: 22 });
+  });
+  P(`Всего страниц: ${pagesList.length}`, { bold: true });
+  SPACER();
+}
 
 // ---------- стратегия / оффер ----------
 H1("1. Решения на ВАШ выбор");

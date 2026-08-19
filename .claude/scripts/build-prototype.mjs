@@ -243,8 +243,15 @@ const legalReqParts = [];
 if (truthy(legal.inn)) legalReqParts.push(`ИНН ${legal.inn}`);
 if (truthy(legal.ogrn)) legalReqParts.push(`ОГРН ${legal.ogrn}`);
 if (truthy(legal.address)) legalReqParts.push(`адрес: ${legal.address}`);
+// Телефон считаем ОДИН раз и на шапку, и на футер. Без общего фолбэка футер при пустом
+// legal.phone давал href="tel:" с пустым текстом - мёртвая ссылка, которую verify пропускал
+// (регексп матчил пустой tel:). Систематически всплывает в проектах без реквизитов
+// (источник --from-brief, ADR-031), где ЗАКАЗЧИК.md нет.
+const phone = truthy(legal.phone) ? String(legal.phone) : "+7 (000) 000-00-00";
+const phoneRaw = phone.replace(/[^\d+]/g, "");
 const legalScope = Object.assign({}, legal, {
-  phone_raw: String(legal.phone || "").replace(/[^\d+]/g, ""),
+  phone,
+  phone_raw: phoneRaw,
   requisites: legalReqParts.length ? ` (${legalReqParts.join(", ")})` : "",
 });
 
@@ -257,8 +264,7 @@ const meta = manifest.meta || {};
 const title = meta.title || meta.slug || "Прототип";
 const desc = meta.description || "";
 const company = legal.company || meta.project || "Компания";
-const phone = legal.phone || "+7 (000) 000-00-00";
-const phoneRaw = phone.replace(/[^\d+]/g, "");
+// phone / phoneRaw посчитаны выше вместе с legalScope - шапка и футер обязаны совпадать.
 const schedule = meta.schedule || legal.schedule || "Пн-Пт 9:00-19:00";
 const popups = manifest.popups || {};
 

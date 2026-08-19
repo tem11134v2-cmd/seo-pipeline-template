@@ -6,6 +6,7 @@
 //   node read-tekst-input.mjs <texts_dir> --from-structure <structure_dir>
 //   node read-tekst-input.mjs <texts_dir> --from-table <path.csv|tsv>
 //   node read-tekst-input.mjs <texts_dir> --from-analysis <analysis_dir>   (берёт направления из брифа)
+//   node read-tekst-input.mjs <texts_dir> --from-brief <pages_draft.json>  (автономный режим, ADR-031)
 //
 // Выход: <texts_dir>/pages.json = { source, pages: [{ n, slug, url, type, marker, queries[] }] }; queries[] - всегда массив строк (объектные формы источников нормализуются)
 // Exit: 0 ok | 2 нет целевых страниц | 1 ошибка.
@@ -26,6 +27,7 @@ function flag(name) {
 const fromStructure = flag("--from-structure");
 const fromTable = flag("--from-table");
 const fromAnalysis = flag("--from-analysis");
+const fromBrief = flag("--from-brief");
 
 function readJson(p) { return JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, "")); }
 const TRANSLIT = { а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"c",ч:"ch",ш:"sh",щ:"sch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya" };
@@ -117,8 +119,31 @@ try {
     }
     console.error(`[read-tekst-input] analysis: ${rawPages.length} посадок из ${usedAssort ? "assortment" : "client_target_queries"}. ЧЕРНОВИК - для точной структуры прогони /seo-struktura, затем --from-structure.`);
     if (archUrls.length) console.error(`  рекомендованные URL из анализа (привяжи к посадкам): ${[...new Set(archUrls)].join(" ")}`);
+  } else if (fromBrief) {
+    // АВТОНОМНЫЙ источник (ADR-031): черновик состава от pages-planner, уже подтверждённый
+    // заказчиком на гейте. SEO-данных тут нет по определению - маркером служит название
+    // направления живым языком, его достаточно direction-scanner для разведки конкурентов.
+    source = `brief:${fromBrief}`;
+    const draftPath = resolve(fromBrief);
+    if (!existsSync(draftPath)) { console.error(`[read-tekst-input] нет файла черновика: ${draftPath}`); process.exit(1); }
+    const draft = readJson(draftPath);
+    const arr = Array.isArray(draft.pages) ? draft.pages : (findArray(draft) || []);
+    rawPages = arr.map((row) => {
+      // страница, снятая на гейте, помечается include=нет/false - её не берём
+      const inc = String(pick(row, ["include", "включать", "статус"]) ?? "").toLowerCase();
+      if (inc && /^(нет|no|false|0|искл)/.test(inc)) return null;
+      return {
+        url: pick(row, ["url", "адрес", "путь", "path"]) || "",
+        type: pick(row, ["type", "тип"]) || "Страница",
+        marker: pick(row, ["marker", "маркер", "название"]) || "",
+        queries: pick(row, ["queries", "запросы"]) || [],
+      };
+    }).filter(Boolean);
+    const lowConf = arr.filter((r) => String(r && r.confidence || "").toLowerCase() === "low").length;
+    console.error(`[read-tekst-input] brief: ${rawPages.length} страниц (origin: ${draft.origin || "n/a"}, вид сайта: ${draft.site_kind || "n/a"})`);
+    if (lowConf) console.error(`  со слабой уверенностью: ${lowConf} - убедись, что состав подтверждён заказчиком на гейте`);
   } else {
-    console.error("[read-tekst-input] не задан источник (--from-structure | --from-table | --from-analysis)");
+    console.error("[read-tekst-input] не задан источник (--from-structure | --from-table | --from-analysis | --from-brief)");
     process.exit(1);
   }
 } catch (e) {

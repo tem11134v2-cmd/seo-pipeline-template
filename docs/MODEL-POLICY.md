@@ -85,6 +85,7 @@ frontmatter (`model: sonnet` или `model: opus`). Правило отнесе�
 | metatag-writer | opus | Финальные H1/Title/Description - клиентская микро-проза |
 | offer-strategist | opus | Позиционирование + формула оффера - стратегическое суждение |
 | page-writer | opus | Конверсионный текст страницы - клиентская проза |
+| pages-planner | opus | Состав страниц сайта из брифа (извлечь или спроектировать) - проектное суждение |
 | photo-promter | sonnet | Промты для фото по меткам [ФОТО] - генерация по форме |
 | photo-producer | sonnet | Генерация+публикация фото по prompts.md, ретраи, urls.json - механика по инструкции |
 | prototype-builder | opus | Сборка прототипа: подбор фрагментов и правка под verify - решения |

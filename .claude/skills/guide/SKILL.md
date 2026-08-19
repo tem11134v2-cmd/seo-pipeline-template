@@ -81,6 +81,8 @@ description: Полная инструкция по рабочему проце�
 **Трек «Коммерческое SEO» - коммерческие страницы сайта.**
 `/seo-analiz` -> `/seo-struktura` -> `/seo-metategi` (метатеги) -> `/seo-tekst` (конверсионные тексты + прототипы) -> `/seo-faq` (SEO-нормализация готовых страниц). Работает от брифа клиента, **НЕ требует** `/seo-shablon`. Связи ВНУТРИ трека: `/seo-struktura` читает выход `/seo-analiz` (brief/competitors/serp/leader_scan); `/seo-tekst` умеет вход и от структуры (`--from-structure`), и от таблицы (`--from-table`) или анализа (`--from-analysis`); `/seo-faq` берёт готовые тексты (`--from-tekst`) или живые URL.
 
+**Отдельная точка входа мимо всего трека:** `/seo-tekst --from-brief` - только конверсионные тексты и прототипы, без единой SEO-услуги (ADR-031). Ставится на проекты, где сеошка не покупается: `/new-project <slug> none` -> `/seo-tekst --from-brief <бриф>`. Ни `/seo-analiz`, ни `/seo-struktura`, ни `ЗАКАЗЧИК.md` не нужны.
+
 **Трек «Информационное SEO» - блог/статьи. ПОЛНОСТЬЮ независим от коммерческого.**
 `/seo-shablon` -> `/seo-temi` -> `/seo-statya`. `/seo-shablon` даёт `ЗАКАЗЧИК.md` (профиль) + `template.html` (шаблон статьи); их читают `/seo-temi` и `/seo-statya`. Трек самодостаточен и с коммерческим **не пересекается**.
 
@@ -154,15 +156,16 @@ description: Полная инструкция по рабочему проце�
 - **Ключевые шаги:** финальный гейт (шаг 7.5) ПОСЛЕ сборки xlsx и ДО Drive - механический прогон `verify-metatags.mjs --accept-degraded` + смысловой спот-чек 3-5 страниц силами оркестратора (нового state не вводит).
 - **Агенты:** `site-scanner` (только `--site`), `metatag-researcher`, `metatag-writer`.
 
-### /seo-tekst [--from-structure NNN | --from-table <путь> | --from-analysis NNN] [--mode A|B] [--review | --auto] [--theme <палитра>] [--scan-leaders | --no-scan] [--recon | --no-recon] [--resume]
+### /seo-tekst [--from-structure NNN | --from-table <путь> | --from-analysis NNN | --from-brief <путь>] [--mode A|B] [--review | --auto] [--theme <палитра>] [--scan-leaders | --no-scan] [--recon | --no-recon] [--resume]
 - **Зона:** worktree клиента.
-- **Вход:** источник страниц: `--from-structure <NNN>` («да»-страницы из `structures/NNN-*/` - самый богатый путь: маркеры + конкуренты + анализ рядом), `--from-table <путь>` (URL/Тип/Маркер[/запросы], csv/tsv), `--from-analysis <NNN>` (направления из брифа, уточнить вручную). Без источника спросит.
-- **Вопросы/паузы:** обязательная пауза одна - **клиентский гейт**: анализ ЦА + оффер уходит заказчику (Analysis.docx -> Google Doc), revising-цикл до approved. `--review` добавляет паузу после текстов (до сборки прототипов); `--auto` (по умолчанию) - без неё.
+- **Вход:** источник страниц: `--from-structure <NNN>` («да»-страницы из `structures/NNN-*/` - самый богатый путь: маркеры + конкуренты + анализ рядом), `--from-table <путь>` (URL/Тип/Маркер[/запросы], csv/tsv), `--from-analysis <NNN>` (направления из брифа, уточнить вручную), `--from-brief <путь>` (**автономно, без сеошки** - см. ниже). Без источника спросит.
+- **Автономный режим `--from-brief` (ADR-031):** для проектов, где SEO не покупается совсем - например сайты партнёра-разработчика по его ТЗ. Ни структуры, ни анализа, ни `ЗАКАЗЧИК.md` не нужно, достаточно брифа (файлы или текст). Скил сам разбирает фактуру (`intake-analyst`, profile=tekst), собирает черновой состав страниц (`pages-planner` - извлекает из ТЗ либо проектирует из ассортимента) и подтверждает его гейтом в чате: состав + вопросы через AskUserQuestion + добор недостающих фактов (реквизиты, прайс, гарантия, материалы, запреты). Состав потом уезжает заказчику разделом «0. Состав страниц» в том же `Analysis_<slug>.docx` - отдельного документа нет. Поисковых проверок в этом режиме нет принципиально; `direction-scanner` остаётся (он смотрит контент конкурентов, а не спрос), лидеры для скана блоков выводятся из его же `recon/*.json`. Тело конвейера общее со всеми источниками - улучшения качества копирайта работают везде сразу.
+- **Вопросы/паузы:** обязательная пауза одна - **клиентский гейт**: анализ ЦА + оффер уходит заказчику (Analysis.docx -> Google Doc), revising-цикл до approved. У `--from-brief` добавляется гейт состава страниц (в чате, до всех затрат). `--review` добавляет паузу после текстов (до сборки прототипов); `--auto` (по умолчанию) - без неё.
 - **Опции:** `--mode A` (по умолчанию, новый сайт) / `--mode B` (существующий сайт - писатель учитывает живую страницу); `--theme <палитра>` (по умолчанию wireframe - ч/б прототип); `--scan-leaders`/`--no-scan` - скан композиции блоков лидеров (по умолчанию ВКЛ при наличии лидеров, обязателен для каталогов); `--recon`/`--no-recon` - контент-разведка топ-10 по каждому направлению (direction-scanner); `--resume`.
-- **Поток:** анализ ЦА + оффер -> гейт заказчика (Analysis.docx) -> блок-план -> веер писателей -> копи-аудит -> кросс-страничный site-reviewer -> Texts.docx -> ч/б прототипы.
-- **Выход:** `texts/NNN-slug/`: `Texts_<slug>.docx` (Google Doc) + `pages/<page-slug>/prototype.html` на страницу; промежуточные `Analysis_<slug>.docx`, `blueprints/<page-slug>.json`, `share.json`.
-- **Дальше:** точечные правки прототипа - `/seo-tekst-fix`; SEO-слой поверх готовых текстов - `/seo-faq --from-tekst NNN`.
-- **Агенты:** `audience-analyst`, `offer-strategist`, `leader-block-scanner`, `direction-scanner`, `block-planner`, `page-writer`, `copy-auditor`, `site-reviewer`, `prototype-builder`.
+- **Поток:** (`--from-brief`: интейк фактуры -> черновик состава -> гейт состава ->) анализ ЦА + оффер -> гейт заказчика (Analysis.docx) -> блок-план -> веер писателей -> копи-аудит -> кросс-страничный site-reviewer -> Texts.docx -> ч/б прототипы.
+- **Выход:** `texts/NNN-slug/`: `Texts_<slug>.docx` (Google Doc) + `pages/<page-slug>/prototype.html` на страницу; промежуточные `Analysis_<slug>.docx`, `blueprints/<page-slug>.json`, `share.json` (+ у `--from-brief`: `intake.json`, `ВВОДНЫЕ.md`, `pages_draft.json`).
+- **Дальше:** точечные правки прототипа - `/seo-tekst-fix`; SEO-слой поверх готовых текстов - `/seo-faq --from-tekst NNN` (в автономном режиме не предлагать - проект не покупал SEO).
+- **Агенты:** `audience-analyst`, `offer-strategist`, `leader-block-scanner`, `direction-scanner`, `block-planner`, `page-writer`, `copy-auditor`, `site-reviewer`, `prototype-builder` (+ у `--from-brief`: `intake-analyst`, `pages-planner`).
 
 ### /seo-tekst-fix <NNN> [<page-slug>] "<правка>"
 - **Зона:** worktree клиента.
@@ -290,6 +293,11 @@ description: Полная инструкция по рабочему проце�
 /seo-tekst --> pages.json -> blueprints/ -> pages/<slug>/page.json + prototype.html + Texts.docx
         |        (вход также: --from-analysis - направления и recommendations.json из /seo-analiz)
         +--> /seo-faq --from-tekst NNN --> faq.html (SEO-блок поверх готовых страниц) + FAQ.docx
+
+АВТОНОМНЫЙ ВХОД (без сеошки, ADR-031) - минует весь трек выше:
+бриф/ТЗ --> /seo-tekst --from-brief --> intake.json --> pages_draft.json --> [гейт состава]
+                                    --> pages.json --> (дальше ровно тот же конвейер)
+        (/seo-faq в конце НЕ предлагать - проект не покупал SEO)
 
 ТРЕК «Информационное SEO» (самостоятельная цепочка, независим от коммерческого):
 /seo-shablon --> ЗАКАЗЧИК.md (профиль) + template.html (шаблон статьи)
