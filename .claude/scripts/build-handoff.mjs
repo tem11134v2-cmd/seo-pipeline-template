@@ -6,6 +6,10 @@
 // ВАЖНО: язык документа - дизайн-этап, а НЕ заказчик. Здесь допустимы термины
 // («блок», «функция блока», «слот», «валидатор»), которых на сайте быть не может.
 //
+// В документ идут ТОЛЬКО строки fill_notes с маркером [ЗАПОЛНИТЬ: ...] - то, что заполняет
+// заказчик. Служебные заметки редактора (в том числе поле notes_internal) не выводятся:
+// они завышали счетчик открытых вопросов, по которому дизайнер решает, можно ли верстать.
+//
 // Вход:  <texts_dir>/pages/<slug>/page.json  (обязательно, хотя бы одна страница)
 //        <texts_dir>/blueprints/<slug>.json  (опц.: function, function_why, status, placeholder, limits, mode)
 //        <texts_dir>/strategy.json           (опц.: materials_missing, decisions)
@@ -21,10 +25,19 @@ const dir = process.argv[2] ? resolve(process.argv[2]) : null;
 if (!dir) { console.error("[build-handoff] usage: <texts_dir>"); process.exit(1); }
 if (!existsSync(dir)) { console.error(`[build-handoff] нет папки задачи: ${dir}`); process.exit(1); }
 
-// читалка JSON с защитой от BOM: любой сбой чтения\парсинга = «файла нет»
+// читалка JSON с защитой от BOM.
+// Файла нет - это норма (все входы кроме page.json опциональны), молчим.
+// Файл есть, но не разбирается - это поломка: тихий возврат null превращал битый файл
+// в «данных не было», поэтому такой случай называем вслух и запоминаем.
+const brokenFiles = [];
 const readJson = (p) => {
-  try { return existsSync(p) ? JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, "")) : null; }
-  catch { return null; }
+  if (!existsSync(p)) return null;
+  try { return JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, "")); }
+  catch (e) {
+    brokenFiles.push(p);
+    console.error(`[build-handoff] НЕ РАЗОБРАН ${p}: ${e.message}`);
+    return null;
+  }
 };
 const arr = (x) => (Array.isArray(x) ? x : x ? [x] : []);
 const s = (x) => (x == null ? "" : String(x).trim());
@@ -62,6 +75,15 @@ if (order.size) {
 
 // нормализованная модель: страница + блоки, к каждому блоку подтянут его blueprint-двойник
 const FUNC_NAMES = { "Р": "результат", "Д": "доказательство", "К": "квалификация", "В": "возражение" };
+// В клиентские и передаточные документы идет ТОЛЬКО то, что заказчик должен заполнить, -
+// то есть строка с маркером [ЗАПОЛНИТЬ. Остальные строки fill_notes - служебные заметки
+// редактора («слот короче лимита: срезан хвост», «[требует согласия]»), их печать
+// превращала внутреннюю кухню в список задач заказчику и завышала счетчик открытых
+// вопросов, по которому дизайнер решает, можно ли верстать. Поле notes_internal
+// не читается здесь принципиально: оно служебное по определению.
+const FILL_RE = /\[ЗАПОЛНИТЬ[^\]]*\]/g;
+const HAS_FILL = /\[ЗАПОЛНИТЬ[^\]]*\]/; // без флага g: .test() у глобального regex запоминает lastIndex
+let internalNotes = 0;
 // режимы блока, которые означают «содержимого нет намеренно» (mode - опциональное поле blueprint)
 const MODE_TEMPLATE = ["шаблон", "template", "образец"];
 const MODE_STUB = ["заглушка", "stub", "placeholder", "пустышка"];
@@ -75,9 +97,14 @@ const modeKind = (m) => {
 
 const pages = [];
 let blockCount = 0;
+const brokenPages = [];
 for (const pd of pageDirs) {
   const page = readJson(join(pd, "page.json"));
-  if (!page) continue;
+  if (!page || typeof page !== "object") {
+    brokenPages.push(basename(pd));
+    console.error(`[build-handoff] страница пропущена (page.json не читается): ${basename(pd)}`);
+    continue;
+  }
   const pmeta = page.page || {};
   const pslug = s(pmeta.slug) || basename(pd);
   const bp = readJson(join(dir, "blueprints", `${pslug}.json`)) || {};
@@ -99,7 +126,16 @@ for (const pd of pageDirs) {
       empty_state: s(bb.empty_state),
       limits: bb.limits && typeof bb.limits === "object" ? bb.limits : null,
       slots: b.slots && typeof b.slots === "object" ? b.slots : {},
-      fill_notes: arr(b.fill_notes).map(s).filter(Boolean),
+      fill_notes: (() => {
+        const all = arr(b.fill_notes).map(s).filter(Boolean);
+        // Обратная совместимость: у блоков старого формата поля notes_internal нет, а в
+        // fill_notes лежали голые строки-дыры, которые сборщик сам оборачивал в маркер.
+        // Строгий фильтр молча съел бы их - дизайнер получил бы записку без открытых вопросов.
+        const legacyBlock = b.notes_internal === undefined;
+        const forClient = all.filter((x) => HAS_FILL.test(x) || legacyBlock);
+        internalNotes += all.length - forClient.length + arr(b.notes_internal).length;
+        return forClient.map((x) => (HAS_FILL.test(x) ? x : `[ЗАПОЛНИТЬ: ${x}]`));
+      })(),
     };
   });
   blockCount += blocks.length;
@@ -107,9 +143,15 @@ for (const pd of pageDirs) {
 }
 if (pages.length === 0) { console.error(`[build-handoff] страницы не читаются: ${pagesDir}`); process.exit(1); }
 
+// страницы, заявленные в pages.json, но не доехавшие сюда: скрипт уже читает этот файл
+// ради порядка, так что знает ожидаемый состав - и обязан сказать о недоборе, а не
+// напечатать «собрано страниц - N» как факт
+const collectedSlugs = new Set(pages.map((p) => p.slug));
+for (const d of pageDirs) collectedSlugs.add(basename(d));
+const missingPages = [...order.keys()].filter((k) => !collectedSlugs.has(k));
+for (const m of missingPages) console.error(`[build-handoff] страницы нет в pages/: ${m} (заявлена в pages.json)`);
+
 // ---------- открытые вопросы: [ЗАПОЛНИТЬ: ...] по всему тексту + fill_notes ----------
-const FILL_RE = /\[ЗАПОЛНИТЬ[^\]]*\]/g;
-const HAS_FILL = /\[ЗАПОЛНИТЬ[^\]]*\]/; // без флага g: .test() у глобального regex запоминает lastIndex
 function collectFill(v, sink) {
   if (typeof v === "string") { const m = v.match(FILL_RE); if (m) sink.push(...m); return; }
   if (Array.isArray(v)) { for (const x of v) collectFill(x, sink); return; }
@@ -121,7 +163,8 @@ for (const p of pages) {
   for (const b of p.blocks) {
     const found = [];
     collectFill(b.slots, found);
-    for (const fn of b.fill_notes) found.push(HAS_FILL.test(fn) ? fn.match(FILL_RE).join("; ") : `[ЗАПОЛНИТЬ: ${fn}]`);
+    // fill_notes уже отфильтрованы до строк с маркером - печатаем как есть, без второй обертки
+    for (const fn of b.fill_notes) found.push(fn);
     const uniq = [...new Set(found.map(s).filter(Boolean))];
     if (uniq.length) p.open.push({ block: b.type, n: b.n, items: uniq });
     openCount += uniq.length;
@@ -135,16 +178,35 @@ const NO_EMPTY = "[пустое состояние не задано - уточ�
 const gaps = [];
 for (const p of pages) {
   for (const b of p.blocks) {
+    // mode проверяется ПЕРВЫМ: по контракту block-planner режим «шаблон»\«заглушка» всегда
+    // идет вместе с placeholder:true, и проверка placeholder первой делала обе mode-ветки
+    // недостижимыми - заглушка получала объяснение «ждем фактуру», хотя ждать нечего.
+    // placeholder остается фолбэком для старых blueprint без поля mode.
     let reason = "";
-    if (b.placeholder) reason = b.status === "не решено" ? "нет материалов или чисел - ждем фактуру от заказчика" : "блок критичен для типа страницы, но фактуры под него пока нет";
-    else if (b.mode === "шаблон") reason = "рамка под контент, который заполняет клиент";
+    if (b.mode === "шаблон") reason = "рамка под контент, который заполняет клиент";
     else if (b.mode === "заглушка") reason = "место занято намеренно, содержимого пока нет";
+    else if (b.placeholder) reason = b.status === "не решено" ? "нет материалов или чисел - ждем фактуру от заказчика" : "блок критичен для типа страницы, но фактуры под него пока нет";
     if (reason) gaps.push({ page: p.title, slug: p.slug, block: b.type, n: b.n, mode: b.mode || (b.placeholder ? "плейсхолдер" : ""), reason, empty: b.empty_state || (b.mode === "шаблон" ? NO_EMPTY : "-") });
   }
 }
 const templateBlocks = [];
 for (const p of pages) for (const b of p.blocks) if (b.mode === "шаблон") templateBlocks.push({ page: p, block: b });
 const stubCount = gaps.filter((g) => g.mode === "заглушка").length;
+
+// подписи к медиа есть не у всех фрагментов кита (media_alt несут единицы), поэтому
+// обещание «у каждого плейсхолдера осмысленный alt» давалось разработчику вслепую.
+// Считаем по факту собранных страниц.
+const ALT_KEYS = /^(media_alt|image_alt|alt|photo_alt)$/i;
+function hasAlt(v) {
+  if (Array.isArray(v)) return v.some(hasAlt);
+  if (!v || typeof v !== "object") return false;
+  for (const [k, x] of Object.entries(v)) {
+    if (ALT_KEYS.test(k) && s(x)) return true;
+    if (x && typeof x === "object" && hasAlt(x)) return true;
+  }
+  return false;
+}
+const altBlocks = pages.reduce((n, p) => n + p.blocks.filter((b) => hasAlt(b.slots)).length, 0);
 
 // ---------- словарь ----------
 const lexicon = (facts && facts.lexicon) || {};
@@ -194,7 +256,32 @@ push("## 1. Что это", "");
 push("Это **прототип информационного наполнения**: карта содержания и приоритетов, а не макет.");
 push("Он отвечает на вопросы «что говорим, в каком порядке и чем доказываем», и не отвечает на вопрос «как это выглядит».");
 push("Черно-белый вид - намеренный: пока обсуждается содержание, цвет только мешает.", "");
-push(`Собрано: страниц - ${pages.length}, блоков - ${blockCount}. Тексты прошли копи-валидатор (стоп-слова, лимиты слотов, запреты стиля) и согласованы с заказчиком.`, "");
+// «согласованы с заказчиком» - утверждение, а не украшение: в `--auto` паузы на текстах нет
+// вовсе, и дизайнер отказывался править очевидную ошибку, ссылаясь на несуществующее одобрение.
+// Пишем по факту меты: пауза бывает только в режиме review и только после шага «тексты клиенту».
+const steps = arr(meta.completed_steps).map(s);
+const reviewMode = /review/i.test(s(meta.mode)) || meta.review === true;
+const textsShown = steps.includes("texts-shared") || ["texts-shared", "prototypes-built", "completed"].includes(s(meta.state));
+const APPROVED = reviewMode && textsShown;
+const CHECKED = "Тексты прошли копи-валидатор (стоп-слова, лимиты слотов, запреты стиля)";
+push(`Собрано: страниц - ${pages.length}, блоков - ${blockCount}. ${CHECKED}` + (APPROVED
+  ? " и согласованы с заказчиком."
+  : " и независимую вычитку. Согласование текстов заказчиком на момент передачи не зафиксировано."), "");
+if (brokenPages.length || missingPages.length) {
+  const lost = [...new Set([...brokenPages, ...missingPages])].join(", ");
+  push(`**Внимание: собраны не все страницы.** В передачу не попали: ${lost}. Причина - отсутствующий или нечитаемый \`page.json\`. Эти страницы нужно пересобрать и обновить записку: пока их в передаче нет, число выше - неполное.`, "");
+}
+const accepted = arr(meta.accepted_violations);
+if (accepted.length) {
+  push(`Принятые отступления от валидатора (${accepted.length}) - решение человека, а не пропущенный брак:`, "");
+  for (const v of accepted) {
+    const line = v && typeof v === "object"
+      ? [s(v.page), s(v.rule), s(v.why)].filter(Boolean).join(" - ")
+      : s(v);
+    if (line) push(`- ${line}`);
+  }
+  push("");
+}
 const reg = registerLine();
 if (reg) push(`Выбранный регистр текста: ${reg}`, "");
 push("Состав файлов на страницу: `prototype.html` - сам прототип, `page.json` - те же тексты в структурированном виде (машиночитаемый источник для верстки).", "");
@@ -217,8 +304,9 @@ for (const p of pages) {
   push("");
 }
 push("### 2.2. Тексты", "");
-push("Тексты переносятся **дословно**. Они согласованы с заказчиком и прошли валидатор - переформулировка ломает и то, и другое:");
-push("согласование придется проходить заново, а проверка лимитов и стоп-слов на переписанном тексте уже не выполнялась.");
+push("Тексты переносятся **дословно**." + (APPROVED
+  ? " Они согласованы с заказчиком и прошли валидатор - переформулировка ломает и то, и другое: согласование придется проходить заново, а проверка лимитов и стоп-слов на переписанном тексте уже не выполнялась."
+  : " Они прошли валидатор и независимую вычитку - переформулировка ломает проверку: лимиты, стоп-слова и запреты стиля на переписанном тексте уже не проверялись."));
 push("Сокращение «чтобы влезло в макет» - это не правка текста, а правка смысла: если текст не помещается, меняем композицию блока, а не формулировку.", "");
 push("### 2.3. Цифры и факты", "");
 push("Единственный источник истины по цифрам, реквизитам, срокам и гарантиям - `facts.json` в папке задачи.");
@@ -258,7 +346,9 @@ push("В прототипе таких блоков нет: карточки р�
 push("## 4. Чего в прототипе намеренно нет", "");
 push("Этот раздел закрывает вопрос «а где отзывы» на приемке: перечисленное не забыто, а сознательно не сделано на этом этапе.", "");
 push("- **Цвет и брендовая палитра.** Прототип черно-белый намеренно: цвет - решение дизайн-этапа, и на этапе согласования содержания он уводит обсуждение в визуал.");
-push("- **Финальные изображения.** Стоят серые плейсхолдеры с осмысленным alt: alt описывает, что должно быть на месте картинки, - по нему подбирается или снимается реальный кадр.");
+push("- **Финальные изображения.** Стоят серые плейсхолдеры." + (altBlocks
+  ? ` Блоков с подписью к картинке (что должно быть на ее месте): ${altBlocks} - по такой подписи кадр подбирается или снимается. У остальных блоков подписи нет: кит не несет под нее поля, кадр подбирает дизайн-этап по смыслу блока.`
+  : " Подписей к картинкам тексты не несут: поля под них есть не у всех блоков кита, поэтому кадр подбирает дизайн-этап по смыслу блока."));
 if (gaps.length) {
   push("", "**Блоки, оставленные незаполненными намеренно:**", "");
   push("| Страница | # | Блок | Режим | Почему пусто | Пустое состояние |", "|---|---|---|---|---|---|");
@@ -317,12 +407,26 @@ if (templateBlocks.length) {
       const range = !m ? "-"
         : (isList ? `${m[1]}-${m[2]} на элемент`
           : (m[1] ? `до ${m[1]}` : m[0].replace(/\s+/g, "")));
-      const fmt = isList ? raw : (k === "total" ? "весь блок целиком" : "одна строка текста");
-      const empty = isList
+      // Пояснение планировщика - самая полезная часть лимита («пусто -> карточка показывает
+      // «цена по запросу»», «обязательно»), и раньше оно выбрасывалось ради шаблонной фразы,
+      // которая утверждала прямо обратное. Печатаем то, что написал автор блок-плана;
+      // шаблонная фраза остается только там, где пояснения нет.
+      const parts = raw.split(/\s*;\s*/).map(s).filter(Boolean);
+      const emptyPart = parts.find((x) => /пуст/i.test(x)) || "";
+      const emptyRule = emptyPart ? s(emptyPart.replace(/^.*?пуст\S*\s*(?:->|:|-)?\s*/i, "")) : "";
+      // из спецификации убираем чисто числовую часть - остается авторское пояснение
+      const explain = parts
+        .filter((x) => x !== emptyPart)
+        // \w в JS не покрывает кириллицу, поэтому окончания перечисляем явным классом
+        .map((x) => s(x.replace(/^\s*(?:до|не более|от|около)?\s*\d+\s*(?:-\s*\d+)?\s*(?:символ[а-яё]*|знак[а-яё]*|симв\.?|зн\.?)?\s*[,:;-]?\s*/i, "")))
+        .filter(Boolean)
+        .join("; ");
+      const fmt = isList ? raw : (explain || (k === "total" ? "весь блок целиком" : "одна строка текста"));
+      const empty = emptyRule || (/обязательн/i.test(explain) ? "поле обязательное - без него блок не собирается" : isList
         ? "блок останется без карточек, и его придется снять со страницы"
         : k === "total"
           ? "блок будет выглядеть недоделанным"
-          : "поле исчезнет из блока, соседние элементы съедут";
+          : "поле исчезнет из блока, соседние элементы съедут");
       push(`| ${cell(k)} | ${cell(fmt)} | ${cell(range)} | ${cell(empty)} |`);
     }
     push("");
@@ -332,11 +436,20 @@ if (templateBlocks.length) {
 
 // ---------- запись ----------
 const outPath = join(dir, "HANDOFF.md");
-// подстраховка от длинного\среднего тире: в записке они запрещены так же, как в клиентских текстах
-const text = md.join("\n").replace(/[—–]/g, "-").replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+// подстраховка от типографики: тире и е-с-точками запрещены в записке так же, как в
+// клиентских текстах (ADR-023). Строки словаря исключений не получают: тексты страниц
+// уже нормализованы тем же правилом, и «дословная» цитата с ё разошлась бы с сайтом.
+const text = md.join("\n")
+  .replace(/[—–]/g, "-")
+  .replace(/ё/g, "е").replace(/Ё/g, "Е")
+  .replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
 writeFileSync(outPath, text, "utf8");
 
 console.log(`[build-handoff] wrote ${outPath}`);
 console.log(`  страниц: ${pages.length}, блоков: ${blockCount}`);
 console.log(`  открытых плейсхолдеров [ЗАПОЛНИТЬ]: ${openCount}`);
-console.log(`  блоков в режиме шаблон: ${templateBlocks.length}, заглушка: ${stubCount}, placeholder:true: ${gaps.filter((g) => !g.mode || g.mode === "плейсхолдер").length}`);
+console.log(`  блоков в режиме шаблон: ${templateBlocks.length}, заглушка: ${stubCount}, placeholder:true: ${gaps.filter((g) => g.mode === "плейсхолдер").length}`);
+if (internalNotes) console.log(`  служебных пометок не выведено (нет маркера [ЗАПОЛНИТЬ): ${internalNotes}`);
+if (brokenPages.length) console.error(`  НЕ СОБРАНЫ (битый page.json): ${brokenPages.join(", ")}`);
+if (missingPages.length) console.error(`  НЕТ В pages/ (заявлены в pages.json): ${missingPages.join(", ")}`);
+if (brokenFiles.length) console.error(`  не разобрано файлов: ${brokenFiles.length}`);

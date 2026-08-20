@@ -61,12 +61,23 @@ function readAsset(rel, required = true) {
   return readFileSync(p, "utf8").replace(/^﻿/, "");
 }
 
-const manifest = JSON.parse(readFileSync(manifestPath, "utf8").replace(/^﻿/, ""));
+// Разбор с диагнозом: голый стек SyntaxError не говорит оркестратору, КАКОЙ файл сломан,
+// а сломанным чаще всего оказывается тот, что правили руками на гейте.
+function parseJson(raw, whatFile) {
+  try {
+    return JSON.parse(raw.replace(/^﻿/, ""));
+  } catch (e) {
+    console.error(`[build-prototype] не разобран ${whatFile}: ${e && e.message ? e.message : e}`);
+    process.exit(1);
+  }
+}
+
+const manifest = parseJson(readFileSync(manifestPath, "utf8"), manifestPath);
 const shell = readAsset("PROTOTYPE-MASTER.html");
 const prototypeCss = readAsset("prototype.css");
 const prototypeJs = readAsset("prototype.js");
 const arrowSvg = readAsset("arrow.svg", false).trim();
-const fragManifest = JSON.parse(readAsset("fragments-manifest.json"));
+const fragManifest = parseJson(readAsset("fragments-manifest.json"), "fragments-manifest.json (кит)");
 const blockToFragment = fragManifest.block_to_fragment || {};
 
 const themeName = manifest.theme || "b2b";
@@ -266,12 +277,17 @@ let renderedCount = 0;
 let formCount = 0;
 const fillNotes = [];
 const usedFragments = [];
+const unknownFragments = [];
 
 for (const block of blocks) {
   const type = block.type || "";
   let fragName = block.fragment || blockToFragment[type] || "cards";
   if (!fragManifest.fragments || !fragManifest.fragments[fragName]) {
-    console.warn(`[build-prototype] unknown fragment "${fragName}" for block "${type}", using cards`);
+    // Фолбэк остается (сборка не должна вставать), но факт подмены копится в сводку:
+    // фолбэк рисует заголовок и пустую сетку под ним, то есть обещанный блок исчезает.
+    // Блокирует это verify-prototype.mjs - здесь только громкий сигнал.
+    console.warn(`[build-prototype] фрагмента "${fragName}" нет в ките (блок "${type}") - подставлен фолбэк cards, блок уедет пустым`);
+    unknownFragments.push(`${fragName} (блок "${type}")`);
     fragName = "cards";
   }
   const fragFile = (fragManifest.fragments[fragName] && fragManifest.fragments[fragName].file) || `${fragName}.html`;
@@ -285,6 +301,10 @@ for (const block of blocks) {
   const scope = Object.assign({}, block.slots || {});
   scope.opts = block.opts || {};
   if (block.h2 != null && scope.h2 == null) scope.h2 = block.h2;
+  // empty_state приезжает из blueprint полем блока, а не слотом. Отдаем его фрагменту как
+  // {{empty_state}}, чтобы у сборщика-агента не было повода класть его в subhead: subhead -
+  // слот писателя, и подмена затирает согласованный текст, расходя прототип с Texts.docx.
+  if (block.empty_state != null && scope.empty_state == null) scope.empty_state = block.empty_state;
 
   let rendered = renderTemplate(fragTpl, scope);
   rendered = rendered.replace(/<!--ARROW_SVG-->/g, arrowSvg);
@@ -314,8 +334,24 @@ if (truthy(legal.address)) legalReqParts.push(`адрес: ${legal.address}`);
 // legal.phone давал href="tel:" с пустым текстом - мёртвая ссылка, которую verify пропускал
 // (регексп матчил пустой tel:). Систематически всплывает в проектах без реквизитов
 // (источник --from-brief, ADR-031), где ЗАКАЗЧИК.md нет.
-const phone = truthy(legal.phone) ? String(legal.phone) : "+7 (000) 000-00-00";
+//
+// ОДНО поведение на два законных написания «телефона нет». Сборщику-агенту предписано не
+// выдумывать реквизиты, а писать «[телефон - требует уточнения]»; раньше такая строка
+// проходила как заполненный телефон, цифр в ней нет - и в href уезжал пустой tel:,
+// то есть блокирующее нарушение за исполнение собственной инструкции. Теперь и пустое
+// поле, и любая пометка-заглушка (нет 5+ цифр подряд) дают одно и то же: маску
+// +7 (000) 000-00-00. Она заведомо нерабочая и читается человеком как «не заполнено»,
+// ссылка при этом живая - пустой href="tel:" остается нарушением намеренно.
+const PHONE_PLACEHOLDER = "+7 (000) 000-00-00";
+const phoneGiven = truthy(legal.phone) ? String(legal.phone).trim() : "";
+const phoneMissing = phoneGiven.replace(/\D/g, "").length < 5;
+const phone = phoneMissing ? PHONE_PLACEHOLDER : phoneGiven;
 const phoneRaw = phone.replace(/[^\d+]/g, "");
+if (phoneMissing) {
+  console.warn(
+    `[build-prototype] legal.phone не заполнен${phoneGiven ? ` (${phoneGiven})` : ""} - подставлена заглушка ${PHONE_PLACEHOLDER}. Выдумывать номер нельзя, реквизит закрывает заказчик.`
+  );
+}
 const legalScope = Object.assign({}, legal, {
   phone,
   phone_raw: phoneRaw,
@@ -395,6 +431,8 @@ console.log(`[build-prototype] wrote ${outPath}`);
 console.log(`  theme: ${themeName}`);
 console.log(`  blocks rendered: ${renderedCount}/${blocks.length}`);
 console.log(`  fragments: ${[...new Set(usedFragments)].join(", ")}`);
+if (unknownFragments.length) console.log(`  НЕТ В КИТЕ (подставлен cards, блок пустой): ${unknownFragments.join("; ")}`);
+if (phoneMissing) console.log(`  телефон: заглушка ${PHONE_PLACEHOLDER} - legal.phone не заполнен`);
 console.log(`  finale forms: ${formCount}${formCount === 1 ? " (ok)" : " (WARN: expected exactly 1)"}`);
 console.log(`  fill-notes (для согласования): ${fillNotes.length}`);
 console.log(`  size: ${(Buffer.byteLength(html, "utf8") / 1024).toFixed(1)} KB`);

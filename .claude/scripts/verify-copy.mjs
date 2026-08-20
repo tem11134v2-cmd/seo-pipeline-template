@@ -14,7 +14,9 @@ const arg = process.argv[2] ? resolve(process.argv[2]) : null;
 if (!arg) { console.error("[verify-copy] usage: <page_dir|page.json>"); process.exit(1); }
 const pjPath = existsSync(arg) && statSync(arg).isDirectory() ? join(arg, "page.json") : arg;
 if (!existsSync(pjPath)) { console.error(`[verify-copy] нет page.json: ${pjPath}`); process.exit(1); }
-const page = JSON.parse(readFileSync(pjPath, "utf8").replace(/^﻿/, ""));
+let page;
+try { page = JSON.parse(readFileSync(pjPath, "utf8").replace(/^﻿/, "")); }
+catch (e) { console.error(`[verify-copy] page.json не разобран (${pjPath}): ${e.message}`); process.exit(1); }
 
 const violations = [], warnings = [], infos = [];
 const V = (m) => violations.push(m);
@@ -39,8 +41,9 @@ const low = allText.toLowerCase();
 // единый поиск первого экрана: fragment "hero" либо тип «первый экран/hero» (блок мог прийти с другим fragment)
 function findHero() { return blocks.find((b) => b.fragment === "hero" || /первый экран|hero/i.test(b.type || "")) || null; }
 const hero = findHero();
-const h1 = (hero && hero.slots && hero.slots.h1) || page.h1 || "";
-const h2s = blocks.map((b) => b.h2 || (b.slots && b.slots.h2) || "").filter(Boolean);
+// String() обязателен: слот мог приехать числом/null, а дальше по коду .match/.length
+const h1 = String((hero && hero.slots && hero.slots.h1) || page.h1 || "");
+const h2s = blocks.map((b) => String(b.h2 || (b.slots && b.slots.h2) || "")).filter(Boolean);
 const firstScreenText = hero ? collect(hero.slots).join(" ") : "";
 // текстовые единицы для ПОСЛОТНЫХ проверок: каждый слот отдельно + H2 + метатеги
 // (склеенный allText не годится там, где важно соседство слов внутри одного слота).
@@ -80,15 +83,38 @@ if (abbrH1.length) W(`п.3 возможные аббревиатуры в H1: ${
 // 4. дворовая лексика + тройные отрицания
 if (/(?<![а-яёa-z0-9_])реально(?![а-яёa-z0-9_])|по-честному|нарвал|кинул(?:и)?|без условий/i.test(allText)) W("п.4 дворовая лексика («реально/по-честному/нарвались»)");
 if (/(?:(?<![а-яёa-z0-9_])не(?![а-яёa-z0-9_])[^.!?]{0,30}){3,}/i.test(allText)) W("п.4 тройное отрицание подряд (максимум одно «не»)");
-// 5. манипуляции. Срочность запрещена только БЕЗ опоры на факт: COPY.md/VOICE.md разрешают дедлайн
-// с реальной датой или остатком из facts.json. Смотрим ПОСЛОТНО: дата/остаток должны быть в том же слоте.
+// 5. манипуляции. Срочность запрещена только БЕЗ опоры на ФАКТ. Факт бывает двух видов и они
+// не равнозначны: календарный дедлайн проверяем по дате в том же слоте, а ОСТАТОК цифрой в тексте
+// не доказывается вовсе - «Осталось 3 места» это канонический пример ложного дефицита (COPY-AUDIT П.8)
+// и прямой риск по тесту ФАС. Настоящий остаток подтверждается только записью в facts.json.
 const URGENCY = /только сегодня|осталось \d+ мест|успей(?:те)?|сгорит|переч[её]ркнут/i;
 const HAS_DATE = /\d{1,2}\.\d{1,2}(?:\.\d{2,4})?|\d{1,2}\s*(?:январ|феврал|март|апрел|ма[йя]|июн|июл|август|сентябр|октябр|ноябр|декабр)[а-яё]*/i;
-const HAS_LEFT = /осталось\s+\d+/i;
+// заявка о дефиците: «осталось 3 места», «остались 2 комплекта», «осталось всего 5 позиций»
+const SCARCITY = /остал(?:ось|о|ись|ся)\s+(?:всего\s+|лишь\s+|последн[а-яё]+\s+)?(\d+)\s*(?:мест|шт|штук|позиц|слот|комплект|пакет)/i;
+const factsPath = join(dirname(pjPath), "..", "..", "facts.json");
+let facts = null;
+try { if (existsSync(factsPath)) facts = JSON.parse(readFileSync(factsPath, "utf8").replace(/^﻿/, "")); } catch { facts = null; }
+// остаток настоящий, только если ЭТО ЖЕ число лежит в facts.json под меткой про остаток/места/квоту
+// (либо записано там же строкой). Нет facts.json - подтвердить нечем, значит не подтверждено.
+function leftConfirmed(n) {
+  if (!facts) return false;
+  const same = new RegExp(`(?<!\\d)${n}(?!\\d)`);
+  for (const it of arr(facts.numbers)) {
+    const label = String((it && it.label) || ""), value = String((it && it.value) || "");
+    if (/остат|остал|мест|квот|свободн|поток|групп|набор/i.test(label) && same.test(value)) return true;
+  }
+  return new RegExp(`(?:остал[а-яё]*|остат[а-яё]*|свободн[а-яё]*)\\s+(?:всего\\s+)?${n}(?!\\d)`, "i").test(collect(facts).join("\n"));
+}
 for (const u of textUnits) {
-  if (!URGENCY.test(u.text)) continue;
-  if (HAS_DATE.test(u.text) || HAS_LEFT.test(u.text)) W(`п.5 срочность в «${u.where}» - сверь дедлайн/остаток с facts.json - в тексте есть дата/число`);
-  else V(`п.5 манипуляция (ложная срочность/дефицит/перечёркнутая цена) в «${u.where}» - нет ни даты, ни числа остатка`);
+  const sc = SCARCITY.exec(u.text);
+  if (!URGENCY.test(u.text) && !sc) continue;
+  if (sc && !leftConfirmed(sc[1])) {
+    V(`п.5 ложный дефицит в «${u.where}»: «осталось ${sc[1]}» ничем не подтверждено - цифра в тексте остатка НЕ доказывает (тест ФАС). Подтверждение только из facts.json (numbers с меткой про места/квоту/набор); нечем подтвердить - снять заявку о дефиците`);
+    continue;
+  }
+  if (sc) { W(`п.5 дефицит в «${u.where}» - остаток совпал с числом из facts.json, перед выдачей сверь актуальность`); continue; }
+  if (HAS_DATE.test(u.text)) { W(`п.5 срочность в «${u.where}» - дедлайн с датой, сверь дату с facts.json`); continue; }
+  V(`п.5 манипуляция (ложная срочность/дефицит/перечёркнутая цена) в «${u.where}» - нет ни даты, ни подтверждённого факта`);
 }
 // 6. сленг-плейсхолдеры
 if (/ща докрутим|допил(?:им|ить)|потом доделаем/i.test(low)) V("п.6 сленг в плейсхолдере («Ща Докрутим/допилим») - только [ЗАПОЛНИТЬ]/«требует уточнения»");
@@ -220,25 +246,13 @@ if (longSent.length) {
 // ---------------------------------------------------------------------------
 // Слой ТИПОГРАФИКИ. Всё здесь - предупреждения (W): у каждого правила есть
 // законные исключения, решение принимает copy-auditor.
-// Разбор слотов на две сетки: скаляры (строка в слоте) и элементы repeatables
-// (объект/строка внутри массива) - у них разные пороги «короткого элемента».
+// Правил осталось два: числа цифрами и кавычки-ёлочки. Проверка «точка в конце
+// короткого элемента» СНЯТА сознательно: на живой странице она давала полтора
+// десятка срабатываний при нуле реальных дефектов (порог «короткого элемента»
+// накрывал карточку из двух предложений, где финальная точка обязательна), и
+// правила этого нет ни в VOICE.md, ни в COPY-AUDIT.md - писатель его не знает,
+// то есть шум воспроизводился бы на каждой странице каждого прогона.
 // ---------------------------------------------------------------------------
-const scalarUnits = [], elementUnits = [];
-for (let i = 0; i < blocks.length; i++) {
-  const b = blocks[i] || {};
-  const bn = b.n != null ? b.n : i + 1;
-  if (!b.slots || typeof b.slots !== "object") continue;
-  for (const [slot, val] of Object.entries(b.slots)) {
-    if (typeof val === "string") { if (val.trim()) scalarUnits.push({ where: `блок ${bn}, слот «${slot}»`, text: val }); continue; }
-    if (!Array.isArray(val)) continue;
-    val.forEach((el, k) => {
-      if (typeof el === "string") { if (el.trim()) elementUnits.push({ where: `блок ${bn}, «${slot}»[${k + 1}]`, text: el }); return; }
-      if (el && typeof el === "object" && !Array.isArray(el)) {
-        for (const [f, fv] of Object.entries(el)) if (typeof fv === "string" && fv.trim()) elementUnits.push({ where: `блок ${bn}, «${slot}»[${k + 1}].${f}`, text: fv });
-      }
-    });
-  }
-}
 
 // T1. Числа - цифрами, не словами. Взгляд идёт по странице скачками: цифра его
 // останавливает, слово растворяется в строке. На плашках и в блоках цифр число
@@ -269,27 +283,6 @@ for (const u of textUnits) {
   }
 }
 warnHits(numHits, "число словом - записать цифрой («три дня» -> «3 дня»): взгляд по странице идёт скачками, цифра его останавливает, а слово растворяется; на плашках и в блоках цифр число и есть всё сообщение");
-
-// T2. Точка в конце коротких элементов: заголовок, пункт списка, текст карточки
-// или плашки, подпись, подзаголовок, alt, meta-description точкой не закрываются.
-const ABBR_TAIL = /(?:\.\.\.|т\.\s*д\.|т\.\s*п\.|др\.|пр\.|руб\.|шт\.|кв\.\s*м\.|мм\.|см\.|г\.)$/i;
-const dotHits = [], semiHits = [];
-function tailCheck(where, raw, limit, allowMulti) {
-  const t = String(raw == null ? "" : raw).trim();
-  if (!t || t.length > limit) return;
-  const tail = t.length > 46 ? "..." + t.slice(-46) : t;
-  if (/;$/.test(t)) { semiHits.push({ where, frag: tail }); return; }
-  if (!/\.$/.test(t) || ABBR_TAIL.test(t)) return;
-  const multi = /[.!?]\s+\S/.test(t.slice(0, -1));
-  if (multi && !allowMulti) return; // скаляр с внутренними точками-разделителями - это уже не «короткий элемент»
-  dotHits.push({ where: where + (multi ? " (несколько предложений: точки между ними остаются, снимается только последняя)" : ""), frag: tail });
-}
-for (const u of scalarUnits) tailCheck(u.where, u.text, 120, false);
-for (const u of elementUnits) tailCheck(u.where, u.text, 160, true);
-for (let i = 0; i < blocks.length; i++) { const b = blocks[i] || {}; if (b.h2) tailCheck(`блок ${b.n != null ? b.n : i + 1}, H2`, b.h2, 120, false); }
-if (metaDesc.trim()) tailCheck("мета Description", metaDesc, 300, false);
-warnHits(dotHits, "точка в конце короткого элемента - снять (заголовок, пункт списка, текст карточки/плашки, подпись, подзаголовок, alt, meta-description точкой не закрываются)");
-warnHits(semiHits, "точка с запятой в конце пункта - убрать: пункты списка не сшиваются пунктуацией");
 
 // T3. Плейсхолдеры. На этапе текста они законны (facts-gate), нарушением НЕ считаются,
 // но цифру оркестратор должен видеть: до выдачи они доехать не имеют права.
@@ -329,23 +322,51 @@ function parseRepeatLimit(lim) {
   }
   const s = String(lim == null ? "" : lim);
   // единица счёта: количество элементов берём ТОЛЬКО из явных формулировок с ней
-  // (или из «ровно N» / объектного {count:...}). Без единицы «N-M» - это длина.
-  const CNT_UNIT = "(?:шт|элемент|сегмент|позици|пункт|карточ|плашк|строк|тариф|итем)";
+  // (или из «ровно N» / «N-M по K-L» / объектного {count:...}). Без единицы «N-M» - это длина.
+  const CNT_UNIT = "(?:шт|элемент|сегмент|позици|пункт|карточ|плашк|строк|тариф|итем|фото|ссыл|видео|слайд|отзыв|вопрос|шаг|логотип|сертификат)";
   let m;
   if ((m = /ровно\s+(\d+)/i.exec(s))) out.count = { lo: +m[1], hi: +m[1] };
   else if ((m = new RegExp(`от\\s+(\\d+)\\s+до\\s+(\\d+)\\s*${CNT_UNIT}`, "i").exec(s))) out.count = { lo: +m[1], hi: +m[2] };
-  else if ((m = new RegExp(`(\\d+)\\s*-\\s*(\\d+)\\s*${CNT_UNIT}`, "i").exec(s))) out.count = { lo: +m[1], hi: +m[2] };
+  // между числом и единицей допускается одно определение («4-10 текстовых ссылок»), но НЕ «символов»:
+  // «20-60 символов на строку» - это длина, а не количество строк.
+  else if ((m = new RegExp(`(\\d+)\\s*-\\s*(\\d+)\\s*(?:(?!симв|знак)[а-яё]+\\s+)?${CNT_UNIT}`, "i").exec(s))) out.count = { lo: +m[1], hi: +m[2] };
+  // «3-5 по 100-210» - число элементов и длина каждого, единицы счёта нет (формат из BLOCKS.md)
+  else if ((m = /^\s*(\d+)\s*-\s*(\d+)\s+по\s+(\d+)\s*-\s*(\d+)/i.exec(s))) { out.count = { lo: +m[1], hi: +m[2] }; out.itemLen = { lo: +m[3], hi: +m[4] }; }
   // голый диапазон («170-420», «от 170 до 420») означает ДЛИНУ ЭЛЕМЕНТА, а не их
   // число: у скаляров этот же формат уже читается как длина (page-writer, п.3).
   else if ((m = /^\s*(?:от\s+)?(\d+)\s*(?:-|до)\s*(\d+)\s*$/i.exec(s))) out.itemLen = { lo: +m[1], hi: +m[2] };
   else if ((m = /^\s*(\d+)\s*$/.exec(s))) out.count = { lo: +m[1], hi: +m[1] };
-  // пары «имя_поля A-B» (имя поля всегда латиницей: title, text, features)
-  for (const f of s.matchAll(/([a-z_][a-z0-9_]*)\s*:?\s*(\d+)\s*-\s*(\d+)/gi)) out.fields[f[1].toLowerCase()] = { lo: +f[2], hi: +f[3] };
-  if ((m = /по\s+(\d+)\s*-\s*(\d+)\s*симв/i.exec(s))) out.itemLen = { lo: +m[1], hi: +m[2] };
+  // пары «имя_поля A-B» (имя поля всегда латиницей: title, text, features). Имя обязано стоять
+  // после разделителя (начало строки, «:», «+», «,», «;»): без этого условия из «подзаголовки H3
+  // 2-3 шт.» вычитывалось несуществующее поле h3 с «длиной 2-3 символа» и сыпались ложные W.
+  for (const f of s.matchAll(/(?:^|[+,;:]\s*)([a-z_][a-z0-9_]*)\s*:?\s*(\d+)\s*-\s*(\d+)\s*([^\s,;+]*)/gi)) {
+    if (new RegExp(`^${CNT_UNIT}`, "i").test(f[4] || "")) continue; // «... + фото 3-5 шт.» - это счёт, не длина
+    out.fields[f[1].toLowerCase()] = { lo: +f[2], hi: +f[3] };
+  }
+  // хвост «по K-L симв.» / «по K-L» в конце строки - длина одного элемента
+  if ((m = /по\s+(\d+)\s*-\s*(\d+)\s*(?:симв[а-яё]*|знак[а-яё]*)?\s*\.?\s*$/i.exec(s))) out.itemLen = { lo: +m[1], hi: +m[2] };
   return out;
 }
 
-// сверка длин scalar-слотов с limits из blueprint (только простые "N-M"; несущее ограничение вёрстки).
+// Лимит скалярного слота. Кроме голого «N-M» принимаем диапазон с пояснением - именно так
+// block-planner пишет limits в роли ПРАВИЛ ЗАПОЛНЕНИЯ (ADR-035): «15-60, обязательно»,
+// «5-20; пусто -> карточка показывает 'цена по запросу'». Раньше такие лимиты молча не
+// проверялись вовсе - проверка выглядела работающей и не работала.
+const SCAL_NOT_LEN = /^(?:шт|элемент|сегмент|позици|пункт|карточ|плашк|строк|слов|предложен|тариф|итем|фото|ссыл|видео|слайд|отзыв|абзац|секунд|минут|дн[еяй]|мес)/i;
+function parseScalarLimit(lim) {
+  const s = String(lim == null ? "" : lim).trim();
+  if (!s) return null;
+  let m = /по\s+(\d+)\s*-\s*(\d+)\s*(?:симв[а-яё]*|знак[а-яё]*)/i.exec(s);
+  if (m) return { lo: +m[1], hi: +m[2] };
+  m = /^\s*(?:от\s+)?(\d+)\s*(?:-|до)\s*(\d+)\s*(.*)$/i.exec(s);
+  if (!m) return null;
+  if (SCAL_NOT_LEN.test(String(m[3] || "").trim())) return null; // «1-2 предложения» - это не длина в символах
+  const lo = +m[1], hi = +m[2];
+  if (hi < lo || hi < 5) return null; // диапазон вида «1-2» длиной в символах быть не может
+  return { lo, hi };
+}
+
+// сверка длин scalar-слотов с limits из blueprint (диапазон, в том числе с пояснением; несущее ограничение вёрстки).
 // V лишь при превышении верхней границы более чем на 15% (ломает вёрстку); недобор/превышение до 15% - W.
 const pageSlug = String((page.page && page.page.slug) || basename(dirname(pjPath)));
 const bpPath = join(dirname(pjPath), "..", "..", "blueprints", `${pageSlug}.json`);
@@ -358,19 +379,39 @@ if (!existsSync(bpPath)) {
 
     // -----------------------------------------------------------------------
     // PRE-FLIGHT: blueprint - канон структуры страницы. Состав блоков писатель
-    // менять не должен (см. запреты page-writer), поэтому расхождение - не вкус,
-    // а брак сдачи. Недостающий блок = текст не написан, собирать HTML нечем.
+    // менять не должен (см. запреты page-writer). Но ПОЛНОТА состава - вопрос
+    // финального шлюза, а не каждого прогона по одной странице: пока идёт веер
+    // писателей, неполная страница - штатное промежуточное состояние, и exit 2
+    // на ней отправляет круг правок не тому агенту (copy-auditor блок дописать
+    // не может). Поэтому жёстко (V) отмечаем только то, что писатель ОБЯЗАН был
+    // написать: блоки, не помеченные в blueprint как ненаписанные, и только при
+    // сошедшейся нумерации. Всё остальное - предупреждение.
     // -----------------------------------------------------------------------
     const bpIds = bpBlocks.map((x, i) => (x && x.n != null ? x.n : i + 1));
     const pgIds = blocks.map((b, i) => (b && b.n != null ? b.n : i + 1));
     const bpSet = new Set(bpIds), pgSet = new Set(pgIds);
     const label = (id, t) => `${id}${t ? ` (${t})` : ""}`;
-    const missing = bpIds.map((id, i) => label(id, (bpBlocks[i] && bpBlocks[i].type) || "")).filter((_, i) => !pgSet.has(bpIds[i]));
+    const short = (l) => `${l.slice(0, 3).join(", ")}${l.length > 3 ? ` и ещё ${l.length - 3}` : ""}`;
+    // блок, который писателю писать не поручали: режим «заглушка» (раздел объявлен, содержания
+    // нет) или явная пометка в blueprint. Его отсутствие в page.json - не брак сдачи.
+    const notWritten = (x) => !!x && (x.written === false || x.optional === true || x.by_client === true
+      || /заглушк|stub|не пишется/i.test(String(x.mode || "")));
+    const missIdx = bpIds.map((_, i) => i).filter((i) => !pgSet.has(bpIds[i]));
+    const missHard = missIdx.filter((i) => !notWritten(bpBlocks[i])).map((i) => label(bpIds[i], (bpBlocks[i] && bpBlocks[i].type) || ""));
+    const missSoft = missIdx.filter((i) => notWritten(bpBlocks[i])).map((i) => label(bpIds[i], (bpBlocks[i] && bpBlocks[i].type) || ""));
+    // нумерация разъехалась целиком: блоков в тексте не меньше, чем в плане, но ни один номер не
+    // совпал. Это расхождение НОМЕРОВ, а не пропущенный текст - сверять состав по номерам нельзя.
+    const renumbered = bpIds.length > 0 && pgIds.length >= bpIds.length && !pgIds.some((id) => bpSet.has(id));
     const extra = pgIds.map((id, i) => label(id, (blocks[i] && blocks[i].type) || "")).filter((_, i) => !bpSet.has(pgIds[i]));
-    if (missing.length) V(`pre-flight: в page.json нет блоков из blueprint - ${missing.slice(0, 3).join(", ")}${missing.length > 3 ? ` и ещё ${missing.length - 3}` : ""} (не написано ${missing.length} из ${bpIds.length}) - текст не готов, HTML не собираем`);
-    if (extra.length) W(`pre-flight: в page.json блоки вне blueprint - ${extra.slice(0, 3).join(", ")}${extra.length > 3 ? ` и ещё ${extra.length - 3}` : ""}: состав блоков писатель менять не должен, замеченную проблему пишут в сводку`);
-    const commonPg = pgIds.filter((id) => bpSet.has(id)), commonBp = bpIds.filter((id) => pgSet.has(id));
-    if (commonPg.join(",") !== commonBp.join(",")) W(`pre-flight: порядок блоков разошёлся с blueprint (page.json ${commonPg.join(", ")}; blueprint ${commonBp.join(", ")})`);
+    if (renumbered) {
+      W(`pre-flight: нумерация блоков не сошлась с blueprint (page.json ${pgIds.slice(0, 6).join(", ")}; blueprint ${bpIds.slice(0, 6).join(", ")}) - блоков в тексте не меньше, чем в плане, так что это расхождение номеров, а не пропущенный текст; состав по номерам не сверяем`);
+    } else {
+      if (missHard.length) V(`pre-flight: в page.json нет блоков из blueprint - ${short(missHard)} (не написано ${missHard.length} из ${bpIds.length}) - дописать должен page-writer (copy-auditor блок не дописывает), HTML не собираем`);
+      if (missSoft.length) W(`pre-flight: нет блоков, помеченных в blueprint как ненаписанные (${short(missSoft)}) - штатно, текстом не чинится`);
+      if (extra.length) W(`pre-flight: в page.json блоки вне blueprint - ${short(extra)}: состав блоков писатель менять не должен, замеченную проблему пишут в сводку`);
+      const commonPg = pgIds.filter((id) => bpSet.has(id)), commonBp = bpIds.filter((id) => pgSet.has(id));
+      if (commonPg.join(",") !== commonBp.join(",")) W(`pre-flight: порядок блоков разошёлся с blueprint (page.json ${commonPg.join(", ")}; blueprint ${commonBp.join(", ")})`);
+    }
     // Баланс функций считаем ПО BLUEPRINT: page.json функцию не несёт, и это нормально.
     const fns = bpBlocks.map((x) => String((x && x.function) || "").trim()).filter(Boolean);
     const vFns = fns.filter((f) => /^[ВB]/i.test(f)).length;
@@ -381,7 +422,7 @@ if (!existsSync(bpPath)) {
     // тарифы - «ровно 3: title 10-30 + text 30-90»). Длины элементов копим и
     // печатаем одной строкой, чтобы не раздувать вывод.
     // -----------------------------------------------------------------------
-    const repHard = [], lenSoft = [], cntHard = [], cntSoft = [], scalHard = [];
+    const repHard = [], lenSoft = [], cntHard = [], cntSoft = [], scalHard = [], totalSoft = [];
     const fold = (list, n = 3) => `${list.slice(0, n).join("; ")}${list.length > n ? ` и ещё ${list.length - n}` : ""}`;
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i];
@@ -394,6 +435,18 @@ if (!existsSync(bpPath)) {
         // а не внутри slots: без этой подстраховки лимит h2 не проверялся бы никогда.
         let val = slots[slot];
         if ((val == null || val === "") && slot === "h2" && b.h2) val = String(b.h2);
+        // limits.total - бюджет объёма ВСЕГО блока (BLOCKS.md: несущее ограничение вёрстки,
+        // build-handoff показывает его заказчику). Слота с таким именем в page.json нет,
+        // поэтому меряем сумму всех строк блока. Только W: сумма - оценка, не жёсткий контракт.
+        if (/^(?:total|всего|объ[её]м)$/i.test(slot) && typeof val !== "string") {
+          const r = parseScalarLimit(lim);
+          const sum = collect(b.slots).reduce((a, s) => a + s.length, 0) + (b.h2 ? String(b.h2).length : 0);
+          if (r && sum) {
+            if (sum > Math.round(r.hi * 1.15)) totalSoft.push(`блок ${bn} целиком ${sum} симв (бюджет ${r.lo}-${r.hi})`);
+            else if (sum < Math.round(r.lo * 0.85)) totalSoft.push(`блок ${bn} целиком ${sum} симв - ниже бюджета ${r.lo}-${r.hi}`);
+          }
+          continue;
+        }
         if (Array.isArray(val)) {
           const rl = parseRepeatLimit(lim);
           // Блок в режиме «шаблон»/«заглушка» (ADR-035): limits описывают ОБЪЁМ К ЗАПУСКУ, который
@@ -431,10 +484,10 @@ if (!existsSync(bpPath)) {
           });
           continue;
         }
-        const m = /^\s*(\d+)\s*-\s*(\d+)\s*$/.exec(String(lim));
-        if (!m) continue; // свободный формат у скаляра - не парсим, пропускаем
+        const r = parseScalarLimit(lim);
+        if (!r) continue; // диапазона в лимите нет вовсе - мерить нечем, пропускаем
         if (typeof val !== "string" || !val.trim()) continue;
-        const len = val.length, lo = Number(m[1]), hi = Number(m[2]);
+        const len = val.length, lo = r.lo, hi = r.hi;
         if (len > Math.round(hi * 1.15)) scalHard.push(`блок ${bn} слот «${slot}» ${len} симв (лимит ${lo}-${hi})`);
         else if (len > hi) lenSoft.push(`блок ${bn} слот «${slot}» ${len} симв - выше лимита ${lo}-${hi} (в пределах 15%)`);
         else if (len < lo) lenSoft.push(`блок ${bn} слот «${slot}» ${len} симв - ниже лимита ${lo}-${hi}`);
@@ -448,6 +501,7 @@ if (!existsSync(bpPath)) {
     // длина элемента - такое же предупреждение, как длина скалярного слота (не V)
     if (repHard.length) W(`длины элементов repeatables выше лимита более чем на 15%: ${fold(repHard)}`);
     if (lenSoft.length) W(`длины слотов и элементов вне лимита: ${fold(lenSoft)}`);
+    if (totalSoft.length) W(`объём блока целиком вне бюджета limits.total: ${fold(totalSoft)}`);
   } catch { W("blueprint не разобран - длины слотов не сверены"); }
 }
 
@@ -507,10 +561,21 @@ if (axisA || axisB) {
     let isCta = CTA_FRAGMENT.test(String(b.fragment || ""));
     if (b.slots && typeof b.slots === "object") {
       for (const [slot, val] of Object.entries(b.slots)) {
-        if (!CTA_SLOT.test(slot)) continue;
-        isCta = true;
-        const t = collect(val).join("  ");
-        if (t.trim()) ctaUnits.push({ where: `блок ${bn}, слот «${slot}»`, text: t });
+        if (CTA_SLOT.test(slot)) {
+          isCta = true;
+          const t = collect(val).join("  ");
+          if (t.trim()) ctaUnits.push({ where: `блок ${bn}, слот «${slot}»`, text: t });
+          continue;
+        }
+        // кнопка внутри повторяемого элемента: у блока цен она лежит в slots.tariffs[].cta,
+        // и по имени слота («tariffs») место с CTA не опознаётся - блок недосчитывался.
+        if (!Array.isArray(val)) continue;
+        const inner = [];
+        for (const el of val) {
+          if (!el || typeof el !== "object" || Array.isArray(el)) continue;
+          for (const [f, fv] of Object.entries(el)) if (CTA_SLOT.test(f) && typeof fv === "string" && fv.trim()) inner.push(fv);
+        }
+        if (inner.length) { isCta = true; ctaUnits.push({ where: `блок ${bn}, кнопки в «${slot}»`, text: inner.join("  ") }); }
       }
     }
     if (isCta) ctaPlaces.push(`блок ${bn}`);

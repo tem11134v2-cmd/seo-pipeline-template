@@ -22,13 +22,22 @@ const htmlPath = join(pageDir, "prototype.html");
 if (!existsSync(htmlPath)) { console.error(`[verify-prototype] нет prototype.html в ${pageDir}`); process.exit(1); }
 
 const html = readFileSync(htmlPath, "utf8");
+// Битый manifest.json нельзя глотать молча: раньше `catch {}` превращал его в пустой
+// объект, все контентные проверки становились беспредметными, и скрипт рапортовал
+// «OK - критичных нарушений нет» по файлу, который никто не проверил.
 let manifest = {};
-if (existsSync(manifestPath)) { try { manifest = JSON.parse(readFileSync(manifestPath, "utf8").replace(/^﻿/, "")); } catch {} }
+let manifestBroken = null;
+if (existsSync(manifestPath)) {
+  try { manifest = JSON.parse(readFileSync(manifestPath, "utf8").replace(/^﻿/, "")); }
+  catch (e) { manifestBroken = e && e.message ? e.message : String(e); }
+}
 
 const violations = [];
 const warnings = [];
 const V = (m) => violations.push(m);
 const W = (m) => warnings.push(m);
+
+if (manifestBroken) V(`manifest.json не разобран (${manifestBroken}) - контентные проверки не выполнялись`);
 
 // ---------- структурные инварианты (html) ----------
 const countMatch = (re) => (html.match(re) || []).length;
@@ -44,6 +53,11 @@ if (!/id="f-submit"[^>]*disabled/.test(html)) W("submit формы не disabled
 // пропускал, и мёртвая ссылка уезжала в футере заказчику.
 if (!/href="tel:\+?\d/.test(html)) V("нет кликабельного телефона (tel: пуст или отсутствует)");
 if (/href="tel:"/.test(html)) V("пустая tel-ссылка (href=\"tel:\") - телефон не подставился");
+// Заглушка-маска - штатный выход сборщика при незаполненном legal.phone (KIT-SPEC §2):
+// ссылка живая, номер заведомо нерабочий. Это не брак сборки, а незакрытый реквизит,
+// поэтому предупреждение, а не нарушение - но молчать нельзя, иначе маска уедет в отдачу.
+if (/\+7\s*\(000\)\s*000-00-00/.test(html))
+  W("телефон-заглушка +7 (000) 000-00-00 (legal.phone не заполнен) - заменить перед отдачей заказчику");
 if (!/id="cookieBanner"/.test(html)) V("нет cookie-баннера (#cookieBanner)");
 if (!/id="(privacyPage|personDataPage|cookiePage)"/.test(html)) W("нет юр-страниц (privacy/consent/cookie)");
 
@@ -78,9 +92,12 @@ if (fw.length) V(`найдены фреймворк/внешние зависи�
 const dashes = countMatch(/—|–/g);
 if (dashes > 0) V(`длинное/среднее тире (— –): ${dashes} (только дефис -)`);
 
-// буква ё в видимом тексте - запрещена (как и тире)
+// Буква ё запрещена, но на выходе штатной сборки её быть не может: build-prototype.mjs
+// прогоняет normYoFinal по всему документу перед записью. Поэтому здесь это не «почини
+// текст», а канарейка на сам сборщик: сработало - значит нормализация не отработала
+// (файл собран в обход build-prototype.mjs или шаг выпилен), и чинить надо сборку.
 const yos = countMatch(/[ёЁ]/g);
-if (yos > 0) V(`буква ё: ${yos} (заменить на е)`);
+if (yos > 0) V(`буква ё: ${yos} - нормализация сборщика не отработала (build-prototype.mjs, normYoFinal): пересобери прототип, а не правь HTML руками`);
 
 // ---------- контентные проверки (manifest copy) ----------
 const STOP = [
@@ -100,7 +117,7 @@ const blocks = Array.isArray(manifest.blocks) ? manifest.blocks : [];
 const metaDescription = String((manifest.meta && manifest.meta.description) || "");
 const copyText = blocks.map((b) => collectText(b.slots).concat(b.h2 ? [b.h2] : []).join("  ")).concat(metaDescription ? [metaDescription] : []).join("\n").toLowerCase();
 
-for (const s of STOP) if (copyText.includes(s)) V(`стоп-формула в тексте: «${s}» (см. COPY-AUDIT.md §14в - заменить на конкретику)`);
+for (const s of STOP) if (copyText.includes(s)) V(`стоп-формула в тексте: «${s}» (см. COPY-AUDIT.md П.5, таблица замен штампов - заменить на конкретику)`);
 
 // вложенные массивы строк: писатель мог склеить в строку - REPEAT отрендерил бы пусто
 for (const b of blocks) {
@@ -128,9 +145,13 @@ for (const b of blocks) {
   }
 }
 
-// объявленное обязано быть реализовано: fragment блока должен существовать в ките.
-// Иначе сборщик молча подставит фолбэк-форму (вместо калькулятора - обычная форма,
-// вместо интерактива - таблица), и на прототип уедет не то, что обещано в манифесте.
+// Объявленное обязано быть реализовано: fragment блока должен существовать в ките.
+// Это НАРУШЕНИЕ, а не предупреждение. Сборщик при неизвестном имени молча берет фолбэк
+// `cards` и рендерит его слотами несуществующего фрагмента - на выходе заголовок и пустая
+// сетка под ним, то есть блок, обещанный структурой, исчезает без следа. Ловится машинно
+// и без ложных срабатываний (список фрагментов кита закрытый), а цена пропуска - пустая
+// секция в документе, который уходит заказчику. Чинится в manifest.json одним словом:
+// взять имя из fragments-manifest.json либо перевести блок на существующую форму.
 // Кит ищем от корня проекта, как build-prototype.mjs; нет кита рядом - проверку пропускаем.
 const fragManifestPath = join(ASSETS, "fragments-manifest.json");
 let knownFragments = null;
@@ -149,7 +170,16 @@ if (knownFragments && knownFragments.size) {
     unknown.get(f).push(b.n || i + 1);
   });
   for (const [f, at] of unknown)
-    W(`фрагмента «${f}» нет в ките (блок ${at.join(", ")}) - сборщик подставит фолбэк, на прототип уедет не то, что объявлено`);
+    V(`фрагмента «${f}» нет в ките (блок ${at.join(", ")}) - сборщик подставил фолбэк cards, блок уехал пустым. Возьми имя из fragments-manifest.json`);
+}
+
+// Реквизиты, которых нет в SKILL-врезке про legal, но которые печатаются в футере,
+// cookie-баннере и всех трех юр-страницах: без domain в подвале остается «© », без date -
+// «Редакция от ». Предупреждение (сборка законна), но незакрытый реквизит виден заказчику.
+const legalManifest = manifest.legal && typeof manifest.legal === "object" ? manifest.legal : null;
+if (legalManifest) {
+  for (const [field, where] of [["domain", "«© » в футере и в юр-страницах"], ["date", "«Редакция от » в футере"]])
+    if (!String(legalManifest[field] || "").trim()) W(`legal.${field} пуст - ${where} без значения`);
 }
 
 // H1 присутствует и содержит маркер
@@ -162,7 +192,14 @@ else if (marker && !h1.toLowerCase().includes(marker.toLowerCase().split(" ")[0]
 }
 
 // мягкие бюджеты длины (предупреждения)
-if (h1 && h1.length > 60) W(`H1 длинный (${h1.length} симв) - лимит 60 (COPY-AUDIT п.9)`);
+// Title до сих пор жил двумя разными числами в промтах (60 у сборщика, 70 у верификатора)
+// и ни одним в машине - из-за чего сборщик молча укорачивал title, и <title> прототипа
+// расходился с Texts.docx, собранным из того же page.json. Машинная граница одна: 70 (см.
+// KIT-SPEC §2, целевые 60), и правится она у писателя в page.json, а не на сборке.
+const metaTitle = String((manifest.meta && manifest.meta.title) || "");
+if (metaTitle.length > 70)
+  W(`title ${metaTitle.length} симв - потолок 70, целевые 60 (KIT-SPEC §2). Править в page.json у писателя, не молча на сборке`);
+if (h1 && h1.length > 60) W(`H1 длинный (${h1.length} симв) - лимит 60 (COPY-AUDIT П.11 «Лимиты длины»)`);
 for (const b of blocks) {
   const h2 = b.h2 || (b.slots && b.slots.h2) || "";
   if (h2 && h2.length > 70) W(`H2 длинный (${h2.length} симв): «${h2.slice(0, 40)}...»`);

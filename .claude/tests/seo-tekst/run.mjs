@@ -30,6 +30,7 @@ const PROJECT_ROOT = resolve(__dirname, "../../..");
 const SANDBOX = join(PROJECT_ROOT, ".claude/tmp/seo-tekst-test");
 const READ_INPUT = join(PROJECT_ROOT, ".claude/scripts/read-tekst-input.mjs");
 const BUILD_DOCX = join(PROJECT_ROOT, ".claude/scripts/build-tekst-analysis-docx.mjs");
+const BUILD_DOCX_TEXTS = join(PROJECT_ROOT, ".claude/scripts/build-tekst-docx.mjs");
 
 // === Мини-фреймворк (по образцу tests/seo-temi/run.mjs) ===
 let passed = 0;
@@ -728,6 +729,39 @@ step("build-handoff: в правилах заполнения количеств
   const rowF = md.split("\n").find((l) => /^\|\s*features\s*\|/.test(l)) || "";
   if (rowF && !/20-60/.test(rowF)) return `поэлементный диапазон символов потерян: ${rowF.trim()}`;
   if (!/Пока ничего не нашлось/.test(md)) return "текст пустого состояния не доехал до разработчика";
+  return true;
+});
+
+step("служебные пометки не текут заказчику, а старый формат fill_notes не теряется", () => {
+  const dirN = join(SANDBOX, "notes-split");
+  mkdirSync(join(dirN, "pages", "new"), { recursive: true });
+  mkdirSync(join(dirN, "pages", "old"), { recursive: true });
+  writeFileSync(join(dirN, "inputs.json"), JSON.stringify({ slug: "vent", brand_name: "ВентПро" }), "utf8");
+  // новый формат: поле notes_internal есть -> fill_notes фильтруется строго
+  writeFileSync(join(dirN, "pages", "new", "page.json"), JSON.stringify({
+    page: { slug: "new", title: "Монтаж", type: "Услуга", url: "/m/" }, h1: "Монтаж вентиляции",
+    blocks: [{ n: 1, type: "Hero", fragment: "hero", slots: { h1: "Монтаж вентиляции" },
+      fill_notes: ["слот короче лимита: срезан хвост", "[ЗАПОЛНИТЬ: фото объекта]"],
+      notes_internal: ["внутренняя заметка редактора"] }],
+  }), "utf8");
+  // старый формат: notes_internal нет -> голая строка это дыра фактуры, ее нельзя терять
+  writeFileSync(join(dirN, "pages", "old", "page.json"), JSON.stringify({
+    page: { slug: "old", title: "Цены", type: "Услуга", url: "/c/" }, h1: "Цены",
+    blocks: [{ n: 1, type: "Цены", fragment: "pricing", slots: { h2: "Сколько стоит" },
+      fill_notes: ["реальное число объектов"] }],
+  }), "utf8");
+  const rd = run([BUILD_DOCX_TEXTS, dirN]);
+  if (rd.code !== 0) return `build-tekst-docx exit ${rd.code}: ${rd.stderr}`;
+  const { text } = docxText(join(dirN, "Texts_vent.docx"));
+  if (/срезан хвост|внутренняя заметка/.test(text)) return "служебная пометка уехала заказчику в Texts.docx";
+  if (!/фото объекта/.test(text)) return "настоящая дыра фактуры потеряна";
+  if (/\[ЗАПОЛНИТЬ: \[ЗАПОЛНИТЬ/.test(text)) return "двойная обертка маркера";
+  if (!/реальное число объектов/.test(text)) return "старый формат fill_notes потерян (регресс обратной совместимости)";
+  const rh = run([BUILD_HANDOFF, dirN]);
+  if (rh.code !== 0) return `build-handoff exit ${rh.code}: ${rh.stderr}`;
+  const md = readFileSync(join(dirN, "HANDOFF.md"), "utf8");
+  if (/срезан хвост|внутренняя заметка/.test(md)) return "служебная пометка уехала в HANDOFF.md";
+  if (!/фото объекта/.test(md) || !/реальное число объектов/.test(md)) return "открытые вопросы в HANDOFF собраны неполно";
   return true;
 });
 

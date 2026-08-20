@@ -24,7 +24,20 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } fro
 
 const dir = process.argv[2] ? resolve(process.argv[2]) : null;
 if (!dir) { console.error("[build-tekst-analysis-docx] usage: <texts_dir>"); process.exit(1); }
-const readJson = (p) => (existsSync(p) ? JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, "")) : {});
+// Файла нет - штатная деградация ({}): все входы, кроме inputs, опциональны.
+// Файл есть и не разбирается - это поломка (strategy.json оркестратор правит руками на гейте):
+// раньше наружу летел голый стек SyntaxError без имени файла, теперь - диагноз и exit 1.
+// Собирать документ согласования из уцелевшей половины нельзя: заказчик подпишет неполное.
+const readJson = (p) => {
+  if (!existsSync(p)) return {};
+  try {
+    const v = JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, ""));
+    return v && typeof v === "object" ? v : {};
+  } catch (e) {
+    console.error(`[build-tekst-analysis-docx] НЕ РАЗОБРАН ${p}: ${e.message}`);
+    process.exit(1);
+  }
+};
 
 const inputs = readJson(join(dir, "inputs.json"));
 const audience = readJson(join(dir, "audience.json"));
@@ -131,6 +144,16 @@ const needMaterials = uniq(arr(strategy.materials_missing).map((m) => (m && type
 const needIntake = uniq(arr(intake.gaps).map(gapText));
 const showNeeds = needFacts.length + needMaterials.length + needIntake.length > 0;
 
+// Документ согласования без решений и без портретов - это шапка и подпись под пустотой.
+// Раньше такой файл собирался с кодом 0 и уезжал заказчику на гейт как готовый.
+const hasDecisions = Object.keys(strategy.decisions || {}).length > 0 || !!strategy.positioning || !!strategy.idea;
+const hasAudience = arr(audience.personas).length > 0 || Object.keys(audience.summary || {}).length > 0;
+if (!hasDecisions && !hasAudience) {
+  console.error("[build-tekst-analysis-docx] нечего согласовывать: нет ни strategy.decisions, ни audience.personas - документ не собран");
+  console.error(`  проверь ${join(dir, "strategy.json")} и ${join(dir, "audience.json")}`);
+  process.exit(1);
+}
+
 // ---------- шапка ----------
 out.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 60 }, children: [new TextRun({ text: "Анализ ЦА и стратегия текстов", bold: true, color: NAVY, font: "Arial", size: 36 })] }));
 out.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [new TextRun({ text: company + (inputs.niche ? "  -  " + inputs.niche : ""), italics: true, font: "Arial", size: 24, color: "666666" })] }));
@@ -168,7 +191,10 @@ if (Object.keys(decisions).length) {
   for (const [key, label] of Object.entries(decLabels)) {
     const d = decisions[key]; if (!d || !arr(d.variants).length) continue;
     H3(label);
-    if (key === "register") P("Ниже - варианты первого экрана целиком. Выберите тот, которым вам самим не стыдно встретить клиента: по нему настроим тон всех страниц сайта.", { italics: true, color: "888888", size: 19 });
+    // Выбирается ТОН, а не готовые строки: финальный первый экран пишет писатель уже внутри
+    // выбранного тона (по формуле оффера и лимитам блока). Без слова «черновые» заказчик
+    // подписывал конкретный H1 и заходил на круг правок, не увидев его в Texts.docx.
+    if (key === "register") P("Ниже - варианты первого экрана целиком. Тексты в них черновые: их задача - показать разницу тона, а не стать финальными строками сайта. Выберите тон, которым вам самим не стыдно встретить клиента: по нему настроим все страницы, а окончательный текст первого экрана напишем уже внутри выбранного тона.", { italics: true, color: "888888", size: 19 });
     d.variants.forEach((v, i) => {
       const rec = i === d.recommended ? "  (рекомендуем)" : "";
       const text = variantText(v);
