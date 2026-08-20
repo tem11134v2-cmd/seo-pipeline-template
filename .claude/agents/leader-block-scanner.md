@@ -8,7 +8,7 @@ model: opus
 
 ## Вход
 - `texts_dir`, `project_root`
-- `structure_dir` / `analysis_dir` - откуда взять лидеров (когда есть SEO-артефакты)
+- `structure_dir` / `analysis_dir` - откуда взять лидеров (когда есть SEO-артефакты). Сами лидеры лежат в анализе; в `structure_dir` хранится только ссылка на него (`inputs.json`)
 - `leaders` - (альтернатива) явный список доменов/URL лидеров, переданный оркестратором.
   Задан - бери его как есть и НЕ ищи `structure_dir`/`analysis_dir`. Так работает автономный
   источник `--from-brief`, где лидеры выведены из уже собранной разведки направлений
@@ -19,7 +19,7 @@ model: opus
 - `texts_dir/pages.json` - какие ТИПЫ страниц в работе (Услуга / Категория / Товар / Главная / Подуслуга / ...)
 - Лидеры - по одному из двух путей:
   - задан `leaders` -> работаешь по нему (3-6 доменов), ничего дополнительно не читаешь;
-  - иначе `structure_dir/competitors*.json` / `analysis_dir/competitors.json` + `analysis_dir/leader_scan.json` (топ-3 лидера + ориентиры, их домены/URL). Бери 3-6 лучших.
+  - иначе лидеры берутся ИЗ АНАЛИЗА: `analysis_dir/competitors.json` + `analysis_dir/leader_scan.json` (топ-3 лидера + ориентиры, их домены/URL). Бери 3-6 лучших. Если передали только `structure_dir` (источник `--from-structure`), путь к анализу лежит в `structure_dir/inputs.json` (поле `analysis_dir` или `competitors_source`) - возьми его оттуда. **Своего файла конкурентов в `structures/NNN-*/` НЕТ**, не ищи его там и не считай его отсутствие поводом выйти пустым.
   - нет ни того, ни другого -> не выдумывай лидеров: запиши `leaders: []`, `notes` с причиной и выйди (block-planner упадёт на статическую матрицу).
 - `.claude/skills/seo-tekst/assets/fragments-manifest.json` (поле `block_to_fragment`) и `BLOCKS.md` - **целевой словарь** типов блоков (маппь увиденное в эти имена, не выдумывай новые).
 

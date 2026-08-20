@@ -61,12 +61,23 @@ function readAsset(rel, required = true) {
   return readFileSync(p, "utf8").replace(/^﻿/, "");
 }
 
-const manifest = JSON.parse(readFileSync(manifestPath, "utf8").replace(/^﻿/, ""));
+// Разбор с диагнозом: голый стек SyntaxError не говорит оркестратору, КАКОЙ файл сломан,
+// а сломанным чаще всего оказывается тот, что правили руками на гейте.
+function parseJson(raw, whatFile) {
+  try {
+    return JSON.parse(raw.replace(/^﻿/, ""));
+  } catch (e) {
+    console.error(`[build-prototype] не разобран ${whatFile}: ${e && e.message ? e.message : e}`);
+    process.exit(1);
+  }
+}
+
+const manifest = parseJson(readFileSync(manifestPath, "utf8"), manifestPath);
 const shell = readAsset("PROTOTYPE-MASTER.html");
 const prototypeCss = readAsset("prototype.css");
 const prototypeJs = readAsset("prototype.js");
 const arrowSvg = readAsset("arrow.svg", false).trim();
-const fragManifest = JSON.parse(readAsset("fragments-manifest.json"));
+const fragManifest = parseJson(readAsset("fragments-manifest.json"), "fragments-manifest.json (кит)");
 const blockToFragment = fragManifest.block_to_fragment || {};
 
 const themeName = manifest.theme || "b2b";
@@ -188,8 +199,75 @@ function renderTemplate(tpl, scope) {
 }
 
 // wrap [ЗАПОЛНИТЬ: ...] markers in a visible span (for client review)
+// Класс - .nx-fill: именно он стилизован в prototype.css (секция FILL MARKER), пунктирный
+// стикер. Любое другое имя (был .pt-fill) даёт пометку обычным текстом - заказчик не видит,
+// что именно надо дозаполнить. Атрибут data-fill - хук для поиска пометок в готовом HTML.
 function wrapFillNotes(html) {
-  return html.replace(/\[ЗАПОЛНИТЬ:[^\]]*\]/g, (m) => `<span class="pt-fill" data-fill>${escapeHtml(m)}</span>`);
+  return html.replace(/\[ЗАПОЛНИТЬ:[^\]]*\]/g, (m) => `<span class="nx-fill" data-fill>${escapeHtml(m)}</span>`);
+}
+
+// ---------- висячие предлоги ----------
+const NBSP = "\u00A0";
+
+// Короткие служебные слова липнут к СЛЕДУЮЩЕМУ слову: «в Казани», «под ключ», «не менее».
+const GLUE_NEXT = [
+  "в", "к", "с", "у", "о", "а", "и", "я",
+  "во", "ко", "со", "об", "от", "до", "за", "из", "на", "по", "то", "не", "ни", "но", "да", "ну",
+  "мы", "вы", "ты", "он", "их", "ее", "его", "им", "ей",
+  "обо", "изо", "ото", "для", "без", "при", "под", "над", "про", "или", "ибо",
+];
+// Частицы липнут к ПРЕДЫДУЩЕМУ слову: «так же», «если бы» - иначе отрываются в начало
+// следующей строки (после слова, к которому относятся).
+const GLUE_PREV = ["же", "бы", "ли", "б"];
+
+const LN = "\\p{L}\\p{N}";
+const RE_GLUE_NEXT = new RegExp(`(?<![${LN}])(${GLUE_NEXT.join("|")}) (?=\\S)`, "giu");
+const RE_GLUE_PREV = new RegExp(`(?<=[${LN}]) (?=(?:${GLUE_PREV.join("|")})(?![${LN}]))`, "giu");
+// Число не отрывается от того, что за ним: «3 дня», «от 900 000 руб.» - разрыв числа
+// и единицы читается хуже всего.
+const RE_NUM = /(?<=\d) (?=[\p{L}\d])/gu;
+
+// Куски, которые пропускаем целиком: HTML-комментарии (в т.ч. контракт передачи),
+// <script>/<style> (там неразрывный пробел ломает код), <title> (метатеги по контракту
+// не трогаем), <textarea>/<pre>/<code> (значимые пробелы) и ЛЮБОЙ тег - значения
+// атрибутов (href, src, class, alt) неразрывного пробела не переживают.
+// Кавычки в теге учтены, чтобы `>` внутри значения атрибута не обрывал разбор.
+const RE_SKIP =
+  /<!--[\s\S]*?-->|<(script|style|title|textarea|pre|code)\b[^>]*>[\s\S]*?<\/\1\s*>|<[a-zA-Z!/][^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>/gi;
+
+function nbspInText(t) {
+  let out = t;
+  // два прохода: после первой замены рядом может остаться второе короткое слово («в к»),
+  // и его пробел тоже надо прибить.
+  for (let pass = 0; pass < 2; pass++) {
+    out = out
+      .replace(RE_GLUE_NEXT, (_m, w) => w + NBSP)
+      .replace(RE_GLUE_PREV, NBSP)
+      .replace(RE_NUM, NBSP);
+  }
+  return out;
+}
+
+function bindHanging(src) {
+  let out = "";
+  let last = 0;
+  let m;
+  RE_SKIP.lastIndex = 0;
+  while ((m = RE_SKIP.exec(src)) !== null) {
+    out += nbspInText(src.slice(last, m.index)) + m[0];
+    last = m.index + m[0].length;
+  }
+  out += nbspInText(src.slice(last));
+
+  // Страховка: замена обязана трогать ТОЛЬКО пробелы. Если длина изменилась или документ
+  // без учёта неразрывных пробелов перестал совпадать с исходным - что-то пошло не так,
+  // отдаём исходный HTML. Сломанная сборка хуже висячего предлога.
+  const flat = (s) => s.replace(/\u00A0/g, " ");
+  if (out.length !== src.length || flat(out) !== flat(src)) {
+    console.warn("[build-prototype] нормализация висячих предлогов изменила не только пробелы - шаг пропущен");
+    return src;
+  }
+  return out;
 }
 
 // ---------- render blocks ----------
@@ -199,12 +277,17 @@ let renderedCount = 0;
 let formCount = 0;
 const fillNotes = [];
 const usedFragments = [];
+const unknownFragments = [];
 
 for (const block of blocks) {
   const type = block.type || "";
   let fragName = block.fragment || blockToFragment[type] || "cards";
   if (!fragManifest.fragments || !fragManifest.fragments[fragName]) {
-    console.warn(`[build-prototype] unknown fragment "${fragName}" for block "${type}", using cards`);
+    // Фолбэк остается (сборка не должна вставать), но факт подмены копится в сводку:
+    // фолбэк рисует заголовок и пустую сетку под ним, то есть обещанный блок исчезает.
+    // Блокирует это verify-prototype.mjs - здесь только громкий сигнал.
+    console.warn(`[build-prototype] фрагмента "${fragName}" нет в ките (блок "${type}") - подставлен фолбэк cards, блок уедет пустым`);
+    unknownFragments.push(`${fragName} (блок "${type}")`);
     fragName = "cards";
   }
   const fragFile = (fragManifest.fragments[fragName] && fragManifest.fragments[fragName].file) || `${fragName}.html`;
@@ -218,6 +301,10 @@ for (const block of blocks) {
   const scope = Object.assign({}, block.slots || {});
   scope.opts = block.opts || {};
   if (block.h2 != null && scope.h2 == null) scope.h2 = block.h2;
+  // empty_state приезжает из blueprint полем блока, а не слотом. Отдаем его фрагменту как
+  // {{empty_state}}, чтобы у сборщика-агента не было повода класть его в subhead: subhead -
+  // слот писателя, и подмена затирает согласованный текст, расходя прототип с Texts.docx.
+  if (block.empty_state != null && scope.empty_state == null) scope.empty_state = block.empty_state;
 
   let rendered = renderTemplate(fragTpl, scope);
   rendered = rendered.replace(/<!--ARROW_SVG-->/g, arrowSvg);
@@ -247,8 +334,24 @@ if (truthy(legal.address)) legalReqParts.push(`адрес: ${legal.address}`);
 // legal.phone давал href="tel:" с пустым текстом - мёртвая ссылка, которую verify пропускал
 // (регексп матчил пустой tel:). Систематически всплывает в проектах без реквизитов
 // (источник --from-brief, ADR-031), где ЗАКАЗЧИК.md нет.
-const phone = truthy(legal.phone) ? String(legal.phone) : "+7 (000) 000-00-00";
+//
+// ОДНО поведение на два законных написания «телефона нет». Сборщику-агенту предписано не
+// выдумывать реквизиты, а писать «[телефон - требует уточнения]»; раньше такая строка
+// проходила как заполненный телефон, цифр в ней нет - и в href уезжал пустой tel:,
+// то есть блокирующее нарушение за исполнение собственной инструкции. Теперь и пустое
+// поле, и любая пометка-заглушка (нет 5+ цифр подряд) дают одно и то же: маску
+// +7 (000) 000-00-00. Она заведомо нерабочая и читается человеком как «не заполнено»,
+// ссылка при этом живая - пустой href="tel:" остается нарушением намеренно.
+const PHONE_PLACEHOLDER = "+7 (000) 000-00-00";
+const phoneGiven = truthy(legal.phone) ? String(legal.phone).trim() : "";
+const phoneMissing = phoneGiven.replace(/\D/g, "").length < 5;
+const phone = phoneMissing ? PHONE_PLACEHOLDER : phoneGiven;
 const phoneRaw = phone.replace(/[^\d+]/g, "");
+if (phoneMissing) {
+  console.warn(
+    `[build-prototype] legal.phone не заполнен${phoneGiven ? ` (${phoneGiven})` : ""} - подставлена заглушка ${PHONE_PLACEHOLDER}. Выдумывать номер нельзя, реквизит закрывает заказчик.`
+  );
+}
 const legalScope = Object.assign({}, legal, {
   phone,
   phone_raw: phoneRaw,
@@ -310,17 +413,26 @@ for (const [marker, value] of Object.entries(subs)) {
 // поэтому замена по всему документу безопасна.
 html = normYoFinal(html);
 
+// висячие предлоги прибиваются КОДОМ, а не руками: исходные фрагменты и тексты писателей
+// держим чистыми (никаких &nbsp; в контентных файлах), неразрывные пробелы расставляем
+// здесь, на собранном документе. Идёт ПОСЛЕ подстановки фрагментов и ПОСЛЕ нормализации ё
+// (иначе список служебных слов пришлось бы держать в двух написаниях) и ДО записи файла.
+html = bindHanging(html);
+
 writeFileSync(outPath, html, "utf8");
 
 function normYoFinal(s) {
   return String(s).replace(/ё/g, "е").replace(/Ё/g, "Е");
 }
 
+
 // ---------- summary ----------
 console.log(`[build-prototype] wrote ${outPath}`);
 console.log(`  theme: ${themeName}`);
 console.log(`  blocks rendered: ${renderedCount}/${blocks.length}`);
 console.log(`  fragments: ${[...new Set(usedFragments)].join(", ")}`);
+if (unknownFragments.length) console.log(`  НЕТ В КИТЕ (подставлен cards, блок пустой): ${unknownFragments.join("; ")}`);
+if (phoneMissing) console.log(`  телефон: заглушка ${PHONE_PLACEHOLDER} - legal.phone не заполнен`);
 console.log(`  finale forms: ${formCount}${formCount === 1 ? " (ok)" : " (WARN: expected exactly 1)"}`);
 console.log(`  fill-notes (для согласования): ${fillNotes.length}`);
 console.log(`  size: ${(Buffer.byteLength(html, "utf8") / 1024).toFixed(1)} KB`);
