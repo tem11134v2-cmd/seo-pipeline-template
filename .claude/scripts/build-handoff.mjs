@@ -96,6 +96,7 @@ for (const pd of pageDirs) {
       status: s(bb.status),
       placeholder: bb.placeholder === true,
       mode: modeKind(bb.mode),
+      empty_state: s(bb.empty_state),
       limits: bb.limits && typeof bb.limits === "object" ? bb.limits : null,
       slots: b.slots && typeof b.slots === "object" ? b.slots : {},
       fill_notes: arr(b.fill_notes).map(s).filter(Boolean),
@@ -128,6 +129,9 @@ for (const p of pages) {
 }
 
 // ---------- намеренные пропуски: placeholder + режимы блока ----------
+// пустое состояние - решение планировщика (что человек видит, когда единиц ноль или
+// фильтр ничего не нашел); для режима «шаблон» оно обязательно и должно доехать до разработчика
+const NO_EMPTY = "[пустое состояние не задано - уточнить у автора структуры]";
 const gaps = [];
 for (const p of pages) {
   for (const b of p.blocks) {
@@ -135,7 +139,7 @@ for (const p of pages) {
     if (b.placeholder) reason = b.status === "не решено" ? "нет материалов или чисел - ждем фактуру от заказчика" : "блок критичен для типа страницы, но фактуры под него пока нет";
     else if (b.mode === "шаблон") reason = "рамка под контент, который заполняет клиент";
     else if (b.mode === "заглушка") reason = "место занято намеренно, содержимого пока нет";
-    if (reason) gaps.push({ page: p.title, slug: p.slug, block: b.type, n: b.n, mode: b.mode || (b.placeholder ? "плейсхолдер" : ""), reason });
+    if (reason) gaps.push({ page: p.title, slug: p.slug, block: b.type, n: b.n, mode: b.mode || (b.placeholder ? "плейсхолдер" : ""), reason, empty: b.empty_state || (b.mode === "шаблон" ? NO_EMPTY : "-") });
   }
 }
 const templateBlocks = [];
@@ -150,6 +154,17 @@ const canonical = arr(lexicon.canonical).map((x) => (typeof x === "string" ? { w
 // ---------- материалы ----------
 const materialsMissing = arr(strategy.materials_missing).map(s).filter(Boolean);
 
+// Вариант решения может прийти строкой (канон) или объектом - объект не должен уехать
+// в записку как [object Object] (та же логика, что в build-tekst-analysis-docx.mjs).
+const variantText = (v) => {
+  if (v == null) return "";
+  if (typeof v !== "object") return s(v);
+  const screen = [v.h1, v.subhead ?? v.sub, v.cta_label ?? v.cta].map(s).filter(Boolean);
+  if (screen.length) return screen.join(" · ");
+  const fallback = [v.text, v.variant, v.value, v.wording, v.label].find((x) => typeof x === "string" && x.trim());
+  return s(fallback);
+};
+
 // выбранный регистр из strategy.decisions.register (опц.): chosen - индекс или своя строка
 function registerLine() {
   const d = (strategy.decisions || {}).register;
@@ -160,7 +175,7 @@ function registerLine() {
   const v = arr(d.variants)[idx];
   const ax = arr(d.axes)[idx];
   const label = ax ? [ax.a, ax.b, ax.c || ax.v].map(s).filter(Boolean).join(" / ") : "";
-  const pick = s(v);
+  const pick = variantText(v);
   if (!pick && !label) return "";
   const suffix = Number.isInteger(ch) || typeof ch === "string" ? "" : " (рекомендация стратега, заказчик оставил на наше усмотрение)";
   return (label ? `${label} - ` : "") + (pick ? `«${pick}»` : "") + suffix;
@@ -246,8 +261,8 @@ push("- **Цвет и брендовая палитра.** Прототип че
 push("- **Финальные изображения.** Стоят серые плейсхолдеры с осмысленным alt: alt описывает, что должно быть на месте картинки, - по нему подбирается или снимается реальный кадр.");
 if (gaps.length) {
   push("", "**Блоки, оставленные незаполненными намеренно:**", "");
-  push("| Страница | # | Блок | Режим | Почему пусто |", "|---|---|---|---|---|");
-  for (const g of gaps) push(`| ${cell(g.page)} | ${g.n} | ${cell(g.block)} | ${cell(g.mode || "плейсхолдер")} | ${cell(g.reason)} |`);
+  push("| Страница | # | Блок | Режим | Почему пусто | Пустое состояние |", "|---|---|---|---|---|---|");
+  for (const g of gaps) push(`| ${cell(g.page)} | ${g.n} | ${cell(g.block)} | ${cell(g.mode || "плейсхолдер")} | ${cell(g.reason)} | ${cell(g.empty)} |`);
   push("");
 } else {
   push("", "Блоков-плейсхолдеров и блоков в режиме шаблона\\заглушки в прототипе нет.", "");
@@ -282,13 +297,16 @@ if (templateBlocks.length) {
   push("Ниже - блоки, которые вы будете наполнять сами. Формат придуман не для красоты: если выйти за рамки, блок сломает верстку или потеряет смысл.", "");
   for (const { page, block } of templateBlocks) {
     push(`**${page.title} - ${block.type}**`, "");
+    push(`Пустое состояние (что человек видит, когда единиц ноль или фильтр ничего не нашел): ${block.empty_state ? `«${block.empty_state}»` : NO_EMPTY}`, "");
     const lim = block.limits || {};
     const rows = Object.entries(lim).filter(([, v]) => s(v));
     if (!rows.length) { push("_Формат полей не задан - уточните у нас перед заполнением._", ""); continue; }
     push("| Поле | Формат | Сколько символов | Что будет, если пусто |", "|---|---|---|---|");
     for (const [k, v] of rows) {
       const raw = s(v);
-      const isList = /ровно|массив|штук|шт\.|карточ|список/i.test(raw);
+      // тип «список» - только по явным маркерам количества («ровно 6», «3-5 шт», «4-6 элементов», «массив»).
+      // Слово «карточка» в ПОЯСНЕНИИ к скалярному полю («до 60 символов, заголовок карточки») списком его не делает.
+      const isList = /массив|ровно\s*\d+|\d+\s*(?:-\s*\d+\s*)?(?:шт\.?|штук|элемент|карточ|пункт|позици)/i.test(raw);
       // диапазон символов берем только явный («20-60», «до 60 символов»); счет элементов («ровно 6 карточек») в эту колонку не тащим
       const m = raw.match(/\d+\s*-\s*\d+/) || raw.match(/(?:до|не более)\s*(\d+)/i) || (isList ? null : raw.match(/^\s*(\d+)\s*$/));
       const range = m ? (m[1] ? `до ${m[1]}` : m[0].replace(/\s+/g, "")) : "-";

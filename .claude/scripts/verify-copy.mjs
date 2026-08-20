@@ -62,7 +62,8 @@ const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
 const ARROWS = /[\u{2190}-\u{21FF}]/u; // типографские стрелки - не эмодзи, отдельная W-проверка
 
 // 1. самозащита
-if (/не как у (?:других|них)|без того,? чтобы|больше не придётся|забудьте о том/i.test(allText)) V("п.1 самозащита (паттерны: «не как у других/них», «без того, чтобы», «больше не придётся», «забудьте о том») - заменить на утверждение/цифру");
+// ё в паттернах пишем классом [её]: клиентский текст нормализован по ADR-023 («придется»)
+if (/не как у (?:других|них)|без того,? чтобы|больше не прид[её]тся|забудьте о том/i.test(allText)) V("п.1 самозащита (паттерны: «не как у других/них», «без того, чтобы», «больше не придётся», «забудьте о том») - заменить на утверждение/цифру");
 if (/защищены от/i.test(allText)) W("п.1 «защищены от» - ок как замена отрицания (VOICE.md), но проверь, что это не спор с конкурентом");
 // 2. жаргон маркетолога + утечка внутренней кухни в клиентском тексте.
 // Два списка: жёсткий (легальных омонимов нет - V) и мягкий (у слов есть отраслевые значения - W, решает аудитор).
@@ -81,7 +82,7 @@ if (/(?<![а-яёa-z0-9_])реально(?![а-яёa-z0-9_])|по-честном
 if (/(?:(?<![а-яёa-z0-9_])не(?![а-яёa-z0-9_])[^.!?]{0,30}){3,}/i.test(allText)) W("п.4 тройное отрицание подряд (максимум одно «не»)");
 // 5. манипуляции. Срочность запрещена только БЕЗ опоры на факт: COPY.md/VOICE.md разрешают дедлайн
 // с реальной датой или остатком из facts.json. Смотрим ПОСЛОТНО: дата/остаток должны быть в том же слоте.
-const URGENCY = /только сегодня|осталось \d+ мест|успей(?:те)?|сгорит|перечёркнут/i;
+const URGENCY = /только сегодня|осталось \d+ мест|успей(?:те)?|сгорит|переч[её]ркнут/i;
 const HAS_DATE = /\d{1,2}\.\d{1,2}(?:\.\d{2,4})?|\d{1,2}\s*(?:январ|феврал|март|апрел|ма[йя]|июн|июл|август|сентябр|октябр|ноябр|декабр)[а-яё]*/i;
 const HAS_LEFT = /осталось\s+\d+/i;
 for (const u of textUnits) {
@@ -327,11 +328,16 @@ function parseRepeatLimit(lim) {
     return out;
   }
   const s = String(lim == null ? "" : lim);
+  // единица счёта: количество элементов берём ТОЛЬКО из явных формулировок с ней
+  // (или из «ровно N» / объектного {count:...}). Без единицы «N-M» - это длина.
+  const CNT_UNIT = "(?:шт|элемент|сегмент|позици|пункт|карточ|плашк|строк|тариф|итем)";
   let m;
   if ((m = /ровно\s+(\d+)/i.exec(s))) out.count = { lo: +m[1], hi: +m[1] };
-  else if ((m = /от\s+(\d+)\s+до\s+(\d+)/i.exec(s))) out.count = { lo: +m[1], hi: +m[2] };
-  else if ((m = /(\d+)\s*-\s*(\d+)\s*(?:шт|элемент|сегмент|позици|пункт|карточ|плашк|строк|тариф|итем)/i.exec(s))) out.count = { lo: +m[1], hi: +m[2] };
-  else if ((m = /^\s*(\d+)\s*-\s*(\d+)\s*$/.exec(s))) out.count = { lo: +m[1], hi: +m[2] };
+  else if ((m = new RegExp(`от\\s+(\\d+)\\s+до\\s+(\\d+)\\s*${CNT_UNIT}`, "i").exec(s))) out.count = { lo: +m[1], hi: +m[2] };
+  else if ((m = new RegExp(`(\\d+)\\s*-\\s*(\\d+)\\s*${CNT_UNIT}`, "i").exec(s))) out.count = { lo: +m[1], hi: +m[2] };
+  // голый диапазон («170-420», «от 170 до 420») означает ДЛИНУ ЭЛЕМЕНТА, а не их
+  // число: у скаляров этот же формат уже читается как длина (page-writer, п.3).
+  else if ((m = /^\s*(?:от\s+)?(\d+)\s*(?:-|до)\s*(\d+)\s*$/i.exec(s))) out.itemLen = { lo: +m[1], hi: +m[2] };
   else if ((m = /^\s*(\d+)\s*$/.exec(s))) out.count = { lo: +m[1], hi: +m[1] };
   // пары «имя_поля A-B» (имя поля всегда латиницей: title, text, features)
   for (const f of s.matchAll(/([a-z_][a-z0-9_]*)\s*:?\s*(\d+)\s*-\s*(\d+)/gi)) out.fields[f[1].toLowerCase()] = { lo: +f[2], hi: +f[3] };
@@ -375,14 +381,19 @@ if (!existsSync(bpPath)) {
     // тарифы - «ровно 3: title 10-30 + text 30-90»). Длины элементов копим и
     // печатаем одной строкой, чтобы не раздувать вывод.
     // -----------------------------------------------------------------------
-    const repHard = [], repSoft = [];
+    const repHard = [], lenSoft = [], cntHard = [], cntSoft = [], scalHard = [];
+    const fold = (list, n = 3) => `${list.slice(0, n).join("; ")}${list.length > n ? ` и ещё ${list.length - n}` : ""}`;
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i];
       const bb = (b.n != null ? bpBlocks.find((x) => x.n === b.n) : bpBlocks[i]) || null;
-      if (!bb || !bb.limits || !b.slots) continue;
+      if (!bb || !bb.limits) continue;
       const bn = b.n != null ? b.n : i + 1;
+      const slots = (b.slots && typeof b.slots === "object") ? b.slots : {};
       for (const [slot, lim] of Object.entries(bb.limits)) {
-        const val = b.slots[slot];
+        // h2 по контракту (KIT-SPEC, page.json) лежит на уровне БЛОКА рядом со slots,
+        // а не внутри slots: без этой подстраховки лимит h2 не проверялся бы никогда.
+        let val = slots[slot];
+        if ((val == null || val === "") && slot === "h2" && b.h2) val = String(b.h2);
         if (Array.isArray(val)) {
           const rl = parseRepeatLimit(lim);
           if (rl.count) {
@@ -390,8 +401,8 @@ if (!existsSync(bpPath)) {
             if (n < lo || n > hi) {
               const dev = n < lo ? lo - n : n - hi;
               const norm = lo === hi ? `ровно ${lo}` : `${lo}-${hi}`;
-              if (dev > 1) V(`блок ${bn}: «${slot}» ${n} элем - лимит ${norm}, отклонение на ${dev} ломает сетку вёрстки`);
-              else W(`блок ${bn}: «${slot}» ${n} элем - лимит ${norm} (отклонение на 1)`);
+              if (dev > 1) cntHard.push(`блок ${bn} «${slot}» ${n} элем (лимит ${norm}, отклонение на ${dev})`);
+              else cntSoft.push(`блок ${bn} «${slot}» ${n} элем (лимит ${norm})`);
             }
           }
           val.forEach((el, k) => {
@@ -399,8 +410,8 @@ if (!existsSync(bpPath)) {
             const one = (name, s, r) => {
               const len = s.length;
               if (len > Math.round(r.hi * 1.15)) repHard.push(`${at}${name ? "." + name : ""} ${len} симв (лимит ${r.lo}-${r.hi})`);
-              else if (len > r.hi) repSoft.push(`${at}${name ? "." + name : ""} ${len} симв - выше лимита ${r.lo}-${r.hi} (в пределах 15%)`);
-              else if (len < r.lo) repSoft.push(`${at}${name ? "." + name : ""} ${len} симв - ниже лимита ${r.lo}-${r.hi}`);
+              else if (len > r.hi) lenSoft.push(`${at}${name ? "." + name : ""} ${len} симв - выше лимита ${r.lo}-${r.hi} (в пределах 15%)`);
+              else if (len < r.lo) lenSoft.push(`${at}${name ? "." + name : ""} ${len} симв - ниже лимита ${r.lo}-${r.hi}`);
             };
             if (typeof el === "string") { if (el.trim() && rl.itemLen) one("", el, rl.itemLen); return; }
             if (!el || typeof el !== "object" || Array.isArray(el)) return;
@@ -415,13 +426,19 @@ if (!existsSync(bpPath)) {
         if (!m) continue; // свободный формат у скаляра - не парсим, пропускаем
         if (typeof val !== "string" || !val.trim()) continue;
         const len = val.length, lo = Number(m[1]), hi = Number(m[2]);
-        if (len > Math.round(hi * 1.15)) V(`блок ${bn}: слот «${slot}» ${len} симв - выше лимита ${lo}-${hi} более чем на 15% (ломает вёрстку)`);
-        else if (len > hi) W(`блок ${bn}: слот «${slot}» ${len} симв - выше лимита ${lo}-${hi} (в пределах 15%)`);
-        else if (len < lo) W(`блок ${bn}: слот «${slot}» ${len} симв - ниже лимита ${lo}-${hi}`);
+        if (len > Math.round(hi * 1.15)) scalHard.push(`блок ${bn} слот «${slot}» ${len} симв (лимит ${lo}-${hi})`);
+        else if (len > hi) lenSoft.push(`блок ${bn} слот «${slot}» ${len} симв - выше лимита ${lo}-${hi} (в пределах 15%)`);
+        else if (len < lo) lenSoft.push(`блок ${bn} слот «${slot}» ${len} симв - ниже лимита ${lo}-${hi}`);
       }
     }
-    if (repHard.length) V(`элементы repeatables выше лимита более чем на 15% (ломает вёрстку): ${repHard.slice(0, 3).join("; ")}${repHard.length > 3 ? ` и ещё ${repHard.length - 3}` : ""}`);
-    if (repSoft.length) W(`длины элементов repeatables вне лимита: ${repSoft.slice(0, 3).join("; ")}${repSoft.length > 3 ? ` и ещё ${repSoft.length - 3}` : ""}`);
+    // Вывод свёрнут по правилам, а не по местам: на живой странице отклонений
+    // бывают десятки, и построчный список делает отчёт нечитаемым.
+    if (cntHard.length) V(`число элементов вне лимита (ломает сетку вёрстки): ${fold(cntHard)}`);
+    if (scalHard.length) V(`слоты выше лимита более чем на 15% (ломает вёрстку): ${fold(scalHard)}`);
+    if (cntSoft.length) W(`число элементов вне лимита на 1: ${fold(cntSoft)}`);
+    // длина элемента - такое же предупреждение, как длина скалярного слота (не V)
+    if (repHard.length) W(`длины элементов repeatables выше лимита более чем на 15%: ${fold(repHard)}`);
+    if (lenSoft.length) W(`длины слотов и элементов вне лимита: ${fold(lenSoft)}`);
   } catch { W("blueprint не разобран - длины слотов не сверены"); }
 }
 
