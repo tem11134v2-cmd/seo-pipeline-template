@@ -396,7 +396,13 @@ if (!existsSync(bpPath)) {
         if ((val == null || val === "") && slot === "h2" && b.h2) val = String(b.h2);
         if (Array.isArray(val)) {
           const rl = parseRepeatLimit(lim);
-          if (rl.count) {
+          // Блок в режиме «шаблон»/«заглушка» (ADR-035): limits описывают ОБЪЁМ К ЗАПУСКУ, который
+          // наполняет заказчик, а в тексте лежат 1-2 демо-единицы. Мерить их лимитом запуска нельзя:
+          // получится блокирующее нарушение на корректной по замыслу странице, и починить его текстом
+          // невозможно. Сверяем с demo_units, а сам лимит запуска в этом режиме не применяем.
+          const mode = String(bb.mode || (bb.placeholder ? "шаблон" : "рабочий")).toLowerCase();
+          const isDraftMode = /шаблон|заглушк|template|stub/.test(mode);
+          if (rl.count && !isDraftMode) {
             const { lo, hi } = rl.count, n = val.length;
             if (n < lo || n > hi) {
               const dev = n < lo ? lo - n : n - hi;
@@ -404,6 +410,9 @@ if (!existsSync(bpPath)) {
               if (dev > 1) cntHard.push(`блок ${bn} «${slot}» ${n} элем (лимит ${norm}, отклонение на ${dev})`);
               else cntSoft.push(`блок ${bn} «${slot}» ${n} элем (лимит ${norm})`);
             }
+          } else if (rl.count && isDraftMode) {
+            const want = Number(bb.demo_units) || 0;
+            if (want && val.length !== want) cntSoft.push(`блок ${bn} «${slot}»: режим «${mode}», демо-единиц ${val.length}, а в blueprint заявлено ${want}`);
           }
           val.forEach((el, k) => {
             const at = `блок ${bn} «${slot}»[${k + 1}]`;

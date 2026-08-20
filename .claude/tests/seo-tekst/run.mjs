@@ -615,6 +615,21 @@ step("блок есть в blueprint, но текста нет -> V (собир�
   return true;
 });
 
+step("блок в режиме «шаблон»: демо-единицы не меряются лимитом запуска (иначе сборка встанет намертво)", () => {
+  const r = run([VERIFY_COPY, copyPageBp({
+    blocks: [
+      { n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку" } },
+      { n: 2, type: "Листинг", fragment: "product-listing", slots: { products: [{ title: "Приточная установка [ЗАПОЛНИТЬ: модель]" }, { title: "Вытяжной вентилятор [ЗАПОЛНИТЬ: модель]" }] } },
+    ],
+    bpBlocks: [
+      BP_HERO,
+      { n: 2, type: "Листинг", fragment: "product-listing", mode: "шаблон", demo_units: 2, limits: { products: "6-24 карточки к запуску; в прототипе 2 демо" } },
+    ],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0: лимит запуска применен к демо-единицам, а текстом это не чинится`;
+  return true;
+});
+
 step("состав блоков совпадает с blueprint -> сверка молчит", () => {
   const r = run([VERIFY_COPY, copyPageBp({
     blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку" } }],
@@ -687,6 +702,32 @@ step("build-handoff: таблица блоков с функцией, режим
   if (!/под ключ и без субподряда/.test(md)) return "дословные слова заказчика не перечислены";
   if (!/Гарантия 3 года на монтаж/.test(md)) return "сквозные формулировки не перечислены";
   if (/[—–]/.test(md)) return "в документе передачи длинное/среднее тире";
+  return true;
+});
+
+step("build-handoff: в правилах заполнения количество элементов не выдается за число символов", () => {
+  const dirH2 = join(SANDBOX, "handoff-limits");
+  mkdirSync(join(dirH2, "pages", "main"), { recursive: true });
+  mkdirSync(join(dirH2, "blueprints"), { recursive: true });
+  writeFileSync(join(dirH2, "inputs.json"), JSON.stringify({ slug: "vent" }), "utf8");
+  writeFileSync(join(dirH2, "pages", "main", "page.json"), JSON.stringify({
+    page: { slug: "main", title: "Каталог", type: "Категория", url: "/katalog/" },
+    h1: "Каталог оборудования",
+    blocks: [{ n: 1, type: "Листинг", fragment: "product-listing", slots: { products: [] }, fill_notes: [] }],
+  }), "utf8");
+  writeFileSync(join(dirH2, "blueprints", "main.json"), JSON.stringify({
+    page: { slug: "main" },
+    blocks: [{ n: 1, type: "Листинг", fragment: "product-listing", function: "К", function_why: "человек находит свой тип оборудования", mode: "шаблон", demo_units: 2, empty_state: "Пока ничего не нашлось - сбросьте фильтр или оставьте заявку", limits: { areas: "5-8 позиций", features: "3-7 шт. по 20-60 симв." } }],
+  }), "utf8");
+  const r = run([BUILD_HANDOFF, dirH2]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
+  const md = readFileSync(join(dirH2, "HANDOFF.md"), "utf8");
+  const row = md.split("\n").find((l) => /^\|\s*areas\s*\|/.test(l)) || "";
+  if (!row) return "строки про areas в правилах заполнения нет";
+  if (/\|\s*5-8\s*\|/.test(row)) return `количество позиций напечатано как число символов: ${row.trim()}`;
+  const rowF = md.split("\n").find((l) => /^\|\s*features\s*\|/.test(l)) || "";
+  if (rowF && !/20-60/.test(rowF)) return `поэлементный диапазон символов потерян: ${rowF.trim()}`;
+  if (!/Пока ничего не нашлось/.test(md)) return "текст пустого состояния не доехал до разработчика";
   return true;
 });
 
