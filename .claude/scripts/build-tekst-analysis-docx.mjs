@@ -13,6 +13,10 @@
 // в таком проекте нет, и состав должен получить подпись заказчика здесь. Для источников
 // structure/analysis/table состав уже согласован раньше - секция не нужна.
 //
+// Секция «Формулировки, которые встанут на всех страницах» (ADR-037 п.9) - канон проекта:
+// строки, которые дальше тиражируются дословно и закрыты для правок аудитора, подписывает
+// заказчик. Нет канона в strategy/facts - секции нет (ADR-031).
+//
 // Секция «3. Что нужно от вас» собирается во ВСЕХ источниках: круг сбора недостающей
 // фактуры есть только у brief (шаг 2a), а клиентский гейт - везде. Дыры (`[ЗАПОЛНИТЬ]`)
 // должны доехать до заказчика здесь, а не всплыть в финальной сводке, когда переписывать
@@ -222,9 +226,51 @@ if (Object.keys(decisions).length) {
 if (strategy.positioning && !decisions.positioning) { H3("Позиционирование"); P(strategy.positioning, { bold: true }); }
 if (strategy.idea && !decisions.idea) { H3("Идея / красная нить"); P(strategy.idea, { bold: true }); }
 
+// ---------- канон: формулировки, которые встанут на всех страницах (ADR-037 п.9) ----------
+// Источники: strategy (на гейте) и facts.lexicon.canonical (после переноса оркестратором,
+// круги правок); дубли по формулировке схлопываем. Плейсхолдеры не печатаем: дыра фактуры
+// уходит заказчику секцией «Что нужно от вас», а не строкой, которую он подпишет.
+const cs = (x) => (typeof x === "string" ? x.trim() : "");
+const ORIGIN_WHY = {
+  "проверяемый факт": "точная формулировка - на сайте стоит слово в слово",
+  "клиент-требование": "ваша формулировка, сохраняем дословно по вашей просьбе",
+};
+const canon = [];
+const canonSeen = new Set();
+for (const raw of [...arr(strategy.canonical_wordings), ...arr((facts.lexicon || {}).canonical)]) {
+  const c = raw && typeof raw === "object" ? raw : { wording: raw };
+  const wording = cs(c.wording);
+  const key = wording.toLowerCase();
+  if (isHole(wording) || canonSeen.has(key)) continue;
+  canonSeen.add(key);
+  const client = cs(c.client_variant);
+  canon.push({ wording, client: isHole(client) ? "" : client, thought: cs(c.thought), where: cs(c.where), origin: cs(c.origin).toLowerCase() });
+}
+if (canon.length) {
+  H2("Формулировки, которые встанут на всех страницах");
+  P("Эти строки повторяются одинаково на всех страницах - в первом экране, в блоках, в футере, в заголовках для поиска. Синонимы здесь читаются как разные обещания, поэтому формулировка фиксируется один раз. Проверьте их сейчас: правка после написания текстов идет сразу по всем страницам.", { italics: true, color: "888888" });
+  for (const c of canon) {
+    if (c.client) P("Ваша фраза: " + c.client, { color: "555555" });
+    P("Как будет на сайте: " + c.wording, { bold: true });
+    const why = [
+      ORIGIN_WHY[c.origin] || (c.client ? "формулировка по формуле оффера: мысль ваша, подача наша" : ""),
+      c.thought ? "мысль «" + c.thought + "»" : "",
+      c.where ? "где встречается: " + c.where : "",
+    ].filter(Boolean).join("; ");
+    if (why) P("Почему: " + why, { italics: true, color: "888888", size: 19 });
+  }
+}
+
 H2("Стратегия (техническое - решает команда)");
 if (strategy.warmth_stage != null) P(`Стадия прогретости: ${strategy.warmth_stage} - ${strategy.warmth_rationale || ""}`);
-if (strategy.offer_formula) P(`Формула оффера: №${strategy.offer_formula}${strategy.offer_formula_name ? " - " + strategy.offer_formula_name : ""}`);
+// Имя и номер формулы живут в структурном рецепте (ADR-037 п.4); плоские offer_formula_name /
+// offer_formula остаются фолбэком для старых задач и для рецепта строкой (ADR-031).
+const recipe = strategy.offer_formula_recipe;
+const recipeObj = recipe && typeof recipe === "object" && !Array.isArray(recipe) ? recipe : null;
+const fno = (x) => (x ? String(x).trim() : "");
+const formulaNo = (recipeObj ? fno(recipeObj.formula) : "") || fno(strategy.offer_formula);
+const formulaName = (recipeObj ? cs(recipeObj.name) : "") || cs(strategy.offer_formula_name);
+if (formulaNo) P(`Формула оффера: №${formulaNo}${formulaName ? " - " + formulaName : ""}`);
 if (strategy.design_theme) P(`Палитра: ${strategy.design_theme}`, { color: "888888" });
 
 // Тезис: строка (канон) либо {thesis, label, repacked}. Метка «гордость» без переупаковки -

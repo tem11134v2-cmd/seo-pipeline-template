@@ -39,7 +39,9 @@ const allText = blocks.map((b) => collect(b.slots).concat(b.h2 ? [b.h2] : []).jo
   + (metaTitle ? "\n" + metaTitle : "") + (metaDesc ? "\n" + metaDesc : "");
 const low = allText.toLowerCase();
 // единый поиск первого экрана: fragment "hero" либо тип «первый экран/hero» (блок мог прийти с другим fragment)
-function findHero() { return blocks.find((b) => b.fragment === "hero" || /первый экран|hero/i.test(b.type || "")) || null; }
+// `product-gallery` - тоже первый экран: по BLOCKS.md это «своя секция (id=hero), несёт H1»,
+// у карточки товара штатного фрагмента `hero` не бывает.
+function findHero() { return blocks.find((b) => b.fragment === "hero" || b.fragment === "product-gallery" || /первый экран|hero/i.test(b.type || "")) || null; }
 const hero = findHero();
 // String() обязателен: слот мог приехать числом/null, а дальше по коду .match/.length
 const h1 = String((hero && hero.slots && hero.slots.h1) || page.h1 || "");
@@ -378,6 +380,42 @@ if (!existsSync(bpPath)) {
     const bpBlocks = arr(bp.blocks);
 
     // -----------------------------------------------------------------------
+    // ДОСТАВКА ФОРМУЛЫ ОФФЕРА (ADR-037 п.5). Поля page_offer и sell пишет block-planner,
+    // и до сих пор их не читал НИ ОДИН скрипт - несущий гейт держался на ручной вычитке.
+    // Жёстко судим только новый контракт: рецепт стратега пришёл ОБЪЕКТОМ (значит задача
+    // заведена после ADR-037), а page_offer в blueprint нет. Старые задачи со строковым
+    // рецептом деградируют предупреждением (ADR-031).
+    // -----------------------------------------------------------------------
+    let recipe = null;
+    try {
+      const sPath = join(dirname(pjPath), "..", "..", "strategy.json");
+      if (existsSync(sPath)) recipe = JSON.parse(readFileSync(sPath, "utf8").replace(/^﻿/, "")).offer_formula_recipe;
+    } catch { recipe = null; }
+    const poFilled = bp.page_offer && typeof bp.page_offer === "object" && !Array.isArray(bp.page_offer)
+      && Object.values(bp.page_offer).some((v) => String(v == null ? "" : v).trim());
+    if (!poFilled) {
+      const isNewContract = recipe && typeof recipe === "object" && !Array.isArray(recipe);
+      const msg = `в blueprint нет заполненного page_offer - формула оффера до писателя не доехала (ADR-037 п.5), первый экран пишется вслепую. Чинит block-planner (6a1)`;
+      if (isNewContract) V(msg);
+      else W(`${msg}. Рецепт стратега старого формата - задача идёт по прежнему контракту (ADR-031), но первый экран проверь отдельно`);
+    }
+    // sell: у содержательных блоков. Закрытый список служебных фрагментов - ADR-037 п.5.
+    const SERVICE_FRAG = /^(?:breadcrumbs|anchor-nav|nav|legal|footer|cookie)$/i;
+    const noSell = [], longSell = [];
+    for (let i = 0; i < bpBlocks.length; i++) {
+      const b = bpBlocks[i] || {};
+      const bn = b.n != null ? b.n : i + 1;
+      if (SERVICE_FRAG.test(String(b.fragment || ""))) continue;
+      const onlyEmptyState = b.empty_state && !b.slots && !b.limits;
+      if (onlyEmptyState) continue;
+      const sell = String(b.sell == null ? "" : b.sell).trim();
+      if (!sell) noSell.push(bn);
+      else if (sell.length > 160) longSell.push(`${bn} (${sell.length})`);
+    }
+    if (noSell.length && poFilled) W(`blueprint: блоки без sell - ${noSell.slice(0, 8).join(", ")}${noSell.length > 8 ? ` и ещё ${noSell.length - 8}` : ""}. Блок без sell - блок без работы (ADR-037 п.5): либо задание, либо блок снимается`);
+    if (longSell.length) W(`blueprint: sell длиннее 160 знаков в блоках ${longSell.join(", ")} - это задание, а не текст блока; длинный sell превращается во второй notes`);
+
+    // -----------------------------------------------------------------------
     // PRE-FLIGHT: blueprint - канон структуры страницы. Состав блоков писатель
     // менять не должен (см. запреты page-writer). Но ПОЛНОТА состава - вопрос
     // финального шлюза, а не каждого прогона по одной странице: пока идёт веер
@@ -550,37 +588,247 @@ try {
   }
 } catch { /* мягко: битый strategy.json не мешает проверке текста */ }
 
-if (axisA || axisB) {
-  // места с CTA: блок считается одним местом, даже если в нём и CTA-слот, и форма
-  const CTA_SLOT = /cta|btn|button|кнопк/i;
-  const CTA_FRAGMENT = /^(?:form|cta-mid)$/i;
-  const ctaUnits = [], ctaPlaces = [];
-  for (let i = 0; i < blocks.length; i++) {
-    const b = blocks[i] || {};
-    const bn = b.n != null ? b.n : i + 1;
-    let isCta = CTA_FRAGMENT.test(String(b.fragment || ""));
-    if (b.slots && typeof b.slots === "object") {
-      for (const [slot, val] of Object.entries(b.slots)) {
-        if (CTA_SLOT.test(slot)) {
-          isCta = true;
-          const t = collect(val).join("  ");
-          if (t.trim()) ctaUnits.push({ where: `блок ${bn}, слот «${slot}»`, text: t });
-          continue;
-        }
-        // кнопка внутри повторяемого элемента: у блока цен она лежит в slots.tariffs[].cta,
-        // и по имени слота («tariffs») место с CTA не опознаётся - блок недосчитывался.
-        if (!Array.isArray(val)) continue;
-        const inner = [];
-        for (const el of val) {
-          if (!el || typeof el !== "object" || Array.isArray(el)) continue;
-          for (const [f, fv] of Object.entries(el)) if (CTA_SLOT.test(f) && typeof fv === "string" && fv.trim()) inner.push(fv);
-        }
-        if (inner.length) { isCta = true; ctaUnits.push({ where: `блок ${bn}, кнопки в «${slot}»`, text: inner.join("  ") }); }
+// места с CTA: блок считается одним местом, даже если в нём и CTA-слот, и форма.
+// Считаются ВСЕГДА (не только при известном регистре): их читает и продающий пол (ADR-037 F3),
+// и проверки регистра ниже.
+const CTA_SLOT = /cta|btn|button|кнопк/i;
+const CTA_FRAGMENT = /^(?:form|cta-mid)$/i;
+const ctaUnits = [], ctaPlaces = [];
+for (let i = 0; i < blocks.length; i++) {
+  const b = blocks[i] || {};
+  const bn = b.n != null ? b.n : i + 1;
+  const frag = String(b.fragment || "");
+  let isCta = CTA_FRAGMENT.test(frag);
+  if (b.slots && typeof b.slots === "object") {
+    for (const [slot, val] of Object.entries(b.slots)) {
+      if (CTA_SLOT.test(slot)) {
+        isCta = true;
+        const t = collect(val).join("  ");
+        if (t.trim()) ctaUnits.push({ where: `блок ${bn}, слот «${slot}»`, text: t, frag });
+        continue;
       }
+      // кнопка внутри повторяемого элемента: у блока цен она лежит в slots.tariffs[].cta,
+      // и по имени слота («tariffs») место с CTA не опознаётся - блок недосчитывался.
+      if (!Array.isArray(val)) continue;
+      const inner = [];
+      for (const el of val) {
+        if (!el || typeof el !== "object" || Array.isArray(el)) continue;
+        for (const [f, fv] of Object.entries(el)) if (CTA_SLOT.test(f) && typeof fv === "string" && fv.trim()) inner.push(fv);
+      }
+      // кнопки внутри повторяемых элементов (карточка товара, тариф, кейс) - НАВИГАЦИЯ,
+      // а не главный призыв страницы: «Подробнее» на карточке листинга это норма каталога.
+      if (inner.length) { isCta = true; ctaUnits.push({ where: `блок ${bn}, кнопки в «${slot}»`, text: inner.join("  "), frag, nav: true }); }
     }
-    if (isCta) ctaPlaces.push(`блок ${bn}`);
+  }
+  if (isCta) ctaPlaces.push(`блок ${bn}`);
+}
+
+// ---------------------------------------------------------------------------
+// ПРОДАЮЩИЙ ПОЛ (ADR-037): минимум, ниже которого коммерческая страница не сдаётся.
+// Регистр меняет ФОРМУ пола (проверки ниже), но не отменяет его ни в одном варианте:
+// заказчик, попросивший «не продавать», просит убрать напор и штампы, а не обещание.
+// Машине отдано только грепаемое - наличие первого экрана, наличие места с целевым
+// действием, стоп-лист надписей, цифра в первом экране. Суждение «продаёт ли» - у tekst-verifier.
+// ---------------------------------------------------------------------------
+const metaPath = join(dirname(pjPath), "..", "..", "meta.json");
+let waivers = [];
+try {
+  if (existsSync(metaPath)) waivers = arr(JSON.parse(readFileSync(metaPath, "utf8").replace(/^﻿/, "")).selling_floor_waivers);
+} catch { waivers = []; }
+// waiver действителен ТОЛЬКО с непустым source (решение гейта либо строка materials_missing).
+// Waiver без основания игнорируется - иначе пол обходится одной пустой строкой в meta.json.
+const FLOOR_RULES = ["F1", "F2", "F3", "F4"];
+const normSlug = (s) => String(s || "").trim().replace(/^\/+|\/+$/g, "").toLowerCase();
+// Точное совпадение по закрытому списку. Префиксное сопоставление молча снимало не то правило:
+// шаблон из ADR «F1|F2|F3|F4», скопированный дословно, гасил ровно F1 и никого об этом не извещал.
+function waiverFor(rule) {
+  for (const w of waivers) {
+    if (!w) continue;
+    const r = String(w.rule || "").trim().toUpperCase();
+    const p = normSlug(w.page), src = String(w.source || "").trim();
+    if (p !== normSlug(pageSlug)) continue;
+    if (r !== rule) continue;
+    if (!src) continue;
+    return w;
+  }
+  return null;
+}
+// неразобранные waiver: молчащий waiver хуже отсутствующего - оркестратор считает пол снятым
+const pagesJsonPath = join(dirname(pjPath), "..", "..", "pages.json");
+let knownSlugs = null;
+try {
+  if (existsSync(pagesJsonPath)) {
+    const pj = JSON.parse(readFileSync(pagesJsonPath, "utf8").replace(/^﻿/, ""));
+    const list = Array.isArray(pj) ? pj : arr(pj.pages);
+    knownSlugs = new Set(list.map((x) => normSlug(x && (x.slug || x.page_slug))).filter(Boolean));
+  }
+} catch { knownSlugs = null; }
+for (const w of waivers) {
+  if (!w) continue;
+  const r = String(w.rule || "").trim().toUpperCase();
+  // waiver с чужим или опечатанным slug исчезал бесследно: правило оставалось, а оркестратор
+  // считал его снятым. Сообщаем, если страницы с таким slug в проекте нет вовсе.
+  if (knownSlugs && knownSlugs.size && !knownSlugs.has(normSlug(w.page))) {
+    W(`waiver не применён: страницы «${String(w.page || "")}» нет в pages.json - проверь slug`);
+    continue;
+  }
+  if (normSlug(w.page) !== normSlug(pageSlug)) continue;
+  if (!FLOOR_RULES.includes(r)) {
+    W(`waiver не применён: правило «${String(w.rule || "")}» не из списка F1-F4 (одна строка waiver = одно правило)`);
+    continue;
+  }
+  if (!String(w.source || "").trim()) {
+    W(`waiver не применён: у правила ${r} пустой source - нужно основание (решение гейта, строка materials_missing либо ложное срабатывание с пояснением)`);
+  }
+}
+function floorV(rule, msg) {
+  const w = waiverFor(rule);
+  if (w) W(`пол ${rule} снят waiver'ом: ${msg} - причина: ${String(w.why || "не названа")} (основание: ${w.source})`);
+  else V(`пол ${rule}: ${msg}`);
+}
+
+const pageType = String((page.page && page.page.type) || "");
+// Продающий пол жёсткий на КОММЕРЧЕСКИХ типах. Инфо, контакты, документы, доставка, блог -
+// там обещание с цифрой не обязано быть, требование к ним свелось бы к шуму.
+const COMMERCIAL = /услуг|товар|главн|продукт|категор|цен|прайс|стоимост|каталог|тариф/i.test(pageType);
+// F1. Первый экран. Жёстко - для страниц, которые продают напрямую. Для категорий и хабов
+// Hero опционален по рецептам BLOCKS.md (крошки -> intro -> листинг), там только напоминание.
+// Каталожный рецепт BLOCKS.md (крошки -> intro -> листинг) - законная страница без Hero,
+// даже если в `type` стоит слово «Товар»: это листинг-зонтик, а не карточка.
+const CATALOG_SHAPE = /^breadcrumbs$/i.test(String((blocks[0] || {}).fragment || ""))
+  && blocks.some((b) => /^(?:product-listing|category-grid|subcategory-tiles)$/i.test(String(b.fragment || "")));
+if (!hero) {
+  if (/услуг|товар|главн|продукт/i.test(pageType) && !CATALOG_SHAPE && !/листинг|каталог|зонтик/i.test(pageType)) {
+    floorV("F1", `у страницы типа «${pageType}» нет первого экрана (нет блока fragment "hero" и блока с типом «первый экран»)`);
+  } else {
+    W(`пол F1: первого экрана нет (тип «${pageType || "не указан"}») - для категорий и хабов это штатно по BLOCKS.md, но сверь с blueprint, что так задумано`);
+  }
+}
+
+// F2. Обещание в первом экране. Грепом ловится только самый явный провал - обещание не на что
+// приземлить; адресат и обещанный результат проверяет tekst-verifier по закрытому списку.
+if (hero) {
+  // Считаем ЧИСЛА, а не символы-цифры: «Bitrix24», «1С», «152-ФЗ», «3ds Max» - это имена,
+  // а не обещание. Токен с буквой внутри числом не считается.
+  const numTokens = (s) => (String(s).match(/\S+/g) || [])
+    .map((t) => t.replace(/^[«"'(\[]+|[»"'),.;:!?\]]+$/g, ""))
+    .filter((t) => /\d/.test(t) && !/[A-Za-zА-Яа-яЁё]/.test(t))
+    .map((t) => t.replace(/\D/g, ""))
+    .filter(Boolean);
+  // Ценовой ноль - тоже приземление: у бесплатного первого шага обещание в цифре не нуждается.
+  const FREE = /(?<![а-яёa-z])(?:бесплатн\w*|без\s+оплаты|0\s*(?:₽|руб))/i;
+
+  // Несущий слот оффера - подзаголовок (VOICE.md п.5). Цифра в плашке или бонусе обещание
+  // в подзаголовке не заменяет, поэтому меряем их отдельно.
+  const hs = (hero.slots && typeof hero.slots === "object") ? hero.slots : {};
+  const subText = String(hs.subhead || hs.sub || hs.lead || "");
+  const subLanded = numTokens(subText).length > 0 || FREE.test(subText);
+  const heroLanded = numTokens(firstScreenText).length > 0 || FREE.test(firstScreenText);
+
+  const factNums = [], factLabels = [];
+  for (const n of arr(facts && facts.numbers)) {
+    if (!n || String(n.publish == null ? "as-is" : n.publish) === "no") continue;
+    const val = String(n.value == null ? "" : n.value);
+    if (/\[ЗАПОЛНИТЬ|требует уточнения/i.test(val)) continue;
+    const ds = numTokens(val);
+    if (!ds.length) continue;
+    factNums.push(...ds);
+    factLabels.push(`${String(n.label || "").trim()} = ${val.trim()}`.slice(0, 60));
+  }
+  const heroNums = numTokens(firstScreenText);
+  const subNums = numTokens(subText);
+  const confirmed = factNums.filter((d) => heroNums.includes(d));
+  I(`первый экран: чисел ${heroNums.length}, из них подтверждено facts.json ${confirmed.length}; публикуемых чисел в facts.json ${factNums.length}; мест с целевым действием на странице ${ctaPlaces.length}`);
+
+  // ГРАНИЦА МАШИНЫ. По ADR-037 обещание приземляется ТРЕМЯ равноправными способами: число из facts.json,
+  // названный адресат, обещанный результат. Грепом различим ровно один - значит скрипт не имеет права
+  // судить, есть обещание или нет. Жёстко валим только то, что видно наверняка: несущего слота НЕТ вовсе.
+  // Всё остальное - предупреждение, а решение выносит tekst-verifier (проверка 7): у него все три критерия.
+  if (!subText.trim()) {
+    const msg = "у первого экрана нет подзаголовка - несущий слот оффера пуст (VOICE.md п.5). Обещание ставить некуда";
+    if (COMMERCIAL) floorV("F2", msg);
+    else W(`пол F2 (тип «${pageType || "не указан"}», не коммерческий - мягко): ${msg}`);
+  } else {
+    const subConfirmed = factNums.filter((d) => subNums.includes(d));
+    if (subNums.length && !subConfirmed.length) {
+      W(`пол F2: число в подзаголовке первого экрана НЕ подтверждено facts.json (${subNums.slice(0, 3).join(", ")}) - проверь, что это не сочинённая и не приблизительная цифра (ADR-037 п.6: приблизительных нет)`);
+    } else if (!subNums.length && !FREE.test(subText)) {
+      const tail = factNums.length
+        ? `публикуемых чисел в facts.json - ${factNums.length}`
+        : "публикуемых чисел в facts.json нет вовсе - обещание придётся держать на адресате или результате, а недостающая цифра уходит запросом заказчику";
+      const inPlate = heroLanded ? " При этом число на первом экране ЕСТЬ, но стоит в плашке или бонусе, а не в несущем слоте." : "";
+      W(`пол F2: в подзаголовке первого экрана нет числа. Это законно, если обещание держится на названном адресате или обещанном результате (ADR-037 F2, судит tekst-verifier);${inPlate} ${tail}`);
+    }
   }
 
+  // Первый экран с дырой фактуры. Холодный читатель («это новое или старое?» - канон копирайтинга)
+  // видит незакрытую скобку раньше, чем текст: страница читается как недоделанная. Ни один слой
+  // это место отдельно не смотрел - пометки считались по всей странице скопом.
+  if (/\[ЗАПОЛНИТЬ|\[требует /i.test(firstScreenText)) {
+    const msg = "в первом экране осталась пометка [ЗАПОЛНИТЬ] - самое видное место страницы читается как недоделанное. Пометкам место ниже по странице, не в Hero";
+    if (COMMERCIAL) floorV("F2", msg);
+    else W(`пол F2 (тип «${pageType || "не указан"}», не коммерческий - мягко): ${msg}`);
+  }
+}
+
+// Где на странице появляется первое целевое действие. Канон: «что делать дальше?» - один из шести
+// вопросов, на которые первый экран обязан ответить. Кнопка в предпоследнем блоке = ответа нет,
+// пока человек не долистает всю страницу. Ни F3, ни лимиты этого не видели: там считается ЧИСЛО мест.
+if (ctaPlaces.length && blocks.length >= 4) {
+  const firstIdx = blocks.findIndex((b, i) => ctaPlaces.includes(`блок ${b && b.n != null ? b.n : i + 1}`));
+  if (firstIdx >= 0) {
+    const pos = firstIdx + 1;
+    I(`первое целевое действие - блок ${pos} из ${blocks.length}`);
+    if (pos > Math.max(3, Math.ceil(blocks.length / 2))) {
+      W(`пол F3: первое целевое действие появляется только в блоке ${pos} из ${blocks.length} - до этого места читателю некуда пойти. Проверь, что в первом экране есть кнопка или якорь на форму`);
+    }
+  }
+}
+
+// F3. Целевое действие: оно есть, и надпись называет предмет.
+if (!ctaPlaces.length) {
+  const msg = "на странице нет ни одного места с целевым действием (ни CTA-слота, ни формы) - читателю некуда пойти";
+  if (COMMERCIAL) floorV("F3", msg);
+  else W(`пол F3 (тип «${pageType || "не указан"}», не коммерческий - мягко): ${msg}`);
+}
+const CTA_STOP = /^\s*(?:отправить(?:\s+(?:заявку|сообщение|вопрос|форму))?|подробнее|узнать\s+больше|читать\s+далее|далее|перейти|submit|оставить\s+заявку)\s*[.!]?\s*$/i;
+const ctaSeen = new Set();
+for (const u of ctaUnits) {
+  for (const part of String(u.text).split(/\s{2,}/)) {
+    const t = part.trim();
+    if (!t) continue;
+    if (CTA_STOP.test(t)) {
+      // Жёстко - только ГЛАВНЫЙ призыв страницы. Сабмит формы: надпись обязана отвечать ЗАГОЛОВКУ
+      // формы, а его греп не видит (раздел «Идеальный CTA» в COPY.md) - разбирает copy-auditor.
+      // Кнопка внутри карточки листинга - навигация, стоп-лист к ней не применяется жёстко.
+      const key = `${u.nav ? "nav" : u.frag}|${t.toLowerCase()}`;
+      if (ctaSeen.has(key)) continue;
+      ctaSeen.add(key);
+      if (u.nav) W(`пол F3: «${t}» (${u.where}) - навигация внутри карточек; для листинга это норма, но на карточке с ценой уместнее предметная надпись`);
+      else if (/^form$/i.test(u.frag)) W(`пол F3: сабмит «${t}» (${u.where}) - проверь по заголовку формы: надпись обязана называть, что произойдёт, и отвечать заголовку`);
+      else floorV("F3", `надпись главной кнопки «${t}» (${u.where}) из стоп-листа - кнопка обязана называть, что человек получит или что произойдёт («Рассчитать стоимость», «Забрать подборку», «Обсудить задачу»)`);
+    }
+    // Длину надписи пол НЕ проверяет: у неё один владелец - лимит слота из BLOCKS.md,
+    // он приезжает в blueprint и сверяется общей проверкой лимитов выше. Второй диапазон
+    // здесь дал бы третью норму на одну надпись (ровно класс «разъехавшихся контрактов»).
+  }
+}
+
+// Абзацы длиннее 140 знаков. Ориентир из канона копирайтинга, НЕ гейт: `limits` из blueprint -
+// несущее ограничение вёрстки, оно главнее. Здесь только счёт и сигнал при массовом перекосе.
+{
+  const frags = [];
+  for (const b of blocks) for (const s of collect(b.slots)) { const t = String(s).trim(); if (t.length > 1) frags.push(t); }
+  const longs = frags.filter((t) => t.length > 140);
+  if (longs.length) {
+    I(`фрагментов длиннее 140 знаков: ${longs.length} из ${frags.length} (максимум ${longs.reduce((m, t) => Math.max(m, t.length), 0)})`);
+    if (frags.length && longs.length / frags.length > 0.5) {
+      W(`больше половины фрагментов длиннее 140 знаков (${longs.length} из ${frags.length}) - перечитай длинные: обычно внутри второй абзац или хвост-досказывание`);
+    }
+  }
+}
+
+if (axisA || axisB) {
   // 1. Ось А деловой/отбирающий: срочность и давление запрещены ДАЖЕ с датой.
   // Пометка к п.5 (само место там уже названо) - не повтор, а поправка на регистр.
   if (axisA === "деловой" || axisA === "отбирающий") {

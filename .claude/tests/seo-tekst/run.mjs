@@ -20,14 +20,50 @@
 // Exit 0 - все тесты прошли. Exit 1 - есть провал.
 
 import { execFileSync } from "node:child_process";
-import { writeFileSync, readFileSync, copyFileSync, existsSync, mkdirSync, rmSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { writeFileSync, readFileSync, readdirSync, statSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { join, resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execSync } from "node:child_process";
+import { inflateRawSync } from "node:zlib";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "../../..");
-const SANDBOX = join(PROJECT_ROOT, ".claude/tmp/seo-tekst-test");
+// Песочница уникальна на прогон. Фиксированная папка ловила залоченный файл от прошлого
+// прогона и валила ВЕСЬ набор на очистке - до первой строки отчета. Уникальное имя
+// (pid + время) убирает гонку, а чужие песочницы подметаются мягко, в try/catch.
+const TMP_ROOT = join(PROJECT_ROOT, ".claude/tmp");
+const SANDBOX_PREFIX = "seo-tekst-test";
+const SANDBOX = join(TMP_ROOT, `${SANDBOX_PREFIX}-${process.pid}-${Date.now().toString(36)}`);
+
+// Мягкое удаление: залоченный файл (антивирус, открытый проводник, чужой прогон) -
+// это не повод ронять набор. Сообщаем и идем дальше.
+function softRm(path) {
+  try {
+    rmSync(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    return true;
+  } catch (err) {
+    console.log(`  [note] не удалось убрать ${path}: ${err.code || err.message} - пропускаю`);
+    return false;
+  }
+}
+
+// Метем только ОСТЫВШИЕ песочницы: свежая может принадлежать параллельному прогону
+// (CI гоняет набор в несколько заходов), и снести ее на ходу - это чужой красный набор.
+const SWEEP_AGE_MS = 30 * 60 * 1000;
+function sweepOldSandboxes() {
+  try {
+    if (!existsSync(TMP_ROOT)) return;
+    for (const name of readdirSync(TMP_ROOT)) {
+      if (!name.startsWith(SANDBOX_PREFIX) || name === basename(SANDBOX)) continue;
+      const path = join(TMP_ROOT, name);
+      try {
+        if (Date.now() - statSync(path).mtimeMs < SWEEP_AGE_MS) continue;
+      } catch { /* исчезла сама - и хорошо */ continue; }
+      softRm(path);
+    }
+  } catch (err) {
+    console.log(`  [note] обход старых песочниц не удался: ${err.code || err.message} - пропускаю`);
+  }
+}
 const READ_INPUT = join(PROJECT_ROOT, ".claude/scripts/read-tekst-input.mjs");
 const BUILD_DOCX = join(PROJECT_ROOT, ".claude/scripts/build-tekst-analysis-docx.mjs");
 const BUILD_DOCX_TEXTS = join(PROJECT_ROOT, ".claude/scripts/build-tekst-docx.mjs");
@@ -66,19 +102,48 @@ function run(args) {
 
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, ""));
 
-// docx - это zip; текст достаём без сторонних зависимостей, через PowerShell-распаковку.
-// Expand-Archive работает только с расширением .zip - поэтому сначала копия под .zip-именем.
+// docx - это zip; читаем его средствами node (zlib), без внешних процессов и без временных копий.
+// Раньше здесь была PowerShell-распаковка: Expand-Archive требует расширение .zip, поэтому рядом
+// заводилась копия docx под .zip-именем - и она оставалась залоченной, роняя следующий прогон.
+// Достаем ровно одну запись из центрального каталога zip; ZIP64 тут не нужен, документы мелкие.
+function zipEntry(buf, name) {
+  let eocd = -1;
+  const floor = Math.max(0, buf.length - 22 - 65535);
+  for (let i = buf.length - 22; i >= floor; i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("не найден конец zip-каталога - файл повреждён или это не docx");
+  const count = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  for (let i = 0; i < count; i++) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error("битая запись центрального каталога zip");
+    const method = buf.readUInt16LE(p + 10);
+    const csize = buf.readUInt32LE(p + 20);
+    const nlen = buf.readUInt16LE(p + 28);
+    const elen = buf.readUInt16LE(p + 30);
+    const clen = buf.readUInt16LE(p + 32);
+    const lho = buf.readUInt32LE(p + 42);
+    if (buf.toString("utf8", p + 46, p + 46 + nlen) === name) {
+      if (buf.readUInt32LE(lho) !== 0x04034b50) throw new Error("битый локальный заголовок zip");
+      const start = lho + 30 + buf.readUInt16LE(lho + 26) + buf.readUInt16LE(lho + 28);
+      const data = buf.subarray(start, start + csize);
+      if (method === 0) return data;
+      if (method === 8) return inflateRawSync(data);
+      throw new Error(`неизвестный метод сжатия zip: ${method}`);
+    }
+    p += 46 + nlen + elen + clen;
+  }
+  throw new Error(`в docx нет записи ${name}`);
+}
+
 function docxText(docxPath) {
-  const outDir = docxPath + "-unzipped";
-  const zipPath = docxPath + ".zip";
-  rmSync(outDir, { recursive: true, force: true });
-  rmSync(zipPath, { force: true });
-  copyFileSync(docxPath, zipPath);
-  execSync(
-    `powershell -NoProfile -Command "Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${outDir}' -Force"`,
-    { stdio: "ignore" }
-  );
-  const xml = readFileSync(join(outDir, "word/document.xml"), "utf8");
+  let xml;
+  try {
+    xml = zipEntry(readFileSync(docxPath), "word/document.xml").toString("utf8");
+  } catch (err) {
+    // Внятный FAIL вместо краха набора: видно, какой файл и на чем распаковка встала.
+    throw new Error(`распаковка ${basename(docxPath)} не удалась: ${err.code || err.message}`);
+  }
   return {
     text: (xml.match(/<w:t[^>]*>[^<]*<\/w:t>/g) || []).map((t) => t.replace(/<[^>]+>/g, "")).join("\n"),
     bulletCount: (xml.match(/<w:numPr>/g) || []).length,
@@ -86,8 +151,13 @@ function docxText(docxPath) {
 }
 
 // === Фикстуры ===
-rmSync(SANDBOX, { recursive: true, force: true });
-mkdirSync(SANDBOX, { recursive: true });
+sweepOldSandboxes();
+try {
+  mkdirSync(SANDBOX, { recursive: true });
+} catch (err) {
+  console.error(`[fatal] не создать песочницу ${SANDBOX}: ${err.code || err.message}`);
+  process.exit(1);
+}
 
 const draft = (pages) => ({ origin: "mixed", site_kind: "услуги", pages, questions: [], missing_facts: [], notes: "фикстура" });
 const PAGES_OK = [
@@ -320,7 +390,9 @@ function copyPage({ title = "Монтаж вентиляции в Казани",
   }, null, 2), "utf8");
   return pageDir;
 }
-const HERO_OK = { n: 1, type: "Первый экран (Hero)", fragment: "hero", h2: null, slots: { h1: "Монтаж вентиляции в Казани", subhead: "Проектируем, монтируем и сдаем под пусконаладку", cta_label: "Рассчитать стоимость" } };
+// Фикстура обязана проходить продающий пол (ADR-037): первый экран с цифрой в обещании
+// и целевое действие с предметной надписью. Иначе каждый тест ловит ещё и пол, а не своё правило.
+const HERO_OK = { n: 1, type: "Первый экран (Hero)", fragment: "hero", h2: null, slots: { h1: "Монтаж вентиляции в Казани", subhead: "Проектируем, монтируем и сдаем под пусконаладку за 14 дней", cta_label: "Рассчитать стоимость" } };
 
 step("чистая страница -> exit 0 (фикстура не ловит сама себя)", () => {
   const r = run([VERIFY_COPY, copyPage({ blocks: [HERO_OK] })]);
@@ -608,7 +680,7 @@ step("repeatable: 1 плашка при лимите «ровно 3» -> V (ло
 
 step("блок есть в blueprint, но текста нет -> V (собирать HTML нельзя)", () => {
   const r = run([VERIFY_COPY, copyPageBp({
-    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку" } }],
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку за 14 дней", cta_label: "Рассчитать стоимость" } }],
     bpBlocks: [BP_HERO, { n: 2, type: "Цены", fragment: "pricing", function: "К", limits: { h2: "20-70" } }],
   })]);
   if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
@@ -619,7 +691,7 @@ step("блок есть в blueprint, но текста нет -> V (собир�
 step("блок в режиме «шаблон»: демо-единицы не меряются лимитом запуска (иначе сборка встанет намертво)", () => {
   const r = run([VERIFY_COPY, copyPageBp({
     blocks: [
-      { n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку" } },
+      { n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку за 14 дней", cta_label: "Рассчитать стоимость" } },
       { n: 2, type: "Листинг", fragment: "product-listing", slots: { products: [{ title: "Приточная установка [ЗАПОЛНИТЬ: модель]" }, { title: "Вытяжной вентилятор [ЗАПОЛНИТЬ: модель]" }] } },
     ],
     bpBlocks: [
@@ -633,10 +705,284 @@ step("блок в режиме «шаблон»: демо-единицы не м
 
 step("состав блоков совпадает с blueprint -> сверка молчит", () => {
   const r = run([VERIFY_COPY, copyPageBp({
-    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку" } }],
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку за 14 дней", cta_label: "Рассчитать стоимость" } }],
     bpBlocks: [BP_HERO],
   })]);
   if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
+  return true;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== диета контекста писателя (ADR-020) + чистота образцов ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+// Замер, предписанный ADR-020 разделом 5 и не сделанный две программы подряд.
+// Потолки пересмотрены 2026-08-21 (ADR-037): прежние 22 000 / 14 000 были откалиброваны
+// на состоянии, где у писателя не хватало техники продажи - именно это и оказалось диагнозом.
+// Числа ниже - фактическое состояние после программы плюс небольшой запас; расти дальше нельзя.
+const DIET_TOTAL = 33000;   // page-writer.md + VOICE.md
+const DIET_VOICE = 20500;   // VOICE.md отдельно
+
+step("ADR-020: обязательный вход писателя в знаках не растет", () => {
+  const voice = readFileSync(join(PROJECT_ROOT, ".claude/skills/seo-tekst/assets/VOICE.md"), "utf8").length;
+  const writer = readFileSync(join(PROJECT_ROOT, ".claude/agents/page-writer.md"), "utf8").length;
+  const total = voice + writer;
+  const line = `VOICE.md ${voice} + page-writer.md ${writer} = ${total} знаков (потолки ${DIET_VOICE} / ${DIET_TOTAL})`;
+  if (voice > DIET_VOICE) return `VOICE.md пробил свой потолок: ${line}`;
+  if (total > DIET_TOTAL) return `фиксированный вход писателя пробил потолок: ${line}`;
+  console.log(`      ${line}`);
+  return true;
+});
+
+step("образцы в методичках не нарушают собственный свод (е-с-точками, тире)", () => {
+  const files = [
+    ".claude/skills/seo-tekst/assets/VOICE.md",
+    ".claude/skills/seo-tekst/assets/COPY-AUDIT.md",
+    ".claude/agents/page-writer.md",
+  ];
+  const bad = [];
+  for (const rel of files) {
+    const text = readFileSync(join(PROJECT_ROOT, rel), "utf8");
+    for (const m of text.match(/«[^»]*»/g) || []) {
+      if (/[ёЁ]/.test(m)) bad.push(`${rel}: ${m.slice(0, 60)} (е-с-точками)`);
+      if (/[—–]/.test(m)) bad.push(`${rel}: ${m.slice(0, 60)} (длинное тире)`);
+    }
+  }
+  if (bad.length) return `образец копируется в клиентский текст как есть: ${bad.slice(0, 3).join(" | ")}${bad.length > 3 ? ` и ещё ${bad.length - 3}` : ""}`;
+  return true;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== verify-copy.mjs: продающий пол (ADR-037) ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+// Фикстура пола: свой тип страницы и свой meta.json (там живут selling_floor_waivers).
+function floorPage({ type = "Услуга", blocks, waivers = null, facts = true }) {
+  const dir = join(SANDBOX, "copy", `floor${++copyCase}`);
+  const pageDir = join(dir, "pages", "test");
+  mkdirSync(pageDir, { recursive: true });
+  writeFileSync(join(dir, "inputs.json"), JSON.stringify({ brand_name: "ВентПро" }), "utf8");
+  // F2 жёсткая только когда приземлять ЕСТЬ на что: пустой по публикуемым числам facts.json -
+  // это дыра фактуры, а не брак текста, и пол штатно деградирует до предупреждения.
+  if (facts) writeFileSync(join(dir, "facts.json"), JSON.stringify({ numbers: [{ label: "лет на рынке", value: "9", publish: "as-is" }, { label: "объектов сдано", value: "137", publish: "as-is" }] }), "utf8");
+  if (waivers) writeFileSync(join(dir, "meta.json"), JSON.stringify({ state: "texts-written", selling_floor_waivers: waivers }), "utf8");
+  writeFileSync(join(pageDir, "page.json"), JSON.stringify({
+    page: { slug: "test", title: "Монтаж вентиляции в Казани", description: "Монтируем вентиляцию под ключ, гарантия 3 года.", type },
+    h1: "Монтаж вентиляции в Казани",
+    blocks,
+  }), "utf8");
+  return pageDir;
+}
+const HERO_NO_NUM = { n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Проектируем, монтируем и сдаем под пусконаладку", cta_label: "Рассчитать стоимость" } };
+
+// ГРАНИЦА МАШИНЫ (ADR-037 F2). Обещание приземляется тремя равноправными способами - числом из
+// facts.json, названным адресатом, обещанным результатом. Грепом различим только первый, поэтому
+// скрипт жёстко валит ТОЛЬКО отсутствие несущего слота, а суждение выносит tekst-verifier.
+const HERO_NO_SUB = { n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", cta_label: "Рассчитать стоимость" } };
+
+step("F2: коммерческая страница без подзаголовка Hero -> exit 2 (несущий слот пуст)", () => {
+  const r = run([VERIFY_COPY, floorPage({ blocks: [HERO_NO_SUB] })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2 (нет несущего слота оффера)`;
+  if (!/пол F2/.test(r.stdout)) return "нарушение не названо полом F2";
+  return true;
+});
+
+step("F2: подзаголовок без числа сборку НЕ блокирует - обещание может держаться на адресате", () => {
+  const r = run([VERIFY_COPY, floorPage({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сетям стоматологий: собираем приточку так, что кабинеты не простаивают", cta_label: "Рассчитать стоимость" } }],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0: скрипт судит о том, что грепом не различимо`;
+  if (!/пол F2/.test(r.stdout)) return "нет предупреждения с отсылкой к tekst-verifier";
+  return true;
+});
+
+step("F2: число в подзаголовке, которого нет в facts.json -> предупреждение о сочинённой цифре", () => {
+  const r = run([VERIFY_COPY, floorPage({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку за 21 день, гарантия 12 лет", cta_label: "Рассчитать стоимость" } }],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0 (это предупреждение, а не блокировка)`;
+  if (!/НЕ подтверждено facts\.json/.test(r.stdout)) return "не сказано, что число не подтверждено фактурой";
+  return true;
+});
+
+step("F2: тот же случай на некоммерческом типе -> предупреждение, сборку не блокирует", () => {
+  const r = run([VERIFY_COPY, floorPage({ type: "Контакты", blocks: [HERO_NO_SUB] })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0: пол применён к странице контактов`;
+  if (!/пол F2/.test(r.stdout)) return "нет мягкого напоминания про пол";
+  return true;
+});
+
+step("F2: валидный waiver понижает нарушение до предупреждения", () => {
+  const r = run([VERIFY_COPY, floorPage({
+    blocks: [HERO_NO_SUB],
+    waivers: [{ page: "test", rule: "F2", why: "заказчик снял все цифры", source: "strategy.materials_missing[цифры результата]" }],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0: waiver не сработал`;
+  if (!/waiver/.test(r.stdout)) return "в отчёте не видно, что пол снят waiver'ом";
+  return true;
+});
+
+step("F2: waiver без source игнорируется и об этом СООБЩАЕТСЯ", () => {
+  const r = run([VERIFY_COPY, floorPage({
+    blocks: [HERO_NO_SUB],
+    waivers: [{ page: "test", rule: "F2", why: "не хочется", source: "" }],
+  })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2: waiver без основания принят`;
+  if (!/waiver не применён/.test(r.stdout)) return "молчащий waiver: оркестратор решит, что пол снят";
+  return true;
+});
+
+step("waiver со списком правил в одном поле («F1|F2|F3|F4») не применяется молча", () => {
+  const r = run([VERIFY_COPY, floorPage({
+    blocks: [HERO_NO_SUB],
+    waivers: [{ page: "test", rule: "F1|F2|F3|F4", why: "шаблон скопирован дословно", source: "decisions.register.chosen" }],
+  })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2: список правил в одном поле снял нарушение`;
+  if (!/waiver не применён/.test(r.stdout)) return "не сказано, что waiver не разобран - это молчащий обход пола";
+  return true;
+});
+
+step("F3: страница без единого целевого действия -> exit 2", () => {
+  const r = run([VERIFY_COPY, floorPage({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку за 14 дней" } }],
+  })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
+  if (!/пол F3/.test(r.stdout)) return "не названо полом F3";
+  return true;
+});
+
+step("F3: «Отправить» на главной кнопке -> exit 2, «Подробнее» в карточке листинга -> нет", () => {
+  const bad = run([VERIFY_COPY, floorPage({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку за 14 дней", cta_label: "Отправить" } }],
+  })]);
+  if (bad.code !== 2) return `главная кнопка «Отправить» прошла: exit ${bad.code}`;
+  const ok = run([VERIFY_COPY, floorPage({
+    blocks: [
+      { n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку за 14 дней", cta_label: "Рассчитать стоимость" } },
+      { n: 2, type: "Листинг", fragment: "product-listing", slots: { products: [{ title: "Приточная установка", cta: "Подробнее" }, { title: "Вытяжной вентилятор", cta: "Подробнее" }] } },
+    ],
+  })]);
+  if (ok.code !== 0) return `«Подробнее» в карточке листинга заблокировало сборку: exit ${ok.code}: ${ok.stdout}`;
+  return true;
+});
+
+step("F2: цифра внутри имени («Bitrix24», «152-ФЗ») числом не считается", () => {
+  const r = run([VERIFY_COPY, floorPage({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Настройка Bitrix24 в Казани", subhead: "Внедряем Bitrix24 по 152-ФЗ и сопровождаем портал", cta_label: "Рассчитать стоимость" } }],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0: это предупреждение, а не блокировка`;
+  if (/НЕ подтверждено facts\.json/.test(r.stdout)) return "«Bitrix24»/«152-ФЗ» разобраны как число - имя продукта принято за цифру обещания";
+  if (!/нет числа/.test(r.stdout)) return "нет предупреждения о том, что числа в подзаголовке нет";
+  return true;
+});
+
+step("F2: число в плашке не заменяет обещание в подзаголовке -> W, а не V", () => {
+  const r = run([VERIFY_COPY, floorPage({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Проектируем, монтируем и сдаем под пусконаладку", cta_label: "Рассчитать стоимость", plates: [{ title: "9 лет на рынке", text: "137 объектов сдано" }] } }],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0: цифра в плашке должна давать предупреждение, а не блокировать`;
+  if (!/не несущем слоте|не в несущем слоте/.test(r.stdout)) return "нет предупреждения про несущий слот";
+  return true;
+});
+
+step("F2: в facts.json нет публикуемых чисел -> деградация до W (дыра фактуры, не брак текста)", () => {
+  const r = run([VERIFY_COPY, floorPage({ blocks: [HERO_NO_NUM], facts: false })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0: пол требует цифру, которой в проекте нет`;
+  if (!/публикуемых чисел в facts\.json нет вовсе/.test(r.stdout)) return "не сказано, что публикуемых чисел в проекте нет";
+  return true;
+});
+
+step("F2: бесплатный первый шаг засчитывается за приземление обещания", () => {
+  const r = run([VERIFY_COPY, floorPage({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Консультация юриста по банкротству", subhead: "Разберем вашу ситуацию и честно скажем, спишутся ли долги. Бесплатно и ни к чему не обязывает", cta_label: "Записаться на разбор" } }],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}: бесплатный шаг не зачтен за приземление`;
+  return true;
+});
+
+// Тип страницы взят такой, что F1 идет в ЖЁСТКУЮ ветку: «Товар» без слов «листинг/каталог/зонтик».
+// Прежняя фикстура («Товар (листинг-зонтик моделей)») отсекалась словом в типе ещё до формы
+// страницы - тест проходил и с вырезанной константой CATALOG_SHAPE, то есть не проверял ничего.
+// Тест парный: одна и та же страница без каталожной формы обязана валиться, с ней - проходить.
+const CATALOG_BLOCKS = [
+  { n: 1, type: "Хлебные крошки", fragment: "breadcrumbs", slots: {} },
+  { n: 2, type: "Описание направления", fragment: "cards", h2: "Караваны разных производителей", slots: { subhead: "В наличии 12 моделей, доставка по России", items: [{ title: "Выбор", text: "Подберем модель под ваш автомобиль и бюджет" }] } },
+  { n: 3, type: "Листинг", fragment: "product-listing", slots: { products: [{ title: "Караван Белка", cta: "Узнать цену и наличие" }] } },
+];
+
+step("F1: каталожный рецепт (крошки -> intro -> листинг) без Hero не блокируется", () => {
+  const r = run([VERIFY_COPY, floorPage({ type: "Товар", blocks: CATALOG_BLOCKS })]);
+  if (r.code !== 0) return `exit ${r.code}: каталожный рецепт заблокирован полом F1: ${r.stdout}`;
+  if (!/пол F1: первого экрана нет/.test(r.stdout)) return "нет мягкого напоминания про F1 - похоже, ветка отсутствия Hero вообще не задействована";
+  return true;
+});
+
+step("F1: тот же тип «Товар» БЕЗ каталожной формы -> exit 2 (жёсткая ветка достижима)", () => {
+  const r = run([VERIFY_COPY, floorPage({ type: "Товар", blocks: CATALOG_BLOCKS.slice(1) })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2: карточка товара без первого экрана прошла`;
+  if (!/пол F1/.test(r.stdout)) return "не названо полом F1";
+  return true;
+});
+
+step("F2: пометка [ЗАПОЛНИТЬ] в первом экране -> exit 2 (самое видное место читается недоделанным)", () => {
+  const r = run([VERIFY_COPY, floorPage({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Сдаем под пусконаладку за 9 лет опыта", cta_label: "Рассчитать стоимость", bonus: "[ЗАПОЛНИТЬ: бонус первого экрана]" } }],
+  })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2: дыра фактуры в Hero прошла молча`;
+  if (!/ЗАПОЛНИТЬ/.test(r.stdout)) return "нарушение не названо пометкой в первом экране";
+  return true;
+});
+
+step("доставка формулы: объектный рецепт без page_offer в blueprint -> exit 2", () => {
+  const dir = join(SANDBOX, "copy", `po${++copyCase}`);
+  const pageDir = join(dir, "pages", "test");
+  mkdirSync(pageDir, { recursive: true });
+  mkdirSync(join(dir, "blueprints"), { recursive: true });
+  writeFileSync(join(dir, "inputs.json"), JSON.stringify({ brand_name: "ВентПро" }), "utf8");
+  writeFileSync(join(dir, "strategy.json"), JSON.stringify({ offer_formula_recipe: { formula: 1, name: "РКС + выгода", h1: "маркер + регион" } }), "utf8");
+  writeFileSync(join(dir, "blueprints", "test.json"), JSON.stringify({ page: { slug: "test" }, blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", sell: "выгода по срокам, меряется днями, ведет к расчету", limits: { h1: "20-60" } }] }), "utf8");
+  writeFileSync(join(pageDir, "page.json"), JSON.stringify({
+    page: { slug: "test", title: "Монтаж вентиляции в Казани", description: "Монтируем вентиляцию под ключ, гарантия 3 года.", type: "Услуга" },
+    h1: "Монтаж вентиляции в Казани",
+    blocks: [HERO_OK],
+  }), "utf8");
+  const r = run([VERIFY_COPY, pageDir]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2: формула оффера до ТЗ не доехала, а гейт промолчал`;
+  if (!/page_offer/.test(r.stdout)) return "в выводе не назван page_offer";
+  return true;
+});
+
+step("доставка формулы: рецепт СТРОКОЙ (старая задача) без page_offer -> предупреждение, exit 0", () => {
+  const dir = join(SANDBOX, "copy", `po${++copyCase}`);
+  const pageDir = join(dir, "pages", "test");
+  mkdirSync(pageDir, { recursive: true });
+  mkdirSync(join(dir, "blueprints"), { recursive: true });
+  writeFileSync(join(dir, "inputs.json"), JSON.stringify({ brand_name: "ВентПро" }), "utf8");
+  writeFileSync(join(dir, "strategy.json"), JSON.stringify({ offer_formula_recipe: "Первая строка отвечает на вопрос что это, дальше две выгоды, замыкает кнопка." }), "utf8");
+  writeFileSync(join(dir, "blueprints", "test.json"), JSON.stringify({ page: { slug: "test" }, blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", sell: "выгода по срокам", limits: { h1: "20-60" } }] }), "utf8");
+  writeFileSync(join(pageDir, "page.json"), JSON.stringify({
+    page: { slug: "test", title: "Монтаж вентиляции в Казани", description: "Монтируем вентиляцию под ключ, гарантия 3 года.", type: "Услуга" },
+    h1: "Монтаж вентиляции в Казани",
+    blocks: [HERO_OK],
+  }), "utf8");
+  const r = run([VERIFY_COPY, pageDir]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0: старая задача обязана деградировать, а не вставать (ADR-031)`;
+  if (!/page_offer/.test(r.stdout)) return "нет предупреждения про page_offer";
+  return true;
+});
+
+step("F1: product-gallery считается первым экраном (у карточки товара своего hero нет)", () => {
+  const r = run([VERIFY_COPY, floorPage({
+    type: "Товар",
+    blocks: [
+      { n: 1, type: "Хлебные крошки", fragment: "breadcrumbs", slots: {} },
+      { n: 2, type: "Карточка товара (галерея)", fragment: "product-gallery", slots: { h1: "Прицеп-дача Белка", subhead: "Спальных мест 4, снаряженная масса 750 кг", cta_label: "Узнать цену и наличие" } },
+    ],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}: product-gallery не зачтён как первый экран: ${r.stdout}`;
+  if (/пол F1/.test(r.stdout)) return "F1 сработал на карточке товара";
   return true;
 });
 
@@ -775,7 +1121,8 @@ step("build-handoff: нет страниц -> exit 1, файл не создан
 });
 
 // === Итог ===
-rmSync(SANDBOX, { recursive: true, force: true });
+// Уборка мягкая: не убралось - следующий прогон подметет, набор из-за этого не падает.
+softRm(SANDBOX);
 console.log("");
 console.log(`=== ${passed}/${passed + failed} tests passed ===`);
 if (failed > 0) {

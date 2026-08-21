@@ -13,8 +13,8 @@
 // Вход:  <texts_dir>/pages/<slug>/page.json  (обязательно, хотя бы одна страница)
 //        <texts_dir>/blueprints/<slug>.json  (опц.: function, function_why, status, placeholder, limits, mode)
 //        <texts_dir>/strategy.json           (опц.: materials_missing, decisions)
-//        <texts_dir>/facts.json              (опц.: lexicon.locked / lexicon.canonical)
-//        <texts_dir>/meta.json               (опц.: state, updated)
+//        <texts_dir>/facts.json              (опц.: lexicon.locked + source / lexicon.canonical + origin)
+//        <texts_dir>/meta.json               (опц.: state, updated, selling_floor_waivers)
 // Выход: <texts_dir>/HANDOFF.md
 // Использование: node build-handoff.mjs <texts_dir>
 
@@ -210,11 +210,40 @@ const altBlocks = pages.reduce((n, p) => n + p.blocks.filter((b) => hasAlt(b.slo
 
 // ---------- словарь ----------
 const lexicon = (facts && facts.lexicon) || {};
-const locked = arr(lexicon.locked).map((x) => (typeof x === "string" ? { phrase: x, source: "" } : { phrase: s(x.phrase), source: s(x.source) })).filter((x) => x.phrase);
-const canonical = arr(lexicon.canonical).map((x) => (typeof x === "string" ? { wording: x, thought: "", where: "" } : { wording: s(x.wording), thought: s(x.thought), where: s(x.where) })).filter((x) => x.wording);
+const lockedAll = arr(lexicon.locked).map((x) => (typeof x === "string" ? { phrase: x, source: "" } : { phrase: s(x.phrase), source: s(x.source) })).filter((x) => x.phrase);
+// Вход в locked - только по названному основанию, и source обязан его называть (ADR-037 п.8:
+// юридическая\реквизитная формулировка, слоган\самоназвание, явное требование заказчика).
+// Но отсутствие source - это старая задача (ADR-031), а не отмена дословности: строки без
+// этого ключа копились до ADR-037 и печатались дословно. Тихо понизить их значит задним
+// числом сменить обязательство во всех уже сданных задачах. Поэтому строка остается в
+// дословном списке, а несоблюдение критерия входа называется вслух пометкой рядом с ней -
+// дизайнер видит и слово заказчика, и то, что причину за ним никто не назвал.
+const NO_SOURCE = "основание не указано";
+const lockedNoSource = lockedAll.filter((x) => !x.source);
+const canonical = arr(lexicon.canonical).map((x) => (typeof x === "string" ? { wording: x, thought: "", where: "", origin: "" } : { wording: s(x.wording), thought: s(x.thought), where: s(x.where), origin: s(x.origin).toLowerCase() })).filter((x) => x.wording);
+// Обязательство у строки разное по происхождению (ADR-037 п.7), но ключа нет - работать как
+// раньше (ADR-031). До ADR-037 весь канон печатался дизайнеру как дословный, и ни одна живая
+// задача origin не несет: снятие дословности по умолчанию молча переписало бы весь
+// существующий канон. Смысловой строка становится только тогда, когда стратег ЯВНО назвал
+// origin: "формула", - то есть сам сказал, что буквы тут не обязательство.
+const MEANING_ORIGIN = new Set(["формула"]);
+const canonMeaning = canonical.filter((c) => MEANING_ORIGIN.has(c.origin));
+const canonVerbatim = canonical.filter((c) => !MEANING_ORIGIN.has(c.origin));
+const hasLexicon = lockedAll.length > 0 || canonical.length > 0;
 
 // ---------- материалы ----------
 const materialsMissing = arr(strategy.materials_missing).map(s).filter(Boolean);
+
+// ---------- снятые правила продающего пола (ADR-037 п.3) ----------
+// Waiver без непустого source невалиден: verify-copy.mjs его игнорирует и оставляет нарушение,
+// значит и записка не имеет права объявлять такое место «намеренно пустым».
+const FLOOR_RULES = { F1: "первый экран", F2: "оффер в первом экране", F3: "целевое действие", F4: "обещание подкреплено" };
+const waiversAll = arr(meta.selling_floor_waivers).filter((w) => w && typeof w === "object");
+// Валидность waiver определяется ОДИНАКОВО здесь и в verify-copy.mjs (ADR-037 п.3):
+// непустой source ПЛЮС точное совпадение rule с закрытым списком. Иначе шаблон «F1|F2|F3|F4»,
+// который скрипт-валидатор игнорирует, печатался бы дизайнеру как снятое правило.
+const waiverRule = (w) => String(w.rule == null ? "" : w.rule).trim().toUpperCase();
+const waivers = waiversAll.filter((w) => s(w.source) && Object.prototype.hasOwnProperty.call(FLOOR_RULES, waiverRule(w)));
 
 // Вариант решения может прийти строкой (канон) или объектом - объект не должен уехать
 // в записку как [object Object] (та же логика, что в build-tekst-analysis-docx.mjs).
@@ -311,22 +340,23 @@ push("Сокращение «чтобы влезло в макет» - это н
 push("### 2.3. Цифры и факты", "");
 push("Единственный источник истины по цифрам, реквизитам, срокам и гарантиям - `facts.json` в папке задачи.");
 push("Ни одна цифра не меняется, не округляется и не пересчитывается по месту (год в месяцы, доли в проценты). Нужна другая цифра - правка в `facts.json`, затем пересборка.", "");
-if (locked.length || canonical.length) {
-  push("### 2.4. Формулировки, которые нельзя менять", "");
-  push("Это либо дословные слова заказчика, либо сквозные формулировки, которые намеренно повторяются на всех страницах одинаково.");
-  push("Синонимизация здесь читается как разные обещания и рушит доверие.", "");
-  if (locked.length) {
-    push("Дословные формулировки заказчика:", "");
-    for (const l of locked) push(`- «${l.phrase}»${l.source ? ` (источник: ${l.source})` : ""}`);
+if (hasLexicon) {
+  push("### 2.4. Формулировки из свода проекта", "");
+  push("Это сквозные строки, которые намеренно повторяются на всех страницах одинаково. Обязательство у них разное - смотрите, в каком из двух списков стоит строка.", "");
+  if (lockedAll.length || canonVerbatim.length) {
+    push("**Сохранить ДОСЛОВНО** - слова заказчика и точные формулировки (юридические, условие оплаты, гарантия). Синонимизация здесь читается как другое обещание и рушит доверие:", "");
+    for (const l of lockedAll) push(`- «${l.phrase}» (${l.source ? `источник: ${l.source}` : NO_SOURCE})`);
+    for (const c of canonVerbatim) push(`- «${c.wording}»${c.thought ? ` - мысль: ${c.thought}` : ""}${c.where ? `; где: ${c.where}` : ""}`);
+    if (lockedNoSource.length) push("", `Пометка «${NO_SOURCE}» значит, что в своде проекта не названо, почему строка неприкосновенна. Переносите ее дословно, но если она мешает верстке - это вопрос к нам, а не повод переписать по месту.`);
     push("");
   }
-  if (canonical.length) {
-    push("Сквозные формулировки (одна мысль - одна формулировка):", "");
-    for (const c of canonical) push(`- «${c.wording}»${c.thought ? ` - мысль: ${c.thought}` : ""}${c.where ? `; где: ${c.where}` : ""}`);
+  if (canonMeaning.length) {
+    push("**Сохранить СМЫСЛ и обязательные элементы** - формулировка собрана по формуле оффера, и под носитель (кнопка, карточка, метатег, узкая колонка) ее можно переписать. Мысль, адресат и цифры остаются те же, цифра берется из `facts.json`, а не подбирается по месту:", "");
+    for (const c of canonMeaning) push(`- «${c.wording}»${c.thought ? ` - мысль: ${c.thought}` : ""}${c.where ? `; где: ${c.where}` : ""}`);
     push("");
   }
 }
-push(`### 2.${locked.length || canonical.length ? 5 : 4}. Один главный CTA на блок`, "");
+push(`### 2.${hasLexicon ? 5 : 4}. Один главный CTA на блок`, "");
 push("В блоке ровно одно главное целевое действие. Вторая равнозначная кнопка рядом снижает конверсию обеих: человек выбирает между кнопками вместо того, чтобы совершить действие.");
 push("Дополнительное действие допустимо только визуально подчиненным (текстовая ссылка, а не вторая кнопка того же веса).", "");
 
@@ -356,6 +386,15 @@ if (gaps.length) {
   push("");
 } else {
   push("", "Блоков-плейсхолдеров и блоков в режиме шаблона\\заглушки в прототипе нет.", "");
+}
+if (waivers.length) {
+  push("", "**Продающий минимум снят намеренно** - решение человека с названным основанием, а не забытый блок:", "");
+  for (const w of waivers) {
+    const rule = s(w.rule).toUpperCase();
+    const named = FLOOR_RULES[rule] ? `${rule} (${FLOOR_RULES[rule]})` : (rule || "правило не названо");
+    push(`- ${cell(s(w.page) || "страница не названа")}: ${named}${s(w.why) ? ` - ${cell(w.why)}` : ""} (основание: ${cell(w.source)})`);
+  }
+  push("", "Восстанавливать снятое на дизайн-этапе не нужно: страница сдается без этого правила осознанно. Вернуть его - отдельное решение заказчика, а не работа верстки.", "");
 }
 if (materialsMissing.length) {
   push("**Чего ждем от заказчика** (без этого перечисленные выше места остаются пустыми):", "");
@@ -450,6 +489,13 @@ console.log(`  страниц: ${pages.length}, блоков: ${blockCount}`);
 console.log(`  открытых плейсхолдеров [ЗАПОЛНИТЬ]: ${openCount}`);
 console.log(`  блоков в режиме шаблон: ${templateBlocks.length}, заглушка: ${stubCount}, placeholder:true: ${gaps.filter((g) => g.mode === "плейсхолдер").length}`);
 if (internalNotes) console.log(`  служебных пометок не выведено (нет маркера [ЗАПОЛНИТЬ): ${internalNotes}`);
+if (waivers.length) console.log(`  снятых правил продающего пола: ${waivers.length}`);
+if (waiversAll.length > waivers.length) {
+  const bad = waiversAll.filter((w) => !waivers.includes(w))
+    .map((w) => `${s(w.page) || "?"}/${s(w.rule) || "?"}${s(w.source) ? "" : " (нет source)"}`);
+  console.error(`  waiver невалидны и не выведены: ${bad.join(", ")} - нужен непустой source и rule ровно из ${Object.keys(FLOOR_RULES).join("/")} (одна строка = одно правило)`);
+}
+if (lockedNoSource.length) console.error(`  locked без основания входа (ADR-037 п.8, выведены дословно с пометкой «${NO_SOURCE}»): ${lockedNoSource.length}`);
 if (brokenPages.length) console.error(`  НЕ СОБРАНЫ (битый page.json): ${brokenPages.join(", ")}`);
 if (missingPages.length) console.error(`  НЕТ В pages/ (заявлены в pages.json): ${missingPages.join(", ")}`);
 if (brokenFiles.length) console.error(`  не разобрано файлов: ${brokenFiles.length}`);
