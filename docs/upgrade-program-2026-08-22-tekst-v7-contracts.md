@@ -373,13 +373,13 @@ meta.json.tone_gate = { "status": "written | shared | revising | chosen",
 
 ```json
 { "pages": [ { "slug": "…", "title": "Название для списка", "type": "…", "order": 1 } ],
-  "start": "index" }
+  "start": "__index", "main_slug": "main" }
 ```
 
-Пишет оркестратор (из pages.json). Читают: assemble-prototype.mjs, verify-prototype v2.
-Документ-уровневые данные (legal, meta/title, тема wireframe, телефон с
-placeholder-логикой) ассемблер берет из manifest.json ГЛАВНОЙ страницы -
-писатель этих полей прежний (prototype-builder главной).
+Пишет оркестратор (из pages.json; main_slug - слаг главной, при ее отсутствии - первая
+по order). Читают: assemble-prototype.mjs, verify-prototype v2. Документ-уровневые данные
+(legal с phone-placeholder логикой, титул/мета документа, тема wireframe) ассемблер берет
+из manifest.json страницы main_slug - писатель этих полей прежний (prototype-builder).
 
 ### 3.6. Прототип: файлы
 

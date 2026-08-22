@@ -1,16 +1,34 @@
 #!/usr/bin/env node
-// build-prototype.mjs
-// Детерминированная сборка HTML-прототипа коммерческой страницы.
+// build-prototype.mjs v2 (ADR-039, двухфазная сборка прототипа)
+// Фаза 1: детерминированный рендер БЛОКОВ одной страницы в render-фрагмент.
 //
 //   manifest.json (копия + рендер-решения от prototype-builder)
-//   + kit (.claude/skills/seo-tekst/assets/: shell + css + js + фрагменты + темы + legal)
-//   -> prototype.html  (self-contained, без фреймворков, Tilda-совместимый)
+//   + kit (.claude/skills/seo-tekst/assets/: fragments + fragments-manifest.json + arrow.svg)
+//   -> render.html  (ТОЛЬКО отрендеренные блоки страницы, БЕЗ shell)
 //
-// LLM пишет ТЕКСТ и выбирает блоки/тему. Этот скрипт занимается ШАБЛОНИЗАЦИЕЙ.
+// Режима полного per-page prototype.html больше НЕТ. Что здесь НЕ делается
+// (переехало в assemble-prototype.mjs, фаза 2 - сборка всего сайта одним файлом):
+//   - shell (PROTOTYPE-MASTER.html), <title>/meta, тема wireframe, css/js;
+//   - legal: футер, cookie-баннер, юр-страницы, phone-placeholder, логотип/график;
+//   - normYoFinal (е-с-точками -> е) и bindHanging (висячие предлоги) -
+//     ассемблер прогоняет их по ИТОГОВОМУ документу целиком (вкл. стартовую
+//     страницу-список и плашку возврата), к render.html они НЕ применяются.
+// Попапы удалены полностью (manifest.popups не читается, POPUP_*-маркеров нет).
+//
+// Поля meta/legal в manifest.json ОСТАЮТСЯ - их читает ассемблер у страницы
+// main_slug (site_manifest.json). Этот скрипт при рендере блоков их не использует.
+//
+// Переиспользуемое ЭКСПОРТИРУЕТСЯ отсюда для assemble-prototype.mjs:
+//   normYoFinal, bindHanging, buildLegalScope (phone-placeholder логика),
+//   renderTemplate/escapeHtml/escapeAttr/truthy, wrapFillNotes,
+//   readAsset/parseJson/ASSETS.
+//
+// LLM пишет ТЕКСТ и выбирает блоки. Этот скрипт занимается ШАБЛОНИЗАЦИЕЙ.
 // Контракт - .claude/skills/seo-tekst/assets/KIT-SPEC.md
 //
 // Использование:
 //   node build-prototype.mjs <page_dir|manifest.json> [out.html]
+//   (дефолт out - <page_dir>/render.html)
 //
 // Mini-template (в фрагментах):
 //   {{slot}}            - escape-подстановка
@@ -23,39 +41,17 @@
 //   <!--ARROW_SVG-->    -> содержимое arrow.svg
 
 import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
-import { join, resolve, dirname, basename } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ASSETS = resolve(__dirname, "..", "skills", "seo-tekst", "assets");
+export const ASSETS = resolve(__dirname, "..", "skills", "seo-tekst", "assets");
 
-// ---------- args ----------
-const arg = process.argv[2];
-if (!arg) {
-  console.error("[build-prototype] usage: node build-prototype.mjs <page_dir|manifest.json> [out.html]");
-  process.exit(1);
-}
-const argPath = resolve(arg);
-let manifestPath, pageDir;
-if (existsSync(argPath) && statSync(argPath).isDirectory()) {
-  pageDir = argPath;
-  manifestPath = join(pageDir, "manifest.json");
-} else {
-  manifestPath = argPath;
-  pageDir = dirname(argPath);
-}
-const outPath = process.argv[3] ? resolve(process.argv[3]) : join(pageDir, "prototype.html");
-
-if (!existsSync(manifestPath)) {
-  console.error(`[build-prototype] manifest not found: ${manifestPath}`);
-  process.exit(1);
-}
-
-// ---------- load kit ----------
-function readAsset(rel, required = true) {
+// ---------- kit io (общее для build и assemble) ----------
+export function readAsset(rel, required = true) {
   const p = join(ASSETS, rel);
   if (!existsSync(p)) {
-    if (required) { console.error(`[build-prototype] missing kit asset: ${rel}`); process.exit(1); }
+    if (required) { console.error(`[prototype-kit] missing kit asset: ${rel}`); process.exit(1); }
     return "";
   }
   return readFileSync(p, "utf8").replace(/^﻿/, "");
@@ -63,41 +59,20 @@ function readAsset(rel, required = true) {
 
 // Разбор с диагнозом: голый стек SyntaxError не говорит оркестратору, КАКОЙ файл сломан,
 // а сломанным чаще всего оказывается тот, что правили руками на гейте.
-function parseJson(raw, whatFile) {
+export function parseJson(raw, whatFile) {
   try {
-    return JSON.parse(raw.replace(/^﻿/, ""));
+    return JSON.parse(String(raw).replace(/^﻿/, ""));
   } catch (e) {
-    console.error(`[build-prototype] не разобран ${whatFile}: ${e && e.message ? e.message : e}`);
+    console.error(`[prototype-kit] не разобран ${whatFile}: ${e && e.message ? e.message : e}`);
     process.exit(1);
   }
 }
 
-const manifest = parseJson(readFileSync(manifestPath, "utf8"), manifestPath);
-const shell = readAsset("PROTOTYPE-MASTER.html");
-const prototypeCss = readAsset("prototype.css");
-const prototypeJs = readAsset("prototype.js");
-const arrowSvg = readAsset("arrow.svg", false).trim();
-const fragManifest = parseJson(readAsset("fragments-manifest.json"), "fragments-manifest.json (кит)");
-const blockToFragment = fragManifest.block_to_fragment || {};
-
-const themeName = manifest.theme || "b2b";
-let themeCss = readAsset(`themes/theme-${themeName}.css`, false);
-if (!themeCss) {
-  console.warn(`[build-prototype] theme "${themeName}" not found, falling back to b2b`);
-  themeCss = readAsset("themes/theme-b2b.css");
-}
-
-const footerTpl = readAsset("legal/footer.html", false);
-const cookieTpl = readAsset("legal/cookie-banner.html", false);
-const legalPages = ["page-privacy.html", "page-consent.html", "page-cookie.html", "page-thanks.html"]
-  .map((f) => readAsset(`legal/${f}`, false))
-  .filter(Boolean);
-
 // ---------- helpers ----------
-function escapeHtml(s) {
+export function escapeHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-function escapeAttr(s) {
+export function escapeAttr(s) {
   return escapeHtml(s).replace(/"/g, "&quot;");
 }
 
@@ -113,7 +88,7 @@ function resolvePath(path, scope) {
   }
   return v;
 }
-function truthy(v) {
+export function truthy(v) {
   if (Array.isArray(v)) return v.length > 0;
   if (v == null) return false;
   if (typeof v === "string") return v.trim() !== "";
@@ -158,7 +133,7 @@ function matchClose(str, fromIdx, openTag, closeTag) {
 }
 
 // recursive render of a template with control tags
-function renderTemplate(tpl, scope) {
+export function renderTemplate(tpl, scope) {
   const openRe = /<!--(REPEAT|IF):([^>]+?)-->/;
   const m = openRe.exec(tpl);
   if (!m) return interpolate(tpl, scope);
@@ -171,7 +146,7 @@ function renderTemplate(tpl, scope) {
   const innerStart = m.index + openTag.length;
   const closeIdx = matchClose(tpl, innerStart, openTag, closeTag);
   if (closeIdx === -1) {
-    console.warn(`[build-prototype] unclosed ${kind}:${path}`);
+    console.warn(`[prototype-kit] unclosed ${kind}:${path}`);
     return interpolate(tpl, scope);
   }
   const inner = tpl.slice(innerStart, closeIdx);
@@ -192,7 +167,7 @@ function renderTemplate(tpl, scope) {
         })
         .join("");
     } else if (arr != null) {
-      console.warn(`[build-prototype] REPEAT:${path} - не массив (${typeof arr}), отрендерено пусто`);
+      console.warn(`[prototype-kit] REPEAT:${path} - не массив (${typeof arr}), отрендерено пусто`);
     }
   }
   return interpolate(before, scope) + rendered + renderTemplate(after, scope);
@@ -200,13 +175,21 @@ function renderTemplate(tpl, scope) {
 
 // wrap [ЗАПОЛНИТЬ: ...] markers in a visible span (for client review)
 // Класс - .nx-fill: именно он стилизован в prototype.css (секция FILL MARKER), пунктирный
-// стикер. Любое другое имя (был .pt-fill) даёт пометку обычным текстом - заказчик не видит,
+// стикер. Любое другое имя (был .pt-fill) дает пометку обычным текстом - заказчик не видит,
 // что именно надо дозаполнить. Атрибут data-fill - хук для поиска пометок в готовом HTML.
-function wrapFillNotes(html) {
+export function wrapFillNotes(html) {
   return html.replace(/\[ЗАПОЛНИТЬ:[^\]]*\]/g, (m) => `<span class="nx-fill" data-fill>${escapeHtml(m)}</span>`);
 }
 
-// ---------- висячие предлоги ----------
+// ---------- нормализация е-с-точками (применяет АССЕМБЛЕР по всему документу) ----------
+// Буква е-с-точками запрещена в клиентских текстах (как и тире). Ассемблер нормализует
+// итоговый документ перед записью на диск, как это делает assemble-html.mjs для статей.
+// URL не содержат эту букву в сыром виде, поэтому замена по всему документу безопасна.
+export function normYoFinal(s) {
+  return String(s).replace(/ё/g, "е").replace(/Ё/g, "Е");
+}
+
+// ---------- висячие предлоги (применяет АССЕМБЛЕР по всему документу) ----------
 const NBSP = "\u00A0";
 
 // Короткие служебные слова липнут к СЛЕДУЮЩЕМУ слову: «в Казани», «под ключ», «не менее».
@@ -248,7 +231,11 @@ function nbspInText(t) {
   return out;
 }
 
-function bindHanging(src) {
+// Висячие предлоги прибиваются КОДОМ, а не руками: исходные фрагменты и тексты писателей
+// держим чистыми (никаких &nbsp; в контентных файлах). Ассемблер зовет bindHanging по
+// СОБРАННОМУ документу, ПОСЛЕ normYoFinal (иначе список служебных слов пришлось бы
+// держать в двух написаниях) и ДО записи файла.
+export function bindHanging(src) {
   let out = "";
   let last = 0;
   let m;
@@ -260,65 +247,17 @@ function bindHanging(src) {
   out += nbspInText(src.slice(last));
 
   // Страховка: замена обязана трогать ТОЛЬКО пробелы. Если длина изменилась или документ
-  // без учёта неразрывных пробелов перестал совпадать с исходным - что-то пошло не так,
-  // отдаём исходный HTML. Сломанная сборка хуже висячего предлога.
+  // без учета неразрывных пробелов перестал совпадать с исходным - что-то пошло не так,
+  // отдаем исходный HTML. Сломанная сборка хуже висячего предлога.
   const flat = (s) => s.replace(/\u00A0/g, " ");
   if (out.length !== src.length || flat(out) !== flat(src)) {
-    console.warn("[build-prototype] нормализация висячих предлогов изменила не только пробелы - шаг пропущен");
+    console.warn("[prototype-kit] нормализация висячих предлогов изменила не только пробелы - шаг пропущен");
     return src;
   }
   return out;
 }
 
-// ---------- render blocks ----------
-const blocks = Array.isArray(manifest.blocks) ? manifest.blocks : [];
-let blocksHtml = "";
-let renderedCount = 0;
-let formCount = 0;
-const fillNotes = [];
-const usedFragments = [];
-const unknownFragments = [];
-
-for (const block of blocks) {
-  const type = block.type || "";
-  let fragName = block.fragment || blockToFragment[type] || "cards";
-  if (!fragManifest.fragments || !fragManifest.fragments[fragName]) {
-    // Фолбэк остается (сборка не должна вставать), но факт подмены копится в сводку:
-    // фолбэк рисует заголовок и пустую сетку под ним, то есть обещанный блок исчезает.
-    // Блокирует это verify-prototype.mjs - здесь только громкий сигнал.
-    console.warn(`[build-prototype] фрагмента "${fragName}" нет в ките (блок "${type}") - подставлен фолбэк cards, блок уедет пустым`);
-    unknownFragments.push(`${fragName} (блок "${type}")`);
-    fragName = "cards";
-  }
-  const fragFile = (fragManifest.fragments[fragName] && fragManifest.fragments[fragName].file) || `${fragName}.html`;
-  const fragTpl = readAsset(`fragments/${fragFile}`, false);
-  if (!fragTpl) {
-    console.warn(`[build-prototype] fragment file missing: ${fragFile}, skipping block "${type}"`);
-    continue;
-  }
-  if (fragName === "form") formCount++;
-
-  const scope = Object.assign({}, block.slots || {});
-  scope.opts = block.opts || {};
-  if (block.h2 != null && scope.h2 == null) scope.h2 = block.h2;
-  // empty_state приезжает из blueprint полем блока, а не слотом. Отдаем его фрагменту как
-  // {{empty_state}}, чтобы у сборщика-агента не было повода класть его в subhead: subhead -
-  // слот писателя, и подмена затирает согласованный текст, расходя прототип с Texts.docx.
-  if (block.empty_state != null && scope.empty_state == null) scope.empty_state = block.empty_state;
-
-  let rendered = renderTemplate(fragTpl, scope);
-  rendered = rendered.replace(/<!--ARROW_SVG-->/g, arrowSvg);
-  blocksHtml += rendered + "\n";
-  renderedCount++;
-  usedFragments.push(fragName);
-
-  if (Array.isArray(block.fill_notes)) for (const fn of block.fill_notes) fillNotes.push(fn);
-}
-blocksHtml = wrapFillNotes(blocksHtml);
-
-// ---------- legal + footer + cookie ----------
-const legal = manifest.legal || {};
-
+// ---------- юр-скоуп (применяет АССЕМБЛЕР для legal main_slug) ----------
 // Производные слоты юр-скоупа (в manifest.legal их нет, считаем здесь):
 //   {{phone_raw}}  - телефон без разделителей, для href="tel:..." в футере
 //                    (в шапке ту же роль играет маркер <!--PHONE_RAW-->)
@@ -326,14 +265,11 @@ const legal = manifest.legal || {};
 //                    пробелом. Собирается только из непустых частей; если пусты все,
 //                    строка пустая - и группа исчезает целиком, а не печатается
 //                    скелетом «(ИНН , ОГРН , адрес: )».
-const legalReqParts = [];
-if (truthy(legal.inn)) legalReqParts.push(`ИНН ${legal.inn}`);
-if (truthy(legal.ogrn)) legalReqParts.push(`ОГРН ${legal.ogrn}`);
-if (truthy(legal.address)) legalReqParts.push(`адрес: ${legal.address}`);
-// Телефон считаем ОДИН раз и на шапку, и на футер. Без общего фолбэка футер при пустом
-// legal.phone давал href="tel:" с пустым текстом - мёртвая ссылка, которую verify пропускал
-// (регексп матчил пустой tel:). Систематически всплывает в проектах без реквизитов
-// (источник --from-brief, ADR-031), где ЗАКАЗЧИК.md нет.
+//
+// Телефон считается ОДИН раз и на шапку, и на футер - они обязаны совпадать. Без общего
+// фолбэка футер при пустом legal.phone давал href="tel:" с пустым текстом - мертвая
+// ссылка, которую verify пропускал (регексп матчил пустой tel:). Систематически всплывает
+// в проектах без реквизитов (источник --from-brief, ADR-031), где ЗАКАЗЧИК.md нет.
 //
 // ОДНО поведение на два законных написания «телефона нет». Сборщику-агенту предписано не
 // выдумывать реквизиты, а писать «[телефон - требует уточнения]»; раньше такая строка
@@ -342,97 +278,127 @@ if (truthy(legal.address)) legalReqParts.push(`адрес: ${legal.address}`);
 // поле, и любая пометка-заглушка (нет 5+ цифр подряд) дают одно и то же: маску
 // +7 (000) 000-00-00. Она заведомо нерабочая и читается человеком как «не заполнено»,
 // ссылка при этом живая - пустой href="tel:" остается нарушением намеренно.
-const PHONE_PLACEHOLDER = "+7 (000) 000-00-00";
-const phoneGiven = truthy(legal.phone) ? String(legal.phone).trim() : "";
-const phoneMissing = phoneGiven.replace(/\D/g, "").length < 5;
-const phone = phoneMissing ? PHONE_PLACEHOLDER : phoneGiven;
-const phoneRaw = phone.replace(/[^\d+]/g, "");
-if (phoneMissing) {
-  console.warn(
-    `[build-prototype] legal.phone не заполнен${phoneGiven ? ` (${phoneGiven})` : ""} - подставлена заглушка ${PHONE_PLACEHOLDER}. Выдумывать номер нельзя, реквизит закрывает заказчик.`
-  );
-}
-const legalScope = Object.assign({}, legal, {
-  phone,
-  phone_raw: phoneRaw,
-  requisites: legalReqParts.length ? ` (${legalReqParts.join(", ")})` : "",
-});
+export const PHONE_PLACEHOLDER = "+7 (000) 000-00-00";
 
-const footerHtml = footerTpl ? renderTemplate(footerTpl, legalScope) : "";
-const cookieHtml = cookieTpl ? renderTemplate(cookieTpl, legalScope) : "";
-const legalPagesHtml = legalPages.map((p) => renderTemplate(p, legalScope)).join("\n");
+export function buildLegalScope(legal = {}) {
+  const reqParts = [];
+  if (truthy(legal.inn)) reqParts.push(`ИНН ${legal.inn}`);
+  if (truthy(legal.ogrn)) reqParts.push(`ОГРН ${legal.ogrn}`);
+  if (truthy(legal.address)) reqParts.push(`адрес: ${legal.address}`);
 
-// ---------- shell substitution ----------
-const meta = manifest.meta || {};
-const title = meta.title || meta.slug || "Прототип";
-const desc = meta.description || "";
-const company = legal.company || meta.project || "Компания";
-// phone / phoneRaw посчитаны выше вместе с legalScope - шапка и футер обязаны совпадать.
-const schedule = meta.schedule || legal.schedule || "Пн-Пт 9:00-19:00";
-const popups = manifest.popups || {};
+  const phoneGiven = truthy(legal.phone) ? String(legal.phone).trim() : "";
+  const phoneMissing = phoneGiven.replace(/\D/g, "").length < 5;
+  const phone = phoneMissing ? PHONE_PLACEHOLDER : phoneGiven;
+  const phoneRaw = phone.replace(/[^\d+]/g, "");
 
-const metaTitleHtml =
-  `<title>${escapeHtml(title)}</title>\n` +
-  `  <meta property="og:title" content="${escapeAttr(title)}">`;
-const metaDescHtml = desc
-  ? `<meta name="description" content="${escapeAttr(desc)}">\n` +
-    `  <meta property="og:description" content="${escapeAttr(desc)}">`
-  : "";
-
-const subs = {
-  "<!--META_TITLE-->": metaTitleHtml,
-  "<!--META_DESC-->": metaDescHtml,
-  "<!--THEME_CSS-->": themeCss,
-  "<!--PROTOTYPE_CSS-->": prototypeCss,
-  "<!--LOGO-->": escapeHtml(company),
-  "<!--PHONE-->": escapeHtml(phone),
-  "<!--PHONE_RAW-->": escapeAttr(phoneRaw),
-  "<!--SCHEDULE-->": escapeHtml(schedule),
-  "<!--BLOCKS-->": blocksHtml,
-  "<!--FOOTER-->": footerHtml,
-  "<!--LEGAL_PAGES-->": legalPagesHtml,
-  "<!--COOKIE_BANNER-->": cookieHtml,
-  "<!--PROTOTYPE_JS-->": prototypeJs,
-  "<!--POPUP_TIME_TITLE-->": escapeHtml(popups.time_title || "Не нашли что искали?"),
-  "<!--POPUP_TIME_SUB-->": escapeHtml(popups.time_sub || "Оставьте телефон - перезвоним и ответим на вопросы"),
-  "<!--POPUP_TIME_CTA-->": escapeHtml(popups.time_cta || "Жду звонка"),
-  "<!--POPUP_EXIT_TITLE-->": escapeHtml(popups.exit_title || "Уже уходите?"),
-  "<!--POPUP_EXIT_SUB-->": escapeHtml(popups.exit_sub || "Заберите расчет стоимости - пришлем в мессенджер"),
-  "<!--POPUP_EXIT_CTA-->": escapeHtml(popups.exit_cta || "Получить расчет"),
-};
-
-let html = shell;
-for (const [marker, value] of Object.entries(subs)) {
-  html = html.split(marker).join(value);
+  return {
+    scope: Object.assign({}, legal, {
+      phone,
+      phone_raw: phoneRaw,
+      requisites: reqParts.length ? ` (${reqParts.join(", ")})` : "",
+    }),
+    phone,
+    phoneRaw,
+    phoneMissing,
+    phoneGiven,
+    // Готовый текст предупреждения - ассемблер печатает его как есть, чтобы формулировка
+    // «телефон не заполнен» была одна на весь конвейер (лог сборки + сводка verify).
+    warning: phoneMissing
+      ? `legal.phone не заполнен${phoneGiven ? ` (${phoneGiven})` : ""} - подставлена заглушка ${PHONE_PLACEHOLDER}. Выдумывать номер нельзя, реквизит закрывает заказчик.`
+      : null,
+  };
 }
 
-// буква ё запрещена в клиентских текстах (как и тире) - нормализуем ё->е/Ё->Е по всей
-// собранной HTML-строке перед записью на диск, как это делает assemble-html.mjs для
-// статей. Без этого шага любой новый фрагмент или текст писателя способен вернуть ё,
-// и verify-prototype.mjs будет краснеть на ровном месте. URL не содержат сырую ё,
-// поэтому замена по всему документу безопасна.
-html = normYoFinal(html);
+// ---------- CLI: рендер блоков одной страницы -> render.html ----------
+function main() {
+  const arg = process.argv[2];
+  if (!arg) {
+    console.error("[build-prototype] usage: node build-prototype.mjs <page_dir|manifest.json> [out.html]");
+    process.exit(1);
+  }
+  const argPath = resolve(arg);
+  let manifestPath, pageDir;
+  if (existsSync(argPath) && statSync(argPath).isDirectory()) {
+    pageDir = argPath;
+    manifestPath = join(pageDir, "manifest.json");
+  } else {
+    manifestPath = argPath;
+    pageDir = dirname(argPath);
+  }
+  const outPath = process.argv[3] ? resolve(process.argv[3]) : join(pageDir, "render.html");
 
-// висячие предлоги прибиваются КОДОМ, а не руками: исходные фрагменты и тексты писателей
-// держим чистыми (никаких &nbsp; в контентных файлах), неразрывные пробелы расставляем
-// здесь, на собранном документе. Идёт ПОСЛЕ подстановки фрагментов и ПОСЛЕ нормализации ё
-// (иначе список служебных слов пришлось бы держать в двух написаниях) и ДО записи файла.
-html = bindHanging(html);
+  if (!existsSync(manifestPath)) {
+    console.error(`[build-prototype] manifest not found: ${manifestPath}`);
+    process.exit(1);
+  }
 
-writeFileSync(outPath, html, "utf8");
+  const manifest = parseJson(readFileSync(manifestPath, "utf8"), manifestPath);
+  const arrowSvg = readAsset("arrow.svg", false).trim();
+  const fragManifest = parseJson(readAsset("fragments-manifest.json"), "fragments-manifest.json (кит)");
+  const blockToFragment = fragManifest.block_to_fragment || {};
 
-function normYoFinal(s) {
-  return String(s).replace(/ё/g, "е").replace(/Ё/g, "Е");
+  // ---------- render blocks ----------
+  const blocks = Array.isArray(manifest.blocks) ? manifest.blocks : [];
+  let blocksHtml = "";
+  let renderedCount = 0;
+  let formCount = 0;
+  const fillNotes = [];
+  const usedFragments = [];
+  const unknownFragments = [];
+
+  for (const block of blocks) {
+    const type = block.type || "";
+    let fragName = block.fragment || blockToFragment[type] || "cards";
+    if (!fragManifest.fragments || !fragManifest.fragments[fragName]) {
+      // Фолбэк остается (сборка не должна вставать), но факт подмены копится в сводку:
+      // фолбэк рисует заголовок и пустую сетку под ним, то есть обещанный блок исчезает.
+      // Блокирует это verify-prototype.mjs - здесь только громкий сигнал.
+      console.warn(`[build-prototype] фрагмента "${fragName}" нет в ките (блок "${type}") - подставлен фолбэк cards, блок уедет пустым`);
+      unknownFragments.push(`${fragName} (блок "${type}")`);
+      fragName = "cards";
+    }
+    const fragFile = (fragManifest.fragments[fragName] && fragManifest.fragments[fragName].file) || `${fragName}.html`;
+    const fragTpl = readAsset(`fragments/${fragFile}`, false);
+    if (!fragTpl) {
+      console.warn(`[build-prototype] fragment file missing: ${fragFile}, skipping block "${type}"`);
+      continue;
+    }
+    if (fragName === "form") formCount++;
+
+    const scope = Object.assign({}, block.slots || {});
+    scope.opts = block.opts || {};
+    if (block.h2 != null && scope.h2 == null) scope.h2 = block.h2;
+    // empty_state приезжает из blueprint полем блока, а не слотом. Отдаем его фрагменту как
+    // {{empty_state}}, чтобы у сборщика-агента не было повода класть его в subhead: subhead -
+    // слот писателя, и подмена затирает согласованный текст, расходя прототип с Texts.docx.
+    if (block.empty_state != null && scope.empty_state == null) scope.empty_state = block.empty_state;
+
+    let rendered = renderTemplate(fragTpl, scope);
+    rendered = rendered.replace(/<!--ARROW_SVG-->/g, arrowSvg);
+    blocksHtml += rendered + "\n";
+    renderedCount++;
+    usedFragments.push(fragName);
+
+    if (Array.isArray(block.fill_notes)) for (const fn of block.fill_notes) fillNotes.push(fn);
+  }
+  blocksHtml = wrapFillNotes(blocksHtml);
+
+  // normYoFinal и bindHanging здесь НЕ применяются: ассемблер прогоняет их по итоговому
+  // документу целиком (иначе стартовая страница и плашка возврата остались бы без
+  // нормализации, а самопроверка bindHanging шла бы по куску вместо целого).
+  writeFileSync(outPath, blocksHtml, "utf8");
+
+  // ---------- summary ----------
+  console.log(`[build-prototype] wrote ${outPath}`);
+  console.log(`  blocks rendered: ${renderedCount}/${blocks.length}`);
+  console.log(`  fragments: ${[...new Set(usedFragments)].join(", ")}`);
+  if (unknownFragments.length) console.log(`  НЕТ В КИТЕ (подставлен cards, блок пустой): ${unknownFragments.join("; ")}`);
+  console.log(`  finale forms: ${formCount}${formCount === 1 ? " (ok)" : " (WARN: expected exactly 1)"}`);
+  console.log(`  fill-notes (для согласования): ${fillNotes.length}`);
+  console.log(`  size: ${(Buffer.byteLength(blocksHtml, "utf8") / 1024).toFixed(1)} KB (render-фрагмент, без shell)`);
 }
 
-
-// ---------- summary ----------
-console.log(`[build-prototype] wrote ${outPath}`);
-console.log(`  theme: ${themeName}`);
-console.log(`  blocks rendered: ${renderedCount}/${blocks.length}`);
-console.log(`  fragments: ${[...new Set(usedFragments)].join(", ")}`);
-if (unknownFragments.length) console.log(`  НЕТ В КИТЕ (подставлен cards, блок пустой): ${unknownFragments.join("; ")}`);
-if (phoneMissing) console.log(`  телефон: заглушка ${PHONE_PLACEHOLDER} - legal.phone не заполнен`);
-console.log(`  finale forms: ${formCount}${formCount === 1 ? " (ok)" : " (WARN: expected exactly 1)"}`);
-console.log(`  fill-notes (для согласования): ${fillNotes.length}`);
-console.log(`  size: ${(Buffer.byteLength(html, "utf8") / 1024).toFixed(1)} KB`);
+// Гард CLI: файл импортируется ассемблером как модуль (normYoFinal, bindHanging,
+// buildLegalScope, движок) - при импорте рендер запускаться не должен.
+const isCli = process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+if (isCli) main();

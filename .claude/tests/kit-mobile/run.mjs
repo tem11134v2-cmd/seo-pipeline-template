@@ -12,8 +12,12 @@
 //
 // Что делает набор:
 //   1. Собирает эталонную страницу кита (manifest.json из 6 типовых фрагментов:
-//      hero, cards, steps, pricing, accordion, form) через build-prototype.mjs.
-//   2. Гоняет по ней verify-prototype-mobile.mjs на 320/360/390/430 px.
+//      hero, cards, steps, pricing, accordion, form) цепочкой v2 (ADR-039):
+//      build-prototype.mjs пишет pages/main/render.html, assemble-prototype.mjs
+//      склеивает texts_dir по site_manifest.json в один prototype.html.
+//   2. Гоняет по собранному документу verify-prototype-mobile.mjs на 320/360/390/430 px.
+//      Меряется копия с переводом hash на #p/main: роутер v2 по умолчанию открывает
+//      стартовый список страниц, а мерить нужно фрагменты кита.
 //   3. Канарейка: заведомо сломанная страница обязана ловиться (иначе проверка - пустышка).
 //   4. Контракт кодов возврата verify-prototype-mobile.mjs (нет файла -> 1, а не 2).
 //
@@ -32,6 +36,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "../../..");
 const SANDBOX = join(PROJECT_ROOT, ".claude/tmp/kit-mobile-test");
 const BUILD_PROTO = join(PROJECT_ROOT, ".claude/scripts/build-prototype.mjs");
+const ASSEMBLE_PROTO = join(PROJECT_ROOT, ".claude/scripts/assemble-prototype.mjs");
 const VERIFY_PROTO = join(PROJECT_ROOT, ".claude/scripts/verify-prototype.mjs");
 const VERIFY_MOBILE = join(PROJECT_ROOT, ".claude/scripts/verify-prototype-mobile.mjs");
 
@@ -76,11 +81,12 @@ function run(args) {
 const NO_PW = "SKIP: playwright не установлен (npm i -D playwright && npx playwright install chromium)";
 const skipIfNoPw = (r) => (r.code === 2 ? NO_PW : null);
 
-// === Фикстура: эталонная страница кита ===
+// === Фикстура: эталонная страница кита (texts_dir из одной страницы, ADR-039) ===
 rmSync(SANDBOX, { recursive: true, force: true });
 mkdirSync(SANDBOX, { recursive: true });
 
-const dirKit = join(SANDBOX, "kit-page");
+const dirSite = join(SANDBOX, "site");
+const dirKit = join(dirSite, "pages", "main");
 mkdirSync(dirKit, { recursive: true });
 
 // 6 типовых фрагментов: первый экран, сетка карточек, этапы, тарифы (вложенный REPEAT),
@@ -88,7 +94,7 @@ mkdirSync(dirKit, { recursive: true });
 // интерактивных элементов кита (кнопки, ссылки-плитки, поля, чекбокс согласия).
 const MANIFEST = {
   meta: {
-    slug: "kit-mobile",
+    slug: "main",
     title: "Монтаж вентиляции в Казани",
     description: "Проектируем и монтируем вентиляцию под ключ за 14 дней.",
     project: "ВентПро",
@@ -230,6 +236,14 @@ const MANIFEST = {
 };
 writeFileSync(join(dirKit, "manifest.json"), JSON.stringify(MANIFEST, null, 2), "utf8");
 
+// site_manifest.json пишет оркестратор; здесь - фикстура минимального сайта из
+// одной страницы. Ассемблер берет документ-уровень (legal, титул) из manifest main.
+writeFileSync(join(dirSite, "site_manifest.json"), JSON.stringify({
+  pages: [{ slug: "main", title: "Эталонная страница кита", type: "Услуга", order: 1 }],
+  start: "__index",
+  main_slug: "main",
+}, null, 2), "utf8");
+
 // Канарейка: страница с заведомыми дефектами. Нужна, чтобы отличить «кит чистый» от
 // «проверка ничего не умеет ловить».
 const dirCanary = join(SANDBOX, "canary");
@@ -267,19 +281,29 @@ writeFileSync(canaryPath, CANARY_HTML, "utf8");
 console.log("=== эталонная страница кита ===");
 // ──────────────────────────────────────────────────────────────────────────
 
-step("build-prototype: страница из 6 типовых фрагментов собирается", () => {
+step("build-prototype v2: render.html из 6 типовых фрагментов собирается", () => {
   const r = run([BUILD_PROTO, dirKit]);
   if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
-  if (!existsSync(join(dirKit, "prototype.html"))) return "prototype.html не создан";
-  const html = readFileSync(join(dirKit, "prototype.html"), "utf8");
+  if (!existsSync(join(dirKit, "render.html"))) return "render.html не создан";
+  const html = readFileSync(join(dirKit, "render.html"), "utf8");
   for (const marker of ["pt-hero", "pt-card", "pt-step", "pt-tariff", "pt-faq", "leadForm"]) {
-    if (!html.includes(marker)) return `в собранной странице нет ${marker}`;
+    if (!html.includes(marker)) return `в render нет ${marker}`;
   }
   return true;
 });
 
-step("verify-prototype (проверка кода): эталонная страница чистая", () => {
-  const r = run([VERIFY_PROTO, dirKit]);
+step("assemble-prototype: документ собирается, кит лежит в секции main", () => {
+  const r = run([ASSEMBLE_PROTO, dirSite]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr} ${r.stdout}`;
+  if (!existsSync(join(dirSite, "prototype.html"))) return "prototype.html не создан";
+  const html = readFileSync(join(dirSite, "prototype.html"), "utf8");
+  if (!/data-page="main"/.test(html)) return "нет секции data-page=\"main\"";
+  if (!html.includes('id="main__leadForm"')) return "id формы не префиксован неймспейсом секции (main__leadForm)";
+  return true;
+});
+
+step("verify-prototype (проверка кода): эталонный документ чистый", () => {
+  const r = run([VERIFY_PROTO, dirSite]);
   if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
   return true;
 });
@@ -310,8 +334,23 @@ console.log("=== рендер (playwright; без него - SKIP) ===");
 let canaryRun = null;
 const canary = () => (canaryRun ||= run([VERIFY_MOBILE, canaryPath, "--widths", "360"]));
 
+// Рендер меряем по копии документа с переводом hash на страницу кита: роутер v2
+// по умолчанию открывает стартовый список, а мерить нужно фрагменты кита. Перевод -
+// штатный маршрут #p/<slug> из интерфейса роутера, не хирургия по разметке.
+const measurePath = join(SANDBOX, "kit-measure.html");
 let kitRun = null;
-const kit = () => (kitRun ||= run([VERIFY_MOBILE, dirKit, "--widths", "320,360,390,430"]));
+const kit = () => {
+  if (!kitRun) {
+    const assembled = join(dirSite, "prototype.html");
+    if (!existsSync(measurePath) && existsSync(assembled)) {
+      writeFileSync(measurePath,
+        readFileSync(assembled, "utf8") + '\n<script>location.hash = "#p/main";</script>\n',
+        "utf8");
+    }
+    kitRun = run([VERIFY_MOBILE, measurePath, "--widths", "320,360,390,430"]);
+  }
+  return kitRun;
+};
 
 step("канарейка: сломанная страница ловится (скролл + кегль + зона нажатия + поле)", () => {
   const r = canary();
@@ -347,12 +386,19 @@ step("кит: нет горизонтального скролла на 320/360/
   return true;
 });
 
-// БАЗОВАЯ ЛИНИЯ КИТА. Первый реальный прогон рендером (2026-08-20) нашёл дефекты, которые
+// БАЗОВАЯ ЛИНИЯ КИТА. Первый реальный прогон рендером (2026-08-20) нашел дефекты, которые
 // жили в ките ДО программы улучшения текстов и к ней отношения не имеют: мелкий кегль
 // служебных подписей, тесные тап-зоны у крестиков и бургера, кегль полей формы 14px
 // (iOS зумит форму при фокусе). Чинить их - отдельная правка prototype.css, а не этой ветки.
 // Пока они зафиксированы числом: набор ловит РЕГРЕСС (появление новых находок), а известные
 // не роняют прогон. Уменьшил число - опусти базовую линию, это и есть починка кита.
+//
+// TODO(v2, ADR-039): пересчитать числа после первого прогона playwright по одно-файловому
+// документу. Состав видимого изменился в обе стороны: попапы удалены (их крестики и поля
+// выпали из находок), зато в кадре теперь shell документа - стартовый список, плашка
+// контракта, плашка возврата. Старые числа оставлены как верхняя граница: меньшее число
+// находок прогон НЕ роняет (проверка ниже - только «не больше базовой линии»), поэтому
+// исчезновение попапных находок набор не ломает.
 const KIT_BASELINE = { "КЕГЛЬ": 20, "ЗОНА НАЖАТИЯ": 49, "ПОЛЕ ВВОДА": 16 };
 
 function kitCheck(marker, title) {

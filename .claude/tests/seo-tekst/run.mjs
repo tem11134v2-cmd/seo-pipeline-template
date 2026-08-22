@@ -20,7 +20,7 @@
 // Exit 0 - все тесты прошли. Exit 1 - есть провал.
 
 import { execFileSync } from "node:child_process";
-import { writeFileSync, readFileSync, readdirSync, statSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { writeFileSync, readFileSync, readdirSync, statSync, existsSync, mkdirSync, rmSync, cpSync } from "node:fs";
 import { join, resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateRawSync } from "node:zlib";
@@ -322,47 +322,250 @@ step("pages.json отсутствует -> docx собирается без па
 
 // ──────────────────────────────────────────────────────────────────────────
 console.log("");
-console.log("=== прототип с пустыми реквизитами (типовой случай --from-brief) ===");
+console.log("=== прототип v2 (ADR-039): render -> site_manifest -> assemble -> verify ===");
 // ──────────────────────────────────────────────────────────────────────────
 
 const BUILD_PROTO = join(PROJECT_ROOT, ".claude/scripts/build-prototype.mjs");
+const ASSEMBLE_PROTO = join(PROJECT_ROOT, ".claude/scripts/assemble-prototype.mjs");
 const VERIFY_PROTO = join(PROJECT_ROOT, ".claude/scripts/verify-prototype.mjs");
-const dirProto = join(SANDBOX, "proto");
-mkdirSync(dirProto, { recursive: true });
-writeFileSync(join(dirProto, "manifest.json"), JSON.stringify({
-  meta: { slug: "test", title: "Монтаж вентиляции", description: "Тест", project: "ВентПро" },
-  theme: "wireframe",
-  legal: { company: "", inn: "", ogrn: "", address: "", email: "", phone: "" },
-  blocks: [
-    { fragment: "hero", data: { h1: "Монтаж вентиляции в квартире", subhead: "Проектируем и монтируем под ключ", cta_label: "Рассчитать стоимость" } },
-    { fragment: "form", data: { h2: "Оставьте заявку", cta_label: "Отправить" } },
-  ],
-}, null, 2), "utf8");
 
-step("build-prototype: пустой legal.phone -> tel-ссылки НЕ пустые и одинаковы в шапке и футере", () => {
-  const r = run([BUILD_PROTO, dirProto]);
-  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
-  const html = readFileSync(join(dirProto, "prototype.html"), "utf8");
-  const tels = [...new Set((html.match(/href="tel:[^"]*"/g) || []))];
-  if (!tels.length) return "tel-ссылок нет вовсе";
-  if (tels.some((t) => t === 'href="tel:"')) return `пустая tel-ссылка: ${tels.join(" | ")}`;
-  if (tels.length > 1) return `шапка и футер разошлись: ${tels.join(" | ")}`;
+// Фикстура сайта из 3 страниц: главная (документ-уровень: legal, титул), услуга,
+// категория с обязательным листингом товаров (opts.filter=true).
+// Телефон ГЛАВНОЙ пуст - типовой случай --from-brief: ассемблер обязан подставить
+// маску +7 (000) 000-00-00, а не пустой tel:. У услуги телефон нарочно ДРУГОЙ:
+// если он утечет в документ, значит ассемблер взял legal не из manifest страницы
+// main_slug, а из первой попавшейся.
+// В subhead услуги вшиты канарейки пост-обработки: е-с-точками (в data-литерале
+// фикстуры - это разрешенное место) и висячий предлог перед «одном» - их обязан
+// чинить АССЕМБЛЕР по итоговому документу, а не build-prototype в render.html.
+const dirSite = join(SANDBOX, "site");
+
+const protoBlocks = {
+  hero: (h1, subhead) => ({ n: 1, type: "Первый экран (Hero)", fragment: "hero", h2: null,
+    slots: { h1, subhead, cta_label: "Рассчитать стоимость" }, opts: {}, fill_notes: [] }),
+  form: () => ({ n: 8, type: "Форма захвата", fragment: "form", h2: "Оставьте заявку на расчет",
+    slots: { subhead: "Перезваниваем в течение рабочего дня", form_title: "Расчет стоимости", cta_label: "Отправить заявку" },
+    opts: {}, fill_notes: [] }),
+  listing: () => ({ n: 2, type: "Листинг товаров", fragment: "product-listing", h2: "Приточные установки",
+    slots: {
+      subhead: "Подберем модель под площадь объекта",
+      filters: [{ name: "Производительность", options: ["до 500 куб. м/ч", "до 1500 куб. м/ч"] }],
+      products: [
+        { title: "Приточная установка Комфорт 350", spec: "350 куб. м/ч, до 60 кв. м", url: "#", cta: "Узнать цену", media_alt: "фото установки" },
+        { title: "Приточная установка Комфорт 800", spec: "800 куб. м/ч, до 140 кв. м", url: "#", cta: "Узнать цену", media_alt: "фото установки" },
+      ],
+    }, opts: { filter: true }, fill_notes: [] }),
+};
+
+function seedSite(baseDir) {
+  const legal = (phone) => ({ company: "ООО ВентПро", inn: "", ogrn: "", address: "", domain: "ventpro.ru", email: "info@ventpro.ru", phone });
+  const mk = (slug, pageType, title, marker, blocks, phone) => {
+    const d = join(baseDir, "pages", slug);
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, "manifest.json"), JSON.stringify({
+      meta: { project: "ventpro", slug, page_type: pageType, title, description: "Проектируем и монтируем вентиляцию под ключ, гарантия 3 года.", marker },
+      theme: "wireframe",
+      legal: legal(phone),
+      blocks,
+    }, null, 2), "utf8");
+  };
+  mk("main", "Главная", "Монтаж вентиляции в Казани - под ключ за 14 дней", "монтаж вентиляции",
+    [protoBlocks.hero("Монтаж вентиляции в Казани", "Проект и монтаж в одном договоре, сдаем за 14 дней"), protoBlocks.form()], "");
+  mk("uslugi", "Услуга", "Монтаж вентиляции в квартире - смета за 1 день", "монтаж вентиляции",
+    [protoBlocks.hero("Монтаж вентиляции в квартире", "Проверённая схема: смета и монтаж в одном договоре"), protoBlocks.form()], "+7 (999) 111-22-33");
+  mk("catalog", "Категория", "Приточные установки - каталог с ценами", "приточные установки",
+    [protoBlocks.hero("Приточные установки с монтажом в Казани", "Подбор по площади за 14 дней, монтаж своим штатом"), protoBlocks.listing(), protoBlocks.form()], "");
+  writeFileSync(join(baseDir, "site_manifest.json"), JSON.stringify({
+    pages: [
+      { slug: "main", title: "Главная", type: "Главная", order: 1 },
+      { slug: "uslugi", title: "Монтаж вентиляции", type: "Услуга", order: 2 },
+      { slug: "catalog", title: "Каталог оборудования", type: "Категория", order: 3 },
+    ],
+    start: "__index",
+    main_slug: "main",
+  }, null, 2), "utf8");
+}
+seedSite(dirSite);
+
+// Клон фикстуры под негативный кейс: каждый ломает свое, эталон не трогает
+function cloneSite(name, mutate) {
+  const dst = join(SANDBOX, name);
+  cpSync(dirSite, dst, { recursive: true });
+  if (mutate) mutate(dst);
+  return dst;
+}
+
+step("build v2: pages/<slug>/render.html без shell (пер-страничного prototype.html больше нет)", () => {
+  for (const slug of ["main", "uslugi", "catalog"]) {
+    const d = join(dirSite, "pages", slug);
+    const r = run([BUILD_PROTO, d]);
+    if (r.code !== 0) return `${slug}: exit ${r.code}: ${r.stderr}`;
+    if (!existsSync(join(d, "render.html"))) return `${slug}: render.html не создан`;
+    if (existsSync(join(d, "prototype.html"))) return `${slug}: создан пер-страничный prototype.html - этого режима больше нет (ADR-039)`;
+  }
+  const render = readFileSync(join(dirSite, "pages", "main", "render.html"), "utf8");
+  if (!render.includes("pt-hero")) return "в render.html нет блоков страницы";
+  for (const [what, re] of [
+    ["shell (<header)", /<header/i],
+    ["контракт-плашка", /pt-contract/],
+    ["футер", /<footer/i],
+    ["cookie-баннер", /cookie/i],
+    ["попап", /popup/i],
+  ]) {
+    if (re.test(render)) return `в render.html протек ${what} - это уровень документа, его вставляет ассемблер`;
+  }
   return true;
 });
 
-step("verify-prototype: исправленная страница проходит (exit 0)", () => {
-  const r = run([VERIFY_PROTO, dirProto]);
+step("build v2: render НЕ пост-обработан - е-с-точками доживает до ассемблера (канарейка ADR-039)", () => {
+  const render = readFileSync(join(dirSite, "pages", "uslugi", "render.html"), "utf8");
+  if (!render.includes("ё")) return "е-с-точками уже вычищена в render - normYoFinal переехал из ассемблера в build-prototype";
+  return true;
+});
+
+step("assemble: один документ - стартовая секция-список + секции страниц по order", () => {
+  const r = run([ASSEMBLE_PROTO, dirSite]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr} ${r.stdout}`;
+  const out = join(dirSite, "prototype.html");
+  if (!existsSync(out)) return "prototype.html не создан";
+  const html = readFileSync(out, "utf8");
+  const tag = (slug) => (html.match(new RegExp(`<section[^>]*data-page="${slug}"[^>]*>`)) || [null])[0];
+  const idx = tag("__index");
+  if (!idx) return "нет стартовой секции data-page=\"__index\"";
+  if (!/pt-index/.test(idx)) return "стартовая секция без класса pt-index";
+  if (/\bhidden\b/.test(idx)) return "стартовая секция скрыта - а открываться должен именно список страниц";
+  let prev = html.indexOf(idx);
+  for (const slug of ["main", "uslugi", "catalog"]) {
+    const t = tag(slug);
+    if (!t) return `нет секции страницы ${slug}`;
+    if (!/\bhidden\b/.test(t)) return `секция ${slug} не скрыта на старте`;
+    const pos = html.indexOf(t);
+    if (pos < prev) return `секция ${slug} стоит раньше положенного по order`;
+    prev = pos;
+    if (!html.includes(`href="#p/${slug}"`)) return `в стартовом списке нет ссылки #p/${slug}`;
+  }
+  return true;
+});
+
+step("assemble: PT_ROUTES валиден (pages+title+start) и определен до кода prototype.js", () => {
+  const html = readFileSync(join(dirSite, "prototype.html"), "utf8");
+  const m = html.match(/window\.PT_ROUTES\s*=\s*(\{[\s\S]*?\})\s*;?\s*<\/script>/);
+  if (!m) return "нет <script>window.PT_ROUTES = {...}</script>";
+  let routes;
+  try { routes = JSON.parse(m[1]); } catch (err) { return `PT_ROUTES не парсится как JSON: ${err.message}`; }
+  if (routes.start !== "__index") return `start = ${routes.start}, ожидался __index`;
+  const slugs = (routes.pages || []).map((p) => p.slug).join(",");
+  if (slugs !== "main,uslugi,catalog") return `pages = ${slugs}`;
+  if (!(routes.pages || []).every((p) => p.title)) return "у маршрута нет title - плашке возврата нечего показывать";
+  // прокси порядка: роутер читает карту при инициализации, значит определение обязано
+  // стоять раньше кода prototype.js (первый addEventListener в документе - из него)
+  const jsAt = html.indexOf("addEventListener");
+  if (jsAt >= 0 && html.indexOf("window.PT_ROUTES") > jsAt) return "PT_ROUTES определен ПОСЛЕ подключения prototype.js";
+  return true;
+});
+
+step("assemble: неймспейс id <slug>__ + переписанные href и label for; сервисные якоря глобальны", () => {
+  const html = readFileSync(join(dirSite, "prototype.html"), "utf8");
+  for (const slug of ["main", "uslugi", "catalog"]) {
+    if (!html.includes(`id="${slug}__lead"`)) return `нет id="${slug}__lead" - id формы секции не префиксован`;
+  }
+  if (!html.includes('href="#main__lead"')) return "CTA hero главной не переписан на #main__lead";
+  if (!html.includes('id="main__f-agree"') || !html.includes('for="main__f-agree"')) return "label for чекбокса согласия не переписан вместе с id";
+  if (/id="lead"/.test(html)) return "голый id=\"lead\" остался - дубль id между секциями";
+  if (!html.includes('href="#privacy"')) return "сервисный якорь #privacy пропал или получил префикс";
+  if (/#(?:main|uslugi|catalog)__(?:privacy|person-data-consent|cookie|thanks)\b/.test(html)) return "сервисный якорь из закрытого списка получил префикс страницы";
+  if (/href="#mainContent"/.test(html)) return "юр-страницы все еще возвращают на #mainContent - должно быть #__back";
+  if (!html.includes('href="#__back"')) return "нет возврата #__back из юр-страниц";
+  return true;
+});
+
+step("assemble: документ-уровень из manifest главной - пустой phone дает маску, чужой legal не течет", () => {
+  const html = readFileSync(join(dirSite, "prototype.html"), "utf8");
+  const tels = [...new Set(html.match(/href="tel:[^"]*"/g) || [])];
+  if (!tels.length) return "tel-ссылок нет вовсе";
+  if (tels.some((t) => t === 'href="tel:"')) return `пустая tel-ссылка: ${tels.join(" | ")}`;
+  if (tels.length > 1) return `шапка и футер разошлись: ${tels.join(" | ")}`;
+  if (/9991112233|111-22-33/.test(html)) return "в документ утек телефон НЕ главной страницы - legal обязан браться из main_slug";
+  return true;
+});
+
+step("assemble: контракт один на документ, попапов нет, CTA shell переведены на pt-shell-cta", () => {
+  const html = readFileSync(join(dirSite, "prototype.html"), "utf8");
+  if ((html.match(/name="prototype-contract"/g) || []).length !== 1) return "машинный маркер контракта не ровно один на документ";
+  if ((html.match(/class="pt-contract"/g) || []).length !== 1) return "видимая плашка контракта не ровно одна на документ";
+  if (/popupTime|popupExit|pt-popup/.test(html)) return "попапы дожили до v2 - по ADR-039 они удалены полностью";
+  if (/href="#lead"/.test(html)) return "CTA shell все еще ведет на #lead - должен быть pt-shell-cta с href=\"#\"";
+  if (!/pt-shell-cta/.test(html)) return "класса pt-shell-cta нет - роутеру не за что зацепить скролл к форме активной секции";
+  return true;
+});
+
+step("assemble: normYoFinal + bindHanging применены к итоговому документу", () => {
+  const html = readFileSync(join(dirSite, "prototype.html"), "utf8");
+  if (/[ёЁ]/.test(html)) return "е-с-точками осталась в итоговом документе";
+  if (!html.includes("Проверенная схема")) return "слот с е-с-точками не нормализован (или фикстура услуги потерялась)";
+  // NBSP кодом, а не символом - невидимый знак в исходнике теста легко потерять при правке
+  const NBSP = String.fromCharCode(160);
+  if (!html.includes(`в${NBSP}одном`)) return "висячий предлог «в» не привязан неразрывным пробелом";
+  return true;
+});
+
+step("verify v2: собранный сайт целиком проходит (exit 0)", () => {
+  const r = run([VERIFY_PROTO, dirSite]);
   if (r.code !== 0) return `exit ${r.code}: ${r.stdout} ${r.stderr}`;
   return true;
 });
 
-step("verify-prototype: пустой href=\"tel:\" блокирует сборку (exit 2, а не молчаливый пропуск)", () => {
-  const dirBad = join(SANDBOX, "proto-bad");
-  mkdirSync(dirBad, { recursive: true });
-  const html = readFileSync(join(dirProto, "prototype.html"), "utf8").replace(/href="tel:[^"]*"/g, 'href="tel:"');
-  writeFileSync(join(dirBad, "prototype.html"), html, "utf8");
-  writeFileSync(join(dirBad, "manifest.json"), readFileSync(join(dirProto, "manifest.json"), "utf8"), "utf8");
-  const r = run([VERIFY_PROTO, dirBad]);
+step("assemble: страница без render.html -> падение, битый документ не пишется", () => {
+  const dst = cloneSite("site-norender", (d) => {
+    rmSync(join(d, "pages", "uslugi", "render.html"), { force: true });
+    rmSync(join(d, "prototype.html"), { force: true });
+  });
+  const r = run([ASSEMBLE_PROTO, dst]);
+  if (r.code === 0) return "exit 0 при отсутствующем render.html";
+  if (existsSync(join(dst, "prototype.html"))) return "при ошибке записан битый prototype.html";
+  return true;
+});
+
+step("verify v2: вторая форма в секции -> exit 2 («ровно 1 форма НА СЕКЦИЮ»)", () => {
+  const dst = cloneSite("site-2forms", (d) => {
+    const mPath = join(d, "pages", "uslugi", "manifest.json");
+    const m = readJson(mPath);
+    m.blocks.push({ ...m.blocks.find((b) => b.fragment === "form"), n: 99 });
+    writeFileSync(mPath, JSON.stringify(m, null, 2), "utf8");
+  });
+  let r = run([BUILD_PROTO, join(dst, "pages", "uslugi")]);
+  if (r.code !== 0) return `пересборка render: exit ${r.code}: ${r.stderr}`;
+  r = run([ASSEMBLE_PROTO, dst]);
+  if (r.code !== 0) return `assemble: exit ${r.code}: ${r.stderr}`;
+  r = run([VERIFY_PROTO, dst]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
+  if (!/форм/i.test(r.stdout + r.stderr)) return "в выводе нет причины про форму";
+  return true;
+});
+
+step("verify v2: секция типа Категория без листинга товаров -> exit 2 (обязательный блок)", () => {
+  const dst = cloneSite("site-nolisting", (d) => {
+    const mPath = join(d, "pages", "catalog", "manifest.json");
+    const m = readJson(mPath);
+    m.blocks = m.blocks.filter((b) => b.fragment !== "product-listing");
+    writeFileSync(mPath, JSON.stringify(m, null, 2), "utf8");
+  });
+  let r = run([BUILD_PROTO, join(dst, "pages", "catalog")]);
+  if (r.code !== 0) return `пересборка render: exit ${r.code}: ${r.stderr}`;
+  r = run([ASSEMBLE_PROTO, dst]);
+  if (r.code !== 0) return `assemble: exit ${r.code}: ${r.stderr}`;
+  r = run([VERIFY_PROTO, dst]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
+  if (!/листинг|product-listing/i.test(r.stdout + r.stderr)) return "в выводе не назван листинг товаров";
+  return true;
+});
+
+step("verify v2: пустой href=\"tel:\" блокирует (exit 2, а не молчаливый пропуск)", () => {
+  const dst = cloneSite("site-badtel", (d) => {
+    const p = join(d, "prototype.html");
+    writeFileSync(p, readFileSync(p, "utf8").replace(/href="tel:[^"]*"/g, 'href="tel:"'), "utf8");
+  });
+  const r = run([VERIFY_PROTO, dst]);
   if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
   if (!/tel/i.test(r.stdout + r.stderr)) return "в выводе нет причины про tel";
   return true;
@@ -993,8 +1196,8 @@ console.log("=== контракт передачи + build-handoff.mjs (ADR-035)
 
 const BUILD_HANDOFF = join(PROJECT_ROOT, ".claude/scripts/build-handoff.mjs");
 
-step("собранный прототип несет контракт: машинный маркер + видимая плашка", () => {
-  const html = readFileSync(join(dirProto, "prototype.html"), "utf8");
+step("собранный документ несет контракт: машинный маркер + видимая плашка (вставляет ассемблер)", () => {
+  const html = readFileSync(join(dirSite, "prototype.html"), "utf8");
   if (!/name="prototype-contract"/.test(html)) return "нет машинного маркера prototype-contract";
   if (!/ЭТО ПРОТОТИП, А НЕ МАКЕТ/i.test(html)) return "нет комментария-контракта в head";
   if (!/pt-contract/.test(html)) return "нет видимой плашки в body";
@@ -1003,15 +1206,15 @@ step("собранный прототип несет контракт: маши�
   return true;
 });
 
-step("verify-prototype ловит выпиленный контракт", () => {
-  const dirNoContract = join(SANDBOX, "proto-nocontract");
-  mkdirSync(dirNoContract, { recursive: true });
-  const html = readFileSync(join(dirProto, "prototype.html"), "utf8")
-    .replace(/<meta name="prototype-contract"[^>]*>/g, "")
-    .replace(/<div class="pt-contract"[\s\S]*?<\/div>\s*<\/div>/, "");
-  writeFileSync(join(dirNoContract, "prototype.html"), html, "utf8");
-  writeFileSync(join(dirNoContract, "manifest.json"), readFileSync(join(dirProto, "manifest.json"), "utf8"), "utf8");
-  const r = run([VERIFY_PROTO, dirNoContract]);
+step("verify v2 ловит выпиленный контракт", () => {
+  const dst = cloneSite("site-nocontract", (d) => {
+    const p = join(d, "prototype.html");
+    const html = readFileSync(p, "utf8")
+      .replace(/<meta name="prototype-contract"[^>]*>/g, "")
+      .replace(/<div class="pt-contract"[\s\S]*?<\/div>\s*<\/div>/, "");
+    writeFileSync(p, html, "utf8");
+  });
+  const r = run([VERIFY_PROTO, dst]);
   if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
   if (!/контракт|prototype-contract/i.test(r.stdout)) return "в выводе нет причины про контракт";
   return true;

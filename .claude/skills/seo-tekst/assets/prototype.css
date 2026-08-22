@@ -1,9 +1,10 @@
 /* ============================================================
    prototype.css - компонентный CSS HTML-прототипа
-   Использует токены темы (themes/theme-<niche>.css :root{}).
+   Использует токены темы (themes/theme-wireframe.css :root{}).
    Никаких хардкод-цветов: все через var(--...).
    Префикс классов: pt- (prototype). Кнопки: .btn / .btn--primary.
    Линкуется ПОСЛЕ темы. Брейкпойнты: 900px, 520px.
+   Без transition и @keyframes: прототип статичен (ADR-039).
    ============================================================ */
 
 /* === RESET === */
@@ -73,12 +74,19 @@ img { max-width: 100%; display: block; }
 @media (max-width: 520px) { .pt-contract { font-size: 12px; } }
 @media print { .pt-contract { display: none; } }
 
+/* === BACKBAR (плашка возврата над шапкой) ===
+   Одна на документ, в shell. Роутер показывает ее на страничных секциях
+   (кроме стартовой) и подставляет название страницы в #ptBackbarTitle. */
+.pt-backbar { background: var(--bg-alt); border-bottom: 1px solid var(--border); font-size: 13px; }
+.pt-backbar__row { display: flex; align-items: center; gap: 12px; padding-top: 8px; padding-bottom: 8px; }
+.pt-backbar__link { font-weight: 600; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.pt-backbar__title { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* === BUTTONS === */
 .btn {
   display: inline-block; padding: 12px 22px;
   background: var(--bg); color: var(--text-primary); border: 1px solid var(--accent-primary);
   border-radius: var(--radius); font-size: 14px; font-weight: 600; text-align: center;
-  transition: background 0.15s, color 0.15s, opacity 0.15s;
 }
 .btn:hover { background: var(--accent-primary); color: var(--text-invert); }
 .btn--primary { background: var(--accent-primary); color: var(--text-invert); }
@@ -108,13 +116,13 @@ img { max-width: 100%; display: block; }
 .pt-burger-drawer {
   position: fixed; top: 0; right: 0; bottom: 0; width: 320px; max-width: 90vw;
   background: var(--bg); border-left: 1px solid var(--border);
-  transform: translateX(100%); transition: transform 0.25s;
+  transform: translateX(100%);
   z-index: 110; padding: 24px; overflow-y: auto;
 }
 .pt-burger-drawer.is-open { transform: translateX(0); }
 .pt-burger-overlay {
   position: fixed; inset: 0; background: rgba(15,23,42,0.45);
-  opacity: 0; pointer-events: none; transition: opacity 0.25s; z-index: 105;
+  opacity: 0; pointer-events: none; z-index: 105;
 }
 .pt-burger-overlay.is-open { opacity: 1; pointer-events: auto; }
 .pt-burger-close { position: absolute; top: 16px; right: 16px; font-size: 22px; }
@@ -212,7 +220,7 @@ img { max-width: 100%; display: block; }
   display: flex; justify-content: space-between; align-items: center; gap: 16px;
 }
 .pt-faq__item > summary::-webkit-details-marker { display: none; }
-.pt-faq__item > summary::after { content: "+"; font-size: 22px; font-weight: 400; transition: transform 0.2s; color: var(--accent-primary); }
+.pt-faq__item > summary::after { content: "+"; font-size: 22px; font-weight: 400; color: var(--accent-primary); }
 .pt-faq__item[open] > summary::after { content: "-"; }
 .pt-faq__a { padding: 0 0 18px; font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
 
@@ -254,7 +262,7 @@ img { max-width: 100%; display: block; }
 .pt-tags { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .pt-tag {
   border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 16px; text-align: center; background: var(--bg);
-  font-size: 14px; font-weight: 600; transition: background 0.15s, color 0.15s;
+  font-size: 14px; font-weight: 600;
 }
 .pt-tag:hover { background: var(--accent-primary); color: var(--text-invert); }
 
@@ -284,7 +292,6 @@ img { max-width: 100%; display: block; }
 .pt-input, .pt-textarea, .pt-select {
   width: 100%; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg);
   padding: 12px 14px; font-size: 14px; font-family: inherit; color: var(--text-primary);
-  transition: border-color 0.15s, box-shadow 0.15s;
 }
 .pt-input:focus, .pt-textarea:focus, .pt-select:focus {
   outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 1px var(--accent-primary);
@@ -347,30 +354,39 @@ img { max-width: 100%; display: block; }
 .pt-cookie__text a { color: var(--accent-primary); text-decoration: underline; }
 .pt-cookie__actions { display: flex; gap: 10px; flex-shrink: 0; }
 
-/* === POPUP === */
-.pt-popup-overlay {
-  position: fixed; inset: 0; background: rgba(15,23,42,0.45);
-  display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px;
-}
-.pt-popup-overlay.is-open { display: flex; }
-.pt-popup {
-  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
-  max-width: 480px; width: 100%; padding: 32px; position: relative; box-shadow: var(--shadow);
-}
-.pt-popup__close {
-  position: absolute; top: 8px; right: 8px;
-  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-  font-size: 20px; line-height: 1; color: var(--text-secondary);
-}
-
-/* === LEGAL / SERVICE PAGES (hash-router) === */
-.pt-page { display: none; }
-.pt-page.is-active { display: block; }
+/* === PAGE SECTIONS (hash-роутер: страничные + служебные секции) ===
+   Показ/скрытие - атрибутом hidden (управляет prototype.js).
+   На .pt-page нельзя ставить display: перебьет hidden и роутер сломается. */
+.pt-page[hidden] { display: none !important; }
 .pt-page__body { max-width: 760px; margin: 0 auto; padding: 60px 32px; }
 .pt-page__body h2 { font-size: 22px; font-weight: 700; margin: 28px 0 10px; }
 .pt-page__body p { margin-bottom: 12px; line-height: 1.6; color: var(--text-secondary); }
 .pt-page__body ul { margin: 0 0 12px 20px; list-style: disc; color: var(--text-secondary); }
 .pt-page__body li { margin-bottom: 6px; line-height: 1.55; }
+
+/* === INDEX (служебная стартовая секция - список страниц документа) ===
+   Разметку генерирует assemble-prototype.mjs:
+   section.pt-page.pt-index > .pt-index__body > заголовок + .pt-index__list
+   из ссылок .pt-index__item (внутри .pt-index__type и .pt-index__name).
+   Простые ч/б плитки, без декора. */
+.pt-index__body { max-width: 880px; margin: 0 auto; padding: 48px 32px 64px; }
+.pt-index__title { font-size: 30px; line-height: 1.2; font-weight: 700; margin-bottom: 8px; }
+.pt-index__sub { font-size: 14px; color: var(--text-secondary); margin-bottom: 28px; }
+.pt-index__list { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.pt-index__item {
+  display: block; border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px 20px; background: var(--bg);
+}
+.pt-index__item:hover { border-color: var(--text-primary); }
+.pt-index__type {
+  font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-secondary); margin-bottom: 6px;
+}
+.pt-index__name { font-size: 16px; font-weight: 600; line-height: 1.3; }
+@media (max-width: 900px) {
+  .pt-index__body { padding: 32px 16px 48px; }
+  .pt-index__list { grid-template-columns: 1fr; }
+}
 
 /* === STICKY MOBILE CTA === */
 .pt-mobile-cta {
@@ -432,7 +448,7 @@ img { max-width: 100%; display: block; }
 .pt-cat-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
 .pt-cat-card {
   border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--bg);
-  display: flex; flex-direction: column; transition: box-shadow 0.15s, border-color 0.15s;
+  display: flex; flex-direction: column;
 }
 .pt-cat-card:hover { border-color: var(--accent-primary); box-shadow: var(--shadow); }
 .pt-cat-card__media {
@@ -494,7 +510,7 @@ img { max-width: 100%; display: block; }
 .pt-subcat { display: flex; flex-wrap: wrap; gap: 10px; }
 .pt-subcat__link {
   border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 16px; background: var(--bg);
-  font-size: 14px; font-weight: 500; color: var(--text-primary); transition: background 0.15s, color 0.15s, border-color 0.15s;
+  font-size: 14px; font-weight: 500; color: var(--text-primary);
 }
 .pt-subcat__link:hover { background: var(--accent-primary); color: var(--text-invert); border-color: var(--accent-primary); }
 
