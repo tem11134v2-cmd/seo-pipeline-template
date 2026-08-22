@@ -106,7 +106,7 @@ domain   = первый позиционный аргумент (не флаг)
 4. Создать папку `audits/<NNN>-<slug>/`.
 5. **Записать `.claude/tmp/current-task.txt` = `audits/<NNN>-<slug>/`** (критично - без этого pre-commit hook откажет в коммите).
 6. Определить `analysis_dir`:
-   - Если `--from-analysis <NNN>` задан -> `analyses/<NNN>-*/` (если существует).
+   - Если `--from-analysis <NNN>` задан -> `analyses/<NNN>-*/` (если существует). Если в `brief.json` этого анализа нет ключа `keyso_base` (анализ tier=basic) - это не ошибка: база Keyso определяется штатным fallback «по региону» в `audit-recon`, как при отсутствии анализа.
    - Иначе - поискать свежую `analyses/*/` с тем же доменом; если есть - использовать; иначе `analysis_dir = null` (база Keyso определится по региону в `audit-recon`).
 7. Создать `meta.json`:
    ```json

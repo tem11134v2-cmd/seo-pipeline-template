@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // run.mjs - регрессионный smoke-тест новой машинерии /seo-analiz (Этап 3: интейк, раздел «0.
-// Вопросы к вам», импорт ответов, финальная проверка).
+// Вопросы к вам», импорт ответов, финальная проверка) + этап A программы v7 (словарь
+// rerun_hint v2, новый STAGE_ORDER, tier-aware validate-analysis-inputs - контракты 1.4а/1.6/1.7).
 //
 // Использование:
 //   .claude\scripts\_node.cmd .claude\tests\seo-analiz\run.mjs
@@ -11,9 +12,12 @@
 //      ядро режима --answers: слияние ответов + rerun_plan.json).
 //   3. build-analysis-docx.mjs - рендер раздела 0 на fixtures/analysis_dir/ (смоук + graceful
 //      без questions.json).
-//   4. validate-analysis-inputs.mjs - регрессия на fixtures/validate_dir/: новые файлы
-//      (intake.json/questions.json/ВВОДНЫЕ.md) не ломают канон-гейт brief/competitors/serp;
-//      легаси-фикстура (без них) тоже проходит exit 0 (warn-only, не блок).
+//   4. validate-analysis-inputs.mjs - регрессия на fixtures/validate_dir/ (легаси-путь без
+//      meta.json.tier: канон-гейт brief/competitors/serp как раньше, новые файлы Этапа 3 не
+//      ломают, легаси-фикстура без них тоже проходит) + tier-aware гейт v2 (контракты
+//      1.4а/1.7): basic (fixtures/validate_dir_basic/) без serp.json и Keyso-полей проходит;
+//      v2-формат (tier в meta.json) требует непустых brief.directions[] с уникальными
+//      dir_slug и audience.json; старый анализ без поля tier валидируется по старым правилам.
 //
 // Устойчивость к параллельной разработке (раздел 8 спеки Этапа 3, Пакеты 2-3 пишутся
 // параллельно с этим набором): если .claude/scripts/_questions.mjs или apply-answers.mjs ещё
@@ -194,6 +198,43 @@ if (Q) {
     return true;
   });
 
+  await step("ALLOWED_RERUN_HINTS: точный словарь v2 (контракт 1.6, set-эквивалентность)", () => {
+    const canon = ["intake", "brief", "audience", "competitors", "leaders", "directions", "serp", "writer", "edit"];
+    const got = Q.ALLOWED_RERUN_HINTS;
+    if (!Array.isArray(got)) return `ALLOWED_RERUN_HINTS не массив: ${typeof got}`;
+    const missing = canon.filter((v) => !got.includes(v));
+    const extra = got.filter((v) => !canon.includes(v));
+    if (missing.length || extra.length) {
+      return `расхождение со словарем v2: missing=${JSON.stringify(missing)}, extra=${JSON.stringify(extra)}`;
+    }
+    return true;
+  });
+
+  await step("STAGE_ORDER: канон-ступени v2 в порядке downstream-цепочки intake -> ... -> edit", () => {
+    const chain = ["intake", "brief", "audience", "competitors", "leaders", "directions", "serp", "writer", "edit"];
+    const order = Q.STAGE_ORDER;
+    if (!Array.isArray(order)) return `STAGE_ORDER не массив: ${typeof order}`;
+    const missing = chain.filter((s) => !order.includes(s));
+    if (missing.length) return `в STAGE_ORDER нет ступеней: ${missing.join(", ")}`;
+    for (let i = 1; i < chain.length; i++) {
+      const prev = order.indexOf(chain[i - 1]);
+      const cur = order.indexOf(chain[i]);
+      if (cur <= prev) return `порядок нарушен: «${chain[i - 1]}» (index ${prev}) должен быть глубже «${chain[i]}» (index ${cur})`;
+    }
+    return true;
+  });
+
+  await step("validateQuestionsSchema: новые rerun_hint v2 (intake/audience/directions) валидны", () => {
+    const obj = makeValidQuestionsObj([
+      makeValidQuestion({ id: "q1", rerun_hint: "intake" }),
+      makeValidQuestion({ id: "q2", rerun_hint: "audience" }),
+      makeValidQuestion({ id: "q3", rerun_hint: "directions" }),
+    ]);
+    const problems = Q.validateQuestionsSchema(obj);
+    if (problems.length) return `ожидал [], получил: ${JSON.stringify(problems)}`;
+    return true;
+  });
+
   await step("validateQuestionsSchema: N=2 (вне 3-7), иначе валидно -> только мягкий warn, не блокирующая проблема", () => {
     const obj = makeValidQuestionsObj([makeValidQuestion({ id: "q1" }), makeValidQuestion({ id: "q2" })]);
     const problems = Q.validateQuestionsSchema(obj);
@@ -286,6 +327,24 @@ if (Q) {
     return true;
   });
 
+  await step('deepestStage(["audience", "intake"]) -> "intake" (новая ступень v2 глубже всех)', () => {
+    const r = Q.deepestStage(["audience", "intake"]);
+    if (r !== "intake") return `получил "${r}"`;
+    return true;
+  });
+
+  await step('deepestStage(["serp", "directions"]) -> "directions" (directions глубже serp)', () => {
+    const r = Q.deepestStage(["serp", "directions"]);
+    if (r !== "directions") return `получил "${r}"`;
+    return true;
+  });
+
+  await step('deepestStage(["leaders", "audience"]) -> "audience" (audience глубже leaders)', () => {
+    const r = Q.deepestStage(["leaders", "audience"]);
+    if (r !== "audience") return `получил "${r}"`;
+    return true;
+  });
+
   await step("questionsToRows: N строк, recommended и options на месте", () => {
     const questions = [
       makeValidQuestion({ id: "q1", recommended: "а" }),
@@ -363,6 +422,25 @@ if (!applyAnswersExists) {
     return true;
   });
 
+  await step("apply-answers.mjs: расхождение по q4 (rerun_hint=audience, словарь v2) -> bucket audience, deepest_stage == audience", () => {
+    freshDir(answersDir, "answers_dir");
+    const answers = readJson(join(answersDir, "answers.json"));
+    answers.answers = [
+      { id: "q1", answer: "согласен с рекомендованным", verbatim: "ок" },
+      { id: "q4", answer: "б", verbatim: "нет, у нас в основном b2b" }, // recommended для q4 - "а"
+    ];
+    answers.free_comments = [];
+    writeJson(join(answersDir, "answers.json"), answers);
+    const r = runScript("apply-answers.mjs", answersDir, "--source", "chat");
+    if (r.code !== 0) return `exit ${r.code} (новый rerun_hint «audience» не должен блокировать схему), stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
+    const plan = readJson(join(answersDir, "rerun_plan.json"));
+    const pq4 = plan.per_question.find((p) => p.id === "q4");
+    if (!pq4 || pq4.decision !== "diverged" || pq4.rerun !== "audience") return `q4: ${JSON.stringify(pq4)}`;
+    if (!plan.buckets.includes("audience")) return `buckets не содержит "audience": ${JSON.stringify(plan.buckets)}`;
+    if (plan.deepest_stage !== "audience") return `deepest_stage="${plan.deepest_stage}", ожидал "audience"`;
+    return true;
+  });
+
   await step("apply-answers.mjs: битый questions.json (нет recommended) -> exit 2", () => {
     freshDir(answersDir, "answers_dir");
     const qj = readJson(join(answersDir, "questions.json"));
@@ -430,9 +508,23 @@ await step("build-analysis-docx.mjs: без questions.json -> не падает 
 // Блок 4: validate-analysis-inputs.mjs - новый состав папки не ломает гейт
 // ═══════════════════════════════════════════════════════════════════════════
 console.log("");
-console.log("=== validate-analysis-inputs.mjs (новые файлы Этапа 3) ===");
+console.log("=== validate-analysis-inputs.mjs (новые файлы Этапа 3 + tier-aware v2) ===");
 
 const validateDir = join(sandboxRoot, "validate_dir");
+const validateBasicDir = join(sandboxRoot, "validate_dir_basic");
+
+// Готовит seo-анализ в формате v2: полный старый канон (validate_dir) + meta.tier=seo +
+// brief.directions[] + audience.json (directions и audience берем из basic-фикстуры,
+// чтобы dir_slug сегментов и направлений оставались согласованными).
+function makeSeoV2Dir() {
+  freshDir(validateDir, "validate_dir");
+  writeJson(join(validateDir, "meta.json"), { tier: "seo", state: "report-done" });
+  cpSync(join(fixturesDir, "validate_dir_basic", "audience.json"), join(validateDir, "audience.json"));
+  const brief = readJson(join(validateDir, "brief.json"));
+  brief.directions = readJson(join(fixturesDir, "validate_dir_basic", "brief.json")).directions;
+  writeJson(join(validateDir, "brief.json"), brief);
+  return validateDir;
+}
 
 await step("validate-analysis-inputs.mjs: полный канон + intake.json/questions.json/ВВОДНЫЕ.md -> exit 0", () => {
   freshDir(validateDir, "validate_dir");
@@ -458,6 +550,60 @@ await step("validate-analysis-inputs.mjs: сломан канон (competitors.d
   writeJson(join(validateDir, "competitors.json"), comp);
   const r = runScript("validate-analysis-inputs.mjs", validateDir);
   if (r.code !== 2) return `expected exit 2, got ${r.code}, stdout=${r.stdout.trim()}`;
+  return true;
+});
+
+// --- tier-aware v2 (этап A программы v7, контракты 1.4а/1.7) ---
+
+await step("validate-analysis-inputs.mjs: СТАРЫЙ анализ (meta.json без поля tier) -> старые правила, без требования directions/audience -> exit 0", () => {
+  freshDir(validateDir, "validate_dir");
+  writeJson(join(validateDir, "meta.json"), { state: "approved" }); // meta есть, tier - нет
+  const r = runScript("validate-analysis-inputs.mjs", validateDir);
+  if (r.code !== 0) return `exit ${r.code} (старый анализ без tier не должен требовать directions/audience), stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
+  return true;
+});
+
+await step("validate-analysis-inputs.mjs: tier=basic БЕЗ serp.json и Keyso-полей, с directions+audience -> exit 0", () => {
+  freshDir(validateBasicDir, "validate_dir_basic");
+  // Фикстура: meta.tier=basic; brief без keyso_base; competitors.direct без метрик-ключей;
+  // serp.json отсутствует; directions[] и audience.json на месте.
+  const r = runScript("validate-analysis-inputs.mjs", validateBasicDir);
+  if (r.code !== 0) return `exit ${r.code} (basic-анализ без serp/Keyso должен проходить), stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
+  return true;
+});
+
+await step("validate-analysis-inputs.mjs: tier=seo v2 полный (канон + directions + audience) -> exit 0 (базлайн для негативных кейсов)", () => {
+  makeSeoV2Dir();
+  const r = runScript("validate-analysis-inputs.mjs", validateDir);
+  if (r.code !== 0) return `exit ${r.code}, stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
+  return true;
+});
+
+await step("validate-analysis-inputs.mjs: tier=seo v2 без audience.json -> exit 2", () => {
+  makeSeoV2Dir();
+  rmSync(join(validateDir, "audience.json"));
+  const r = runScript("validate-analysis-inputs.mjs", validateDir);
+  if (r.code !== 2) return `expected exit 2 (v2-формат требует audience.json), got ${r.code}, stdout=${r.stdout.trim()}`;
+  return true;
+});
+
+await step("validate-analysis-inputs.mjs: tier=seo v2 с пустыми brief.directions -> exit 2", () => {
+  makeSeoV2Dir();
+  const brief = readJson(join(validateDir, "brief.json"));
+  brief.directions = [];
+  writeJson(join(validateDir, "brief.json"), brief);
+  const r = runScript("validate-analysis-inputs.mjs", validateDir);
+  if (r.code !== 2) return `expected exit 2 (v2-формат требует непустой directions[]), got ${r.code}, stdout=${r.stdout.trim()}`;
+  return true;
+});
+
+await step("validate-analysis-inputs.mjs: дубль dir_slug в brief.directions -> exit 2", () => {
+  freshDir(validateBasicDir, "validate_dir_basic");
+  const brief = readJson(join(validateBasicDir, "brief.json"));
+  brief.directions[1].dir_slug = brief.directions[0].dir_slug;
+  writeJson(join(validateBasicDir, "brief.json"), brief);
+  const r = runScript("validate-analysis-inputs.mjs", validateBasicDir);
+  if (r.code !== 2) return `expected exit 2 (dir_slug должны быть уникальны), got ${r.code}, stdout=${r.stdout.trim()}`;
   return true;
 });
 

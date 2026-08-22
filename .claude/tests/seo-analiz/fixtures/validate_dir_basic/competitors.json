@@ -1,0 +1,8 @@
+{
+  "direct": [
+    { "domain": "leader.ru" },
+    { "domain": "second.ru" }
+  ],
+  "indirect": [],
+  "leaders_top3": ["leader.ru"]
+}

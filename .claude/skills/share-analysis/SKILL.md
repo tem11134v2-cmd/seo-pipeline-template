@@ -40,7 +40,9 @@ redo = true если --redo
 `analysis_dir = analyses/<NNN>-*/` - найти существующую по NNN. Если не найдено - стоп.
 
 Прочитать:
-- `<analysis_dir>/meta.json` - убедиться, что `state >= docx-done`. Если нет - стоп с подсказкой `/seo-analiz --resume`.
+- `<analysis_dir>/meta.json` - убедиться, что `state >= docx-done`. Если нет - два случая:
+  - **Дообогащение `--add-seo`:** `share.json` существует, а `state` между `brief-done` и `docx-done` (`brief-done` | `audience-done` | `competitors-done` | `leaders-done` | `directions-done` | `serp-done` | `report-done` | `analysis-verified`) - значит `/seo-analiz --add-seo` вернул завершенный анализ на `brief-done` и гонит его вперед. Сообщить: «Анализ дообогащается (--add-seo) - перезаливка произойдет штатно после report-done/docx» - и выйти БЕЗ ошибки.
+  - Иначе - стоп с подсказкой `/seo-analiz --resume`.
 - `<analysis_dir>/brief.json` - получить `slug`, `domain`.
 
 Локальный путь: `docx_path = <analysis_dir>/A2_<slug>.docx`. Если нет - стоп.

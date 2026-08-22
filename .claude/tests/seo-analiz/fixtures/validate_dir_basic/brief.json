@@ -1,0 +1,37 @@
+{
+  "slug": "romashka",
+  "domain": "romashka.ru",
+  "company_name": "ООО Ромашка",
+  "niche": "ремонт квартир",
+  "region": "Москва",
+  "business_type": "services",
+  "assortment": ["Ремонт квартир под ключ", "Ремонт ванной"],
+  "not_in_assortment": [],
+  "utp_technical": ["Собственная бригада"],
+  "utp_service": [],
+  "utp_social": [],
+  "forbidden_wordings": [],
+  "client_target_queries": ["ремонт квартир под ключ"],
+  "client_competitors": ["leader.ru"],
+  "yandex_maps": "yes",
+  "seasonality": "нет",
+  "ca_data": "Частники, квартиры в новостройках",
+  "gaps": [],
+  "client_pages": [],
+  "directions": [
+    {
+      "dir_slug": "remont-kvartir",
+      "name": "Ремонт квартир под ключ",
+      "source": "assortment",
+      "marker_hint": "ремонт квартир под ключ",
+      "url": "https://romashka.ru/remont-kvartir/"
+    },
+    {
+      "dir_slug": "remont-vannoy",
+      "name": "Ремонт ванной",
+      "source": "assortment",
+      "marker_hint": "ремонт ванной под ключ",
+      "url": null
+    }
+  ]
+}

@@ -29,6 +29,16 @@
       "answer": null,
       "source_gap": "intake.conflict:utp_technical",
       "rerun_hint": "writer"
+    },
+    {
+      "id": "q4",
+      "question": "Кто основная ЦА - частные лица или b2b-заказчики?",
+      "options": ["а) частные лица", "б) b2b-заказчики", "в) свой вариант: ___"],
+      "recommended": "а",
+      "recommended_note": "По брифу и текстам сайта основной поток - частники.",
+      "answer": null,
+      "source_gap": "intake.gap:ca_data",
+      "rerun_hint": "audience"
     }
   ],
   "free_comments": [],

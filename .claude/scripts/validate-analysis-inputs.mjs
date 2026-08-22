@@ -4,15 +4,23 @@
 // а не просто «файл существует». Ловит дрейф схемы (например target_queries_client вместо
 // client_target_queries) и неполный/реконструированный анализ ДО старта дорогих шагов.
 //
-// Используется в /seo-struktura на шаге 1a.
+// Используется в /seo-struktura на шаге 1a и в /seo-analiz v2 (tier-aware гейт).
 //
 // Использование:
-//   node .claude/scripts/validate-analysis-inputs.mjs <analysis_dir>
+//   node .claude/scripts/validate-analysis-inputs.mjs <analysis_dir> [--tier seo|basic]
+//
+// Tier (v2): читается из <analysis_dir>/meta.json (поле tier); fallback - флаг --tier,
+//   дефолт seo (обратная совместимость старых анализов). Новые требования v2
+//   (brief.directions[] + audience.json) включаются ТОЛЬКО когда tier несет meta.json -
+//   старые анализы без поля tier валидируются по старым правилам без новых требований.
+//   При tier=basic: serp.json и keyso_base не требуются, Keyso-метрики direct[] опциональны.
 //
 // Вход:
+//   <analysis_dir>/meta.json         - опционален (несет tier; без него - legacy-правила)
 //   <analysis_dir>/brief.json        - канон brief-structurer
 //   <analysis_dir>/competitors.json  - канон competitor-finder
-//   <analysis_dir>/serp.json         - канон serp-verdict
+//   <analysis_dir>/serp.json         - канон serp-verdict (обязателен только при tier=seo)
+//   <analysis_dir>/audience.json     - канон audience-analyst (обязателен только в формате v2)
 //   <analysis_dir>/leader_scan.json  - опционален (НЕ блокирует)
 //   <analysis_dir>/intake.json       - опционален (НЕ блокирует; этап 3, warn-only)
 //   <analysis_dir>/questions.json    - опционален (НЕ блокирует; этап 3, warn-only)
@@ -27,10 +35,21 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-const dirArg = process.argv[2];
-if (!dirArg) {
-  console.error("[validate-analysis-inputs] usage: node validate-analysis-inputs.mjs <analysis_dir>");
+const args = process.argv.slice(2);
+const dirArg = args[0];
+if (!dirArg || dirArg.startsWith("--")) {
+  console.error("[validate-analysis-inputs] usage: node validate-analysis-inputs.mjs <analysis_dir> [--tier seo|basic]");
   process.exit(1);
+}
+
+let tierFlag = null;
+const tierIdx = args.indexOf("--tier");
+if (tierIdx !== -1) {
+  tierFlag = args[tierIdx + 1];
+  if (!["seo", "basic"].includes(tierFlag)) {
+    console.error(`[validate-analysis-inputs] --tier должен быть «seo» или «basic», получено: ${tierFlag}`);
+    process.exit(1);
+  }
 }
 const analysisDir = resolve(dirArg);
 if (!existsSync(analysisDir)) {
@@ -54,6 +73,18 @@ function loadJson(name) {
   }
 }
 
+// Опциональный файл: отсутствие - не проблема, битый JSON - проблема.
+function loadJsonOptional(name) {
+  const path = join(analysisDir, name);
+  if (!existsSync(path)) return null;
+  try {
+    return JSON.parse(readFileSync(path, "utf8").replace(/^﻿/, ""));
+  } catch (err) {
+    problems.push(`битый JSON в ${name}: ${err.message}`);
+    return null;
+  }
+}
+
 const isNonEmptyStr = (v) => typeof v === "string" && v.trim().length > 0;
 const isArray = (v) => Array.isArray(v);
 const isNonEmptyArray = (v) => Array.isArray(v) && v.length > 0;
@@ -69,11 +100,24 @@ function checkFieldWithAlias(obj, file, canonical, aliases, validator, label) {
   }
 }
 
+// === Tier (контракты v7, 1.4а/1.7) ===
+// Источник: meta.json.tier (формат v2) -> флаг --tier -> дефолт "seo" (legacy-анализы).
+// tierV2 = meta.json несет валидный tier; только тогда включаются требования
+// directions[] + audience.json (старые анализы идут по старым правилам).
+const meta = loadJsonOptional("meta.json");
+const metaTier = meta && typeof meta.tier === "string" ? meta.tier.trim() : null;
+if (metaTier && !["seo", "basic"].includes(metaTier)) {
+  problems.push(`meta.json: «tier» не один из seo|basic (получено: «${metaTier}»)`);
+}
+const tierV2 = metaTier === "seo" || metaTier === "basic";
+const tier = tierV2 ? metaTier : (tierFlag || "seo");
+
 // === brief.json ===
 const brief = loadJson("brief.json");
 if (brief) {
   if (!isNonEmptyStr(brief.slug)) problems.push("brief.json: нет/пустое «slug»");
-  if (!isNonEmptyStr(brief.keyso_base)) problems.push("brief.json: нет/пустое «keyso_base»");
+  // keyso_base - Keyso-поле ступени 1: при tier=basic ключ отсутствует по контракту 1.2
+  if (tier === "seo" && !isNonEmptyStr(brief.keyso_base)) problems.push("brief.json: нет/пустое «keyso_base»");
   if (!isNonEmptyStr(brief.niche)) problems.push("brief.json: нет/пустое «niche»");
   if (!isNonEmptyStr(brief.region)) problems.push("brief.json: нет/пустое «region»");
   if (!["shop", "services", "both"].includes(brief.business_type)) {
@@ -94,6 +138,24 @@ if (brief) {
   if (isNonEmptyStr(brief.domain) && !isArray(brief.client_pages)) {
     problems.push("brief.json: домен задан, но нет «client_pages» (массив; пустой допустим, если сайт без видимости)");
   }
+  // directions[] (контракт 1.2) - только формат v2: канон направлений для ступеней 2-3 и текстов
+  if (tierV2) {
+    if (!isNonEmptyArray(brief.directions)) {
+      problems.push("brief.json: «directions» пуст (нужно хотя бы 1 направление)");
+    } else {
+      const seenSlugs = new Set();
+      const dupSlugs = new Set();
+      const noSlug = [];
+      brief.directions.forEach((d, i) => {
+        const slug = d?.dir_slug;
+        if (!isNonEmptyStr(slug)) noSlug.push(i);
+        else if (seenSlugs.has(slug)) dupSlugs.add(slug);
+        else seenSlugs.add(slug);
+      });
+      if (noSlug.length) problems.push(`brief.json: directions[] без «dir_slug» (строки: ${noSlug.join(", ")})`);
+      if (dupSlugs.size) problems.push(`brief.json: «dir_slug» не уникальны: ${[...dupSlugs].join(", ")}`);
+    }
+  }
 }
 
 // === competitors.json ===
@@ -106,7 +168,8 @@ if (competitors) {
     // Метрики (pages_keyso/top10/top50/dr/traffic_month) - блокируем только если КЛЮЧ ОТСУТСТВУЕТ
     // (дрейф схемы / не тот агент). Значение null терпимо - это просто несобранная метрика,
     // в xlsx покажется «-». Иначе валидатор даёт ложный блок на рабочем (например реконструированном) анализе.
-    const metricKeys = ["pages_keyso", "top10", "top50", "dr", "traffic_month"];
+    // При tier=basic Keyso-метрики опциональны целиком (контракт 1.4а: деградация отсутствием).
+    const metricKeys = tier === "seo" ? ["pages_keyso", "top10", "top50", "dr", "traffic_month"] : [];
     const noDomain = [];
     const keyAbsent = {};
     competitors.direct.forEach((c, i) => {
@@ -131,11 +194,20 @@ if (competitors) {
   }
 }
 
-// === serp.json ===
-const serp = loadJson("serp.json");
+// === serp.json - при tier=basic не требуется (ступень 4 не покупалась), но если есть - проверяем ===
+const serp = tier === "basic" ? loadJsonOptional("serp.json") : loadJson("serp.json");
 if (serp) {
   if (!isArray(serp.stop_list)) problems.push("serp.json: нет «stop_list[]» (массив)");
   if (!isNonEmptyStr(serp?.verdict?.type)) problems.push("serp.json: нет «verdict.type»");
+}
+
+// === audience.json (ступень 2) - обязателен только в формате v2 (meta.json несет tier) ===
+if (tierV2) {
+  const audience = loadJson("audience.json");
+  if (audience) {
+    if (!isNonEmptyStr(audience.summary)) problems.push("audience.json: нет/пустое «summary»");
+    if (!isNonEmptyArray(audience.segments)) problems.push("audience.json: «segments» пуст (нужен хотя бы 1 сегмент)");
+  }
 }
 
 // === leader_scan.json - опционален, только предупреждение ===
@@ -161,6 +233,7 @@ if (problems.length > 0) {
 }
 
 console.log(`[validate-analysis-inputs] OK: ${analysisDir} - канон-схема цела`);
+console.log(`  i tier=${tier}${tierV2 ? " (meta.json)" : tierFlag ? " (--tier)" : " (дефолт: legacy-анализ без meta.tier)"}`);
 if (leaderScanMissing) {
   console.log("  i leader_scan.json отсутствует (опционален - рекомендации по расширению будут беднее)");
 }

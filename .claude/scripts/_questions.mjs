@@ -15,11 +15,15 @@
 //   "answers_imported_at": null
 // }
 
-// --- 1. Допустимые значения rerun_hint (совпадает с шагами конвейера /seo-analiz) ---
-export const ALLOWED_RERUN_HINTS = ["brief", "competitors", "serp", "leaders", "writer", "edit"];
+// --- 1. Допустимые значения rerun_hint (совпадает со ступенями конвейера /seo-analiz v2) ---
+// Старый словарь (brief|competitors|serp|leaders|writer|edit) - подмножество нового:
+// старые questions.json остаются валидными без миграции.
+export const ALLOWED_RERUN_HINTS = ["intake", "brief", "audience", "competitors", "leaders", "directions", "serp", "writer", "edit"];
 
-// --- 2. Порядок "глубины" шага конвейера (для deepestStage) ---
-export const STAGE_ORDER = ["brief", "competitors", "serp", "leaders", "writer", "edit", "none"];
+// --- 2. Порядок "глубины" ступени конвейера (для deepestStage; intake глубже всех) ---
+// Соответствует downstream-цепочке контрактов v7 (1.6): intake -> brief -> audience ->
+// competitors -> leaders -> directions -> [serp] -> writer -> edit.
+export const STAGE_ORDER = ["intake", "brief", "audience", "competitors", "leaders", "directions", "serp", "writer", "edit", "none"];
 
 const isNonEmptyStr = (v) => typeof v === "string" && v.trim().length > 0;
 

@@ -2,7 +2,7 @@
 name: answer-extractor
 description: Извлекает ответы клиента на вопросы questions.json из его правок в Google Doc (переданного текстом-файлом) + собирает свободные комментарии. Пишет answers.json. Легкий агент /seo-analiz (режим --answers).
 tools: Read, Write
-model: sonnet
+model: opus
 ---
 
 # answer-extractor

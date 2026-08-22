@@ -138,7 +138,10 @@ recommendations.json ЗАТРОНУТЫ (см. 1.4а, 1.8).
 
 - Путь кандидатов при basic: client_competitors из брифа + SERP arsenkin_top по
   marker_hint 3-5 направлений. Поля path/keyso-метрики (pages_keyso/top10/top50/dr/
-  traffic_month) при basic ОТСУТСТВУЮТ; типизация - по фетчу (лайт).
+  traffic_month) при basic ОТСУТСТВУЮТ; типизация - по фетчу (лайт); candidates.json
+  при basic СОЗДАЕТСЯ (via client_competitors|arsenkin_top, без path). Служебное поле
+  `basis: "judgement"` рядом с leaders_top3 - маркер «топ-3 без метрик», единственный
+  потребитель - режим enrich того же агента (удаляет при доборе метрик).
 - validate-analysis-inputs v2: при basic метрики-ключи и path опциональны,
   serp.json не требуется; при seo - полный набор как сейчас.
 
@@ -164,8 +167,10 @@ brief.directions). Схема тонкого recon сохраняется + до
   page-writer (свой recon по dir_slug; ЧУЖОЕ - форма, не цифры; facts_seen НЕ читает),
   offer-strategist (offers_seen), pages-planner v2.
 - **Путь own_page-фактов в facts.json**: подтвержденные клиентом на цикле A2
-  facts_seen оркестратор АНАЛИЗА дописывает в intake.json (facts[] c
-  source: "own_page:<url>", quote - как есть; провенанс ADR-028 сохранен) ->
+  facts_seen оркестратор АНАЛИЗА дописывает в intake.json полной записью канона
+  (field по смыслу кандидата: numbers|prices|guarantee, дефолт numbers; value и
+  quote = facts_seen.value дословно; source: "own_page:<url>"; decision_impact:
+  true - провенанс ADR-028 сохранен, потребители отбирают по field как обычно) ->
   мост (2.4) доносит их до texts/facts.json штатно. page-writer facts_seen
   не видит никогда - числа только из facts.json (инвариант ADR-033/037).
 
