@@ -11,7 +11,9 @@
 //   verify-copy.mjs: механический слой COPY-AUDIT, регистр НОВОЙ формы
 //     {tone_id, axes, source} (контракт 3.2), --root для тон-вариантов (контракт 3.4),
 //     продающий пол ADR-037, сверка с blueprint
-//   build-tekst-docx.mjs + build-handoff.mjs: две ленты пометок, контракт передачи
+//   build-handoff.mjs: пометки для верстки, контракт передачи (Texts.docx в v7.1
+//     удален совсем - деливерабл текстов = прототип, build-tekst-docx.mjs не существует)
+//   build-skeletons-docx.mjs: клиентский docx гейта скелетов (v7.1, контракт 3.3а)
 //   диета писателя В ЗНАКАХ (ADR-020/037)
 //
 // Exit 0 - все тесты прошли. Exit 1 - есть провал.
@@ -62,7 +64,6 @@ function sweepOldSandboxes() {
   }
 }
 const READ_INPUT = join(PROJECT_ROOT, ".claude/scripts/read-tekst-input.mjs");
-const BUILD_DOCX_TEXTS = join(PROJECT_ROOT, ".claude/scripts/build-tekst-docx.mjs");
 
 // === Мини-фреймворк (по образцу tests/seo-temi/run.mjs) ===
 let passed = 0;
@@ -1370,7 +1371,9 @@ step("build-handoff: в правилах заполнения количеств
   return true;
 });
 
-step("служебные пометки не текут заказчику, а старый формат fill_notes не теряется", () => {
+// Texts.docx в v7.1 удален (решение владельца 23.08, контракты п.0.8): проверка фильтрации
+// пометок осталась только на HANDOFF.md - другого документа с fill_notes больше нет.
+step("служебные пометки не текут в HANDOFF, а старый формат fill_notes не теряется", () => {
   const dirN = join(SANDBOX, "notes-split");
   mkdirSync(join(dirN, "pages", "new"), { recursive: true });
   mkdirSync(join(dirN, "pages", "old"), { recursive: true });
@@ -1388,13 +1391,6 @@ step("служебные пометки не текут заказчику, а �
     blocks: [{ n: 1, type: "Цены", fragment: "pricing", slots: { h2: "Сколько стоит" },
       fill_notes: ["реальное число объектов"] }],
   }), "utf8");
-  const rd = run([BUILD_DOCX_TEXTS, dirN]);
-  if (rd.code !== 0) return `build-tekst-docx exit ${rd.code}: ${rd.stderr}`;
-  const { text } = docxText(join(dirN, "Texts_vent.docx"));
-  if (/срезан хвост|внутренняя заметка/.test(text)) return "служебная пометка уехала заказчику в Texts.docx";
-  if (!/фото объекта/.test(text)) return "настоящая дыра фактуры потеряна";
-  if (/\[ЗАПОЛНИТЬ: \[ЗАПОЛНИТЬ/.test(text)) return "двойная обертка маркера";
-  if (!/реальное число объектов/.test(text)) return "старый формат fill_notes потерян (регресс обратной совместимости)";
   const rh = run([BUILD_HANDOFF, dirN]);
   if (rh.code !== 0) return `build-handoff exit ${rh.code}: ${rh.stderr}`;
   const md = readFileSync(join(dirN, "HANDOFF.md"), "utf8");
@@ -1409,6 +1405,74 @@ step("build-handoff: нет страниц -> exit 1, файл не создан
   const r = run([BUILD_HANDOFF, dirEmpty]);
   if (r.code !== 1) return `exit ${r.code}, ожидался 1`;
   if (existsSync(join(dirEmpty, "HANDOFF.md"))) return "HANDOFF.md создан при пустой задаче";
+  return true;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== build-skeletons-docx.mjs (v7.1: клиентский гейт скелетов, контракт 3.3а) ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+const BUILD_SKELETONS = join(PROJECT_ROOT, ".claude/scripts/build-skeletons-docx.mjs");
+
+step("Skeletons_<slug>.docx: клиентский документ без кухни, required помечен, страницы типа перечислены", () => {
+  const dirSk = join(SANDBOX, "skeletons");
+  mkdirSync(dirSk, { recursive: true });
+  writeFileSync(join(dirSk, "inputs.json"), JSON.stringify({ slug: "ventkazan", brand_name: "ВентПро" }), "utf8");
+  writeFileSync(join(dirSk, "pages.json"), JSON.stringify({ source: "structure:fx", count: 3, pages: [
+    { n: 1, slug: "main", url: "/", type: "Главная", marker: "монтаж вентиляции казань", queries: [], dir_slug: null },
+    { n: 2, slug: "catalog", url: "/pritochnye/", type: "Категория", marker: "приточные установки", queries: [], dir_slug: null },
+    { n: 3, slug: "catalog-vent", url: "/ventilyatory/", type: "Категория", marker: "вытяжные вентиляторы", queries: [], dir_slug: null },
+  ] }), "utf8");
+  // 2 типа; в notes нарочно смешаны кухня (typical_order, wireframe) и клиентская часть -
+  // docx обязан вычистить первое и сохранить второе; function/evidence/status не печатаются вовсе
+  writeFileSync(join(dirSk, "type_skeletons.json"), JSON.stringify({
+    types_present: ["Главная", "Категория"],
+    skeletons: {
+      "Главная": { blocks: [
+        { block: "Первый экран (Hero)", function: "Р", required: false, status: "гигиена",
+          evidence: "coverage 1.0 (leader_blocks)", notes: "typical_order 1",
+          client_why: "За 6 секунд отвечает, что вы предлагаете и почему обращаться к вам" },
+      ], order_hint: ["Первый экран (Hero)"] },
+      "Категория": { blocks: [
+        { block: "Форма захвата", function: "К", required: false, status: "гигиена", evidence: "рецепт",
+          notes: "финал страницы", client_why: "Дает оставить заявку, когда подходящая модель не нашлась" },
+        { block: "Листинг товаров", function: "К", required: true, opts: { filter: true }, status: "гигиена",
+          evidence: "coverage 0.8 (leader_blocks)",
+          notes: "typical_order 2; фильтр - статичный плейсхолдер (wireframe); карточки наполняет заказчик",
+          client_why: "Покупатель видит весь ассортимент и фильтрует его под свою задачу" },
+      ], order_hint: ["Листинг товаров", "Форма захвата"] },
+    },
+  }, null, 2), "utf8");
+  const r = run([BUILD_SKELETONS, dirSk]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
+  const out = join(dirSk, "Skeletons_ventkazan.docx");
+  if (!existsSync(out)) return "Skeletons_ventkazan.docx не создан";
+  if (statSync(out).size <= 0) return "docx пустой";
+  const { text } = docxText(out);
+  if (!/Состав блоков страниц/.test(text)) return "нет титула документа";
+  if (!/ВентПро/.test(text)) return "бренд не попал в титул";
+  if (!/Покупатель видит весь ассортимент/.test(text)) return "client_why не доехал до колонки «Зачем»";
+  if (!/обязательный/.test(text)) return "required-блок не помечен «(обязательный)»";
+  if (!/приточные установки/.test(text) || !/вытяжные вентиляторы/.test(text)) return "список страниц типа не напечатан";
+  if (/coverage|leader_blocks|typical_order/i.test(text)) return "кухня (coverage/typical_order) утекла заказчику";
+  if (/wireframe/i.test(text)) return "кухонный фрагмент notes не вычищен";
+  if (!/карточки наполняет заказчик/.test(text)) return "клиентская часть notes потеряна вместе с кухней";
+  const listingAt = text.indexOf("Листинг товаров");
+  const formAt = text.indexOf("Форма захвата");
+  if (listingAt < 0 || formAt < 0 || formAt < listingAt) return "порядок строк не по order_hint (листинг обязан идти раньше формы)";
+  return true;
+});
+
+step("нет type_skeletons.json -> ненулевой exit, docx не создается", () => {
+  const dirNo = join(SANDBOX, "skeletons-missing");
+  mkdirSync(dirNo, { recursive: true });
+  writeFileSync(join(dirNo, "inputs.json"), JSON.stringify({ slug: "ventkazan" }), "utf8");
+  writeFileSync(join(dirNo, "pages.json"), JSON.stringify({ pages: [] }), "utf8");
+  const r = run([BUILD_SKELETONS, dirNo]);
+  if (r.code === 0) return "exit 0 без type_skeletons.json";
+  if (!/type_skeletons/.test(r.stderr)) return "в ошибке не назван недостающий файл";
+  if (existsSync(join(dirNo, "Skeletons_ventkazan.docx"))) return "docx создан без входа";
   return true;
 });
 

@@ -283,11 +283,11 @@ push("Он отвечает на вопросы «что говорим, в ка
 push("Черно-белый вид - намеренный: пока обсуждается содержание, цвет только мешает.", "");
 // «согласованы с заказчиком» - утверждение, а не украшение: в `--auto` паузы на текстах нет
 // вовсе, и дизайнер отказывался править очевидную ошибку, ссылаясь на несуществующее одобрение.
-// Пишем по факту меты: пауза бывает только в режиме review и только после шага «тексты клиенту».
+// Пишем по факту меты (v7.1): деливерабл текстов - прототип; «отдан заказчику» = state shared.
 const steps = arr(meta.completed_steps).map(s);
 const reviewMode = /review/i.test(s(meta.mode)) || meta.review === true;
-const textsShown = steps.includes("texts-shared") || ["texts-shared", "prototype-built", "completed"].includes(s(meta.state));
-const APPROVED = reviewMode && textsShown;
+const delivered = steps.includes("shared") || ["shared", "completed"].includes(s(meta.state));
+const APPROVED = reviewMode && delivered;
 const CHECKED = "Тексты прошли копи-валидатор (стоп-слова, лимиты слотов, запреты стиля)";
 push(`Собрано: страниц - ${pages.length}, блоков - ${blockCount}. ${CHECKED}` + (APPROVED
   ? " и согласованы с заказчиком."

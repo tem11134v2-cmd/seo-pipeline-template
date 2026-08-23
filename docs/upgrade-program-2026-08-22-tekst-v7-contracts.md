@@ -33,6 +33,20 @@ recommendations.json ЗАТРОНУТЫ (см. 1.4а, 1.8).
    данными, не флагом); --scan-leaders/--no-scan и --recon/--no-recon переезжают
    опциями ступени 3 /seo-analiz; --theme удален; --from-brief удален.
 
+**Решения владельца 23.08 (ревизия v7.1):**
+7. **Гейт скелетов - обязательный клиентский.** После такта 1 скелеты оформляются в
+   Skeletons_<slug>.docx (Google Doc, клиентским языком) и согласуются с заказчиком
+   ДО тон-гейта и письма (цикл правок как у анализа). См. 3.3а.
+8. **Texts.docx УДАЛЕН совсем.** Google Doc с простыней текстов никто не читает -
+   единственный клиентский деливерабл текстов = прототип (тексты в нем дословные);
+   машиночитаемое для верстки - page.json + HANDOFF.md. build-tekst-docx.mjs удаляется,
+   state texts-shared умирает.
+9. **Доставка прототипа: файл + Drive-копия.** prototype.html (и tone-preview.html)
+   отдаются заказчику файлом И заливаются в Drive КАК ФАЙЛ (без конвертации) -
+   постоянная ссылка в папке клиента; учет в share.json (prototype/tone_preview).
+   /share-tekst перепрофилируется на перезаливку этих файлов. --review = пауза
+   после сборки прототипа перед Drive-заливкой и отправкой заказчику.
+
 ## 1. /seo-analiz (ступени)
 
 ### 1.1. meta.json - дополнения
@@ -330,12 +344,26 @@ offer-strategist читает оттуда client_metaphors / client_wordings / 
     "Категория": {
       "blocks": [ { "block": "Листинг товаров", "function": "Р|Д|К|В", "required": true,
                     "opts": { "filter": true }, "status": "гигиена | отстройка",
-                    "evidence": "coverage 0.8 (leader_blocks)", "notes": "…" } ],
+                    "evidence": "coverage 0.8 (leader_blocks)", "notes": "…",
+                    "client_why": "зачем блок - ОДНА строка клиентским языком, без
+                    жаргона Р/Д/К/В и кухни (v7.1: идет в Skeletons.docx)" } ],
       "order_hint": ["…"]
     }
   }
 }
 ```
+
+### 3.3а. Гейт скелетов (v7.1) - Skeletons_<slug>.docx
+
+Новый скрипт `build-skeletons-docx.mjs <texts_dir>`: из type_skeletons.json + pages.json
+собирает клиентский документ - по каждому ТИПУ страницы таблица «Блок / Зачем /
+Что внутри» (client_why + notes клиентским языком) + список страниц этого типа.
+Оркестратор: docx -> Drive (Google Doc, конвертация как у A2) -> share.json.skeletons ->
+state skeletons-shared -> ПАУЗА (клиентский гейт, --auto не пропускает). Правки
+заказчика -> block-planner такт 1 точечно (изменившиеся типы) -> re-docx -> re-upload
+(skeletons-revising <-> skeletons-shared). «Согласовано» -> skeletons-approved ->
+такт 2 главной и тон-гейт. Состав, согласованный на этом гейте, - канон для такта 2
+(смена состава дальше - только фидбеком тон-гейта или /seo-tekst-fix).
 
 Ключи - русские типы. Каталог: Категория обязана «Листинг товаров» (filter=true),
 Товар обязан product-gallery. Читают: block-planner (такт 2), сводка оркестратора,
@@ -415,11 +443,14 @@ init -> intake-done -> brief-done -> audience-done -> competitors-done -> leader
 
 ```
 init -> bridge-done -> [pages-drafted -> pages-approved -> pages-built]  # без структуры
-     -> strategy-done -> skeletons-done                # такт 1 + такт 2 главной
+     -> strategy-done -> skeletons-done                          # такт 1
+     -> skeletons-shared [<-> skeletons-revising] -> skeletons-approved  # v7.1: гейт скелетов
+     -> blueprint-main-done                                      # такт 2 главной
      -> tone-written -> tone-shared [<-> tone-revising] -> tone-chosen
-     -> blueprints-ready                               # такт 2 остальных страниц
+     -> blueprints-ready                                         # такт 2 остальных страниц
      -> texts-written -> copy-audited -> site-reviewed -> verified
-     -> texts-shared -> prototype-built -> completed
+     -> prototype-built -> shared -> completed                   # v7.1: Texts.docx нет;
+                                                                 # shared = прототип в Drive
 ```
 
 pages-built = повторный вызов моста по pages_draft (см. 2.2). Легаси-веток нет:
@@ -447,7 +478,9 @@ pages-built = повторный вызов моста по pages_draft (см. 2
 | texts/facts.json (семена из intake) | мост + оркестратор tekst (гейты) | пишущая цепочка (ADR-033/037 без изменений) |
 | strategy.tone_candidates[3] | offer-strategist | оркестратор (тон-гейт), page-writer (оси варианта), записка заказчику |
 | strategy.decisions.register (новая форма) | оркестратор tekst (после гейта) | block-planner, page-writer, copy-auditor, site-reviewer, tekst-verifier, prototype-fixer, verify-copy.mjs, build-handoff.mjs - ВСЕ правятся в B |
-| type_skeletons.json | block-planner (такт 1) | block-planner (такт 2), сводка в чат, tekst-verifier (check 6); каталожная пара продублирована КОДОМ verify-prototype v2 (файл он не читает) |
+| type_skeletons.json (+ client_why) | block-planner (такт 1) | block-planner (такт 2), build-skeletons-docx.mjs (v7.1), сводка в чат, tekst-verifier (check 6); каталожная пара продублирована КОДОМ verify-prototype v2 (файл он не читает) |
+| Skeletons_<slug>.docx + share.json.skeletons (v7.1) | build-skeletons-docx.mjs + оркестратор (Drive) | заказчик (гейт скелетов), /share-tekst (перезаливка) |
+| share.json.{prototype, tone_preview} (v7.1) | оркестратор tekst (Drive-файл без конвертации) | заказчик (постоянная ссылка), /share-tekst (перезаливка), сводка финала |
 | blueprints/main.json (до тон-гейта) | block-planner такт 2 главной + slot-mapper | page-writer x3 (тон-варианты), verify-copy v2, штатная цепочка |
 | meta.json.tone_gate (status/note/feedback/chosen_tone_id) | оркестратор tekst | resume, веер (старт после chosen), сводка, build-handoff (записка) |
 | tone/pages/main--tN/* | page-writer, copy-auditor, prototype-builder | заказчик (превью), оркестратор; в Texts.docx НЕ входят |
@@ -468,7 +501,8 @@ pages-built = повторный вызов моста по pages_draft (см. 2
 | флаги --scan-leaders/--no-scan, --recon/--no-recon (tekst) | переезжают опциями ступени 3 /seo-analiz |
 | Analysis_<slug>.docx + гейт стратегии | согласование = цикл A2; канон + materials - записка тон-гейта (врезка в ADR-037 §9 - этап B) |
 | скрипт build-tekst-analysis-docx.mjs + его тест-секции | удаляется; share.json.analysis - legacy-поле старых задач |
-| /share-tekst --analysis (флаг и ветка) | правка скила в этапе B; остается только Texts.docx (флаг не нужен - аргументы NNN [--redo]) |
+| /share-tekst --analysis (флаг и ветка) | правка скила в этапе B; v7.1 - скил перепрофилирован на перезаливку prototype.html/tone-preview.html/Skeletons.docx |
+| Texts.docx + build-tekst-docx.mjs + state texts-shared (v7.1) | простыню в Google Doc не читают; деливерабл текстов = прототип (тексты дословные) + page.json/HANDOFF для верстки |
 | register-варианты стратега (3 черновых первых экрана) + старая форма decisions.register (массивы axes/variants, chosen-индекс) | tone_candidates + новая форма (3.2); правятся все читатели вкл. verify-copy.mjs, build-handoff.mjs |
 | strategy.design_theme + --theme + 6 цветных тем | wireframe-only (ADR-039); offer-strategist перестает писать design_theme |
 | pages/<slug>/prototype.html (пер-страничные) | texts/prototype.html + render.html; build-handoff.mjs правится (состав файлов, registerLine, литерал состояния) |

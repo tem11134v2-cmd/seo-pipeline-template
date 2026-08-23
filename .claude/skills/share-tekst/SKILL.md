@@ -1,37 +1,69 @@
 ---
 name: share-tekst
-description: Повторная или отложенная загрузка Texts_<slug>.docx из texts/NNN/ на Google Drive (с конверсией в Google Doc). По умолчанию /seo-tekst делает это сам (шаг texts-shared) - этот скил нужен если шаг был пропущен (Drive недоступен / нет texts_folder_id) или после ручных правок локального .docx. Аргументы - <NNN> [--redo].
+description: Повторная или отложенная загрузка Drive-файлов задачи /seo-tekst (v7.1): prototype.html и tone-preview.html заливаются КАК ФАЙЛ (без конвертации, постоянная ссылка), Skeletons_<slug>.docx - с конвертацией в Google Doc. По умолчанию /seo-tekst заливает все сам - скил нужен если заливка была пропущена (Drive недоступен / нет texts_folder_id) или файл пересобран (правки скелетов, /seo-tekst-fix). Аргументы - <NNN> [--skeletons | --tone | --prototype] [--redo] (дефолт --prototype).
 ---
 
-# share-tekst
+# share-tekst (v7.1)
 
-Утилита-помощник для `/seo-tekst`: заливает клиентский docx с текстами (`Texts_<slug>.docx`) в Google Drive. Запускается **в worktree-сессии**.
+Утилита-помощник для `/seo-tekst`: перезаливка Drive-файлов задачи. Запускается **в worktree-сессии**. Texts.docx в v7.1 не существует - клиентский деливерабл текстов = прототип; скил работает с тремя файлами:
+
+| Флаг цели | Локальный файл | Как заливается в Drive | Поле share.json |
+|---|---|---|---|
+| `--skeletons` | `Skeletons_<slug>.docx` | Google Doc (с конвертацией) | `skeletons` |
+| `--tone` | `tone/tone-preview.html` | ФАЙЛ (без конвертации) | `tone_preview` |
+| `--prototype` (дефолт) | `prototype.html` | ФАЙЛ (без конвертации) | `prototype` |
 
 ## Когда нужен
-- `/seo-tekst` шел при недоступном Drive или без `texts_folder_id` в DRIVE.md -> локальный docx есть, в Drive не залит.
-- Заказчик прислал правки, ты обновил локальный docx (или пере-сгенерил) и хочешь обновить Google Doc.
+- `/seo-tekst` шел при недоступном Drive или без `texts_folder_id` в DRIVE.md - файл есть локально, в Drive не залит.
+- Файл пересобран и Drive-копия устарела: скелеты после правок заказчика (re-docx), прототип после `/seo-tekst-fix`, тон-превью после tone-revising.
 
 ## Аргументы
 ```
-/share-tekst <NNN> [--redo]
+/share-tekst <NNN> [--skeletons | --tone | --prototype] [--redo]
 ```
 - `<NNN>` - папка `texts/NNN-*/`.
-- `--redo` - перезалить, даже если ссылка уже есть в `share.json` (новая ревизия).
+- Флаг цели - какой файл заливать; без флага - `--prototype`. Один вызов = одна цель (нужно несколько - несколько вызовов).
+- `--redo` - перезалить, даже если ссылка уже есть в поле цели `share.json` (новая ревизия: delete старого файла в Drive + upload нового + перезапись id/link).
 
 ## Алгоритм
-1. Найти `texts/<NNN>-*/`. Записать `.claude/tmp/current-task.txt`.
-2. Прочитать `~/.claude/seo-knowledge/DRIVE.md` -> `texts_folder_id`. Нет / `TODO_*` - стоп с подсказкой создать папку «Тексты» (anyone-with-link -> reader) и вписать ID.
-3. Залить `Texts_<slug>.docx`:
+1. Найти `texts/<NNN>-*/`. Записать `.claude/tmp/current-task.txt`. `slug` - из имени папки (`NNN-<slug>`).
+2. Определить цель (таблица выше) и проверить, что локальный файл существует. Нет - стоп с подсказкой: `--skeletons` - `/seo-tekst --resume` (такт 1 / build-skeletons-docx еще не пройдены), `--tone` - тон-гейт еще не собран, `--prototype` - догнать `/seo-tekst --resume` до `prototype-built`.
+3. Прочитать `~/.claude/seo-knowledge/DRIVE.md` -> `texts_folder_id`. Нет / `TODO_*` - стоп с подсказкой создать папку «Тексты» (anyone-with-link -> reader) и вписать ID.
+4. Развилка по полю цели в `share.json`:
+   - поля нет - грузим как новый (шаг 5);
+   - поле есть, `--redo` НЕ передан - вывести ссылку и остановиться: «Уже расшарен (<shared_at>). Передай `--redo` для перезаливки.»;
+   - `--redo` передан - удалить старый файл в Drive (`mcp__gdrive-piotr__deleteItem` по `drive_file_id` поля цели; упало - предупредить, продолжать), затем шаг 5.
+5. Залить.
+   - `--skeletons` (конвертация в Google Doc):
 ```
-mcp__gdrive-piotr__uploadFile(localPath:<docx>, name:<имя без .docx>, parentFolderId:<texts_folder_id>,
+mcp__gdrive-piotr__uploadFile(localPath:<texts_dir>/Skeletons_<slug>.docx, name:"Skeletons_<slug>", parentFolderId:<texts_folder_id>,
   mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document", convertToGoogleFormat:true)
 ```
-   Если упало с конверсией - fallback `convertToGoogleFormat:false` + подсказать активировать Docs API.
-4. Записать/обновить `share.json` (`texts`: drive_file_id, drive_link, shared_at; при `--redo` - добавить в `revisions`). `meta.json` не трогаем (state остается). Поле `analysis` в share.json - legacy старых задач (до v7, когда существовал Analysis.docx): не читаем и не пишем.
-5. Вывести ссылку. Подсказать `/handoff` если задача закончена.
+     Упало с конверсией - fallback `convertToGoogleFormat:false` + подсказать активировать Docs API.
+   - `--tone` / `--prototype` (файлом):
+```
+mcp__gdrive-piotr__uploadFile(localPath:<texts_dir>/tone/tone-preview.html | <texts_dir>/prototype.html,
+  name:"tone-preview_<slug>.html" | "prototype_<slug>.html", parentFolderId:<texts_folder_id>,
+  mimeType:"text/html", convertToGoogleFormat:false)
+```
+     `convertToGoogleFormat:true` для html ЗАПРЕЩЕН - конвертация убивает роутер и скрипты прототипа; смысл заливки - постоянная ссылка на живой файл в папке клиента.
+   Sanity-check: писать `share.json` только при непустых `id`/`link` в ответе uploadFile; пустой ответ = битый аплоад, повторить.
+6. Записать в `share.json` поле цели (соседние поля не трогать):
+```json
+"skeletons | tone_preview | prototype": {
+  "drive_file_id": "<id>", "drive_link": "<link>",
+  "mime_type": "<итоговый mime>", "shared_at": "<ISO>", "revisions": []
+}
+```
+   При `--redo` - перезаписать `drive_file_id`/`drive_link`/`shared_at` новыми и добавить в `revisions[]`: `{"type":"manual_redo", "applied_at":"<ISO>", "new_drive_file_id":"<id>", "new_drive_link":"<link>"}`.
+   Поля `share.json.texts` и `share.json.analysis` - поля старых задач (Texts.docx / Analysis.docx существовали до v7.1): не читаем и не пишем.
+7. `meta.json`: только для `--prototype` и только если `state == "prototype-built"` - `update-meta.sh <texts_dir> shared` (v7.1: `shared` = прототип в Drive). Все остальные состояния и цели - state не трогаем.
+8. Вывести ссылку. Подсказать `/handoff` если задача закончена.
 
 ## Запреты
 - Пиши только в `texts/<NNN>/` (`share.json`). Pre-commit отклонит остальное.
-- Не конвертируй прототип (.html) в Google-формат - отдается файлом.
+- НЕ конвертируй html (прототип, тон-превью) в Google-формат - только файлом.
+- НЕ грузить файлы вне папки `texts_folder_id` из DRIVE.md.
+- НЕ вызывать `addPermission` - известный баг пакета на `type: anyone`; разрешения наследуются от папки.
 - Длинное/среднее тире (— –) запрещено - дефис (-).
 - НЕ используй букву ё - всегда пиши е. Правило для всех клиентских текстов и метатегов (как и запрет тире).

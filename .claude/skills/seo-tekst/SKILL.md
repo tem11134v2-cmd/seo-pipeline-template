@@ -1,6 +1,6 @@
 ---
 name: seo-tekst
-description: Конверсионные тексты коммерческих страниц + единый HTML-прототип сайта (v7 - скил только пишет, анализ ЦА/конкурентов/разведка приходят готовыми из analyses/NNN). Мост данных -> состав страниц с гейтом (только без структуры) -> оффер-слой (strategy + 3 кандидата тона) -> скелеты по типам -> ТОН-ГЕЙТ (3 варианта живой главной одним html) -> веер писателей -> копи-аудит + site-review + верификатор -> Texts.docx (Google Doc) -> прототип одним файлом (wireframe, hash-роутер, стартовая страница-список). Аргументы - [--from-structure NNN | --from-analysis NNN | --from-table путь] [--review|--auto] [--resume].
+description: Конверсионные тексты коммерческих страниц + единый HTML-прототип сайта (v7.1 - скил только пишет, анализ ЦА/конкурентов/разведка приходят готовыми из analyses/NNN). Мост данных -> состав страниц с гейтом (только без структуры) -> оффер-слой (strategy + 3 кандидата тона) -> скелеты по типам -> ГЕЙТ СКЕЛЕТОВ (Skeletons.docx в Google Doc, клиентское согласование состава блоков) -> ТОН-ГЕЙТ (3 варианта живой главной одним html) -> веер писателей -> копи-аудит + site-review + верификатор -> прототип одним файлом (wireframe, hash-роутер, стартовая страница-список) - клиентский деливерабл текстов; Texts.docx нет, prototype.html и tone-preview.html отдаются файлом + заливаются в Drive как файл (постоянная ссылка). Аргументы - [--from-structure NNN | --from-analysis NNN | --from-table путь] [--review|--auto] [--resume].
 ---
 
 # seo-tekst v7
@@ -9,10 +9,10 @@ description: Конверсионные тексты коммерческих с
 
 **Концепция v7 (манифест):**
 1. **Скил только пишет.** ЦА, конкуренты, разведка направлений сделаны в `/seo-analiz` и приходят готовыми артефактами из `analyses/NNN/` - здесь их никто не пересобирает.
-2. **Каждый шаг отвечает на один вопрос:** какие страницы -> как продаем -> из каких блоков -> каким тоном -> тексты -> контроль -> документ -> прототип.
+2. **Каждый шаг отвечает на один вопрос:** какие страницы -> как продаем -> из каких блоков -> каким тоном -> тексты -> контроль -> прототип. Отдельного документа с текстами нет (v7.1): деливерабл текстов - прототип, тексты в нем дословные; машиночитаемое для верстки - page.json + HANDOFF.md.
 3. **Каждое правило называет исполнителя и мотив.** Правило без ответа «кто исполняет и зачем» в этот файл не вносится (урок v6).
 4. **Деградация - только отсутствием данных** (ADR-031): нет `audience.json` - пишем без сегментов; нет recon направления - без разведки; `--from-table` без анализа - без всего аналитического слоя. Ни один пишущий агент не ветвится по источнику или tier.
-5. **Клиентских точек три:** гейт состава страниц (только без структуры), запрос фактуры/материалов, ТОН-ГЕЙТ (выбор манеры на живой главной). Отдельного документа согласования анализа в текстах НЕТ - согласование прошло циклом A2 в `/seo-analiz`.
+5. **Клиентских точек четыре:** гейт состава страниц (только без структуры), запрос фактуры/материалов, ГЕЙТ СКЕЛЕТОВ (состав блоков по типам - Skeletons.docx в Google Doc, v7.1), ТОН-ГЕЙТ (выбор манеры на живой главной). Отдельного документа согласования анализа в текстах НЕТ - согласование прошло циклом A2 в `/seo-analiz`.
 
 FAQ / плитку тегов / перелинковку / SEO-нормализацию НЕ делает - это `/seo-faq`.
 
@@ -26,7 +26,7 @@ FAQ / плитку тегов / перелинковку / SEO-нормализ�
 - `--from-structure <NNN>` - SEO-путь: «да»-страницы из `structures/<NNN>-*/`. Анализ находится через `structures/<NNN>-*/inputs.json` -> `analysis_dir`.
 - `--from-analysis <NNN>` - путь без SEO: анализ есть (`analyses/<NNN>-*/`), структуры нет - состав страниц соберет `pages-planner v2` и подтвердит гейт (шаг 2).
 - `--from-table <путь>` - аварийный ручной: готовая таблица URL/Тип/Маркер[/запросы] (csv/tsv). Анализа при этом обычно нет - это **штатная деградация**, а не ошибка: без audience/recon/leader_blocks, факты только из `ЗАКАЗЧИК.md`.
-- `--auto` (по умолчанию) - без пауз между текстами и прототипом. `--review` - пауза после Texts.docx (шаг 7), до сборки прототипа. Клиентские гейты (состав/фактура/тон) обязательны в обоих режимах.
+- `--auto` (по умолчанию) - без паузы перед доставкой прототипа. `--review` - пауза ПОСЛЕ сборки прототипа (шаг 7d), ПЕРЕД Drive-заливкой и отправкой заказчику (шаг 7e). Клиентские гейты (состав/фактура/скелеты/тон) обязательны в обоих режимах.
 - `--resume` - продолжить по `meta.json`.
 
 **Удалено в v7** (не принимать и не эмулировать): `--from-brief` (его путь теперь: `/seo-analiz --no-seo` -> `/seo-tekst --from-analysis`), `--mode A|B` (own_page определяется данными `directions[].url` еще в анализе), `--theme` (прототип всегда wireframe, ADR-039), `--scan-leaders/--no-scan/--recon/--no-recon` (опции ступени 3 `/seo-analiz`).
@@ -48,13 +48,14 @@ texts/<NNN>-<slug>/
 ├── leader_blocks.json             # мост: выжимка leader_scan v2 (blocks_by_type + features_to_steal); анализ без v2-полей - файла нет
 ├── facts.json                     # мост: семена из analyses/intake.json (вкл. own_page-факты) + ЗАКАЗЧИК.md; оркестратор дописывает по гейтам + lexicon
 ├── strategy.json                  # offer-strategist slim: decisions (register {tone_id,axes,source}) + tone_candidates[3] + формула/тезисы/канон/материалы
-├── type_skeletons.json            # block-planner такт 1: скелет блоков на ТИП страницы (каталог: required листинг/галерея)
+├── type_skeletons.json            # block-planner такт 1: скелет блоков на ТИП страницы + client_why (каталог: required листинг/галерея)
+├── Skeletons_<slug>.docx          # build-skeletons-docx.mjs: гейт скелетов - «Блок / Зачем / Что внутри» по типам (-> Google Doc)
 ├── blueprints/<slug>.draft.json   # block-planner такт 2: состав/порядок/функции Р-Д-К-В/режимы/page_offer/sell
 ├── blueprints/<slug>.json         # slot-mapper: те же блоки + slots/limits/rules; писатели читают ТОЛЬКО финальный
-├── tone/                          # тон-гейт (в Texts.docx НЕ входит)
+├── tone/                          # тон-гейт (архив выбора; в prototype.html не входит)
 │   ├── pages/<main>--t1|t2|t3/    # page.json + manifest.json + render.html - 3 варианта главной
 │   ├── site_manifest.json         # оркестратор: 3 варианта как «страницы» превью
-│   └── tone-preview.html          # assemble-prototype.mjs: один файл с 3 полными главными
+│   └── tone-preview.html          # assemble-prototype.mjs: один файл с 3 полными главными (-> Drive КАК ФАЙЛ)
 ├── pages/<page-slug>/
 │   ├── page.json                  # page-writer (главная - копия выбранного тон-варианта); fill_notes - дыры фактуры, notes_internal - служебное
 │   ├── manifest.json              # prototype-builder: копия + рендер-решения (источник истины страницы)
@@ -62,10 +63,9 @@ texts/<NNN>-<slug>/
 ├── site_audit.json                # site-reviewer: самоповторы/H1/консистентность/touched/canonical_candidates/selling_floor_systemic
 ├── verify_report.json             # tekst-verifier: вердикт + находки с owner (НЕ чинит)
 ├── site_manifest.json             # оркестратор: pages[] + start:"__index" + main_slug - вход ассемблера и verify-prototype v2
-├── prototype.html                 # assemble-prototype.mjs: ВЕСЬ САЙТ одним self-contained файлом (стартовая секция-список, hash-роутер)
-├── HANDOFF.md                     # build-handoff.mjs: контракт передачи дизайнеру/разработчику
-├── Texts_<slug>.docx              # клиенту финальные тексты (-> Google Doc)
-└── share.json                     # ссылки Drive (texts; поле analysis - legacy старых задач, не писать)
+├── prototype.html                 # assemble-prototype.mjs: ВЕСЬ САЙТ одним self-contained файлом - клиентский ДЕЛИВЕРАБЛ текстов (-> Drive КАК ФАЙЛ)
+├── HANDOFF.md                     # build-handoff.mjs: контракт передачи дизайнеру/разработчику (+ pages/*/page.json - машиночитаемое для верстки)
+└── share.json                     # ссылки Drive: {skeletons, tone_preview, prototype}; поля analysis/texts - legacy старых задач, не писать
 ```
 
 Большие артефакты анализа (`audience.json`, `recon/`, `intake.json`, `brief.json`) НЕ копируются - агенты читают их по `inputs.json.analysis_dir` (read-only). Мотив: одна истина в `analyses/`, копия устаревает молча.
@@ -74,11 +74,13 @@ texts/<NNN>-<slug>/
 
 ```
 init -> bridge-done -> [pages-drafted -> pages-approved -> pages-built]   # только без структуры
-     -> strategy-done -> skeletons-done                                    # такт 1 + такт 2 главной
+     -> strategy-done -> skeletons-done                                    # такт 1
+     -> skeletons-shared [<-> skeletons-revising] -> skeletons-approved    # гейт скелетов (v7.1)
+     -> blueprint-main-done                                                # такт 2 главной
      -> tone-written -> tone-shared [<-> tone-revising] -> tone-chosen
      -> blueprints-ready                                                   # такт 2 остальных
      -> texts-written -> copy-audited -> site-reviewed -> verified
-     -> texts-shared -> prototype-built -> completed
+     -> prototype-built -> shared -> completed                             # shared = прототип в Drive
 ```
 
 Источник истины - `meta.json`, обновляется `bash .claude/hooks/update-meta.sh <texts_dir> <state>`. При init оркестратор пишет `"format": "v7"` - маркер нового конвейера.
@@ -92,8 +94,11 @@ init -> bridge-done -> [pages-drafted -> pages-approved -> pages-built]   # то
 | `pages-drafted` | гейт состава заново (закрытые ответы показать как текущий вариант, не переспрашивать) |
 | `pages-approved` | повторный вызов моста (шаг 2, финал) |
 | `pages-built` | шаг 3 |
-| `strategy-done` | шаг 4 (перед ним - факт-гейт, если ответы заказчика не внесены) |
-| `skeletons-done` | шаг 5 (тон-гейт с начала: писатели x3) |
+| `strategy-done` | шаг 4a (перед ним - факт-гейт, если ответы заказчика не внесены) |
+| `skeletons-done` | шаг 4b (гейт скелетов: docx + Drive-заливка) |
+| `skeletons-shared` / `skeletons-revising` | показать Skeletons-документ заново, ждать ответа (правки - цикл 4b п.3) |
+| `skeletons-approved` | шаг 4c (такт 2 главной) |
+| `blueprint-main-done` | шаг 5 (тон-гейт с начала: писатели x3) |
 | `tone-written` | шаг 5 с пункта verify/аудит/сборка превью |
 | `tone-shared` / `tone-revising` | показать превью заново, ждать выбора (`meta.json.tone_gate` - что уже показано) |
 | `tone-chosen` | шаг 6a (такт 2 остальных) |
@@ -101,11 +106,11 @@ init -> bridge-done -> [pages-drafted -> pages-approved -> pages-built]   # то
 | `texts-written` | шаг 6c (copy-auditor идемпотентен) |
 | `copy-audited` | шаг 6d |
 | `site-reviewed` | шаг 6e; `verify_report.json` уже с `verdict:"pass"` - к шагу 7 |
-| `verified` | шаг 7 |
-| `texts-shared` | шаг 8 |
-| `prototype-built` | шаг 9 |
+| `verified` | шаг 7 (прототип) |
+| `prototype-built` | шаг 7e (доставка: Drive + отправка заказчику) |
+| `shared` | шаг 8 (финал) |
 
-**Легаси-стоп.** В `meta.json` нет `"format": "v7"` или state вне словаря выше (`pages-ready`, `audience-done`, `analysis-shared`, `approved`, `prototypes-built`...) - задача начата скилом до v7. **Стоп**, ничего не конвертировать: «Задача старого формата. Довершай ее старым скилом (клон проекта до синка v7) либо начни новую задачу v7. Заметка миграции - docs/upgrade-program-2026-08-22-tekst-v7-restructure.md». Мотив: легаси-веток в v7 нет по решению владельца, полу-конвертация теряет данные молча.
+**Легаси-стоп.** В `meta.json` нет `"format": "v7"` или state вне словаря выше (`pages-ready`, `audience-done`, `analysis-shared`, `approved`, `prototypes-built`, `texts-shared`...) - задача начата скилом до v7. **Стоп**, ничего не конвертировать: «Задача старого формата. Довершай ее старым скилом (клон проекта до синка v7) либо начни новую задачу v7. Заметка миграции - docs/upgrade-program-2026-08-22-tekst-v7-restructure.md». Мотив: легаси-веток в v7 нет по решению владельца, полу-конвертация теряет данные молча.
 
 ## Шаги
 
@@ -186,24 +191,34 @@ design_theme и черновики первых экранов НЕ пиши - �
 
 **Лексикон, половина 1** (`translate` + `locked` по основаниям а/б) - собрать сейчас, см. раздел «Словарь проекта». `update-meta.sh <texts_dir> strategy-done`.
 
-### 4. Скелеты блоков (state == strategy-done)
+### 4. Скелеты блоков (state == strategy-done -> blueprint-main-done)
 
-**4a. Такт 1 - скелет на ТИП страницы.** Маркер: `.claude/tmp/expected-block-planner-<run_id>.txt = <texts_dir>/type_skeletons.json`. Делегировать `block-planner`:
+**4a. Такт 1 - скелет на ТИП страницы (state == strategy-done).** Маркер: `.claude/tmp/expected-block-planner-<run_id>.txt = <texts_dir>/type_skeletons.json`. Делегировать `block-planner`:
 ```
 texts_dir: <texts_dir>
 project_root: <корень проекта>
 tact: 1
-Прочитай pages.json (какие типы присутствуют), leader_blocks.json (coverage/typical_order - доводы, не пропуск: блок без функции не ставится даже при покрытии 100%), BLOCKS.md, strategy.json (формула, тезисы). Собери type_skeletons.json: скелет на каждый присутствующий тип - blocks[] {block, function Р|Д|К|В, required, opts, status гигиена|отстройка, evidence, notes} + order_hint. Каталог обязателен: у типа Категория - «Листинг товаров» с opts.filter=true (required), у типа Товар - product-gallery (required); это проверит verify-prototype v2. Сводка <= 8 строк.
+Прочитай pages.json (какие типы присутствуют), leader_blocks.json (coverage/typical_order - доводы, не пропуск: блок без функции не ставится даже при покрытии 100%), BLOCKS.md, strategy.json (формула, тезисы). Собери type_skeletons.json: скелет на каждый присутствующий тип - blocks[] {block, function Р|Д|К|В, required, opts, status гигиена|отстройка, evidence, notes, client_why - зачем блок ОДНОЙ строкой клиентским языком, без жаргона Р/Д/К/В и кухни (пойдет заказчику в Skeletons.docx)} + order_hint. Каталог обязателен: у типа Категория - «Листинг товаров» с opts.filter=true (required), у типа Товар - product-gallery (required); это проверит verify-prototype v2. Сводка <= 8 строк.
 ```
-**Сводка скелетов - в чат** (информирование, не гейт): по типу одной строкой - блоки по порядку, required и отстройка помечены. Мотив: владелец видит каркас сайта до того, как оплачен веер писателей.
+**Сводка скелетов - в чат**: по типу одной строкой - блоки по порядку, required и отстройка помечены (владелец видит каркас до клиентского гейта). `update-meta.sh <texts_dir> skeletons-done`.
 
-**4b. Такт 2 - только ГЛАВНАЯ** (к тон-гейту). `main_slug` = страница `type:"Главная"` из `pages.json`; нет такой - первая по `n`. Два последовательных одиночных вызова с маркерами:
+**4b. ГЕЙТ СКЕЛЕТОВ - клиентский (state == skeletons-done).** Состав блоков согласуется с заказчиком ДО тон-гейта и веера писателей (v7.1, контракт 3.3а). `--auto` гейт НЕ пропускает.
+1. Документ:
+```
+.claude\scripts\_node.cmd .claude\scripts\build-skeletons-docx.mjs <texts_dir>
+```
+Скрипт из `type_skeletons.json` + `pages.json` собирает `Skeletons_<slug>.docx`: по каждому ТИПУ страницы таблица «Блок / Зачем / Что внутри» (`client_why` + `notes` клиентским языком) + список страниц этого типа.
+2. Drive (блок «Drive» ниже): загрузить С конверсией в Google Doc (как A2); конверсия упала - fallback: повторить с `convertToGoogleFormat:false`. Нет `texts_folder_id` - НЕ блокировать: отдать локальный docx, в сводке подсказать `/share-tekst <NNN>`. Ссылка -> `share.json.skeletons`. `update-meta.sh <texts_dir> skeletons-shared`. **Пауза** - ждать ответа заказчика.
+3. **Правки** -> `update-meta.sh <texts_dir> skeletons-revising`; `block-planner` такт 1 ТОЧЕЧНО: в промте перечислить только изменившиеся типы и правки заказчика дословно, скелеты остальных типов не трогать. Затем re-docx (п.1) + re-upload новой ревизией (`share.json.skeletons.revisions[]`) -> обратно `skeletons-shared`. Цикл до согласования.
+4. **«Согласовано»** -> `update-meta.sh <texts_dir> skeletons-approved`. Согласованный на гейте состав - КАНОН для такта 2: смена состава дальше - только фидбеком тон-гейта или `/seo-tekst-fix`.
+
+**4c. Такт 2 - только ГЛАВНАЯ (state == skeletons-approved)** (к тон-гейту). `main_slug` = страница `type:"Главная"` из `pages.json`; нет такой - первая по `n`. Два последовательных одиночных вызова с маркерами:
 - `block-planner` (`tact: 2`, `pages_subset: ["<main_slug>"]`): читает type_skeletons (свой тип - основа), strategy.json (решения; register пока pending - состав главной по ДЕЛОВОМУ дефолту оси А, tone_candidates планировщик не читает; манеру кандидатов дадут писатели на тон-гейте), facts.json (facts-gate: под блок нет фактов - режим по ADR-035), audience.json summary (по analysis_dir), recon своей страницы по dir_slug (`own_page.blocks` - keep-правила, must_have/gaps; `facts_seen` НЕ читает). Пишет `blueprints/<main_slug>.draft.json`: состав/порядок, функции + `function_why` (ADR-032), режимы рабочий/шаблон/заглушка (ADR-035), `page_offer` (механическая развертка `offer_formula_recipe` - не сочиняет, а переносит) и `sell` (<= 160 знаков) у каждого содержательного блока (ADR-037).
 - `slot-mapper` (`pages_subset: ["<main_slug>"]`): черновик + fragments-manifest + BLOCKS.md -> финальный `blueprints/<main_slug>.json` (те же блоки + slots/limits/rules; **состав не меняет** - решения только у планировщика).
 
-Проверка полноты: в черновике непустой `page_offer` и `sell` у содержательных блоков; финал совпадает по составу с черновиком. Недостающее - ре-делегировать (до 2). `update-meta.sh <texts_dir> skeletons-done`.
+Проверка полноты: в черновике непустой `page_offer` и `sell` у содержательных блоков; финал совпадает по составу с черновиком. Недостающее - ре-делегировать (до 2). `update-meta.sh <texts_dir> blueprint-main-done`.
 
-### 5. ТОН-ГЕЙТ (state == skeletons-done)
+### 5. ТОН-ГЕЙТ (state == blueprint-main-done)
 
 Заказчик выбирает манеру разговора на ПОЛНОЙ живой главной, а не по ярлыкам (ADR-034: точка выбора - здесь; ADR-038). Порядок жесткий - контракт 3.4.
 
@@ -243,6 +258,8 @@ note: "<note кандидата дословно - оттенок: что уси
 - **materials_missing**: «этих материалов и цифр у нас нет - чего не дадите, останется пометкой [ЗАПОЛНИТЬ]»;
 - если среди кандидатов есть ось А = `отбирающий` - отдельной строкой, ДО выбора: «Вариант N разговаривает не со всеми: заявок станет МЕНЬШЕ, качество выше. Это осознанный размен - подтвердите его явно». Молча отбирающий вариант не ставить.
 
+Превью - заказчику ФАЙЛОМ (`tone/tone-preview.html`) И в Drive КАК ФАЙЛ (блок «Drive»: `convertToGoogleFormat:false`, постоянная ссылка) -> `share.json.tone_preview`; Drive недоступен / нет `texts_folder_id` - не блокировать: локальный файл + подсказка `/share-tekst <NNN>`.
+
 `meta.json.tone_gate = {status:"shared", note:"...", chosen_tone_id:null, feedback:null}`; `update-meta.sh <texts_dir> tone-shared`. **Пауза** (клиентский гейт, `--auto` его не пропускает).
 
 **5f. Ответ заказчика:**
@@ -252,7 +269,7 @@ note: "<note кандидата дословно - оттенок: что уси
   3. Если ось А выбранного кандидата отличается от оси, под которую строился blueprint главной (машинный адрес сравнения: `blueprints/<main_slug>.json` -> `register.a` - эхо такта 2; по умолчанию там деловой дефолт) - повторить такт 2 главной (block-planner + slot-mapper), затем `page-writer` **дописывает новые блоки в выбранной манере** (готовые тексты не перетирать).
   4. Перенести подтвержденный канон в `facts.json.lexicon.canonical` (раздел «Словарь проекта»); правки записки применить к `strategy.canonical_wordings` до переноса.
   5. `meta.json.tone_gate.status = "chosen"` + `chosen_tone_id` + `feedback`; `update-meta.sh <texts_dir> tone-chosen`.
-- **Правки без выбора** -> `meta.json.tone_gate.status = "revising"` + `update-meta.sh <texts_dir> tone-revising`; применить к затронутому варианту (`copy-auditor`), пересобрать его `render.html` (`build-prototype.mjs`) + `assemble-prototype.mjs` заново, показать снова (`tone-shared` обратно). Цикл до выбора.
+- **Правки без выбора** -> `meta.json.tone_gate.status = "revising"` + `update-meta.sh <texts_dir> tone-revising`; применить к затронутому варианту (`copy-auditor`), пересобрать его `render.html` (`build-prototype.mjs`) + `assemble-prototype.mjs` заново, перезалить `tone-preview.html` новой ревизией (`share.json.tone_preview.revisions[]`), показать снова (`tone-shared` обратно). Цикл до выбора.
 - **«на ваше усмотрение»** -> взять кандидата `recommended:true`, `register.source = "recommended"`, дальше как выбор.
 
 Финальная главная дальше проходит штатную цепочку 6c-6e вместе со всеми страницами - лайт-аудит тон-гейта полный контроль не заменяет.
@@ -291,7 +308,7 @@ Blueprint: blueprints/<slug>.json. Регистр - strategy.decisions.register 
 texts_dir: <texts_dir>
 Все pages/*/page.json + VOICE.md + strategy.decisions (вкл. register) + facts.json (lexicon - канон и locked повторяй ДОСЛОВНО, не перефразируй: дословный повтор факта - признак цельного сайта, ADR-033) + inputs.json (forbidden_wordings). Blueprint НЕ читаешь - правка не длиннее исходной строки. Эталон тона - pages/<main_slug>/page.json (выбран заказчиком): выравнивай манеру остальных под нее. Ищи: межстраничные самоповторы пояснительной прозы (переписывай по делу страницы), уникальность H1/Title, консистентность decisions и цифр (по facts.json), утечку кухни. site_audit.json: touched[] / unfixed[] / canonical_candidates[] / selling_floor_systemic[]. Сводка <= 8 строк.
 ```
-После - строго в этом порядке (механический гейт последним, иначе тире/лимиты уедут в docx):
+После - строго в этом порядке (механический гейт последним, иначе тире/лимиты уедут в прототип):
 1. по `touched[]` - `copy-auditor` каждой затронутой страницы (site-reviewer - последний, кто трогал текст);
 2. `verify-copy.mjs` по затронутым (exit 2 -> аудитор, до 1, скрипт снова);
 3. `canonical_candidates[]` -> `facts.json.lexicon.canonical` (`origin:"формула"`) **до 6e** - у ревьюера нет прав писать в facts.json, без переноса канон не увидят ни верификатор, ни HANDOFF; плейсхолдеры не переносить;
@@ -307,40 +324,40 @@ texts_dir: <texts_dir>
 - пережившее 2 круга и `needs_human` - в `accepted_violations` (пол - в `selling_floor_waivers` с основанием), сводка, дальше;
 - `pass` - `update-meta.sh <texts_dir> verified`; `minor` не блокируют - списком в сводку.
 
-### 7. Texts.docx (state == verified)
+### 7. Прототип - один файл (state == verified)
 
-```
-.claude\scripts\_node.cmd .claude\scripts\build-tekst-docx.mjs <texts_dir>
-```
-Тон-варианты (`tone/`) в документ не входят. Загрузить `Texts_<slug>.docx` в Drive (блок «Drive» ниже), ссылка в `share.json.texts`. `update-meta.sh <texts_dir> texts-shared`.
-**`--review`:** пауза - «тексты ок -> собираю прототип? [Y/n/правки]». **`--auto`:** дальше (ссылка в финальной сводке).
+Отдельного документа с текстами больше нет (v7.1): после `verified` - сразу прототип, он и есть клиентский деливерабл текстов.
 
-### 8. Прототип - один файл (state == texts-shared)
-
-**8a. `site_manifest.json`** пишет оркестратор из `pages.json`:
+**7a. `site_manifest.json`** пишет оркестратор из `pages.json`:
 ```json
 { "pages": [ { "slug": "<slug>", "title": "<название для списка>", "type": "<тип>", "order": <n> } ],
   "start": "__index", "main_slug": "<main_slug>" }
 ```
 Документ-уровень (legal, титул, мета) ассемблер возьмет из `manifest.json` страницы `main_slug` - его пишет prototype-builder, как и раньше.
 
-**8b. Веер `prototype-builder`** пачками по 6-8 (без маркеров), на каждую страницу: `texts_dir`, `project_root`, `page_slug`. Каждый пишет `manifest.json` (рендер-решения, режимы блоков ADR-035; у главной - и doc-уровень по legal-блоку `inputs.json`), гонит `build-prototype.mjs <page_dir>` -> `render.html`. Тема всегда wireframe; попапов, transitions и цветных тем в v7 нет (ADR-039). После веера: `render.html` + `manifest.json` на каждую страницу; недостающие - ре-делегировать (до 2).
-**Сборщик тронул `page.json`** (заглушка, срезанный слот - видно по сводке) -> пересобрать `build-tekst-docx.mjs` и перезалить новой ревизией в `share.json.texts`: иначе Google Doc разойдется с прототипом. Отметить строкой в сводке.
+**7b. Веер `prototype-builder`** пачками по 6-8 (без маркеров), на каждую страницу: `texts_dir`, `project_root`, `page_slug`. Каждый пишет `manifest.json` (рендер-решения, режимы блоков ADR-035; у главной - и doc-уровень по legal-блоку `inputs.json`), гонит `build-prototype.mjs <page_dir>` -> `render.html`. Тема всегда wireframe; попапов, transitions и цветных тем в v7 нет (ADR-039). После веера: `render.html` + `manifest.json` на каждую страницу; недостающие - ре-делегировать (до 2).
+**Сборщик тронул `page.json`** (заглушка, срезанный слот - видно по сводке) - это штатно: `page.json` остается источником истины для верстки (HANDOFF), прототип пересоберется из манифестов на 7c. Отметить строкой в сводке.
 
-**8c. Сборка и проверка:**
+**7c. Сборка и проверка:**
 ```
 .claude\scripts\_node.cmd .claude\scripts\assemble-prototype.mjs <texts_dir>
 .claude\scripts\_node.cmd .claude\scripts\verify-prototype.mjs <texts_dir>
 ```
 Ассемблер собирает `<texts_dir>/prototype.html`: стартовая секция-список, секции страниц с неймспейсом `<slug>__id` (формы - `<slug>__leadForm`), hash-роутер `#p/<slug>`, финальные normYo/bindHanging по всему документу. verify-prototype v2 проверяет per-page (по манифестам против секций, required-блоки каталожных типов, ровно 1 форма на секцию) и глобально (контракт-плашка, полнота навигации, дубли id, типографика). Exit 2: находка страницы - `prototype-builder` этой страницы + пересборка ассемблером; находка site_manifest/доков - оркестратор сам; до 2 кругов, затем аварийный выход как в 6c.
 
-**8d. Передача:**
+**7d. Передача:**
 ```
 .claude\scripts\_node.cmd .claude\scripts\build-handoff.mjs <texts_dir>
 ```
 `HANDOFF.md`: что сохранить дословно, что переопределяется дизайном, чего намеренно нет, [ЗАПОЛНИТЬ] и правила заполнения. Пересобирается при КАЖДОЙ новой версии прототипа (в т.ч. после `/seo-tekst-fix`). `update-meta.sh <texts_dir> prototype-built`.
 
-### 9. Финал (state == prototype-built)
+**7e. Доставка (state == prototype-built).** **`--review`: пауза ЗДЕСЬ** - «прототип собран - заливаю в Drive и отправляю заказчику? [Y/n/правки]» (`--auto` - без паузы; клиентские гейты уже пройдены). Затем:
+- `prototype.html` - заказчику ФАЙЛОМ И в Drive КАК ФАЙЛ (блок «Drive»: `convertToGoogleFormat:false`, постоянная ссылка) -> `share.json.prototype` `{file_id, link, uploaded_at, revisions[]}`; Drive недоступен / нет `texts_folder_id` - не блокировать: локальный файл + подсказка `/share-tekst <NNN>`;
+- для верстки - `HANDOFF.md` + `pages/*/page.json` (машиночитаемый деливерабл; Google Doc с текстами в v7.1 НЕ собирается - тексты дословно живут в прототипе).
+
+`update-meta.sh <texts_dir> shared`.
+
+### 8. Финал (state == shared)
 
 `update-meta.sh <texts_dir> completed`. Финальный коммит:
 ```bash
@@ -352,10 +369,10 @@ git commit -m "Tekst <NNN> for <slug>: <N> страниц (тон <chosen_tone_i
 ═══ ТЕКСТЫ + ПРОТОТИП ГОТОВЫ ═══
 Клиент: <domain|slug>   Страниц: <N>   Тон: <chosen_tone_id> «<name>» (выбор заказчика | recommended)
 🧪 Кросс-аудит: <site_audit verdict>   🔍 Вычитка: <verify_report verdict> | замечаний: <N>
-📄 Тексты (Google Doc): <ссылка>
-🖥 Прототип (один файл, все страницы, стартовая - список): texts/<NNN>-<slug>/prototype.html
-🎭 Тон-превью (архив выбора): texts/<NNN>-<slug>/tone/tone-preview.html
-📎 Передача дизайнеру/разработчику: texts/<NNN>-<slug>/HANDOFF.md (прикладывать вместе с прототипом)
+🖥 Прототип (деливерабл, один файл, все страницы): texts/<NNN>-<slug>/prototype.html | Drive: <share.json.prototype.link>
+📋 Скелеты (согласованы на гейте): <share.json.skeletons.link>
+🎭 Тон-превью (архив выбора): texts/<NNN>-<slug>/tone/tone-preview.html | Drive: <share.json.tone_preview.link>
+📎 Передача дизайнеру/разработчику: texts/<NNN>-<slug>/HANDOFF.md + pages/*/page.json (прикладывать вместе с прототипом)
 📌 [ЗАПОЛНИТЬ]-пометки: <count> (реальные цифры/отзывы/фото - см. незакрытое из materials_missing)
 ⚖️ Снятые правила пола: <rule> на <page> - <why> (основание: <source>)   (строка на каждый waiver; нет - не выводить)
 ⚠️ Принятые расхождения: <page>: <rule> - <why>                          (по accepted_violations; нет - не выводить)
@@ -374,14 +391,17 @@ git commit -m "Tekst <NNN> for <slug>: <N> страниц (тон <chosen_tone_i
 - **`locked`** (по ходу гейтов): только по трем основаниям ADR-033/037, и `source` обязан называть основание - (а) юридическая/реквизитная формулировка; (б) слоган, самоназвание, торговая марка; (в) заказчик явно потребовал сохранить дословно (на факт-гейте, в записке тон-гейта, в правках). Реплика из транскрипта - никогда автоматически. Одну мысль не заводить и в locked, и в canonical.
   **locked не пробивает машинные инварианты:** лимит H1, «числа только из facts.json», типографика действуют и на locked-строку. Не влезает - вопрос заказчику, а не `accepted_violations`.
 
-## Drive (docx -> Google Doc)
+## Drive (три загрузки задачи)
 
-Прочитать `~/.claude/seo-knowledge/DRIVE.md` -> `texts_folder_id`. Ключа нет / `TODO_*` - НЕ блокировать: пропустить загрузку, оставить локальный docx, в сводке подсказать «создай папку в Drive, впиши ID в DRIVE.md, затем /share-tekst <NNN>». Иначе:
-```
-mcp__gdrive-piotr__uploadFile(localPath:<docx>, name:"Texts_<slug>", parentFolderId:<texts_folder_id>,
-  mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document", convertToGoogleFormat:true)
-```
-Ссылка в `share.json.texts`; повторные заливки - ревизиями там же. `prototype.html` и `tone-preview.html` в Google-формат НЕ конвертируются - отдаются локальными файлами (опционально залить с `convertToGoogleFormat:false` ради общей ссылки). Поле `share.json.analysis` - legacy старых задач: в v7 его никто не пишет (Analysis.docx больше нет).
+Прочитать `~/.claude/seo-knowledge/DRIVE.md` -> `texts_folder_id`. Ключа нет / `TODO_*` - НЕ блокировать: пропустить загрузку, оставить локальные файлы, в сводке подсказать «создай папку в Drive, впиши ID в DRIVE.md, затем /share-tekst <NNN>». Все загрузки - `mcp__gdrive-piotr__uploadFile` с `parentFolderId:<texts_folder_id>`:
+
+| Файл | Шаг | Параметры | share.json |
+|---|---|---|---|
+| `Skeletons_<slug>.docx` | 4b | `name:"Skeletons_<slug>"`, mimeType docx, `convertToGoogleFormat:true` (Google Doc, как A2); ошибка конверсии - повторить с `false` | `skeletons` |
+| `tone/tone-preview.html` | 5e | `convertToGoogleFormat:false`, `mimeType:"text/html"` - КАК ФАЙЛ, без конвертации | `tone_preview` |
+| `prototype.html` | 7e | `convertToGoogleFormat:false`, `mimeType:"text/html"` - КАК ФАЙЛ, постоянная ссылка | `prototype` |
+
+Каждая запись share.json - `{file_id, link, uploaded_at, revisions[]}`; повторные заливки - новой ревизией туда же. html-файлы в Google-формат НЕ конвертируются НИКОГДА (конвертация убьет прототип) - и дополнительно отдаются заказчику локальным файлом. Поля `share.json.analysis` и `share.json.texts` - legacy старых задач: в v7.1 их никто не пишет (Analysis.docx и Texts.docx больше нет).
 
 ## Правила оркестрации (диета и сводки - docs/ORCHESTRATION.md)
 
@@ -411,7 +431,7 @@ mcp__gdrive-piotr__uploadFile(localPath:<docx>, name:"Texts_<slug>", parentFolde
 - НЕ пиши вне `texts/<NNN>/` + `.claude/tmp/` (pre-commit отклонит). Kit (`.claude/skills/seo-tekst/assets/`) - read-only.
 - **НЕ пересобирай анализ**: ЦА, конкуренты, разведка - готовые артефакты `analyses/`. Не хватает - это вопрос к `/seo-analiz` (--resume / --add-seo), а не повод добывать данные здесь.
 - **НЕ ветви пишущих агентов по источнику или tier** (ADR-031/038): нехватка данных выражается ТОЛЬКО отсутствием файла, никогда флагом режима в промте.
-- **НЕ пропускай клиентские гейты**: состав страниц (без структуры), запрос критичной фактуры, тон-гейт. `--auto` их не отменяет.
+- **НЕ пропускай клиентские гейты**: состав страниц (без структуры), запрос критичной фактуры, гейт скелетов, тон-гейт. `--auto` их не отменяет.
 - **НЕ выбирай тон за заказчика** - без ответа берется только `recommended` с честным `source:"recommended"`; отбирающий тон - только с проговоренной ценой.
 - **НЕ отключай продающий пол молча** (F1-F4, ADR-037): единственный обход - `selling_floor_waivers` с непустым `source` из трех оснований; снятые правила - в финальную сводку.
 - **НЕ легализуй нарушение locked** через `accepted_violations` - вопрос возвращается заказчику.

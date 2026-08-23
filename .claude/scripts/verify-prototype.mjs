@@ -363,7 +363,7 @@ for (const p of sitePages) {
 
   // мягкие бюджеты длины (предупреждения)
   // Машинная граница title одна: 70 (KIT-SPEC §2, целевые 60), и правится она у писателя
-  // в page.json, а не на сборке - иначе <title> разойдется с Texts.docx.
+  // в page.json, а не на сборке - канон текстов один (page.json), сборка его не правит.
   const metaTitle = String((manifest.meta && manifest.meta.title) || "");
   if (metaTitle.length > 70)
     W(`${tag} title ${metaTitle.length} симв - потолок 70, целевые 60 (KIT-SPEC §2). Править в page.json у писателя, не молча на сборке`);

@@ -370,7 +370,8 @@ function main() {
     if (block.h2 != null && scope.h2 == null) scope.h2 = block.h2;
     // empty_state приезжает из blueprint полем блока, а не слотом. Отдаем его фрагменту как
     // {{empty_state}}, чтобы у сборщика-агента не было повода класть его в subhead: subhead -
-    // слот писателя, и подмена затирает согласованный текст, расходя прототип с Texts.docx.
+    // слот писателя, и подмена затирает согласованный текст мимо канона page.json (v7.1:
+    // page.json - единственный источник текстов, из него собирается клиентский прототип).
     if (block.empty_state != null && scope.empty_state == null) scope.empty_state = block.empty_state;
 
     let rendered = renderTemplate(fragTpl, scope);
