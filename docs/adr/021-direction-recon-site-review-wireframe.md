@@ -2,6 +2,8 @@
 
 **Статус:** Принято (фрейминг «три слоя анти-ИИ» и «ИИ-узор сайта» пересмотрен в [ADR-022](022-commercial-copy-not-anti-ai.md): агенты direction-scanner/site-reviewer остаются, но переориентированы на боль ЦА / самоповторы, а не на анти-ИИ)
 
+**Пересмотрено 2026-08-22 (v7, [ADR-038](038-tiered-analysis-and-writing-split.md)/[ADR-039](039-single-file-prototype.md)):** опция `--theme` снята вместе с цветными темами - wireframe больше не дефолт, а единственный вариант прототипа (п.4 в части опции отменен). `direction-scanner` (п.1-2) переехал в `/seo-analiz` (ступень 3): разведка идет по направлениям `brief.directions`, а не по страницам, `recon/<dir_slug>.json` живет в `analyses/`; own_page снимается по данным `directions[].url` - флаг `--mode B` удален. `site-reviewer` остается в `/seo-tekst`.
+
 **Дата:** 2026-06-10
 
 ## Контекст

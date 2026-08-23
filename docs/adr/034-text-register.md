@@ -2,6 +2,8 @@
 
 **Статус:** Принято
 
+**Пересмотрено 2026-08-22 (v7, [ADR-038](038-tiered-analysis-and-writing-split.md)):** точка выбора - ТОН-ГЕЙТ: заказчик выбирает манеру на 3 ПОЛНЫХ живых главных (один html-файл, движок ADR-039), а не на 3 черновых первых экранах; черновики Hero стратег больше не пишет. Кандидатов готовит offer-strategist: `strategy.tone_candidates[3]` {tone_id, name, recommended, axes{a,b,c}, note}. `decisions.register` получает НОВУЮ форму `{tone_id, axes, source: "tone-gate"|"recommended"|"pending"}` - старый разбор (chosen-индекс -> axes_from -> recommended) мертв, все читатели (block-planner, page-writer, copy-auditor, site-reviewer, tekst-verifier, prototype-fixer + verify-copy.mjs, build-handoff.mjs) переписаны под новую форму. Три оси и правило «регистр расширяет разрешенное, но не сужает запрещенное» - без изменений.
+
 **Дата:** 2026-08-20
 
 ## Контекст

@@ -232,12 +232,14 @@ tier -> seo; state возвращается на brief-done и идет впер
 
 Скрипт read-tekst-input.mjs v2. Создает в texts/NNN/:
 
-### 2.1. inputs.json v2
+### 2.1. inputs.json v2 (ревизия после сверки B)
 
 Пути и параметры пишет СКРИПТ: analysis_dir, structure_dir|null, tier, slug, domain,
-region. Реквизиты/legal-блок собирает ОРКЕСТРАТОР из intake.json (профиль содержит
-requisites/contacts_geo) с фолбэком ЗАКАЗЧИК.md - как сейчас, источник изменился
-на структурированный intake.
+region_name, region_yandex (код числом; при --from-analysis скрипт оставляет null -
+дописывает оркестратор по PLAYBOOK р.8), плюс КОПИИ из brief.json для читателей
+inputs (канон - brief): brand_name (= company_name), forbidden_wordings[],
+not_in_assortment[] (при --from-table пусто - деградация). Реквизиты/legal-блок
+собирает ОРКЕСТРАТОР из intake.json (requisites/contacts_geo) с фолбэком ЗАКАЗЧИК.md.
 
 ### 2.2. pages.json v2
 
@@ -269,7 +271,9 @@ blocks_by_type + features_to_steal из leader_scan v2 (механическая
 ### 2.4. facts.json - семена
 
 Из intake.json (analyses/) + ЗАКАЗЧИК.md; включая подтвержденные own_page-факты
-(см. 1.5). intake-analyst в текстах больше не вызывается. Прямой доступ агентов
+(см. 1.5). intake-analyst в текстах больше не вызывается. Мост lexicon НЕ сеет
+(ревизия после сверки B): client_wordings остаются кандидатами в intake, в
+lexicon.locked их переносит только оркестратор на гейтах по правилу трех оснований. Прямой доступ агентов
 текстов к analyses/intake.json (read-only по inputs.json.analysis_dir) разрешен:
 offer-strategist читает оттуда client_metaphors / client_wordings / internal_terms
 (кандидаты в идею и словарь), оркестратор tekst - термины для спаривания lexicon.
@@ -428,7 +432,7 @@ pages-built = повторный вызов моста по pages_draft (см. 2
 | meta.json.tier (analiz) | оркестратор analiz | все ступени, validate v2, /seo-struktura (гейт), мост, /share-analysis, /status |
 | brief.json.directions[] (вкл. url) | brief-structurer | audience-analyst, direction-scanner, pages-planner v2, мост, analysis-writer, offer-strategist |
 | brief.json Keyso-поля (tier=seo) | brief-structurer (ступень 1) | competitor-finder, leader-scanner v2, serp-verdict, /seo-struktura, /seo-tehaudit |
-| analyses/audience.json | audience-analyst | offer-strategist, block-planner (summary), page-writer (summary+сегменты по dir_slug), copy-auditor (summary), prototype-fixer, analysis-writer (A2 ЦА + wordings), analysis-verifier, /seo-struktura (опц.), оркестратор tekst (wordings->lexicon) |
+| analyses/audience.json | audience-analyst | offer-strategist, block-planner (summary), page-writer (summary+сегменты по dir_slug), copy-auditor (summary), prototype-fixer, pages-planner v2 (сегменты для состава), analysis-writer (A2 ЦА + wordings), analysis-verifier, /seo-struktura (опц.), оркестратор tekst (wordings->lexicon) |
 | leader_scan.blocks_by_type + features_to_steal | leader-scanner v2 | analysis-writer, мост (выжимка) -> block-planner, offer-strategist |
 | analyses/recon/<dir_slug>.json | direction-scanner | analysis-writer, block-planner, page-writer (по dir_slug, без facts_seen), offer-strategist (offers_seen), pages-planner v2 |
 | recon.own_page (blocks, facts_seen) | direction-scanner (ступень 3) | block-planner (blocks); facts_seen -> цикл A2 -> оркестратор analiz дописывает intake.json |
@@ -439,11 +443,11 @@ pages-built = повторный вызов моста по pages_draft (см. 2
 | recommendations.json (усечен при basic) | analysis-writer | /seo-struktura, /seo-tekst, /seo-strategiya (декларативно) |
 | texts/inputs.json.{analysis_dir,structure_dir,tier} | мост (скрипт); legal - оркестратор из intake | все агенты tekst, prototype-builder (legal) |
 | texts/pages.json.{type-словарь,dir_slug} | мост (повторный вызов при pages_draft) | page-writer, block-planner, verify-copy.mjs (COMMERCIAL/F1 по русским типам), вся verify-цепочка |
-| texts/leader_blocks.json (выжимка) | мост (скрипт) | block-planner, offer-strategist |
+| texts/leader_blocks.json (выжимка) | мост (скрипт) | block-planner, offer-strategist, pages-planner v2 (типы страниц лидеров; + leader_scan.summary по analysis_dir) |
 | texts/facts.json (семена из intake) | мост + оркестратор tekst (гейты) | пишущая цепочка (ADR-033/037 без изменений) |
 | strategy.tone_candidates[3] | offer-strategist | оркестратор (тон-гейт), page-writer (оси варианта), записка заказчику |
 | strategy.decisions.register (новая форма) | оркестратор tekst (после гейта) | block-planner, page-writer, copy-auditor, site-reviewer, tekst-verifier, prototype-fixer, verify-copy.mjs, build-handoff.mjs - ВСЕ правятся в B |
-| type_skeletons.json | block-planner (такт 1) | block-planner (такт 2), сводка в чат, verify-prototype v2 |
+| type_skeletons.json | block-planner (такт 1) | block-planner (такт 2), сводка в чат, tekst-verifier (check 6); каталожная пара продублирована КОДОМ verify-prototype v2 (файл он не читает) |
 | blueprints/main.json (до тон-гейта) | block-planner такт 2 главной + slot-mapper | page-writer x3 (тон-варианты), verify-copy v2, штатная цепочка |
 | meta.json.tone_gate (status/note/feedback/chosen_tone_id) | оркестратор tekst | resume, веер (старт после chosen), сводка, build-handoff (записка) |
 | tone/pages/main--tN/* | page-writer, copy-auditor, prototype-builder | заказчик (превью), оркестратор; в Texts.docx НЕ входят |
@@ -464,7 +468,7 @@ pages-built = повторный вызов моста по pages_draft (см. 2
 | флаги --scan-leaders/--no-scan, --recon/--no-recon (tekst) | переезжают опциями ступени 3 /seo-analiz |
 | Analysis_<slug>.docx + гейт стратегии | согласование = цикл A2; канон + materials - записка тон-гейта (врезка в ADR-037 §9 - этап B) |
 | скрипт build-tekst-analysis-docx.mjs + его тест-секции | удаляется; share.json.analysis - legacy-поле старых задач |
-| /share-tekst --analysis (флаг и ветка) | правка скила в этапе B; остается --texts |
+| /share-tekst --analysis (флаг и ветка) | правка скила в этапе B; остается только Texts.docx (флаг не нужен - аргументы NNN [--redo]) |
 | register-варианты стратега (3 черновых первых экрана) + старая форма decisions.register (массивы axes/variants, chosen-индекс) | tone_candidates + новая форма (3.2); правятся все читатели вкл. verify-copy.mjs, build-handoff.mjs |
 | strategy.design_theme + --theme + 6 цветных тем | wireframe-only (ADR-039); offer-strategist перестает писать design_theme |
 | pages/<slug>/prototype.html (пер-страничные) | texts/prototype.html + render.html; build-handoff.mjs правится (состав файлов, registerLine, литерал состояния) |

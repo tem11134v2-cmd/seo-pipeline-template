@@ -1,25 +1,19 @@
-# MCP-карта /seo-tekst
+# MCP-карта /seo-tekst (v7)
 
-Какие MCP-инструменты на каком шаге. Все подключены глобально (Claude Code Desktop).
+У скила почти нет MCP - и это по конструкции: вся разведка (SERP, конкуренты, лидеры, own_page-скан) сделана в `/seo-analiz` и приходит готовыми артефактами через мост (шаг 1). **Keyso и Arsenkin в текстах НЕ используются** - обнаружил у себя желание их позвать, значит пытаешься пересобрать анализ (запрещено, см. SKILL.md «Запреты»).
 
 | Шаг / агент | Инструмент | Зачем | Обязательность |
 |---|---|---|---|
-| 2b `leader-block-scanner` | `mcp__Claude_in_Chrome__*` (navigate/read_page/snapshot/screenshot) | скан rendered-композиции блоков 3-6 лидеров по типам страниц + фишки (особенно каталоги/SPA) | желательно (Chrome) |
-| 2b `leader-block-scanner` | `seo_fetch_page` (profile="content") | fallback, если Chrome не подключён (текст+заголовки для композиции блоков/фишек; статический фетч, JS не рендерит) | fallback |
-| 2c `direction-scanner` | `arsenkin_top` (queries, region, depth=10, is_snippet) | топ-10 по маркеру направления (+ регион) | желательно |
-| 2c `direction-scanner` | `mcp__Claude_in_Chrome__*` / `seo_fetch_batch` (urls, profile="content") | фетч 3-5 страниц однотипных конкурентов (rendered / статический fallback); в mode B + своя живая страница (own_page) | желательно |
-| 3 `audience-analyst` | `web_search`, `seo_fetch_page` (profile="content") | (опц.) форум-майнинг дословных формулировок болей/возражений, если нет analysis_dir | опционально |
-| 4 `offer-strategist` | `jm_wordstat` (mode=frequency); альт. `wk_check_frequency`, `arsenkin_wordstat` (mode=frequency) | сигнал стадии прогретости (поиск по продукту vs по проблеме) | желательно |
-| 4 `offer-strategist` | `seo_fetch_page` (profile="content") | факты о компании с сайта клиента -> 30 тезисов | опционально |
-| 4 `offer-strategist` | `wk_check_frequency` | частотность маркеров оффера (массово) | опционально |
-| 6a `block-planner` | - (без MCP) | блок-план всех страниц из BLOCKS.md + leader_blocks.json + recon/*.json (только Read/Write) | - |
-| 6b `page-writer` (mode B) | `seo_fetch_page` (profile="content") | удачные формулировки/фактура живой страницы (структура и объёмы - по blueprint) | только mode B |
-| 6d `site-reviewer` | - (без MCP) | кросс-страничный аудит всех page.json (только Read/Write/Edit) | - |
-| 5/7 Drive | `mcp__gdrive-piotr__uploadFile` | docx -> Google Doc (Analysis + Texts) на согласование/выдачу | желательно (скип если нет texts_folder_id) |
+| 3 `offer-strategist` | `jm_wordstat` (mode=frequency); альт. `wk_check_frequency` | сигнал стадии прогретости (ищут продукт или проблему) для формулы оффера | желательно |
+| 3 `offer-strategist` | `seo_fetch_page` (profile="content") | сайт клиента: факты о компании -> тезисы и инвентарь доказательств | опционально |
+| 6b `page-writer` | `seo_fetch_page` (profile="content") | ТОЛЬКО если у страницы в `recon/<dir_slug>.json` есть `own_page` (у направления был `url` живой страницы): фактура и удачные формулировки заказчика | по данным (own_page в recon) |
+| 7 Drive | `mcp__gdrive-piotr__uploadFile` | Texts.docx -> Google Doc (`convertToGoogleFormat:true`) | желательно (скип, если нет `texts_folder_id`) |
 
-**Нет тяжёлых обязательных MCP.** Конкурентов/SERP/семантику не пере-собираем - ингестируем из `analyses/NNN` + `structures/NNN` (источник через `--from-structure`/`--from-analysis`). `prototype-builder` и `prototype-fixer` MCP не используют (только Read/Write/Edit/Bash - запуск скриптов сборки).
+**Без MCP работают:** pages-planner, block-planner, slot-mapper, copy-auditor, site-reviewer, tekst-verifier, prototype-builder, prototype-fixer - только Read/Write/Edit/Bash (скрипты сборки). Тон-превью и прототип в сеть не ходят - сборка локальная поверх kit.
 
-## Замечания по MCP
-- **Keyso (если page-writer/offer-strategist лезут за страницами конкурентов):** IDN-домены в кириллице, не Punycode; `base` обязателен (`msk` по умолчанию).
-- **Регион частотности** - код Яндекса (Москва 213, СПб 2, ...), не Keyso-base. Без него - общероссийская частотность. (Дерево регионов Wordstat живым инструментом не отдаётся; берём код из зашитого списка / дефолт 213.)
-- **JM в /seo-tekst - только лёгкий `jm_wordstat`** (сигнал стадии прогретости у offer-strategist); тяжёлый `jm_text_analyze` тут не зовём (он в /seo-faq - нормализация N-грамм), отдельно баланс под него проверять не нужно. Если частотность через JM недоступна - fallback на `wk_check_frequency` / `arsenkin_wordstat` (mode=frequency).
+## Замечания
+
+- **JM тут только легкий `jm_wordstat`** - баланс под тяжелый `jm_text_analyze` проверять не нужно (он живет в `/seo-faq`). JM недоступен - fallback `wk_check_frequency`.
+- **Регион частотности** - код Яндекса из `inputs.json.region_yandex` (Москва 213, СПб 2, ...), не Keyso-base. Null (мост не нашел кода) - оркестратор дописывает по PLAYBOOK р.8 на шаге 1; без кода - общероссийская частотность.
+- **Никакой добычи поисковых данных сверх сигнала прогретости**: частотности по списку, кластеризация, позиции - не зона этого скила ни в одном источнике. Нужна семантика - `/seo-struktura`.
+- `tone-preview.html` и `prototype.html` в Google-формат не конвертируются - отдаются локальными файлами (опционально `uploadFile` с `convertToGoogleFormat:false` ради общей ссылки).

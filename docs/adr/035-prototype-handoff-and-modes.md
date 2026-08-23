@@ -2,6 +2,8 @@
 
 **Статус:** Принято
 
+**Дополнено 2026-08-22 (v7, [ADR-039](039-single-file-prototype.md)):** пер-страничный выход prototype-builder - `pages/<slug>/render.html` (блоки без shell); клиентский документ ОДИН - `texts/NNN/prototype.html` от assemble-prototype.mjs. Контракт передачи сохранен: комментарий в head и плашка .pt-contract - по одному на документ, `HANDOFF.md` живет (build-handoff.mjs правится точечно: состав файлов, registerLine под новую форму register ADR-034). Режимы блока рабочий/шаблон/заглушка и tekst-verifier - без изменений; `recon/<slug>.json.own_page` из «Действующего правила» п.2 теперь лежит в `analyses/recon/<dir_slug>.json` (ADR-038).
+
 **Дата:** 2026-08-20
 
 ## Контекст

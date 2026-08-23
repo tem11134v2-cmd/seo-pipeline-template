@@ -2,6 +2,8 @@
 
 **Статус:** Принято
 
+**Дополнено 2026-08-22 (v7, [ADR-038](038-tiered-analysis-and-writing-split.md)):** канал сборки словаря - мост v7: `audience_wordings` ({phrase, means, from}) пишет audience-analyst в `analyses/audience.json` и подтверждает revising-цикл A2 (печатаются в A2-разделе ЦА) - отдельного гейта в текстах нет; кандидаты `client_wordings`/`internal_terms`/`client_metaphors` живут в `analyses/intake.json` (intake-analyst - теперь агент только `/seo-analiz`). Спаривание internal/public и наполнение `lexicon` - по-прежнему ручная работа оркестратора `/seo-tekst`; поведение агентов-читателей не меняется.
+
 **Дата:** 2026-08-20
 
 ## Контекст

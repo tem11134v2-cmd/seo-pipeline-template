@@ -24,7 +24,8 @@
 // playwright не является зависимостью клиентской сборки.
 //
 // Использование:
-//   node verify-prototype-mobile.mjs <page_dir|путь_к_html> [--widths 320,360,390,430]
+//   node verify-prototype-mobile.mjs <texts_dir|путь_к_html> [--widths 320,360,390,430]
+//   (texts_dir - папка задачи с собранным prototype.html; v7 - один файл на весь сайт)
 //
 // Exit:
 //   0 - пройдено

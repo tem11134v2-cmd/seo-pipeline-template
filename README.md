@@ -208,7 +208,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── audit-writer.md                  ← /seo-tehaudit
 │   │   ├── audience-analyst.md              ← /seo-tekst
 │   │   ├── offer-strategist.md              ← /seo-tekst
-│   │   ├── leader-block-scanner.md          ← /seo-tekst
+│   │   ├── leader-scanner.md                ← /seo-analiz (v2: + блок-матрица, поглотил leader-block-scanner)
 │   │   ├── direction-scanner.md             ← /seo-tekst
 │   │   ├── block-planner.md                 ← /seo-tekst
 │   │   ├── page-writer.md                   ← /seo-tekst
@@ -420,17 +420,18 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── inputs.json                          (slug/домен/регион/ниша/УТП + реквизиты для legal)
 │   ├── facts.json                           (единый источник цифр: реквизиты/гарантии/числа - все цифры сайта только отсюда, v4)
 │   ├── pages.json                           (целевые страницы)
-│   ├── leader_blocks.json                   (опц.: матрица блоков лидеров по типу страниц - leader-block-scanner)
-│   ├── recon/<slug>.json                    (контент-разведка топ-10 направления - direction-scanner)
-│   ├── audience.json                        (анализ ЦА - audience-analyst)
-│   ├── strategy.json                        (стратегия оффера - offer-strategist)
-│   ├── blueprints/<page-slug>.json          (блок-план страницы: блоки+цели+слоты+лимиты - block-planner, ADR-020)
+│   ├── leader_blocks.json                   (опц.: выжимка блок-матрицы лидеров из analyses/leader_scan.json v2 - мост)
+│   ├── type_skeletons.json                  (скелеты блоков по типам страниц - block-planner такт 1)
+│   ├── strategy.json                        (стратегия оффера + 3 кандидата тона - offer-strategist; ЦА и recon живут в analyses/)
+│   ├── tone/                                (тон-гейт: 3 варианта главной + tone-preview.html)
+│   ├── blueprints/<page-slug>.json          (блок-план страницы: блоки+цели+слоты+лимиты - block-planner+slot-mapper)
 │   ├── site_audit.json                      (кросс-страничный аудит - site-reviewer)
-│   ├── Analysis_<slug>.docx                 (клиенту на согласование -> Google Doc)
+│   ├── site_manifest.json                   (порядок страниц для ассемблера)
+│   ├── prototype.html                       (ФИНАЛ - весь сайт ОДНИМ self-contained файлом, ADR-039)
 │   ├── pages/<page-slug>/                   (по странице)
 │   │   ├── page.json                        (тексты блоков - page-writer)
-│   │   ├── manifest.json                    (копия + рендер - prototype-builder)
-│   │   └── prototype.html                   (ФИНАЛ - self-contained прототип)
+│   │   ├── manifest.json                    (метаданные страницы - prototype-builder)
+│   │   └── render.html                      (отрендеренные блоки без shell - из них ассемблер собирает prototype.html)
 │   ├── Texts_<slug>.docx                    (клиенту финальные тексты -> Google Doc)
 │   └── share.json                           (ссылки Drive: analysis + texts)
 │
@@ -497,9 +498,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/share-metatags NNN [--redo]` | worktree | Утилита: перезалить A7.xlsx в Drive после правок, или догрузить если Drive был недоступен |
 | `/seo-tehaudit <domain> [--resume] [--no-share]` | worktree | Технический SEO-аудит сайта под Яндекс: разведка/карточка → индексация → URL/мета/Schema/JS → аналитика/ссылки → A12.md + A12.docx (проблемы по приоритетам, чеклист разработчику, динамические приложения) → автозагрузка в Drive + цикл правок |
 | `/share-audit NNN [--redo]` | worktree | Утилита: перезалить A12.docx в Drive после правок, или догрузить если Drive был недоступен |
-| `/seo-tekst [--from-structure NNN\|--from-table\|--from-analysis] [--mode A\|B] [--review\|--auto] [--theme]` | worktree | Конверсионные тексты коммерческих страниц + HTML-прототип. Анализ ЦА/оффера → согласование с клиентом (Analysis.docx → Google Doc) → веер писателей → сборка прототипов поверх kit. Выход: Texts.docx (Google Doc) + prototype.html на страницу |
-| `/seo-tekst-fix NNN [slug] "..."` | worktree | Точечная правка прототипа (разбор голосовых; manifest → пересборка → дифф) |
-| `/share-tekst NNN [--redo]` | worktree | Утилита: перезалить Analysis/Texts.docx в Drive после правок, или догрузить если Drive был недоступен |
+| `/seo-tekst [--from-structure NNN\|--from-analysis NNN\|--from-table <путь>] [--review\|--auto] [--resume]` | worktree | Конверсионные тексты (v7 - скил только пишет: ЦА/конкуренты/разведка приходят из analyses/NNN). Мост → [состав страниц + гейт] → оффер-слой → скелеты типов → ТОН-ГЕЙТ (главная в 3 тонах одним html) → веер писателей → Texts.docx (Google Doc) → прототип ОДНИМ html-файлом (wireframe, стартовый список) |
+| `/seo-tekst-fix NNN [slug] "..."` | worktree | Точечная правка страницы прототипа (разбор голосовых; manifest/page.json → пересборка общего prototype.html → дифф по секции) |
+| `/share-tekst NNN [--redo]` | worktree | Утилита: перезалить Texts.docx в Drive после правок, или догрузить если Drive был недоступен |
 | `/seo-faq [--from-tekst NNN\|--from-table\|--url] [--review\|--auto]` | worktree | SEO-нормализация: JM-анализ пробелов текста → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка с недостающими N-граммами. Выход: faq.html (вставляемый сниппет) на страницу + FAQ.docx (Google Doc) |
 | `/share-faq NNN [--redo]` | worktree | Утилита: перезалить FAQ.docx в Drive после правок, или догрузить если Drive был недоступен |
 | `/custom-question [<вопрос>\|<файл>] [--resume] [--format auto\|answer\|recommendation\|doc]` | worktree | Разбор нестандартного вопроса заказчика: контекст по файлам проекта → обязательный гейт трактовки (AskUserQuestion, опция «передать заказчику») → решение (ответ/рекомендация/документ) без SEO-жаргона → запись в общий QA-ЖУРНАЛ.md |
@@ -565,7 +566,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `prototype-builder` | Сборка HTML-прототипа одной страницы поверх kit: page.json → manifest → build-prototype.mjs + verify + fix (для /seo-tekst, веер) |
 | `prototype-fixer` | Точечная правка прототипа (разбор голосовых PHASE-7 + паттерн article-fixer) (для /seo-tekst-fix) |
 | `faq-builder` | SEO-блок одной страницы: JM-анализ пробелов → FAQ (Schema.org) + возражения + плитка тегов + перелинковка с недостающими N-граммами (для /seo-faq, веер) |
-| `leader-block-scanner` | Скан композиции блоков 3-6 лидеров по типам страниц (Chrome → rendered, fetch → fallback) → матрица покрытия + фишки. Доказательный подбор блоков, особенно каталоги (для /seo-tekst, проектный) |
+| `leader-scanner` (v2) | Скан смыслов И композиции блоков лидеров (посылы + матрица «блок x тип» + фишки; поглотил leader-block-scanner в v7). Для /seo-analiz ступень 3 |
 | `copy-auditor` | Pre-flight редактор продающего текста: чек-лист COPY-AUDIT.md (смысл+грамотность первым, удар в боль ЦА, чистота/штампы/утечка кухни Сургай-кастдев) → чинит page.json свежим проходом перед HTML; анти-ИИ-детект не делает (ADR-022) (для /seo-tekst, веер) |
 | `direction-scanner` | Контент-разведка одного направления: SERP топ-10 по маркеру -> фильтр однотипных -> фетч 3-5 страниц (Chrome/fetch) -> recon/<slug>.json: что публикует топ, must_have, gaps (для /seo-tekst, веер) |
 | `site-reviewer` | Финальный кросс-страничный аудит текстов сайта: межстраничные самоповторы, уникальность H1/Title, консистентность decisions и фактов -> чинит + site_audit.json (для /seo-tekst, один на проект) |
@@ -623,7 +624,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `read-tekst-input.mjs` | структура/таблица/анализ → pages.json (целевые страницы для /seo-tekst) |
 | `build-prototype.mjs` | manifest.json + kit (shell+css+js+фрагменты+тема+legal) → prototype.html (рекурсивный mini-template) |
 | `verify-prototype.mjs` | POST-FLIGHT прототипа: 1 форма в финале, header/footer/tel/cookie, без фреймворков/тире, стоп-формулы (exit 0/2) |
-| `build-tekst-analysis-docx.mjs` | audience.json + strategy.json → Analysis_<slug>.docx (клиенту на согласование) |
+| `assemble-prototype.mjs` | render.html всех страниц + site_manifest.json → один prototype.html (стартовый список, роутер, неймспейс - ADR-039) |
 | `build-tekst-docx.mjs` | pages/*/page.json → Texts_<slug>.docx (финальные тексты клиенту) |
 | `read-faq-input.mjs` | tekst/таблица/url → pages.json (текст страницы + целевые запросы для JM) |
 | `_faq-util.mjs` | общие утилиты /seo-faq: единая нормализация URL + декод сущностей + резолв self-url; импортируют build-faq.mjs, build-faq-docx.mjs, verify-faq.mjs |

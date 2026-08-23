@@ -1,25 +1,22 @@
 #!/usr/bin/env node
-// run.mjs - smoke-тесты автономного источника /seo-tekst --from-brief (ADR-031)
-// и секции «0. Состав страниц» в клиентском документе согласования.
+// run.mjs - smoke-тесты /seo-tekst v7 (программа 2026-08-22, ADR-038/039).
 // Запуск: .claude\scripts\_node.cmd .claude\tests\seo-tekst\run.mjs
 //
-// Проверяет:
-//   read-tekst-input.mjs --from-brief
-//     - собирает pages.json из pages_draft.json, source начинается с "brief:"
-//     - страница с include:"нет" (снята на гейте) в pages.json НЕ попадает
-//     - slug стабилен для одинакового url между прогонами (от него зависят recon/ и blueprints/)
-//     - дубли url|marker схлопываются
-//     - все страницы сняты -> exit 2 (контракт «нет целевых»)
-//     - битый/отсутствующий черновик -> exit 1, pages.json не перезаписан
-//     - регресс: --from-table по-прежнему работает, source = "table:..."
-//   build-tekst-analysis-docx.mjs
-//     - source brief: -> секция «0. Состав страниц» есть, страницы перечислены
-//     - source structure: -> секции НЕТ (состав согласован раньше, в A6)
-//     - строки состава без маркера списка (иначе в Word выходит «• 1. ...»)
+// Секции:
+//   read-tekst-input.mjs v2 - мост «анализ -> тексты» (контракты 2.1-2.4):
+//     --from-analysis (пустой pages.json + inputs/leader_blocks/facts), --from-draft
+//     (финал после гейта состава), --from-structure (русские типы + спаривание dir_slug),
+//     --from-table (аварийный ручной). Флага --from-brief в v7 НЕТ.
+//   прототип v2 (ADR-039): render -> site_manifest -> assemble -> verify (этап C)
+//   verify-copy.mjs: механический слой COPY-AUDIT, регистр НОВОЙ формы
+//     {tone_id, axes, source} (контракт 3.2), --root для тон-вариантов (контракт 3.4),
+//     продающий пол ADR-037, сверка с blueprint
+//   build-tekst-docx.mjs + build-handoff.mjs: две ленты пометок, контракт передачи
+//   диета писателя В ЗНАКАХ (ADR-020/037)
 //
 // Exit 0 - все тесты прошли. Exit 1 - есть провал.
 
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { writeFileSync, readFileSync, readdirSync, statSync, existsSync, mkdirSync, rmSync, cpSync } from "node:fs";
 import { join, resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,7 +62,6 @@ function sweepOldSandboxes() {
   }
 }
 const READ_INPUT = join(PROJECT_ROOT, ".claude/scripts/read-tekst-input.mjs");
-const BUILD_DOCX = join(PROJECT_ROOT, ".claude/scripts/build-tekst-analysis-docx.mjs");
 const BUILD_DOCX_TEXTS = join(PROJECT_ROOT, ".claude/scripts/build-tekst-docx.mjs");
 
 // === Мини-фреймворк (по образцу tests/seo-temi/run.mjs) ===
@@ -91,13 +87,11 @@ function step(name, fn) {
   }
 }
 
+// spawnSync, а не execFileSync: stderr нужен и на УСПЕШНОМ прогоне - мост печатает
+// туда предупреждения (нераспознанные типы, отсутствие данных анализа), и тесты их сверяют.
 function run(args) {
-  try {
-    const stdout = execFileSync(process.execPath, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-    return { code: 0, stdout };
-  } catch (err) {
-    return { code: err.status ?? 1, stdout: String(err.stdout || ""), stderr: String(err.stderr || "") };
-  }
+  const r = spawnSync(process.execPath, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  return { code: r.status ?? 1, stdout: String(r.stdout || ""), stderr: String(r.stderr || "") };
 }
 
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, ""));
@@ -159,84 +153,249 @@ try {
   process.exit(1);
 }
 
-const draft = (pages) => ({ origin: "mixed", site_kind: "услуги", pages, questions: [], missing_facts: [], notes: "фикстура" });
-const PAGES_OK = [
-  { n: 1, url: "/", type: "Главная", marker: "монтаж вентиляции казань", queries: [], source: "designed", confidence: "high" },
-  { n: 2, url: "/montazh/", type: "Услуга", marker: "монтаж вентиляции в квартире", queries: ["вентиляция под ключ"], source: "brief", confidence: "high" },
-  { n: 3, url: "/montazh/", type: "Услуга", marker: "монтаж вентиляции в квартире", queries: [], source: "brief", confidence: "low" }, // дубль
-  { n: 4, url: "/otzyvy/", type: "Отзывы", marker: "отзывы", queries: [], source: "designed", include: "нет" },                        // снята на гейте
-  { n: 5, url: "/kontakty/", type: "Контакты", marker: "контакты вентпро казань", queries: [], source: "designed", confidence: "high" },
-];
-
-const dirBrief = join(SANDBOX, "brief");
-mkdirSync(dirBrief, { recursive: true });
-const draftPath = join(dirBrief, "pages_draft.json");
-writeFileSync(draftPath, JSON.stringify(draft(PAGES_OK), null, 2), "utf8");
-
 // ──────────────────────────────────────────────────────────────────────────
-console.log("=== read-tekst-input.mjs --from-brief ===");
+console.log("=== read-tekst-input.mjs v2: мост анализ -> тексты (контракты 2.1-2.4) ===");
 // ──────────────────────────────────────────────────────────────────────────
 
-step("--from-brief: pages.json собран, source начинается с brief:", () => {
-  const r = run([READ_INPUT, dirBrief, "--from-brief", draftPath]);
+// Фикстура анализа (analyses/NNN как после этапа A): brief.json с directions[],
+// leader_scan.json v2 (blocks_by_type + features_to_steal), intake.json с фактами -
+// включая подтвержденный own_page-факт (контракт 1.5: source "own_page:<url>").
+const dirAnalysis = join(SANDBOX, "analysis-fx");
+mkdirSync(dirAnalysis, { recursive: true });
+writeFileSync(join(dirAnalysis, "meta.json"), JSON.stringify({ tier: "seo", state: "completed" }), "utf8");
+writeFileSync(join(dirAnalysis, "brief.json"), JSON.stringify({
+  slug: "ventkazan", domain: "ventpro.ru", region: "Казань",
+  directions: [
+    { dir_slug: "montazh-otopleniya", name: "Монтаж отопления", source: "assortment", marker_hint: "монтаж отопления под ключ", url: "https://ventpro.ru/otoplenie/" },
+    { dir_slug: "montazh-ventilyacii", name: "Монтаж вентиляции", source: "client_pages", marker_hint: "монтаж вентиляции цена", url: null },
+  ],
+}, null, 2), "utf8");
+writeFileSync(join(dirAnalysis, "leader_scan.json"), JSON.stringify({
+  leaders: [{ domain: "lider.ru" }],
+  summary: { note: "фикстура" },
+  blocks_by_type: {
+    "Услуга": [{ block: "Первый экран (Hero)", coverage: 1, typical_order: 1 }],
+    "Категория": [{ block: "Листинг товаров", coverage: 0.8, typical_order: 2 }],
+  },
+  features_to_steal: [{ feature: "калькулятор на первом экране", seen_at: "lider.ru", page_type: "Услуга" }],
+}, null, 2), "utf8");
+writeFileSync(join(dirAnalysis, "intake.json"), JSON.stringify({
+  sources: [{ id: "s1", label: "созвон 12.08" }],
+  facts: [
+    { field: "numbers", value: "137 объектов сдано", source: "s1" },
+    { field: "numbers", value: "12 монтажных бригад", source: "own_page:https://ventpro.ru/otoplenie/", quote: "12 монтажных бригад", decision_impact: true },
+    { field: "guarantee", value: "3 года на монтаж по договору", source: "own_page:https://ventpro.ru/otoplenie/", decision_impact: true },
+    { field: "requisites", value: "ООО ВентПро", source: "s1" },
+    { field: "requisites", value: "ИНН 1650123456", source: "s1" },
+    { field: "client_wordings", value: "под ключ и без субподряда", source: "s1" },
+  ],
+}, null, 2), "utf8");
+
+const dirBridge = join(SANDBOX, "bridge-analysis");
+mkdirSync(dirBridge, { recursive: true });
+
+step("--from-analysis: pages.json ПУСТОЙ с source pages_draft (состав решает гейт, не мост)", () => {
+  const r = run([READ_INPUT, dirBridge, "--from-analysis", dirAnalysis]);
   if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
-  const pages = readJson(join(dirBrief, "pages.json"));
-  if (!/^brief:/.test(pages.source)) return `source = ${pages.source}`;
+  const pages = readJson(join(dirBridge, "pages.json"));
+  if (pages.source !== "pages_draft") return `source = ${pages.source}`;
+  if (pages.count !== 0 || pages.pages.length) return `pages.json не пустой (count ${pages.count}) - мост решил состав за гейт`;
   return true;
 });
 
-step("--from-brief: include:\"нет\" не попадает в pages.json (снято на гейте)", () => {
-  const pages = readJson(join(dirBrief, "pages.json"));
-  if (pages.pages.some((p) => p.type === "Отзывы")) return "снятая страница просочилась";
+step("--from-analysis: inputs.json несет analysis_dir + tier из meta анализа", () => {
+  const inputs = readJson(join(dirBridge, "inputs.json"));
+  if (!inputs.analysis_dir) return "analysis_dir пуст";
+  if (inputs.tier !== "seo") return `tier = ${inputs.tier}, ожидался seo`;
+  if (inputs.slug !== "ventkazan") return `slug = ${inputs.slug}`;
   return true;
 });
 
-step("--from-brief: дубль url|marker схлопнут (5 строк черновика -> 3 страницы)", () => {
-  const pages = readJson(join(dirBrief, "pages.json"));
-  if (pages.count !== 3) return `count = ${pages.count}, ожидалось 3`;
+step("выжимка leader_blocks.json: blocks_by_type + features_to_steal из leader_scan v2", () => {
+  const lb = readJson(join(dirBridge, "leader_blocks.json"));
+  if (!lb.blocks_by_type || !lb.blocks_by_type["Категория"]) return "blocks_by_type[Категория] не доехал";
+  if (lb.blocks_by_type["Категория"][0].block !== "Листинг товаров") return "имя блока из словаря BLOCKS.md потеряно";
+  if (!Array.isArray(lb.features_to_steal) || !lb.features_to_steal.length) return "features_to_steal пусты";
+  if (lb.features_to_steal[0].feature !== "калькулятор на первом экране") return "фишка лидера потеряна";
   return true;
 });
 
-step("--from-brief: типы и маркеры перенесены без потерь", () => {
-  const pages = readJson(join(dirBrief, "pages.json"));
+step("семена facts.json из intake: числа дословно, ВКЛЮЧАЯ own_page-факт (контракт 1.5)", () => {
+  const facts = readJson(join(dirBridge, "facts.json"));
+  const values = (facts.numbers || []).map((n) => n.value);
+  if (!values.includes("137 объектов сдано")) return `число интейка не доехало: ${JSON.stringify(values)}`;
+  if (!values.includes("12 монтажных бригад")) return "own_page-факт (numbers) не доехал до facts.json";
+  if (!/3 года на монтаж по договору/.test(String(facts.product_guarantee && facts.product_guarantee.guarantee))) return "own_page-гарантия не доехала";
+  if (facts.jur.entity !== "ООО ВентПро") return `jur.entity = ${facts.jur.entity}`;
+  if (facts.jur.requisites.inn !== "1650123456") return `ИНН = ${facts.jur.requisites.inn}`;
+  const locked = ((facts.lexicon && facts.lexicon.locked) || []).map((l) => l.phrase);
+  if (locked.length !== 0) return `client_wordings НЕ должны сеяться в lexicon.locked автоматически (правило трех оснований, сверка B): ${JSON.stringify(locked)}`;
+  return true;
+});
+
+// Черновик состава - как его отдает pages-planner v2 ПОСЛЕ гейта (контракт 3.1):
+// dir_slug уже проставлен планировщиком (мост берет готовым, заново не спаривает),
+// include "нет" - страница снята заказчиком на гейте.
+const draft = (pages) => ({ origin: "analysis", site_kind: "услуги", pages, questions: [], missing_facts: [], notes: "фикстура" });
+const DRAFT_PAGES = [
+  { n: 1, url: "/", type: "Главная", marker: "монтаж вентиляции казань", queries: [], dir_slug: null },
+  { n: 2, url: "/montazh/", type: "Подуслуга", marker: "монтаж вентиляции в квартире", queries: ["вентиляция под ключ"], dir_slug: "montazh-ventilyacii" },
+  { n: 3, url: "/montazh/", type: "Услуга", marker: "монтаж вентиляции в квартире", queries: [], dir_slug: "montazh-ventilyacii" }, // дубль url|marker
+  { n: 4, url: "/otzyvy/", type: "Отзывы", marker: "отзывы вентпро", queries: [], dir_slug: null, include: "нет" },               // снята на гейте
+  { n: 5, url: "/kontakty/", type: "Контакты", marker: "контакты вентпро казань", queries: [], dir_slug: null },
+];
+const draftPath = join(dirBridge, "pages_draft.json");
+writeFileSync(draftPath, JSON.stringify(draft(DRAFT_PAGES), null, 2), "utf8");
+
+step("--from-draft: финальный pages.json из подтвержденного черновика (дедуп + include)", () => {
+  const r = run([READ_INPUT, dirBridge, "--from-draft", draftPath]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
+  const pages = readJson(join(dirBridge, "pages.json"));
+  if (!/^pages_draft:/.test(pages.source)) return `source = ${pages.source}`;
+  if (pages.count !== 3) return `count = ${pages.count}, ожидалось 3 (5 строк - дубль - снятая)`;
+  if (pages.pages.some((p) => p.slug === "otzyvy")) return "страница include:\"нет\" просочилась в pages.json";
+  return true;
+});
+
+step("--from-draft: типы нормализованы в русский словарь (Подуслуга->Услуга, Контакты->Инфо)", () => {
+  const pages = readJson(join(dirBridge, "pages.json"));
   const byType = pages.pages.map((p) => p.type).sort().join(",");
-  if (byType !== "Главная,Контакты,Услуга") return `типы: ${byType}`;
+  if (byType !== "Главная,Инфо,Услуга") return `типы: ${byType}`;
+  const main = pages.pages.find((p) => p.type === "Главная");
+  if (!main || main.slug !== "main") return `slug главной = ${main && main.slug}, ожидался "main" (на нем тон-гейт и blueprints/main.json)`;
   const svc = pages.pages.find((p) => p.type === "Услуга");
   if (svc.marker !== "монтаж вентиляции в квартире") return `маркер услуги: ${svc.marker}`;
   if (svc.queries[0] !== "вентиляция под ключ") return `queries потеряны: ${JSON.stringify(svc.queries)}`;
   return true;
 });
 
-step("--from-brief: slug стабилен между прогонами (на нём висят recon/ и blueprints/)", () => {
-  const before = readJson(join(dirBrief, "pages.json")).pages.map((p) => p.slug).join(",");
-  const r = run([READ_INPUT, dirBrief, "--from-brief", draftPath]);
+step("--from-draft: dir_slug взят ГОТОВЫМ от pages-planner, неспаренная страница = null", () => {
+  const r = run([READ_INPUT, dirBridge, "--from-draft", draftPath]);
+  if (r.code !== 0) return `exit ${r.code}`;
+  const pages = readJson(join(dirBridge, "pages.json"));
+  const svc = pages.pages.find((p) => p.slug === "montazh");
+  if (!svc || svc.dir_slug !== "montazh-ventilyacii") return `dir_slug услуги = ${svc && svc.dir_slug}`;
+  const info = pages.pages.find((p) => p.slug === "kontakty");
+  if (!info || info.dir_slug !== null) return `dir_slug контактов = ${info && info.dir_slug}, ожидался null`;
+  if (!/спарено 1\/3/.test(r.stdout)) return "в сводке нет строки «спарено 1/3»";
+  return true;
+});
+
+step("повторный вызов моста не стирает inputs.json первого вызова (в него дописывает оркестратор)", () => {
+  const inputs = readJson(join(dirBridge, "inputs.json"));
+  if (!inputs.analysis_dir) return "analysis_dir пропал после --from-draft";
+  if (inputs.tier !== "seo") return `tier потерян: ${inputs.tier}`;
+  return true;
+});
+
+step("--from-draft: slug стабилен между прогонами (на нем висят blueprints/ и pages/)", () => {
+  const before = readJson(join(dirBridge, "pages.json")).pages.map((p) => p.slug).join(",");
+  const r = run([READ_INPUT, dirBridge, "--from-draft", draftPath]);
   if (r.code !== 0) return `повторный прогон: exit ${r.code}`;
-  const after = readJson(join(dirBrief, "pages.json")).pages.map((p) => p.slug).join(",");
+  const after = readJson(join(dirBridge, "pages.json")).pages.map((p) => p.slug).join(",");
   if (before !== after) return `slug поехали: ${before} -> ${after}`;
   return true;
 });
 
-step("--from-brief: все страницы сняты -> exit 2 (контракт «нет целевых»)", () => {
-  const dirEmpty = join(SANDBOX, "empty");
+step("--from-draft: все страницы сняты -> exit 2 (контракт «нет целевых»)", () => {
+  const dirEmpty = join(SANDBOX, "bridge-empty");
   mkdirSync(dirEmpty, { recursive: true });
   const p = join(dirEmpty, "pages_draft.json");
-  writeFileSync(p, JSON.stringify(draft(PAGES_OK.map((x) => ({ ...x, include: "нет" })))), "utf8");
-  const r = run([READ_INPUT, dirEmpty, "--from-brief", p]);
+  writeFileSync(p, JSON.stringify(draft(DRAFT_PAGES.map((x) => ({ ...x, include: "нет" })))), "utf8");
+  const r = run([READ_INPUT, dirEmpty, "--from-draft", p]);
   if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
   if (existsSync(join(dirEmpty, "pages.json"))) return "pages.json создан при пустом составе";
   return true;
 });
 
-step("--from-brief: черновика нет -> exit 1, существующий pages.json не тронут", () => {
-  const snapshot = readFileSync(join(dirBrief, "pages.json"), "utf8");
-  const r = run([READ_INPUT, dirBrief, "--from-brief", join(dirBrief, "no-such-file.json")]);
+step("--from-draft: черновика нет -> exit 1, существующий pages.json не тронут", () => {
+  const snapshot = readFileSync(join(dirBridge, "pages.json"), "utf8");
+  const r = run([READ_INPUT, dirBridge, "--from-draft", join(dirBridge, "no-such-file.json")]);
   if (r.code !== 1) return `exit ${r.code}, ожидался 1`;
-  if (readFileSync(join(dirBrief, "pages.json"), "utf8") !== snapshot) return "pages.json перезаписан при ошибке";
+  if (readFileSync(join(dirBridge, "pages.json"), "utf8") !== snapshot) return "pages.json перезаписан при ошибке";
   return true;
 });
 
-step("регресс: --from-table не сломан, source = table:", () => {
-  const dirTable = join(SANDBOX, "table");
+// Фикстура структуры: inputs.json со ссылкой на анализ + master_list с СЫРЫМИ типами
+// источника - мост обязан отдать русский словарь и спарить dir_slug сам (контракт 2.2).
+const dirStructFx = join(SANDBOX, "structure-fx");
+mkdirSync(dirStructFx, { recursive: true });
+writeFileSync(join(dirStructFx, "inputs.json"), JSON.stringify({
+  slug: "ventkazan", domain: "ventpro.ru", region_name: "Казань", region_yandex: 43,
+  analysis_dir: dirAnalysis.replace(/\\/g, "/"),
+}, null, 2), "utf8");
+writeFileSync(join(dirStructFx, "master_list.json"), JSON.stringify({ pages: [
+  { url: "/", type: "home", marker: "монтаж инженерных систем казань", name: "Главная" },
+  { url: "/otoplenie/montazh/", type: "Подуслуга", marker: "монтаж отопления в казани", name: "Монтаж отопления" },
+  { url: "https://ventpro.ru/otoplenie/", type: "Услуга", marker: "отопительные системы", name: "Отопление" },
+  { url: "/kondicionery/", type: "Кондиционеры-и-сплиты", marker: "купить кондиционер казань", name: "Кондиционеры" },
+  { url: "/stati/kak-vybrat-kotel/", type: "Статья", marker: "как выбрать котел", name: "Как выбрать котел" },
+] }, null, 2), "utf8");
+const dirBridgeS = join(SANDBOX, "bridge-structure");
+mkdirSync(dirBridgeS, { recursive: true });
+
+step("--from-structure: русские типы (home->Главная, Подуслуга->Услуга), Статья исключена", () => {
+  const r = run([READ_INPUT, dirBridgeS, "--from-structure", dirStructFx]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
+  const pages = readJson(join(dirBridgeS, "pages.json"));
+  if (!/^structure:/.test(pages.source)) return `source = ${pages.source}`;
+  if (pages.count !== 4) return `count = ${pages.count}, ожидалось 4 (5 строк - статья)`;
+  const bySlug = Object.fromEntries(pages.pages.map((p) => [p.slug, p]));
+  if (!bySlug["main"] || bySlug["main"].type !== "Главная") return `главная: ${JSON.stringify(bySlug["main"])}`;
+  if (!bySlug["otoplenie-montazh"] || bySlug["otoplenie-montazh"].type !== "Услуга") return "Подуслуга не нормализована в Услугу";
+  if (pages.pages.some((p) => /kak-vybrat/.test(p.slug))) return "Статья попала в коммерческий конвейер";
+  if (!/исключено статей: 1/.test(r.stdout)) return "в сводке нет строки про исключенную статью";
+  return true;
+});
+
+step("--from-structure: нераспознанный тип -> Инфо + предупреждение в сводке", () => {
+  const r = run([READ_INPUT, dirBridgeS, "--from-structure", dirStructFx]);
+  if (r.code !== 0) return `exit ${r.code}`;
+  const pages = readJson(join(dirBridgeS, "pages.json"));
+  const kond = pages.pages.find((p) => p.slug === "kondicionery");
+  if (!kond || kond.type !== "Инфо") return `тип кондиционеров = ${kond && kond.type}, ожидался Инфо`;
+  if (!/нераспознан/.test(r.stderr)) return "предупреждения о нераспознанном типе нет";
+  if (!r.stderr.includes("Кондиционеры-и-сплиты")) return "сырье типа не названо в предупреждении";
+  return true;
+});
+
+step("спаривание dir_slug: >= 50% токенов marker/name с marker_hint/name направления", () => {
+  const pages = readJson(join(dirBridgeS, "pages.json"));
+  const svc = pages.pages.find((p) => p.slug === "otoplenie-montazh");
+  // «монтаж отопления в казани» против «монтаж отопления под ключ»: 2 из 3 значащих токенов
+  if (!svc || svc.dir_slug !== "montazh-otopleniya") return `dir_slug = ${svc && svc.dir_slug}, ожидался montazh-otopleniya`;
+  return true;
+});
+
+step("спаривание dir_slug: совпадение url направления сильнее токенов; мимо всех -> null", () => {
+  const pages = readJson(join(dirBridgeS, "pages.json"));
+  const otop = pages.pages.find((p) => p.slug === "otoplenie");
+  // токены «отопительные системы» с направлением НЕ пересекаются - пару дает directions[].url
+  if (!otop || otop.dir_slug !== "montazh-otopleniya") return `dir_slug по url = ${otop && otop.dir_slug}`;
+  const kond = pages.pages.find((p) => p.slug === "kondicionery");
+  if (!kond || kond.dir_slug !== null) return `неспаренная страница получила dir_slug = ${kond && kond.dir_slug}`;
+  return true;
+});
+
+step("старый leader_scan без v2-полей -> leader_blocks.json НЕ создается (деградация отсутствием)", () => {
+  const dirOldA = join(SANDBOX, "analysis-old");
+  mkdirSync(dirOldA, { recursive: true });
+  writeFileSync(join(dirOldA, "meta.json"), JSON.stringify({ tier: "basic" }), "utf8");
+  writeFileSync(join(dirOldA, "brief.json"), JSON.stringify({ slug: "oldy", domain: "old.ru", region: "Казань", directions: [] }), "utf8");
+  writeFileSync(join(dirOldA, "leader_scan.json"), JSON.stringify({ leaders: [{ domain: "x.ru" }], summary: {} }), "utf8");
+  const dirT = join(SANDBOX, "bridge-old");
+  mkdirSync(dirT, { recursive: true });
+  const r = run([READ_INPUT, dirT, "--from-analysis", dirOldA]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
+  if (existsSync(join(dirT, "leader_blocks.json"))) return "leader_blocks.json создан из старого leader_scan - выжимать было нечего";
+  if (!/без v2-полей/.test(r.stdout)) return "в сводке не сказано, почему выжимки нет";
+  const inputs = readJson(join(dirT, "inputs.json"));
+  if (inputs.tier !== "basic") return `tier = ${inputs.tier}, ожидался basic`;
+  return true;
+});
+
+step("--from-table: аварийный ручной источник жив; dir_slug null (анализа нет)", () => {
+  const dirTable = join(SANDBOX, "bridge-table");
   mkdirSync(dirTable, { recursive: true });
   const csv = join(dirTable, "t.csv");
   writeFileSync(csv, "URL,Тип,Маркер\n/uslugi/,Услуга,монтаж вентиляции\n", "utf8");
@@ -245,78 +404,17 @@ step("регресс: --from-table не сломан, source = table:", () => {
   const pages = readJson(join(dirTable, "pages.json"));
   if (!/^table:/.test(pages.source)) return `source = ${pages.source}`;
   if (pages.count !== 1) return `count = ${pages.count}`;
+  if (pages.pages[0].dir_slug !== null) return `dir_slug = ${pages.pages[0].dir_slug}, ожидался null`;
   return true;
 });
 
-step("источник не задан -> exit 1 и подсказка перечисляет все 4 источника", () => {
-  const r = run([READ_INPUT, join(SANDBOX, "brief")]);
+step("источник не задан -> exit 1, подсказка перечисляет 4 источника v7 (--from-brief удален)", () => {
+  const r = run([READ_INPUT, join(SANDBOX, "no-source")]);
   if (r.code !== 1) return `exit ${r.code}, ожидался 1`;
-  for (const flag of ["--from-structure", "--from-table", "--from-analysis", "--from-brief"]) {
+  for (const flag of ["--from-structure", "--from-analysis", "--from-table", "--from-draft"]) {
     if (!r.stderr.includes(flag)) return `в подсказке нет ${flag}`;
   }
-  return true;
-});
-
-// ──────────────────────────────────────────────────────────────────────────
-console.log("");
-console.log("=== build-tekst-analysis-docx.mjs (секция «0. Состав страниц») ===");
-// ──────────────────────────────────────────────────────────────────────────
-
-function seedDocxInputs(dir) {
-  writeFileSync(join(dir, "inputs.json"), JSON.stringify({ slug: "ventkazan", brand_name: "ВентПро", niche: "монтаж вентиляции" }), "utf8");
-  writeFileSync(join(dir, "strategy.json"), JSON.stringify({
-    decisions: { positioning: { variants: ["Монтируем вентиляцию под ключ", "Инженеры вентиляции"], recommended: 0, rationale: ["прямо", "экспертно"], chosen: null } },
-    warmth_stage: 3, offer_formula: 1, selling_theses: ["Свой монтажный участок"],
-  }), "utf8");
-  writeFileSync(join(dir, "audience.json"), JSON.stringify({
-    personas: [{ name: "Владелец квартиры", age: "35-45", pains: [{ problem: "духота" }] }],
-    summary: { pains: ["душно ночью"] },
-  }), "utf8");
-}
-
-seedDocxInputs(dirBrief);
-
-step("source brief: -> секция «0. Состав страниц» есть и перечисляет страницы", () => {
-  const r = run([BUILD_DOCX, dirBrief]);
-  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
-  const { text } = docxText(join(dirBrief, "Analysis_ventkazan.docx"));
-  if (!text.includes("0. Состав страниц")) return "секции нет";
-  if (!text.includes("монтаж вентиляции в квартире")) return "страницы не перечислены";
-  if (!text.includes("Всего страниц: 3")) return "нет итоговой строки с количеством";
-  return true;
-});
-
-step("строки состава без маркера списка (иначе в Word «• 1. ...»)", () => {
-  const { text, bulletCount } = docxText(join(dirBrief, "Analysis_ventkazan.docx"));
-  // законные списки в документе - тезисы и боли ЦА; строк состава там быть не должно
-  const pagesLines = text.split("\n").filter((l) => /^\d+\. (Главная|Услуга|Контакты)/.test(l)).length;
-  if (pagesLines !== 3) return `строк состава ${pagesLines}, ожидалось 3`;
-  if (bulletCount > 4) return `маркеров списка ${bulletCount} - похоже, состав отрисован как bullet`;
-  return true;
-});
-
-step("source structure: -> секции НЕТ (состав согласован раньше, в A6)", () => {
-  const dirStruct = join(SANDBOX, "struct");
-  mkdirSync(dirStruct, { recursive: true });
-  seedDocxInputs(dirStruct);
-  const pages = readJson(join(dirBrief, "pages.json"));
-  writeFileSync(join(dirStruct, "pages.json"), JSON.stringify({ ...pages, source: "structure:structures/001-x" }), "utf8");
-  const r = run([BUILD_DOCX, dirStruct]);
-  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
-  const { text } = docxText(join(dirStruct, "Analysis_ventkazan.docx"));
-  if (text.includes("0. Состав страниц")) return "секция протекла в источник structure";
-  if (!text.includes("Решения на ВАШ выбор")) return "документ собрался неполным";
-  return true;
-});
-
-step("pages.json отсутствует -> docx собирается без падения (graceful)", () => {
-  const dirNoPages = join(SANDBOX, "nopages");
-  mkdirSync(dirNoPages, { recursive: true });
-  seedDocxInputs(dirNoPages);
-  const r = run([BUILD_DOCX, dirNoPages]);
-  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
-  const { text } = docxText(join(dirNoPages, "Analysis_ventkazan.docx"));
-  if (text.includes("0. Состав страниц")) return "секция отрисована без pages.json";
+  if (r.stderr.includes("--from-brief")) return "подсказка все еще предлагает удаленный --from-brief";
   return true;
 });
 
@@ -331,7 +429,7 @@ const VERIFY_PROTO = join(PROJECT_ROOT, ".claude/scripts/verify-prototype.mjs");
 
 // Фикстура сайта из 3 страниц: главная (документ-уровень: legal, титул), услуга,
 // категория с обязательным листингом товаров (opts.filter=true).
-// Телефон ГЛАВНОЙ пуст - типовой случай --from-brief: ассемблер обязан подставить
+// Телефон ГЛАВНОЙ пуст - типовой случай пути без SEO (--from-analysis): ассемблер обязан подставить
 // маску +7 (000) 000-00-00, а не пустой tel:. У услуги телефон нарочно ДРУГОЙ:
 // если он утечет в документ, значит ассемблер взял legal не из manifest страницы
 // main_slug, а из первой попавшейся.
@@ -672,83 +770,6 @@ step("эмодзи больше чем в одном блоке -> W (счетн
 
 // ──────────────────────────────────────────────────────────────────────────
 console.log("");
-console.log("=== build-tekst-analysis-docx.mjs (регистр + «Что нужно от вас») ===");
-// ──────────────────────────────────────────────────────────────────────────
-
-const dirReg = join(SANDBOX, "register");
-mkdirSync(dirReg, { recursive: true });
-writeFileSync(join(dirReg, "inputs.json"), JSON.stringify({ slug: "regtest", brand_name: "ВентПро", niche: "монтаж вентиляции" }), "utf8");
-writeFileSync(join(dirReg, "audience.json"), JSON.stringify({ personas: [], summary: { pains: ["душно"] } }), "utf8");
-writeFileSync(join(dirReg, "strategy.json"), JSON.stringify({
-  decisions: {
-    register: {
-      variants: [
-        "Вентиляция под ключ за 30 дней · Смета за день, цена в договоре · Рассчитать стоимость",
-        "Вентиляция производств в Казани · Свой монтажный штат, гарантия 3 года · Рассчитать смету",
-        "Ведем три объекта одновременно, больше не берем · Полный цикл, от 900 000 руб. · Обсудить объект",
-      ],
-      recommended: 1,
-      rationale: ["импульс", "средний чек", "лимит загрузки"],
-      axes: [{ a: "продающий", b: "умеренный", c: "деловой-человеческий" }, { a: "деловой", b: "умеренный", c: "деловой-человеческий" }, { a: "отбирающий", b: "функциональный", c: "официальный" }],
-      chosen: null,
-    },
-    positioning: { variants: ["Монтируем вентиляцию под ключ"], recommended: 0, rationale: ["прямо"], chosen: null },
-  },
-  selling_theses: [
-    { thesis: "Собственный конструкторский отдел", label: "гордость" },
-    { thesis: "Аттестованная лаборатория", label: "гордость", repacked: "Выходите на приемку с полным пакетом документов" },
-    { thesis: "Свой монтажный штат", label: "выгода" },
-  ],
-  proof_inventory: [
-    { proof: "Лицензия N 12345 в открытом реестре", level: 1, artifact: "реестр" },
-    { proof: "600+ сделок", level: 3 },
-  ],
-  materials_have: ["фото объектов"],
-  materials_missing: ["2-3 кейса с числами"],
-}), "utf8");
-writeFileSync(join(dirReg, "facts.json"), JSON.stringify({
-  jur: { entity: "ООО ВентПро", requisites: { inn: "", ogrn: "1234567890123", address: "[ЗАПОЛНИТЬ: юридический адрес]" } },
-  product_guarantee: { what: "монтаж вентиляции", guarantee: "[ЗАПОЛНИТЬ: формулировка гарантии]", deadlines: "14 дней", prices: "" },
-  numbers: [
-    { label: "лет на рынке", value: "", publish: "as-is" },
-    { label: "маржа", value: "", publish: "no" },
-  ],
-}), "utf8");
-
-step("регистр: три варианта первого экрана отрисованы построчно, служебные оси НЕ показаны", () => {
-  const r = run([BUILD_DOCX, dirReg]);
-  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
-  const { text } = docxText(join(dirReg, "Analysis_regtest.docx"));
-  if (!text.includes("Тон общения с клиентом")) return "секции регистра нет";
-  if (!text.includes("Вентиляция под ключ за 30 дней")) return "варианты не отрисованы";
-  if (!/кнопка/i.test(text)) return "строка «кнопка:» не выделена - вариант напечатан одной строкой";
-  for (const axis of ["продающий", "деловой-человеческий", "отбирающий", "функциональный"]) {
-    if (text.includes(axis)) return `служебная координата «${axis}» утекла заказчику`;
-  }
-  return true;
-});
-
-step("секция «Что нужно от вас» собрана из дыр facts.json + materials_missing", () => {
-  const { text } = docxText(join(dirReg, "Analysis_regtest.docx"));
-  if (!text.includes("Что нужно от вас")) return "секции нет";
-  if (!/гарант/i.test(text)) return "дыра product_guarantee.guarantee не попала";
-  if (!/ИНН|инн/.test(text)) return "пустой ИНН не попал";
-  if (!text.includes("2-3 кейса с числами")) return "materials_missing не переехали в секцию";
-  if (/маржа/i.test(text)) return "число с publish:\"no\" попало в запрос - это не дыра, а запрет на публикацию";
-  return true;
-});
-
-step("тезисы и доказательства: объекты не утекают как [object Object], «гордость» без переупаковки скрыта", () => {
-  const { text } = docxText(join(dirReg, "Analysis_regtest.docx"));
-  if (text.includes("[object Object]")) return "объект уехал в документ как [object Object]";
-  if (text.includes("Собственный конструкторский отдел")) return "непереупакованная «гордость продавца» показана заказчику";
-  if (!text.includes("Выходите на приемку с полным пакетом документов")) return "переупакованный тезис потерян";
-  if (!/проверяемо третьей стороной/i.test(text)) return "уровень доказательства не отрисован";
-  return true;
-});
-
-// ──────────────────────────────────────────────────────────────────────────
-console.log("");
 console.log("=== verify-copy.mjs (греп-слой правил текста: только предупреждения) ===");
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -803,17 +824,20 @@ step("предложение длиннее 20 слов -> W (читаемост
   return true;
 });
 
-step("регистр отбирающий: перебор мест с CTA -> W, сборку не блокирует", () => {
-  const dir = join(SANDBOX, "copy", "reg-cta");
+// Регистр НОВОЙ формы (контракт 3.2): { tone_id, axes: {a,b,c}|null, source }.
+// axes заполняет оркестратор после тон-гейта копией осей выбранного tone_candidate.
+// Старый разбор (chosen-индекс -> axes[индекс] -> recommended) МЕРТВ - легаси-веток нет.
+let regCase = 0;
+function registerPage(register) {
+  const dir = join(SANDBOX, "copy", `reg${++regCase}`);
   const pageDir = join(dir, "pages", "test");
   mkdirSync(pageDir, { recursive: true });
   writeFileSync(join(dir, "inputs.json"), JSON.stringify({ brand_name: "ВентПро" }), "utf8");
-  writeFileSync(join(dir, "strategy.json"), JSON.stringify({
-    decisions: { register: { variants: ["a", "b", "c"], recommended: 1, axes: [{ a: "продающий" }, { a: "деловой" }, { a: "отбирающий" }], chosen: 2 } },
-  }), "utf8");
+  writeFileSync(join(dir, "strategy.json"), JSON.stringify({ decisions: { register } }), "utf8");
   writeFileSync(join(pageDir, "page.json"), JSON.stringify({
     page: { slug: "test", title: "Монтаж вентиляции в Казани", description: "Монтируем вентиляцию под ключ, гарантия 3 года." },
     h1: "Монтаж вентиляции в Казани",
+    // 4 места с CTA - перебор для отбирающего (лимит 1-2); срабатывание видно только при применившемся регистре
     blocks: [
       { n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", subhead: "Ведем три объекта одновременно", cta_label: "Получить расчет" } },
       { n: 2, type: "CTA", fragment: "cta-mid", slots: { cta_label: "Получить смету" } },
@@ -821,10 +845,28 @@ step("регистр отбирающий: перебор мест с CTA -> W, 
       { n: 4, type: "Форма", fragment: "form", slots: { cta_label: "Оставить заявку" } },
     ],
   }), "utf8");
-  const r = run([VERIFY_COPY, pageDir]);
+  return pageDir;
+}
+
+step("register новой формы {tone_id, axes, source}: ось А «отбирающий» применяется, перебор CTA -> W", () => {
+  const r = run([VERIFY_COPY, registerPage({ tone_id: "t3", axes: { a: "отбирающий", b: "функциональный", c: "официальный" }, source: "tone-gate" })]);
   if (r.code !== 0) return `exit ${r.code}, ожидался 0 (регистр только предупреждает)`;
   if (!/CTA/i.test(r.stdout)) return "предупреждения про число мест с CTA нет";
-  if (!/отбирающ/i.test(r.stdout)) return "регистр не назван в предупреждениях";
+  if (!/отбирающ/i.test(r.stdout)) return "ось А из register.axes не применена - регистр не назван";
+  return true;
+});
+
+step("register с source pending (тон не выбран, axes null) -> слой молчит, деловой дефолт у писателя", () => {
+  const r = run([VERIFY_COPY, registerPage({ tone_id: null, axes: null, source: "pending" })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0`;
+  if (/регистр/i.test(r.stdout)) return "слой регистра сработал при невыбранном тоне";
+  return true;
+});
+
+step("старая форма register (массив axes + chosen-индекс) не разбирается - легаси-ветка мертва", () => {
+  const r = run([VERIFY_COPY, registerPage({ variants: ["a", "b", "c"], recommended: 1, axes: [{ a: "продающий" }, { a: "деловой" }, { a: "отбирающий" }], chosen: 2 })]);
+  if (r.code !== 0) return `exit ${r.code}, ожидался 0`;
+  if (/регистр/i.test(r.stdout)) return "старая форма register применилась - по контракту 3.2 ее разбор удален";
   return true;
 });
 
@@ -1040,7 +1082,7 @@ step("F2: waiver без source игнорируется и об этом СОО�
 step("waiver со списком правил в одном поле («F1|F2|F3|F4») не применяется молча", () => {
   const r = run([VERIFY_COPY, floorPage({
     blocks: [HERO_NO_SUB],
-    waivers: [{ page: "test", rule: "F1|F2|F3|F4", why: "шаблон скопирован дословно", source: "decisions.register.chosen" }],
+    waivers: [{ page: "test", rule: "F1|F2|F3|F4", why: "шаблон скопирован дословно", source: "decisions.register.tone_id" }],
   })]);
   if (r.code !== 2) return `exit ${r.code}, ожидался 2: список правил в одном поле снял нарушение`;
   if (!/waiver не применён/.test(r.stdout)) return "не сказано, что waiver не разобран - это молчащий обход пола";
@@ -1186,6 +1228,53 @@ step("F1: product-gallery считается первым экраном (у к�
   })]);
   if (r.code !== 0) return `exit ${r.code}: product-gallery не зачтён как первый экран: ${r.stdout}`;
   if (/пол F1/.test(r.stdout)) return "F1 сработал на карточке товара";
+  return true;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== verify-copy.mjs --root: тон-варианты главной (контракт 3.4) ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+// Тон-гейт: три варианта главной лежат в tone/pages/main--tN/, а общие файлы задачи
+// (blueprints/main.json, meta.json с waiver, facts.json, strategy.json) - в корне texts/NNN.
+// Оркестратор обязан передать корень параметром --root; blueprint и waiver ищутся по слагу
+// страницы из page.json ("main"), а не по имени папки варианта ("main--t1").
+const dirToneRoot = join(SANDBOX, "tone-root");
+const toneVarDir = join(dirToneRoot, "tone", "pages", "main--t1");
+mkdirSync(toneVarDir, { recursive: true });
+mkdirSync(join(dirToneRoot, "blueprints"), { recursive: true });
+writeFileSync(join(dirToneRoot, "inputs.json"), JSON.stringify({ brand_name: "ВентПро" }), "utf8");
+// публикуемые числа есть -> пол F2 в жесткой ветке; без waiver страница ниже не прошла бы
+writeFileSync(join(dirToneRoot, "facts.json"), JSON.stringify({ numbers: [{ label: "объектов сдано", value: "137", publish: "as-is" }] }), "utf8");
+// на тон-гейте тон еще не выбран - register штатно pending (контракт 3.2)
+writeFileSync(join(dirToneRoot, "strategy.json"), JSON.stringify({ decisions: { register: { tone_id: null, axes: null, source: "pending" } } }), "utf8");
+writeFileSync(join(dirToneRoot, "meta.json"), JSON.stringify({
+  state: "tone-written",
+  selling_floor_waivers: [{ page: "main", rule: "F2", why: "заказчик снял цифры со страниц", source: "strategy.materials_missing[кейсы с числами]" }],
+}), "utf8");
+writeFileSync(join(dirToneRoot, "blueprints", "main.json"), JSON.stringify({
+  page: { slug: "main" },
+  blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", limits: { h1: "20-60" } }],
+}), "utf8");
+// вариант тона: Hero без подзаголовка - штатное срабатывание пола F2, снятое waiver'ом page=main
+writeFileSync(join(toneVarDir, "page.json"), JSON.stringify({
+  page: { slug: "main", title: "Монтаж вентиляции в Казани", description: "Монтируем вентиляцию под ключ, гарантия 3 года.", type: "Главная", url: "/" },
+  h1: "Монтаж вентиляции в Казани",
+  blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", cta_label: "Рассчитать стоимость" } }],
+}, null, 2), "utf8");
+
+step("--root: blueprint main.json найден по слагу страницы, waiver page=main применен -> exit 0", () => {
+  const r = run([VERIFY_COPY, toneVarDir, "--root", dirToneRoot]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
+  if (/blueprint не найден/.test(r.stdout)) return "blueprint main.json не найден - --root не довел до blueprints/ корня задачи";
+  if (!/waiver/.test(r.stdout)) return "в отчете не видно, что пол F2 снят waiver'ом page=main";
+  return true;
+});
+
+step("без --root тон-вариант слеп: корень угадан от папки варианта и blueprint теряется", () => {
+  const r = run([VERIFY_COPY, toneVarDir]);
+  if (!/blueprint не найден/.test(r.stdout)) return "blueprint нашелся без --root - раскладка tone/pages/ изменилась, проверь контракт 3.4";
   return true;
 });
 

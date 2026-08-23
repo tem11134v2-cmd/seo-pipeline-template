@@ -4,16 +4,28 @@
 // ДО сборки HTML (жаргон+утечка кухни, манипуляции, H1, эмодзи, тире, лимиты слотов).
 // Смысл, удар в боль ЦА, регистр и штампы добивает агент copy-auditor (анти-ИИ-детект тут НЕ делаем - ADR-022).
 //
-// Использование: node verify-copy.mjs <page_dir|page.json>
+// Использование: node verify-copy.mjs <page_dir|page.json> [--root <texts_dir>]
+//   --root - корень задачи texts/NNN: оттуда читаются общие файлы (inputs.json, facts.json,
+//   strategy.json, meta.json, pages.json, blueprints/). Без --root корень берется на два
+//   уровня выше page.json - штатная раскладка pages/<slug>/. Тон-варианты лежат глубже
+//   (tone/pages/main--tN/), для них оркестратор передает --root обязательно.
 // Exit: 0 ok | 2 нарушения | 1 фатально (нет page.json).
 
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, resolve, dirname, basename } from "node:path";
 
-const arg = process.argv[2] ? resolve(process.argv[2]) : null;
-if (!arg) { console.error("[verify-copy] usage: <page_dir|page.json>"); process.exit(1); }
+const argv = process.argv.slice(2);
+let pageArg = null, rootArg = null;
+for (let i = 0; i < argv.length; i++) {
+  if (argv[i] === "--root") rootArg = argv[++i] || null;
+  else if (!pageArg) pageArg = argv[i];
+}
+const arg = pageArg ? resolve(pageArg) : null;
+if (!arg) { console.error("[verify-copy] usage: <page_dir|page.json> [--root <texts_dir>]"); process.exit(1); }
 const pjPath = existsSync(arg) && statSync(arg).isDirectory() ? join(arg, "page.json") : arg;
 if (!existsSync(pjPath)) { console.error(`[verify-copy] нет page.json: ${pjPath}`); process.exit(1); }
+// корень задачи: единая точка для всех общих файлов ниже по коду
+const taskRoot = rootArg ? resolve(rootArg) : resolve(join(dirname(pjPath), "..", ".."));
 let page;
 try { page = JSON.parse(readFileSync(pjPath, "utf8").replace(/^﻿/, "")); }
 catch (e) { console.error(`[verify-copy] page.json не разобран (${pjPath}): ${e.message}`); process.exit(1); }
@@ -77,7 +89,7 @@ if (jargHard.length) V(`п.2 утечка внутренней кухни в т�
 const jargSoft = (low.match(/(?<![а-яёa-z0-9_])(конверси[а-яё]*|сегмент[а-яё]*|персонаж|аватар|оффер|воронк[а-яё]*|утп)(?![а-яёa-z0-9_])/gi) || []);
 if (jargSoft.length) W(`п.2 похоже на жаргон маркетолога: ${[...new Set(jargSoft)].join(", ")} - проверь контекст ниши: у этих слов есть легальные отраслевые значения (конверсия метана, сегмент трубы, аватар пользователя). Если термин отраслевой - оставить`);
 // 3. аббревиатуры в H1 (латиница/кириллица заглавными 2-5, кроме бренда из inputs.json)
-const inputsPath = join(dirname(pjPath), "..", "..", "inputs.json");
+const inputsPath = join(taskRoot, "inputs.json");
 let brand = "";
 try { if (existsSync(inputsPath)) brand = String(JSON.parse(readFileSync(inputsPath, "utf8").replace(/^﻿/, "")).brand_name || "").toUpperCase(); } catch {}
 const abbrH1 = (h1.match(/(?<![А-ЯЁA-Z0-9])[А-ЯЁA-Z]{2,5}(?![А-ЯЁA-Z0-9])/g) || []).filter((a) => !brand.includes(a) && !/^(ГОСТ|ТУ|РФ|СПБ)$/.test(a));
@@ -93,7 +105,7 @@ const URGENCY = /только сегодня|осталось \d+ мест|ус�
 const HAS_DATE = /\d{1,2}\.\d{1,2}(?:\.\d{2,4})?|\d{1,2}\s*(?:январ|феврал|март|апрел|ма[йя]|июн|июл|август|сентябр|октябр|ноябр|декабр)[а-яё]*/i;
 // заявка о дефиците: «осталось 3 места», «остались 2 комплекта», «осталось всего 5 позиций»
 const SCARCITY = /остал(?:ось|о|ись|ся)\s+(?:всего\s+|лишь\s+|последн[а-яё]+\s+)?(\d+)\s*(?:мест|шт|штук|позиц|слот|комплект|пакет)/i;
-const factsPath = join(dirname(pjPath), "..", "..", "facts.json");
+const factsPath = join(taskRoot, "facts.json");
 let facts = null;
 try { if (existsSync(factsPath)) facts = JSON.parse(readFileSync(factsPath, "utf8").replace(/^﻿/, "")); } catch { facts = null; }
 // остаток настоящий, только если ЭТО ЖЕ число лежит в facts.json под меткой про остаток/места/квоту
@@ -370,8 +382,11 @@ function parseScalarLimit(lim) {
 
 // сверка длин scalar-слотов с limits из blueprint (диапазон, в том числе с пояснением; несущее ограничение вёрстки).
 // V лишь при превышении верхней границы более чем на 15% (ломает вёрстку); недобор/превышение до 15% - W.
+// Слаг страницы - из page.json, а не из имени папки: у тон-вариантов папка называется
+// main--tN, но страница в ней - main, и blueprint у всех трех один (blueprints/main.json).
+// Тем же слагом ниже ищется waiver продающего пола. Имя папки - только запасной вариант.
 const pageSlug = String((page.page && page.page.slug) || basename(dirname(pjPath)));
-const bpPath = join(dirname(pjPath), "..", "..", "blueprints", `${pageSlug}.json`);
+const bpPath = join(taskRoot, "blueprints", `${pageSlug}.json`);
 if (!existsSync(bpPath)) {
   W(`blueprint не найден (blueprints/${pageSlug}.json) - длины слотов не сверены`);
 } else {
@@ -388,7 +403,7 @@ if (!existsSync(bpPath)) {
     // -----------------------------------------------------------------------
     let recipe = null;
     try {
-      const sPath = join(dirname(pjPath), "..", "..", "strategy.json");
+      const sPath = join(taskRoot, "strategy.json");
       if (existsSync(sPath)) recipe = JSON.parse(readFileSync(sPath, "utf8").replace(/^﻿/, "")).offer_formula_recipe;
     } catch { recipe = null; }
     const poFilled = bp.page_offer && typeof bp.page_offer === "object" && !Array.isArray(bp.page_offer)
@@ -544,46 +559,32 @@ if (!existsSync(bpPath)) {
 }
 
 // ---------------------------------------------------------------------------
-// Слой РЕГИСТРА (пятое смысловое решение заказчика). Источник - strategy.json на
-// два уровня выше page.json (там же, где inputs.json).
-// Читаем МЯГКО: нет файла / нет ключа / регистр не разложен в координаты - слой
-// молча не выполняется, без предупреждений об этом (штатная ситуация: старые
-// задачи и задачи без регистра).
-// Регистр РАСШИРЯЕТ разрешённое, но НЕ сужает запрещённое, поэтому весь слой -
-// только предупреждения (W): exit 2 отсюда невозможен. Жёсткие V-проверки выше
-// (утечка кухни, тире, ё, манипуляции без даты, лимиты H1) от регистра не зависят.
+// Слой РЕГИСТРА (пятое смысловое решение заказчика). Источник - strategy.json
+// в корне задачи. Форма v7 (ADR-034, тон-гейт):
+//   decisions.register = { "tone_id": "t2"|null, "axes": {"a":"…","b":"…","c":"…"}|null,
+//                          "source": "tone-gate" | "recommended" | "pending" }
+// axes заполняет оркестратор по итогам тон-гейта (копия осей выбранного tone_candidate).
+// Нет файла / нет register / axes = null (тон еще не выбран) - деловой дефолт:
+// слой молча не выполняется, деловой регистр писатели держат сами (ADR-034 п.8).
+// Регистр РАСШИРЯЕТ разрешенное, но НЕ сужает запрещенное, поэтому весь слой -
+// только предупреждения (W): exit 2 отсюда невозможен. Жесткие V-проверки выше
+// (утечка кухни, тире, буква е-с-точками, манипуляции без даты, лимиты H1) от регистра не зависят.
 // ---------------------------------------------------------------------------
 const A_VOCAB = ["продающий", "деловой", "отбирающий"];       // ось А: кто кого выбирает
 const B_VOCAB = ["функциональный", "умеренный", "образный"];  // ось Б: образность
-const strategyPath = join(dirname(pjPath), "..", "..", "strategy.json");
+const strategyPath = join(taskRoot, "strategy.json");
 let axisA = "", axisB = "";
 try {
   if (existsSync(strategyPath)) {
     const strategy = JSON.parse(readFileSync(strategyPath, "utf8").replace(/^﻿/, ""));
     const reg = (strategy && strategy.decisions && strategy.decisions.register) || null;
-    const int = (x) => (typeof x === "number" && Number.isInteger(x) ? x : null);
-    // индекс варианта: выбор заказчика (число) -> свой текст заказчика (строка; координаты
-    // известны только через axes_from) -> не выбрано (null) -> recommended.
-    let idx = null;
-    if (reg) {
-      if (int(reg.chosen) != null) idx = int(reg.chosen);
-      else if (typeof reg.chosen === "string") idx = int(reg.axes_from);
-      else if (reg.chosen == null) idx = int(reg.recommended);
-    }
-    const ax = idx != null ? arr(reg.axes)[idx] : null;
-    if (ax && typeof ax === "object" && !Array.isArray(ax)) {
-      // ключ оси может называться иначе - подстрахуемся распознаванием по словарю значений
-      const pick = (key, vocab) => {
-        const direct = String(ax[key] == null ? "" : ax[key]).trim().toLowerCase();
-        if (vocab.includes(direct)) return direct;
-        for (const v of Object.values(ax)) {
-          const s = String(v == null ? "" : v).trim().toLowerCase();
-          if (vocab.includes(s)) return s;
-        }
-        return "";
-      };
-      axisA = pick("a", A_VOCAB);
-      axisB = pick("b", B_VOCAB);
+    const axes = reg && reg.axes && typeof reg.axes === "object" && !Array.isArray(reg.axes) ? reg.axes : null;
+    if (axes) {
+      // значение вне словаря (опечатка, чужое слово) = ось не распознана, ее проверки не идут
+      const norm = (x) => String(x == null ? "" : x).trim().toLowerCase();
+      const a = norm(axes.a), b = norm(axes.b);
+      axisA = A_VOCAB.includes(a) ? a : "";
+      axisB = B_VOCAB.includes(b) ? b : "";
     }
   }
 } catch { /* мягко: битый strategy.json не мешает проверке текста */ }
@@ -630,7 +631,7 @@ for (let i = 0; i < blocks.length; i++) {
 // Машине отдано только грепаемое - наличие первого экрана, наличие места с целевым
 // действием, стоп-лист надписей, цифра в первом экране. Суждение «продаёт ли» - у tekst-verifier.
 // ---------------------------------------------------------------------------
-const metaPath = join(dirname(pjPath), "..", "..", "meta.json");
+const metaPath = join(taskRoot, "meta.json");
 let waivers = [];
 try {
   if (existsSync(metaPath)) waivers = arr(JSON.parse(readFileSync(metaPath, "utf8").replace(/^﻿/, "")).selling_floor_waivers);
@@ -654,7 +655,7 @@ function waiverFor(rule) {
   return null;
 }
 // неразобранные waiver: молчащий waiver хуже отсутствующего - оркестратор считает пол снятым
-const pagesJsonPath = join(dirname(pjPath), "..", "..", "pages.json");
+const pagesJsonPath = join(taskRoot, "pages.json");
 let knownSlugs = null;
 try {
   if (existsSync(pagesJsonPath)) {

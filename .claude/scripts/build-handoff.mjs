@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // build-handoff.mjs
-// Техническая записка передачи прототипов на дизайн-этап и партнёру-разработчику.
-// Кладётся рядом с prototype.html и прикладывается к ним при передаче.
+// Техническая записка передачи прототипа на дизайн-этап и партнеру-разработчику.
+// Лежит в корне задачи рядом с prototype.html и прикладывается к нему при передаче.
 //
 // ВАЖНО: язык документа - дизайн-этап, а НЕ заказчик. Здесь допустимы термины
 // («блок», «функция блока», «слот», «валидатор»), которых на сайте быть не может.
@@ -12,7 +12,7 @@
 //
 // Вход:  <texts_dir>/pages/<slug>/page.json  (обязательно, хотя бы одна страница)
 //        <texts_dir>/blueprints/<slug>.json  (опц.: function, function_why, status, placeholder, limits, mode)
-//        <texts_dir>/strategy.json           (опц.: materials_missing, decisions)
+//        <texts_dir>/strategy.json           (опц.: materials_missing, decisions.register, tone_candidates)
 //        <texts_dir>/facts.json              (опц.: lexicon.locked + source / lexicon.canonical + origin)
 //        <texts_dir>/meta.json               (опц.: state, updated, selling_floor_waivers)
 // Выход: <texts_dir>/HANDOFF.md
@@ -245,31 +245,27 @@ const waiversAll = arr(meta.selling_floor_waivers).filter((w) => w && typeof w =
 const waiverRule = (w) => String(w.rule == null ? "" : w.rule).trim().toUpperCase();
 const waivers = waiversAll.filter((w) => s(w.source) && Object.prototype.hasOwnProperty.call(FLOOR_RULES, waiverRule(w)));
 
-// Вариант решения может прийти строкой (канон) или объектом - объект не должен уехать
-// в записку как [object Object] (та же логика, что в build-tekst-analysis-docx.mjs).
-const variantText = (v) => {
-  if (v == null) return "";
-  if (typeof v !== "object") return s(v);
-  const screen = [v.h1, v.subhead ?? v.sub, v.cta_label ?? v.cta].map(s).filter(Boolean);
-  if (screen.length) return screen.join(" · ");
-  const fallback = [v.text, v.variant, v.value, v.wording, v.label].find((x) => typeof x === "string" && x.trim());
-  return s(fallback);
-};
-
-// выбранный регистр из strategy.decisions.register (опц.): chosen - индекс или своя строка
+// выбранный регистр (тон) текста из strategy.decisions.register - форма v7:
+// { tone_id, axes: {a,b,c}, source: "tone-gate" | "recommended" | "pending" }.
+// Имя тона берется из strategy.tone_candidates по tone_id; оси - из register
+// (туда их копирует оркестратор при выборе), при их отсутствии - из карточки
+// кандидата. source "pending" (тон-гейт еще не пройден) оставляет tone_id
+// пустым - строка не печатается.
 function registerLine() {
   const d = (strategy.decisions || {}).register;
-  if (!d) return "";
-  const ch = d.chosen;
-  if (typeof ch === "string" && ch.trim()) return ch.trim();
-  const idx = Number.isInteger(ch) ? ch : (Number.isInteger(d.recommended) ? d.recommended : -1);
-  const v = arr(d.variants)[idx];
-  const ax = arr(d.axes)[idx];
-  const label = ax ? [ax.a, ax.b, ax.c || ax.v].map(s).filter(Boolean).join(" / ") : "";
-  const pick = variantText(v);
-  if (!pick && !label) return "";
-  const suffix = Number.isInteger(ch) || typeof ch === "string" ? "" : " (рекомендация стратега, заказчик оставил на наше усмотрение)";
-  return (label ? `${label} - ` : "") + (pick ? `«${pick}»` : "") + suffix;
+  if (!d || typeof d !== "object") return "";
+  const toneId = s(d.tone_id);
+  if (!toneId) return "";
+  const cand = arr(strategy.tone_candidates).find((c) => c && typeof c === "object" && s(c.tone_id) === toneId) || {};
+  const name = s(cand.name);
+  const axSrc = [d.axes, cand.axes].find((x) => x && typeof x === "object") || null;
+  const label = axSrc ? [axSrc.a, axSrc.b, axSrc.c].map(s).filter(Boolean).join(" / ") : "";
+  if (!name && !label) return "";
+  const src = s(d.source);
+  const suffix = src === "tone-gate" ? " (выбор заказчика на тон-гейте)"
+    : src === "recommended" ? " (рекомендация стратега, заказчик оставил на наше усмотрение)"
+      : "";
+  return (name ? `«${name}»` : toneId) + (label ? ` - оси: ${label}` : "") + suffix;
 }
 
 // ---------- сборка markdown ----------
@@ -290,7 +286,7 @@ push("Черно-белый вид - намеренный: пока обсужд
 // Пишем по факту меты: пауза бывает только в режиме review и только после шага «тексты клиенту».
 const steps = arr(meta.completed_steps).map(s);
 const reviewMode = /review/i.test(s(meta.mode)) || meta.review === true;
-const textsShown = steps.includes("texts-shared") || ["texts-shared", "prototypes-built", "completed"].includes(s(meta.state));
+const textsShown = steps.includes("texts-shared") || ["texts-shared", "prototype-built", "completed"].includes(s(meta.state));
 const APPROVED = reviewMode && textsShown;
 const CHECKED = "Тексты прошли копи-валидатор (стоп-слова, лимиты слотов, запреты стиля)";
 push(`Собрано: страниц - ${pages.length}, блоков - ${blockCount}. ${CHECKED}` + (APPROVED
@@ -313,7 +309,13 @@ if (accepted.length) {
 }
 const reg = registerLine();
 if (reg) push(`Выбранный регистр текста: ${reg}`, "");
-push("Состав файлов на страницу: `prototype.html` - сам прототип, `page.json` - те же тексты в структурированном виде (машиночитаемый источник для верстки).", "");
+// Контекст тон-гейта: заказчик выбирал манеру по 3 полным вариантам главной (записка - meta.tone_gate).
+const toneGate = meta.tone_gate && typeof meta.tone_gate === "object" ? meta.tone_gate : null;
+if (toneGate && (toneGate.chosen_tone_id || toneGate.note)) {
+  if (toneGate.chosen_tone_id) push(`Тон выбран заказчиком на тон-гейте (вариант ${s(toneGate.chosen_tone_id)}${toneGate.feedback ? `; правки: ${s(toneGate.feedback)}` : ""}).`, "");
+  if (toneGate.note) push("Записка тон-гейта (что показывали заказчику вместе с вариантами):", "", `> ${s(toneGate.note).replace(/\n/g, "\n> ")}`, "");
+}
+push("Состав файлов: один `prototype.html` в корне задачи - весь сайт одним файлом (стартовая страница-список, каждая страница - секция). На каждую страницу в `pages/<slug>/`: `render.html` - отрендеренные блоки страницы (промежуточная сборка, из которой собирается общий файл) и `page.json` - те же тексты в структурированном виде (машиночитаемый источник для верстки).", "");
 
 // 2 --------------------------------------------------------------------------
 push("## 2. Что сохранить дословно", "");
