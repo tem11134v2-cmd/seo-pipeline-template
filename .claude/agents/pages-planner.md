@@ -227,7 +227,7 @@ tools: Read, Write
       "confidence": "high|low",
       "note": "" }
   ],
-  "questions": [ { "key":"", "header":"", "question":"", "why":"", "options":[{"label":"","description":""}] } ],
+  "questions": [ { "key":"", "header":"", "question":"", "why":"", "options":[{"label":"","description":""}], "answer": null } ],
   "missing_facts": [ { "field":"", "ask":"", "impact":"" } ],
   "notes": "1-3 строки: почему такой состав, что осталось нерешенным"
 }

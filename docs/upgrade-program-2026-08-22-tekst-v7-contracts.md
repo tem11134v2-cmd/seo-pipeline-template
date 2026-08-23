@@ -429,10 +429,10 @@ pages-built = повторный вызов моста по pages_draft (см. 2
 
 | Артефакт / поле | Пишет | Читают |
 |---|---|---|
-| meta.json.tier (analiz) | оркестратор analiz | все ступени, validate v2, /seo-struktura (гейт), мост, /share-analysis, /status |
+| meta.json.tier (analiz) | оркестратор analiz | все ступени, validate v2, /seo-struktura (гейт), мост, /share-analysis (/status родительского репо tier пока не показывает - вне рамок) |
 | brief.json.directions[] (вкл. url) | brief-structurer | audience-analyst, direction-scanner, pages-planner v2, мост, analysis-writer, offer-strategist |
 | brief.json Keyso-поля (tier=seo) | brief-structurer (ступень 1) | competitor-finder, leader-scanner v2, serp-verdict, /seo-struktura, /seo-tehaudit |
-| analyses/audience.json | audience-analyst | offer-strategist, block-planner (summary), page-writer (summary+сегменты по dir_slug), copy-auditor (summary), prototype-fixer, pages-planner v2 (сегменты для состава), analysis-writer (A2 ЦА + wordings), analysis-verifier, /seo-struktura (опц.), оркестратор tekst (wordings->lexicon) |
+| analyses/audience.json | audience-analyst | offer-strategist, block-planner (summary), page-writer (summary+сегменты по dir_slug), copy-auditor (summary), prototype-fixer, pages-planner v2 (сегменты для состава), analysis-writer (A2 ЦА + wordings), analysis-verifier, /seo-struktura (опц. - НЕ реализовано, кандидат первого v7-прогона), оркестратор tekst (wordings->lexicon) |
 | leader_scan.blocks_by_type + features_to_steal | leader-scanner v2 | analysis-writer, мост (выжимка) -> block-planner, offer-strategist |
 | analyses/recon/<dir_slug>.json | direction-scanner | analysis-writer, block-planner, page-writer (по dir_slug, без facts_seen), offer-strategist (offers_seen), pages-planner v2 |
 | recon.own_page (blocks, facts_seen) | direction-scanner (ступень 3) | block-planner (blocks); facts_seen -> цикл A2 -> оркестратор analiz дописывает intake.json |

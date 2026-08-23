@@ -139,7 +139,7 @@ Exit 2 - нет целевых страниц (структура/таблица
 **После скрипта - оркестратор, вручную:**
 - **legal-блок `inputs.json`** (`company, inn, ogrn, address, domain, email, phone, date` + `schedule`) - из `analyses/intake.json` (факты `requisites`, `contacts_geo`), фолбэк `ЗАКАЗЧИК.md`, чего нет - плейсхолдеры `[... - требует уточнения]`. Мотив «оркестратор, не скрипт»: intake хранит факты с провенансом и конфликтами - выбор действующего юрлица и актуального телефона требует суждения.
 - **Реквизиты - в ДВА места одним ходом:** `facts.json.jur` (источник истины) И legal-блок `inputs.json` (оттуда их берет прототип: футер, cookie, юр-страницы, tel:-ссылка). Записано только в facts - в прототипе останется заглушка телефона и пустой ИНН. Расхождение двух мест недопустимо: правишь реквизит - правишь оба файла в один заход.
-- **`inputs.json.region_yandex`** - если мост оставил null (путь --from-analysis: brief несет имя региона, не код) - дописать код Яндекса ЧИСЛОМ по `region_name` (справочник - PLAYBOOK р.8 в assets /seo-metategi); без кода jm_wordstat стратега тихо выродится в федеральную частотность.
+- **`inputs.json.region_yandex`** - если мост оставил null (путь --from-analysis: brief несет имя региона, не код) - дописать код Яндекса ЧИСЛОМ по `region_name` (справочник - `.claude/skills/seo-metategi/PLAYBOOK.md` р.8); без кода jm_wordstat стратега тихо выродится в федеральную частотность.
 
 `update-meta.sh <texts_dir> bridge-done`. `pages.json` непустой -> шаг 3; пустой -> шаг 2.
 
@@ -159,7 +159,7 @@ project_root: <корень проекта>
 **2b. ГЕЙТ (обязательный).** Оркестратор:
 1. Таблица состава в чат: `№ | Название (маркер) | Тип | dir_slug | откуда`. Страницы `confidence:"low"` пометить.
 2. `questions` из `pages_draft.json` -> **AskUserQuestion** (до 4 за раз, поля почти дословно). Вопросов нет - один вопрос «состав ок или правим?».
-3. Ответы применить к `pages_draft.json` (снятые - `include:"нет"`, добавленные дописать; страница нового направления - только после явного «да» заказчика). `update-meta.sh <texts_dir> pages-approved`.
+3. Ответы применить к `pages_draft.json` (снятые - `include:"нет"`, добавленные дописать; страница нового направления - только после явного «да» заказчика) и ЗАФИКСИРОВАТЬ: у каждого отвеченного вопроса `questions[].answer = "<ответ>"` (машинный признак для resume - отвеченное не переспрашивается). `update-meta.sh <texts_dir> pages-approved`.
 
 **2c. Финал состава - повторный вызов моста:**
 ```
@@ -230,7 +230,7 @@ note: "<note кандидата дословно - оттенок: что уси
 **5d. Сборка превью.** `prototype-builder` x3 (веер, без маркеров): `texts_dir`, `page_dir: tone/pages/<main_slug>--tN/` - пишет `manifest.json` (включая doc-уровень: legal из inputs.json, титул/мета) и гонит `build-prototype.mjs <page_dir>` -> `render.html`. Затем оркестратор пишет `tone/site_manifest.json`:
 ```json
 { "pages": [ { "slug": "<main_slug>--t1", "title": "Вариант 1 - <name>", "type": "Главная", "order": 1 } ],
-  "start": "__index", "main_slug": "<main_slug>--t<recommended>" }
+  "start": "__index", "main_slug": "<main_slug>--<tone_id рекомендованного кандидата>" }
 ```
 и собирает превью:
 ```

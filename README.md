@@ -16,12 +16,12 @@
   /seo-tehaudit <domain> -> A12.md + A12.docx (проблемы по приоритетам + чеклист разработчику)
 
 ТРЕК «Коммерческое SEO» (коммерческие страницы сайта, от брифа; /seo-shablon НЕ нужен)
-  1. /seo-analiz        -> A2.md + A3.md (предпроектный анализ конкурентов)
+  1. /seo-analiz        -> A2.md (+ A3.md при tier=seo) (ступенчатый предпроектный анализ)
   2. /seo-struktura NNN -> A6.xlsx -> клиент -> A6.md (структура сайта)
        └─ с --metatags в конце автоматически -> A7.xlsx (метатеги)
   3. /seo-metategi      -> A7.xlsx (H1/Title/Description; или хвостом из шага 2)
-  4. /seo-tekst         -> Texts.docx (Google Doc) + prototype.html на страницу
-       (продающие тексты + HTML-прототип; согласование анализа ЦА с клиентом)
+  4. /seo-tekst         -> Texts.docx (Google Doc) + prototype.html ОДНИМ файлом на весь сайт
+       (продающие тексты; тон-гейт - выбор манеры заказчиком на 3 вариантах живой главной)
        └─ /seo-tekst-fix NNN "..." - точечная правка прототипа
   5. /seo-faq           -> faq.html (Schema.org FAQPage) на страницу + FAQ.docx
        (SEO-нормализация: FAQ + плитка тегов + перелинковка с недостающими N-граммами)
@@ -206,10 +206,10 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── audit-onpage.md                  ← /seo-tehaudit
 │   │   ├── audit-analytics.md               ← /seo-tehaudit
 │   │   ├── audit-writer.md                  ← /seo-tehaudit
-│   │   ├── audience-analyst.md              ← /seo-tekst
+│   │   ├── audience-analyst.md              ← /seo-analiz (v7: ступень 2, анализ ЦА)
 │   │   ├── offer-strategist.md              ← /seo-tekst
 │   │   ├── leader-scanner.md                ← /seo-analiz (v2: + блок-матрица, поглотил leader-block-scanner)
-│   │   ├── direction-scanner.md             ← /seo-tekst
+│   │   ├── direction-scanner.md             ← /seo-analiz (v7: ступень 3, разведка направлений)
 │   │   ├── block-planner.md                 ← /seo-tekst
 │   │   ├── page-writer.md                   ← /seo-tekst
 │   │   ├── copy-auditor.md                  ← /seo-tekst
@@ -559,7 +559,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `audit-analytics` | Аналитика/поведенческие/ссылки + финальный вердикт Яндекс Бизнеса → analytics.json (для /seo-tehaudit, шаг 4) |
 | `audit-writer` | Сборка audit_data.json (карточка + проблемы + чеклист + динамические приложения) из 4 JSON (для /seo-tehaudit, шаг 5) |
 | `audit-verifier` | Финальная независимая вычитка audit_data.json против 4 JSON-источников: нет выдуманных проблем, ничего значимого не потеряно, бьются цифры карточки → verify_report.json, ничего не чинит (для /seo-tehaudit, шаг 5b) |
-| `audience-analyst` | Глубокий анализ ЦА (порт У5-Б): портреты/боли-сцены/страхи/возражения + компактная сводка → audience.json (для /seo-tekst, проектный) |
+| `audience-analyst` | Глубокий анализ ЦА (порт У5-Б): сегменты/боли-сцены/страхи/возражения по направлениям + компактная сводка → analyses/audience.json (для /seo-analiz, ступень 2) |
 | `offer-strategist` | Стратегия оффера: позиционирование + прогретость + идея + формула + 30 тезисов + палитра + materials-gate → strategy.json (для /seo-tekst, проектный) |
 | `block-planner` | Блок-план всех страниц одним проходом: BLOCKS.md + leader_blocks → blueprints/<slug>.json (блоки + цели + боли + слоты + char-лимиты); снимает каталоги с писателей (для /seo-tekst, проектный) |
 | `page-writer` | Конверсионный текст одной страницы по готовому blueprint: голос + ЦА-под-страницу + копия по VOICE.md (диета контекста, ADR-020) → page.json (для /seo-tekst, веер) |
@@ -568,7 +568,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `faq-builder` | SEO-блок одной страницы: JM-анализ пробелов → FAQ (Schema.org) + возражения + плитка тегов + перелинковка с недостающими N-граммами (для /seo-faq, веер) |
 | `leader-scanner` (v2) | Скан смыслов И композиции блоков лидеров (посылы + матрица «блок x тип» + фишки; поглотил leader-block-scanner в v7). Для /seo-analiz ступень 3 |
 | `copy-auditor` | Pre-flight редактор продающего текста: чек-лист COPY-AUDIT.md (смысл+грамотность первым, удар в боль ЦА, чистота/штампы/утечка кухни Сургай-кастдев) → чинит page.json свежим проходом перед HTML; анти-ИИ-детект не делает (ADR-022) (для /seo-tekst, веер) |
-| `direction-scanner` | Контент-разведка одного направления: SERP топ-10 по маркеру -> фильтр однотипных -> фетч 3-5 страниц (Chrome/fetch) -> recon/<slug>.json: что публикует топ, must_have, gaps (для /seo-tekst, веер) |
+| `direction-scanner` | Контент-разведка одного направления: SERP топ-10 по маркеру -> фильтр однотипных -> фетч 3-5 страниц (Chrome/fetch) + own_page живой страницы -> analyses/recon/<dir_slug>.json (для /seo-analiz, ступень 3, веер) |
 | `site-reviewer` | Финальный кросс-страничный аудит текстов сайта: межстраничные самоповторы, уникальность H1/Title, консистентность decisions и фактов -> чинит + site_audit.json (для /seo-tekst, один на проект) |
 | `context-gatherer` | Собирает релевантный контекст по файлам проекта под нестандартный вопрос заказчика + 2-4 трактовки вопроса → context.json (для /custom-question) |
 | `solution-writer` | Пишет решение по вопросу заказчика в выбранном формате (answer/recommendation/doc), клиентские части без SEO-жаргона → solution.md (+ answer_client.md) (для /custom-question) |

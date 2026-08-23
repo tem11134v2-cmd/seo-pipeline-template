@@ -51,7 +51,7 @@ frontmatter (`model: sonnet` или `model: opus`). Правило отнесе�
 механика по чек-листу/шаблону/инструкции -> `sonnet`; клиентская проза, вердикт
 или аудит -> `opus`. `model: inherit` не использовать.
 
-## Таблица агентов (62)
+## Таблица агентов (61)
 
 | Агент | Модель | Почему |
 |---|---|---|
@@ -84,7 +84,6 @@ frontmatter (`model: sonnet` или `model: opus`). Правило отнесе�
 | growth-strategist | opus | Точки роста и сборка стратегии - стратегическое суждение |
 | intake-analyst | opus | Понимание всей вводной фактуры + провенанс фактов - суждение |
 | jm-analyst | sonnet | Прогон JM (text_generate + text_analyze), сохранение в json - механика |
-| leader-block-scanner | opus | Интерпретация композиции блоков лидеров (в v7 поглощается leader-scanner v2 - ADR-038) |
 | leader-scanner | opus | Скан смыслов топ-3 (блоки/посылы/фишки) - суждение |
 | marker-finder | sonnet | Маркерные запросы каскадом Keyso по правилам - механика |
 | master-list-builder | opus | Типизация и спаривание страниц - проектное суждение |

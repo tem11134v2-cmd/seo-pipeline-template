@@ -299,7 +299,7 @@ project_root: <project root>
 analysis_dir: <analysis_dir>
 dir_slug: <dir_slug>
 region: <код региона Яндекса ЧИСЛОМ - оркестратор определяет его ОДИН раз по brief.region
-  (справочник кодов - PLAYBOOK р.8 в assets /seo-metategi); не 225/0/null - иначе SERP
+  (справочник кодов - .claude/skills/seo-metategi/PLAYBOOK.md р.8); не 225/0/null - иначе SERP
   тихо выродится в федеральную выдачу>
 project_root: <project root>
 Прочитай brief.json (свое направление в directions[] по dir_slug: marker_hint, url) и MCP_MAP.md. SERP по marker_hint -> фильтр однотипных сайтов -> фетч 3-5 страниц конкурентов направления. Собери тонкий recon: published_info / offers_seen / must_have / gaps. Если у направления есть url - дополнительно сними own_page: blocks своей живой страницы + facts_seen (КАНДИДАТЫ фактов с value/where - не подтвержденные факты). Сохрани <analysis_dir>/recon/<dir_slug>.json.
@@ -623,7 +623,9 @@ none        -> перезапусков нет; ответы «согласен 
 
 - Перед пересборкой docx провести правку через гейты: `bash .claude/hooks/update-meta.sh <analysis_dir> report-done`, затем шаг 7b (validate v2 + analysis-verifier). Только при `verdict=pass` (state `analysis-verified`) продолжать; при needs-fix/fail - ре-делегация `analysis-writer` (лимит 2), как в 7b.
 - Перезапустить `build-analysis-docx.mjs` (шаг 8.0).
-- Шаг 8b (delete старого Drive-файла) + 8c (upload нового).
+- Шаг 8b (delete старого Drive-файла) + 8c (upload нового) + **обязательно 8d** (перезаписать
+  `share.json.drive_file_id`/`drive_link` и `meta.json.drive_file_id` НОВЫМИ значениями - иначе
+  следующий `--answers` и следующий delete получат id уже удаленного файла).
 - Обновить `share.json.revisions[]`:
 
 ```json
@@ -732,7 +734,7 @@ A2 в Drive (Google Doc, для клиента):
    - n (или состав не менялся) - `update-meta.sh ... leaders-done` транзитом.
 4. `update-meta.sh ... directions-done` - транзитом (recon/ не перезапускается).
 5. **serp-verdict** - шаг 6 целиком (serp.json, вердикт, промежуточный стоп-лист). -> `serp-done`.
-6. **Сборка и выдача** - шаг 7 (analysis-writer: A2 полный с SERP-разделом и вердиктом + A3.md + stop_list_detailed.json + recommendations полные) -> шаг 7b (гейты) -> шаг 8 (docx + re-upload: в Drive уже есть старый файл - идти через 8b delete + 8c upload, дописать `share.json.revisions[]` запись `{"type": "add-seo", ...}`) -> `client-review` -> шаги 9-10 как обычно.
+6. **Сборка и выдача** - шаг 7 (analysis-writer: A2 полный с SERP-разделом и вердиктом + A3.md + stop_list_detailed.json + recommendations полные) -> шаг 7b (гейты) -> шаг 8 (docx + re-upload: в Drive уже есть старый файл - идти через 8b delete + 8c upload + 8d перезапись drive_file_id/drive_link, дописать `share.json.revisions[]` запись `{"type": "add-seo", ...}`) -> `client-review` -> шаги 9-10 как обычно.
 
 При обрыве прогона --resume распознает режим по `tier_upgraded_at` (см. 0c) и продолжает по этой же схеме с текущего state.
 
