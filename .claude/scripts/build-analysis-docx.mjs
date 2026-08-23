@@ -12,8 +12,10 @@
 //   <analysis_dir>/A2.md          — финальный отчёт (5 разделов в markdown)
 //   <analysis_dir>/brief.json     — для имени файла (slug или domain) и заголовка
 //   <analysis_dir>/serp.json      — для определения цвета вердикта
-//   <analysis_dir>/questions.json - раздел «0. Вопросы к вам» (опционален; нет файла - legacy,
-//                                    раздел 0 рендерится как обычный markdown без покраски)
+//   <analysis_dir>/questions.json - раздел «Вопросы к вам» (опционален; нет файла - legacy,
+//                                    раздел рендерится как обычный markdown без покраски).
+//                                    Заголовок раздела принимается в обеих формах: «## Вопросы
+//                                    к вам» (текущая) и «## 0. Вопросы к вам» (легаси-A2).
 // Выход:
 //   <analysis_dir>/A2_<safe_name>.docx
 //
@@ -80,8 +82,8 @@ if (existsSync(serpPath)) {
   } catch { /* ignore */ }
 }
 
-// questions.json - раздел «0. Вопросы к вам» (единый источник рендера; см. build-analysis-docx
-// секция «Раздел 0»). Отсутствует - legacy-анализ, раздел 0 рендерится как обычный markdown.
+// questions.json - раздел «Вопросы к вам» (единый источник рендера; см. секцию рендера ниже).
+// Отсутствует - legacy-анализ, раздел рендерится как обычный markdown.
 let questions = [];
 const questionsPath = join(analysisDir, "questions.json");
 if (existsSync(questionsPath)) {
@@ -257,7 +259,7 @@ function bulletParagraph(text) {
   });
 }
 
-// ═══ Раздел «0. Вопросы к вам» - рендер из questions.json (единый источник, не markdown) ═══
+// ═══ Раздел «Вопросы к вам» - рендер из questions.json (единый источник, не markdown) ═══
 // Карточки: номер+текст жирным accent; варианты буллетами, рекомендованный - зеленым жирным
 // (по образцу покраски вердикта); строка «Наша рекомендация: ...» - зеленым.
 function renderQuestions(questions) {
@@ -396,7 +398,7 @@ function renderBlocks(blocks) {
   let firstH1Seen = false;
   let lastWasHr = false;
   let afterExecutiveSummary = false;
-  // Пока true - глушим markdown-дубликат раздела «0. Вопросы к вам» (он уже отрисован из
+  // Пока true - глушим markdown-дубликат раздела «Вопросы к вам» (он уже отрисован из
   // questions.json сразу после заголовка). Сбрасывается на следующем level-2 заголовке.
   let skipUntilNextH2 = false;
 
@@ -405,7 +407,7 @@ function renderBlocks(blocks) {
       if (b.type === "heading" && b.level === 2) {
         skipUntilNextH2 = false; // дошли до следующего раздела - дальше рендерим как обычно
       } else {
-        continue; // проглатываем markdown-прозу раздела 0 (дубликат questions.json)
+        continue; // проглатываем markdown-прозу раздела вопросов (дубликат questions.json)
       }
     }
 
@@ -427,7 +429,11 @@ function renderBlocks(blocks) {
             out.push(heading(b.text, 1));
           }
         } else {
-          const isQuestionsHeading = b.level === 2 && /^0\.\s*Вопрос/i.test(b.text.trim());
+          // Заголовок раздела вопросов принимается в ОБЕИХ формах: «Вопросы к вам» (текущая,
+          // номера со всех разделов A2 сняты) и «0. Вопросы к вам» (легаси-A2 у клиентов,
+          // сданные до снятия номеров) - иначе легаси-документ терял цветной рендер и получал
+          // markdown-дубликат.
+          const isQuestionsHeading = b.level === 2 && /^(?:0\s*[.)]\s*)?Вопрос/i.test(b.text.trim());
           out.push(heading(b.text, b.level));
           if (b.level === 2 && /executive summary/i.test(b.text)) {
             afterExecutiveSummary = true;

@@ -30,7 +30,7 @@ JM-данные (cluster, lsi, analyze, stop-domains) **уже получены*
 
 ### Подшаг 1 — Конкуренты
 
-- Если `<article_dir>/jm/stop-domains.json` есть — там же лежит выдача топа (если сохранена). Если нет — `arsenkin.arsenkin_top(queries=["<main_query>"], region, depth=10)` — 1 вызов.
+- Если `<article_dir>/jm/stop-domains.json` есть - там же лежит выдача топа (если сохранена). Если нет - `arsenkin.arsenkin_top(queries=["<main_query>"], se=[{"type": 2, "region": <код региона>}], depth=10)` - 1 вызов.
 - Выбрать 5-7 URL информационных статей.
 - Исключить: каталоги, карточки товаров, форумы, Яндекс-сервисы (Дзен, Кью), Википедию.
 - Зафиксировать: URL, домен, заголовок.

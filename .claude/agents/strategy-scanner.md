@@ -37,7 +37,7 @@ model: sonnet
 
 ### 2. Yandex.Карты (быстрая проверка)
 
-Через `arsenkin_top` (queries=["<бренд/компания> <город>"], region=region_id) или `seo_fetch_page(url, profile="content")`: есть ли карточка компании в Яндекс.Бизнес. Записать `yandex_maps: true|false`. (Опциональный булев чек - если бюджет на пределе, можно пропустить.)
+Через `arsenkin_top` (queries=["<бренд/компания> <город>"], se=[{"type": 2, "region": region_id}]) или `seo_fetch_page(url, profile="content")`: есть ли карточка компании в Яндекс.Бизнес. Записать `yandex_maps: true|false`. (Опциональный булев чек - если бюджет на пределе, можно пропустить.)
 
 ### 3. Метрики клиента
 

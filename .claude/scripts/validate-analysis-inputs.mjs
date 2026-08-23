@@ -23,13 +23,23 @@
 //   <analysis_dir>/audience.json     - канон audience-analyst (обязателен только в формате v2)
 //   <analysis_dir>/leader_scan.json  - опционален (НЕ блокирует)
 //   <analysis_dir>/intake.json       - опционален (НЕ блокирует; этап 3, warn-only)
+//   <analysis_dir>/intake_lexicon.json - опционален (НЕ блокирует): второй слой интейка -
+//                                      сырье для текстов (client_wordings, internal_terms,
+//                                      client_metaphors, client_life_before_after). Отсутствие -
+//                                      штатный легаси-режим однослойного интейка, не ошибка.
 //   <analysis_dir>/questions.json    - опционален (НЕ блокирует; этап 3, warn-only)
+//   <analysis_dir>/A2.md             - опционален; если есть - скан на brief.forbidden_self_names
+//   <analysis_dir>/recommendations.json - опционален; тот же скан (машиночитаемый выход
+//                                      читают /seo-struktura и /seo-tekst, там цена ошибки выше)
+//
+// Схему самих фактов интейка валидатор НЕ проверяет (файлы даже не парсятся), поэтому новые
+// подполя факта - kind (inn|ogrn|address|entity|phone|email) и unconfirmed - его не роняют.
 // Выход (stdout):
 //   построчный отчёт + (если есть _import_meta) предупреждение о реконструированном входе
 //
 // Exit:
 //   0  - всё ок (канон-схема)
-//   2  - не хватает файлов/полей (печатает построчно чего нет)
+//   2  - не хватает файлов/полей ИЛИ найдено запрещенное самоназвание (печатает построчно)
 //   1  - ошибка запуска (нет аргумента, директории нет, битый JSON)
 
 import { readFileSync, existsSync } from "node:fs";
@@ -138,6 +148,11 @@ if (brief) {
   if (isNonEmptyStr(brief.domain) && !isArray(brief.client_pages)) {
     problems.push("brief.json: домен задан, но нет «client_pages» (массив; пустой допустим, если сайт без видимости)");
   }
+  // forbidden_self_names[] (контракт N2) - слова, которыми клиента называть нельзя.
+  // Поле НЕОБЯЗАТЕЛЬНО: отсутствие и пустой массив - норма (запретов на самоназвание нет).
+  if ("forbidden_self_names" in brief && !isArray(brief.forbidden_self_names)) {
+    problems.push("brief.json: «forbidden_self_names» должен быть массивом строк (пустой массив допустим)");
+  }
   // directions[] (контракт 1.2) - только формат v2: канон направлений для ступеней 2-3 и текстов
   if (tierV2) {
     if (!isNonEmptyArray(brief.directions)) {
@@ -155,6 +170,134 @@ if (brief) {
       if (noSlug.length) problems.push(`brief.json: directions[] без «dir_slug» (строки: ${noSlug.join(", ")})`);
       if (dupSlugs.size) problems.push(`brief.json: «dir_slug» не уникальны: ${[...dupSlugs].join(", ")}`);
     }
+  }
+}
+
+// === Запрет на самоназвание (контракт N2): brief.forbidden_self_names в A2.md и recommendations.json ===
+// Почему проверка здесь, а не суждением агента: в бою слово-запрет («школа») проскочило не в
+// клиентской формулировке, а в служебной прозе («комиссия за счет школы»), где звучит
+// нейтрально, - агент такого не ловит, потому что ищет нарушения позиционирования. Запрет на
+// САМОНАЗВАНИЕ - не суждение, а грепабельный список, значит и проверка детерминированная.
+// Место вызова выбрано так, чтобы проверка реально отработала: скрипт зовут на гейте 7b
+// /seo-analiz (state report-done - A2.md и recommendations.json уже собраны шагом 7) и на
+// шаге 1a /seo-struktura (там они тем более есть). Отсутствие файла - не ошибка (легаси-вход
+// и вызовы до сборки отчета), просто проверять нечего.
+// Матчинг: регистронезависимо, е-с-точками приравнивается к е, по границам слова,
+// «основа + типичные окончания»
+// (школа/школы/школе/школой/школу/школам/школами/школах ловятся все). Ложные срабатывания
+// внутри других слов исключены границами: «школьник», «курсант», «университетский» не ловятся.
+const SELF_NAME_ENDINGS = [
+  "", "а", "я", "у", "ю", "ы", "и", "е", "о",
+  "ой", "ей", "ою", "ею", "ом", "ем", "ам", "ям", "ах", "ях", "ов", "ев",
+  "ии", "ию", "ией", "ья", "ье", "ью",
+  "ая", "ую", "ые", "ых", "ым", "ами", "ями", "ыми",
+];
+// Строки, где запрет ДЕКЛАРИРУЕТСЯ (раздел запрещенных формулировок того же отчета),
+// нарушением не считаются - иначе гейт падал бы всегда: писатель обязан перечислить запрет.
+const SELF_NAME_DECLARATION_MARKERS = [/запрещ/, /не называ/, /нельзя называ/, /стоп-слов/, /самоназван/, /forbidden/];
+
+const normSelfName = (s) => String(s).toLowerCase().replace(/ё/g, "е");
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+function selfNameMatcher(word) {
+  const w = normSelfName(word).trim();
+  if (!w) return null;
+  // Основа: снимаем одну конечную гласную начальной формы (школа -> школ, курсы -> курс);
+  // слово на согласный остается как есть (университет).
+  const stem = w.length > 3 && /[аяуюыиео]$/.test(w) ? w.slice(0, -1) : w;
+  const endings = [...SELF_NAME_ENDINGS].sort((a, b) => b.length - a.length).map(escapeRe).join("|");
+  const LETTER = "[а-яa-z0-9_]";
+  return { word: w, re: new RegExp(`(?<!${LETTER})${escapeRe(stem)}(?:${endings})(?!${LETTER})`, "gu") };
+}
+
+function isSelfNameDeclarationLine(line) {
+  const l = normSelfName(line);
+  return SELF_NAME_DECLARATION_MARKERS.some((re) => re.test(l));
+}
+
+// Строковые литералы JSON - единица маркерного пропуска в машиночитаемых файлах (см. ниже).
+const JSON_STRING_RE = /"(?:[^"\\]|\\.)*"/g;
+
+// Скан построчно. Для markdown дополнительно пропускается ЦЕЛИКОМ раздел, заголовок которого
+// объявляет запрет (там слова перечислены списком, без маркера в самой строке).
+//
+// Для .json маркерный пропуск применяется НЕ к строке файла, а к каждому строковому литералу
+// отдельно. Причина: в машиночитаемом выходе раздела деклараций нет, зато слово-маркер
+// («запрещ» из процитированного forbidden_wordings) регулярно лежит в соседнем поле той же
+// строки, а минифицированный JSON целиком помещается в ОДНУ строку - построчный пропуск
+// выключал бы проверку по всему файлу. Разбор по литералам делает пропуск точечным и
+// не зависящим от форматирования.
+function scanForSelfNames(fileName, text, matchers) {
+  const isJson = /\.json$/i.test(fileName);
+  const hits = [];
+  const lines = text.split(/\r?\n/);
+  let skipLevel = 0;
+
+  // segment - кусок, который реально сканируем; offset - его сдвиг внутри line (для form).
+  const collect = (segment, offset, line, i) => {
+    const hay = normSelfName(segment);
+    for (const m of matchers) {
+      m.re.lastIndex = 0;
+      const found = m.re.exec(hay);
+      if (found) {
+        hits.push({
+          file: fileName,
+          line: i + 1,
+          word: m.word,
+          form: line.slice(offset + found.index, offset + found.index + found[0].length),
+          context: (isJson ? segment : line).trim().slice(0, 120),
+        });
+      }
+    }
+  };
+
+  lines.forEach((line, i) => {
+    if (isJson) {
+      JSON_STRING_RE.lastIndex = 0;
+      let lit;
+      while ((lit = JSON_STRING_RE.exec(line))) {
+        if (isSelfNameDeclarationLine(lit[0])) continue;
+        collect(lit[0], lit.index, line, i);
+      }
+      return;
+    }
+    const heading = /^(#{1,6})\s/.exec(line);
+    if (heading) {
+      const level = heading[1].length;
+      if (skipLevel && level <= skipLevel) skipLevel = 0;
+      if (isSelfNameDeclarationLine(line)) {
+        skipLevel = level;
+        return;
+      }
+    }
+    if (skipLevel) return;
+    if (isSelfNameDeclarationLine(line)) return;
+    collect(line, 0, line, i);
+  });
+  return hits;
+}
+
+const forbiddenSelfNames = isArray(brief?.forbidden_self_names)
+  ? brief.forbidden_self_names.filter(isNonEmptyStr)
+  : [];
+const selfNameMatchers = forbiddenSelfNames.map(selfNameMatcher).filter(Boolean);
+const selfNameScannedFiles = [];
+if (selfNameMatchers.length) {
+  const hits = [];
+  for (const name of ["A2.md", "recommendations.json"]) {
+    const path = join(analysisDir, name);
+    if (!existsSync(path)) continue;
+    selfNameScannedFiles.push(name);
+    hits.push(...scanForSelfNames(name, readFileSync(path, "utf8").replace(/^﻿/, ""), selfNameMatchers));
+  }
+  const MAX_SHOWN = 20;
+  hits.slice(0, MAX_SHOWN).forEach((h) => {
+    problems.push(
+      `${h.file}:${h.line}: запрещенное самоназвание «${h.form}» (запрет brief.forbidden_self_names: «${h.word}») - «${h.context}»`
+    );
+  });
+  if (hits.length > MAX_SHOWN) {
+    problems.push(`запрещенное самоназвание: еще ${hits.length - MAX_SHOWN} вхождений (показаны первые ${MAX_SHOWN})`);
   }
 }
 
@@ -218,6 +361,11 @@ const leaderScanMissing = !existsSync(join(analysisDir, "leader_scan.json"));
 const intakeMissing = !existsSync(join(analysisDir, "intake.json"));
 const questionsMissing = !existsSync(join(analysisDir, "questions.json"));
 
+// === intake_lexicon.json (двухслойный интейк) - опционален, только предупреждение ===
+// Наличие НЕ обязательно, отсутствие - НЕ ошибка: это легаси-режим однослойного интейка,
+// где лексиконные факты лежат прямо в intake.json.facts[].
+const lexiconPresent = existsSync(join(analysisDir, "intake_lexicon.json"));
+
 // === Реконструированный вход (не блокирует, но surface) ===
 const reconstructed = brief && brief._import_meta ? brief._import_meta : null;
 
@@ -239,9 +387,20 @@ if (leaderScanMissing) {
 }
 if (intakeMissing) {
   console.log("  i intake.json отсутствует (легаси-анализ без интейк-этапа - провенанс фактов недоступен)");
+} else if (lexiconPresent) {
+  console.log("  i intake_lexicon.json есть - двухслойный интейк: лексиконные факты берутся из него");
+} else {
+  console.log("  i intake_lexicon.json нет - легаси однослойный интейк: лексиконные факты ищутся в intake.json.facts[]");
 }
 if (questionsMissing) {
-  console.log("  i questions.json отсутствует (легаси-анализ без раздела «0. Вопросы к вам»)");
+  console.log("  i questions.json отсутствует (легаси-анализ без раздела «Вопросы к вам»)");
+}
+if (selfNameMatchers.length) {
+  console.log(
+    selfNameScannedFiles.length
+      ? `  i самоназвание: ${selfNameMatchers.length} запрет(ов) проверено в ${selfNameScannedFiles.join(", ")} - нарушений нет`
+      : `  i самоназвание: ${selfNameMatchers.length} запрет(ов) в brief, но ни A2.md, ни recommendations.json нет - проверять нечего`
+  );
 }
 if (reconstructed) {
   console.log("  ⚠ ВНИМАНИЕ: анализ реконструирован (brief._import_meta присутствует).");

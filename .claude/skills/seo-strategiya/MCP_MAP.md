@@ -37,7 +37,7 @@ domain_pages(domain="leader.ru", base="msk", sort="it50|desc", per_page=10)  # �
 | `jm_wordstat` (mode=frequency) | Частотность запроса (primary); альтернативы `wk_check_frequency`, `arsenkin_wordstat` (mode=frequency) | Таблицы точек роста (5-10 вызовов) |
 | `jm_semantic_pack` / `jm_suggest` / `arsenkin_wordstat` (mode=parsing) | Расширение семантики: маркер → топ-N похожих запросов с частотностью (вместо «популярных подзапросов») | Когда нужен массив похожих запросов |
 | `arsenkin_wordstat` (mode=dynamics, group=month) | Динамика во времени (сезонность) | Проверка сезонности (опц., 1 вызов) |
-| `arsenkin_top` | Домены/URL топа по запросу+регион (queries[], region, depth=10/20/30, is_snippet); альтернативы keyso `check_top` / `history_serp` | Если город не в базе Keyso (топонимный запрос) |
+| `arsenkin_top` | Домены/URL топа по запросу+регион (queries[], se=[{"type": 2, "region": <код>}], depth=10/20/30, is_snippet); регион задается ТОЛЬКО внутри se - параметра region на верхнем уровне нет, переданный там код молча игнорируется и выдача приходит московская десктопная; альтернативы keyso `check_top` / `history_serp` | Если город не в базе Keyso (топонимный запрос) |
 | `seo_fetch_page` / `seo_fetch_batch` (profile="content") | Статический HTTP-фетч + разбор основного текста/контента страницы (JS не рендерится) | Скан сайта клиента + ключевые страницы конкурентов |
 
 ```

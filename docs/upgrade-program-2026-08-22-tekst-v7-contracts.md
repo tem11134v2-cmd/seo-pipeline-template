@@ -508,4 +508,4 @@ pages-built = повторный вызов моста по pages_draft (см. 2
 | pages/<slug>/prototype.html (пер-страничные) | texts/prototype.html + render.html; build-handoff.mjs правится (состав файлов, registerLine, литерал состояния) |
 | попапы, transitions, manifest.popups, strategy.popups | ADR-039 |
 | легаси-ветки --resume старого /seo-tekst | новый state machine; старые задачи - старым скилом |
-| значение "adjacent" в directions[].source | смежные направления остаются в A2 разделе 5, в directions не входят |
+| значение "adjacent" в directions[].source | смежные направления остаются в разделе A2 «Смежные направления», в directions не входят |

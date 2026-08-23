@@ -95,7 +95,7 @@ JM примет эту строку как запрос и посчитает г
 
 ### Шаг D. Стоп-лист
 
-- `arsenkin.arsenkin_top(queries=["<маркерный запрос>"], region=region_code, depth=10, is_snippet=false)` — 1 вызов (берём домены топа, сниппеты не нужны). Альтернативы: `keyso.check_top` / `keyso.history_serp`
+- `arsenkin.arsenkin_top(queries=["<маркерный запрос>"], se=[{"type": 2, "region": region_code}], depth=10, is_snippet=false)` - 1 вызов (берем домены топа, сниппеты не нужны). Альтернативы: `keyso.check_top` / `keyso.history_serp`
 
 Из выдачи определить нерелевантные домены:
 - Агрегаторы

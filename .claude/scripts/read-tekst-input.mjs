@@ -27,6 +27,11 @@
 //                        Анализ без v2-полей - файла нет: block-planner работает по статике BLOCKS.md.
 //   facts.json         - если не было: семена по схеме ADR-033 из analyses/intake.json facts[]
 //                        (вкл. подтвержденные own_page-факты, source "own_page:<url>") + реквизиты из ЗАКАЗЧИК.md.
+//                        Интейк двухслойный: facts[] из intake.json и intake_lexicon.json сливаются в
+//                        один список перед разбором. Если intake_lexicon.json есть - лексиконные факты
+//                        берутся из него; если файла нет - ищутся в intake.json.facts[] по тем же именам
+//                        полей (легаси-режим однослойного интейка). Отсутствие обоих - не авария,
+//                        лексикон просто пуст. Откуда взят лексикон - печатается в сводке.
 //
 // Существующие inputs.json / facts.json / leader_blocks.json НЕ перезаписываются: в них дописывает
 // оркестратор (legal, факты и словарь с гейтов), и повторный вызов моста не должен это стирать.
@@ -492,19 +497,77 @@ if (existsSync(leaderBlocksPath)) {
 // оркестратора/стратега: мост словарь НЕ сочиняет.
 // ---------------------------------------------------------------------------
 
+// Четыре лексиконных поля - сырье для текстов; во втором слое интейка живут только они.
+const LEXICON_FIELDS = new Set(["client_wordings", "internal_terms", "client_metaphors", "client_life_before_after"]);
+
+// Откуда взят лексикон - для сводки (intake_lexicon.json | intake.json (легаси) | нет).
+let lexiconOrigin = null;
+
+// --- Реквизиты: провенанс важнее содержимого -------------------------------------------
+// По ADR-033/037 любое число и реквизит из facts.json вправе напечатать писатель страниц -
+// в подвал и на юридические страницы живого сайта. Поэтому реквизит, снятый НЕ у заказчика
+// (соцсеть, витрина на чужой платформе, старый лендинг) и заказчиком НЕ подтвержденный,
+// в facts.json не сеется вовсе. Флаг ставит intake-analyst: unconfirmed: true; терпим и
+// написание status: "candidate".
+function isUnconfirmedFact(f) {
+  if (!f) return false;
+  if (f.unconfirmed === true || String(f.unconfirmed).trim().toLowerCase() === "true") return true;
+  return String(f.status || "").trim().toLowerCase() === "candidate";
+}
+
+// Стоп-фильтр легаси-фолбэка: отрицание внутри значения. "адрес домена в источниках не
+// назван" - это не реквизит, а проза о его отсутствии. \b с кириллицей не работает
+// (\w - только ASCII), поэтому граница слова - явный не-кириллический символ.
+const REQ_NEGATION = /(?:^|[^а-яё])не\s+(?:назван|указан|уточн|подтвержд|получен|сообщ)|отсутству|неизвест|нет\s+данных/i;
+
+// Признак адреса ДОЛЖЕН стоять в НАЧАЛЕ значения (после подписи поля и почтового индекса).
+// Слово "адрес" где угодно внутри предложения адресом его не делает.
+const ADDR_LABEL = /^\s*(?:(?:юр(?:идическ\S*)?\.?|почтов\S*|фактическ\S*)\s*)?адрес\s*[:\-]\s*/i;
+const ADDR_INDEX = /^\s*\d{6}\s*,?\s*/;
+const ADDR_START = /^\s*(?:г\.|гор\.|город\s|с\.\s|село\s|пгт|дер\.|деревня\s|пос\.|пос[её]лок\s|респ\.|республика\s|обл\.|область\s|край\s|р-н|район\s|ул\.|улица\s|просп\.|проспект\s|пр-т|пр-кт|пер\.|переулок\s|ш\.\s|шоссе\s|наб\.|набережная\s|б-р|бульвар\s|мкр|микрорайон\s|тракт\s|москва\s*,|санкт-петербург\s*,|[а-яё][а-яё-]+\s+(?:обл\.|область|край|респ\.|республика|округ)|[а-яё][а-яё-]+\s*,\s*(?:ул\.|улица|просп|пр-т|пр-кт|пер\.|переулок|ш\.|шоссе|наб\.|б-р|бульвар|мкр|г\.|гор\.|город|пос\.|пгт|с\.|дер\.|деревня))/i;
+
+function looksLikeAddress(v) {
+  const s = String(v || "").trim().replace(ADDR_LABEL, "").replace(ADDR_INDEX, "");
+  return ADDR_START.test(s);
+}
+
 function buildFactsSeeds() {
   let intake = null;
+  let intakeLexicon = null;
   if (ctx.analysisDir) {
     const p = join(ctx.analysisDir, "intake.json");
     if (existsSync(p)) {
       try { intake = readJson(p); } catch (e) { warn(`intake.json не прочитан: ${e.message}`); }
     } else warn(`нет intake.json в ${ctx.analysisDir} - facts.json будет только из ЗАКАЗЧИК.md`);
+    // Второй слой интейка. Отсутствие - штатный легаси-режим, не ошибка.
+    const lp = join(ctx.analysisDir, "intake_lexicon.json");
+    if (existsSync(lp)) {
+      try { intakeLexicon = readJson(lp); } catch (e) { warn(`intake_lexicon.json не прочитан: ${e.message} - лексикон беру из intake.json (легаси)`); }
+    }
   }
   const mdPath = join(projectRoot, "ЗАКАЗЧИК.md");
   const md = existsSync(mdPath) ? readFileSync(mdPath, "utf8").replace(/^﻿/, "") : "";
 
-  const srcLabel = new Map((intake && Array.isArray(intake.sources) ? intake.sources : []).map((s) => [s.id, s.label || s.id]));
-  const allFacts = intake && Array.isArray(intake.facts) ? intake.facts : [];
+  // sources[] лексикона дублируют intake.json - сливаем, чтобы подписи источников не потерялись.
+  const srcLabel = new Map([
+    ...(intake && Array.isArray(intake.sources) ? intake.sources : []),
+    ...(intakeLexicon && Array.isArray(intakeLexicon.sources) ? intakeLexicon.sources : []),
+  ].filter(Boolean).map((s) => [s.id, s.label || s.id]));
+
+  // Двухслойный интейк: facts[] из обоих файлов сливаются в ОДИН список перед разбором.
+  // Лексиконные факты - из intake_lexicon.json, если он есть; иначе из intake.json (легаси).
+  const baseFacts = intake && Array.isArray(intake.facts) ? intake.facts : [];
+  let lexFacts;
+  if (intakeLexicon && Array.isArray(intakeLexicon.facts)) {
+    lexFacts = intakeLexicon.facts.filter((f) => f && LEXICON_FIELDS.has(f.field));
+    lexiconOrigin = `intake_lexicon.json (лексиконных фактов ${lexFacts.length})`;
+  } else {
+    lexFacts = baseFacts.filter((f) => f && LEXICON_FIELDS.has(f.field));
+    lexiconOrigin = lexFacts.length
+      ? `intake.json (легаси) (лексиконных фактов ${lexFacts.length})`
+      : "нет (лексиконных фактов не найдено ни в intake_lexicon.json, ни в intake.json)";
+  }
+  const allFacts = [...baseFacts.filter((f) => !(f && LEXICON_FIELDS.has(f.field))), ...lexFacts];
   const by = (field) => allFacts.filter((f) => f && f.field === field && String(f.value || "").trim());
   const label = (f) => srcLabel.get(f.source) || String(f.source || "intake");
 
@@ -515,20 +578,41 @@ function buildFactsSeeds() {
     opsec_restricted: [],
     lexicon: { locked: [], translate: [], canonical: [] },
   };
-  const stats = { numbers: 0, own_page: 0, locked: 0, opsec: 0, internal_terms: by("internal_terms").length, requisites_unparsed: 0 };
+  const stats = { numbers: 0, own_page: 0, locked: 0, opsec: 0, internal_terms: by("internal_terms").length, requisites_unparsed: 0, requisites_candidates: 0 };
 
-  // Реквизиты: один факт = одно поле (правило intake-analyst). Разбор строго по маркерам,
-  // без догадок; что не распозналось - остается оркестратору (он и так сверяет по буквам).
+  // Реквизиты: один факт = одно поле (правило intake-analyst).
+  // Основной путь - структурированное подполе kind от intake-analyst
+  // (inn | ogrn | address | entity | phone | email): агент читал источник и понимает,
+  // что перед ним. Регулярки ниже - ТОЛЬКО легаси-фолбэк для фактов без kind
+  // (старые клиентские проекты). Что не распозналось - остается оркестратору
+  // (он и так сверяет реквизиты по буквам).
+  const unknownKinds = new Set();
   for (const f of by("requisites")) {
     const v = String(f.value).trim();
+    // Провенанс раньше содержимого: неподтвержденный реквизит в facts.json не попадает.
+    if (isUnconfirmedFact(f)) { stats.requisites_candidates++; continue; }
     const digits = v.replace(/\D+/g, "");
+    const kind = String(f.kind || "").trim().toLowerCase();
+    if (kind) {
+      if (kind === "inn") { if (!facts.jur.requisites.inn) facts.jur.requisites.inn = digits || v; }
+      else if (kind === "ogrn") { if (!facts.jur.requisites.ogrn) facts.jur.requisites.ogrn = digits || v; }
+      else if (kind === "address") { if (!facts.jur.requisites.address) facts.jur.requisites.address = v; }
+      else if (kind === "entity") { if (!facts.jur.entity) facts.jur.entity = v; }
+      else if (kind === "phone" || kind === "email") stats.requisites_unparsed++; // контакты - в legal-блок inputs.json (оркестратор)
+      else { stats.requisites_unparsed++; unknownKinds.add(kind); }
+      continue;
+    }
+    // --- легаси-фолбэк: факт без kind ------------------------------------------------
+    // Отрицание внутри значения - не реквизит, а проза о его отсутствии.
+    if (REQ_NEGATION.test(v)) { stats.requisites_unparsed++; continue; }
     // Орг-форма: \b с кириллицей не работает (не \w), поэтому границы - явные не-буквы.
     if (/(?:^|[^А-Яа-яA-Za-z])(?:ООО|ИП|АО|ЗАО|ПАО|ОАО)(?:[^А-Яа-яA-Za-z]|$)/.test(v) && !facts.jur.entity) facts.jur.entity = v;
     else if (/ИНН/i.test(v) || /^\d{10}$|^\d{12}$/.test(v)) { if (!facts.jur.requisites.inn) facts.jur.requisites.inn = digits || v; }
     else if (/ОГРН/i.test(v) || /^\d{13}$|^\d{15}$/.test(v)) { if (!facts.jur.requisites.ogrn) facts.jur.requisites.ogrn = digits || v; }
-    else if (/адрес|ул\.|улица|г\.|город|просп|пр-т|переул|шоссе|офис|пом\./i.test(v)) { if (!facts.jur.requisites.address) facts.jur.requisites.address = v; }
-    else stats.requisites_unparsed++; // телефон/email и прочее - в legal-блок inputs.json (оркестратор)
+    else if (looksLikeAddress(v)) { if (!facts.jur.requisites.address) facts.jur.requisites.address = v; }
+    else stats.requisites_unparsed++; // телефон/email, отвергнутое фолбэком и прочее - в legal-блок inputs.json (оркестратор)
   }
+  if (unknownKinds.size) warn(`у фактов requisites неизвестный kind: ${[...unknownKinds].join(", ")} - допустимы inn|ogrn|address|entity|phone|email; такие факты не разобраны`);
   const bf = by("brand_face")[0];
   if (bf) facts.jur.brand_face = String(bf.value).trim();
 
@@ -578,6 +662,7 @@ if (!existsSync(factsPath)) {
   if (stats.numbers) notes.push("facts.numbers засеяны с пустым label - разметь привязку каждой цифры на ревизии facts.json");
   if (stats.internal_terms) notes.push(`internal_terms в intake: ${stats.internal_terms} - спаривание internal -> public (lexicon.translate) собирает оркестратор`);
   if (stats.requisites_unparsed) notes.push(`реквизитов не разобрано механически: ${stats.requisites_unparsed} (телефон/email и пр.) - они идут в legal-блок inputs.json от оркестратора`);
+  if (stats.requisites_candidates) notes.push(`реквизитов-кандидатов пропущено: ${stats.requisites_candidates} - подтвердите у заказчика`);
 }
 
 // ---------------------------------------------------------------------------
@@ -604,6 +689,7 @@ if (emptyOk && pages.length === 0) {
 console.log(`  inputs.json: ${inputsCreated ? `создан (tier=${ctx.tier ?? "null"}; legal дописывает оркестратор из intake)` : "уже есть - не трогаю"}`);
 console.log(`  leader_blocks.json: ${leaderBlocksStatus}`);
 console.log(`  facts.json: ${factsStatus}`);
+console.log(`  лексикон: ${lexiconOrigin || "не проверялся (facts.json уже есть - слои интейка не читались)"}`);
 for (const n of notes) console.log(`  i ${n}`);
 for (const w of warns) console.error(`  ! ${w}`);
 if (unrecognizedTypes.size) {

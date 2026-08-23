@@ -18,8 +18,15 @@
 #                            недоступен, и т.п.). В финальном выводе скила
 #                            показывается блок «Пропущенные шаги».
 #
-# Если jq не установлен — fallback: перезаписываем только state и updated
-# через простой sed-патч (грубо, но работает для базовых случаев).
+# Если jq не установлен - каскад фоллбэков (сверху вниз, берется первый доступный):
+#   1. node - ПОЛНЫЙ паритет с jq: state, updated, completed_steps (уникально),
+#      произвольные extra-ключи и skips (skip_reason пушится в массив).
+#      Это рабочий режим на большинстве машин: jq тут обычно нет, extra-ключи
+#      (drive_file_id и т.п.) и skip_reason через node пишутся корректно -
+#      бояться extra-ключей при отсутствии jq не нужно.
+#   2. python3 - только state, updated, completed_steps. extra-ключи и skip_reason
+#      ИГНОРИРУЮТСЯ.
+#   3. sed - самый грубый вариант: только state и updated.
 
 set -u
 
@@ -76,7 +83,8 @@ if command -v jq >/dev/null 2>&1; then
     ${extra_parts}
   " "${meta_file}" > "${tmp}" && mv "${tmp}" "${meta_file}"
 else
-  # Грубый sed-фоллбэк — только state и updated.
+  # jq нет - выбираем фоллбэк: node (полный паритет с jq), иначе python3
+  # (без extra-ключей), иначе sed (только state и updated).
   python_or_node=""
   if command -v node >/dev/null 2>&1; then
     python_or_node="node"

@@ -61,7 +61,8 @@ texts/<NNN>-<slug>/
 │   ├── manifest.json              # prototype-builder: копия + рендер-решения (источник истины страницы)
 │   └── render.html                # build-prototype.mjs: блоки страницы БЕЗ shell
 ├── site_audit.json                # site-reviewer: самоповторы/H1/консистентность/touched/canonical_candidates/selling_floor_systemic
-├── verify_report.json             # tekst-verifier: вердикт + находки с owner (НЕ чинит)
+├── verify_report.json             # tekst-verifier, проход А (focus=structure): вердикт + находки с owner (НЕ чинит)
+├── verify_report_factcheck.json   # tekst-verifier, проход Б (focus=factcheck): тот же формат, свой фокус
 ├── site_manifest.json             # оркестратор: pages[] + start:"__index" + main_slug - вход ассемблера и verify-prototype v2
 ├── prototype.html                 # assemble-prototype.mjs: ВЕСЬ САЙТ одним self-contained файлом - клиентский ДЕЛИВЕРАБЛ текстов (-> Drive КАК ФАЙЛ)
 ├── HANDOFF.md                     # build-handoff.mjs: контракт передачи дизайнеру/разработчику (+ pages/*/page.json - машиночитаемое для верстки)
@@ -105,7 +106,7 @@ init -> bridge-done -> [pages-drafted -> pages-approved -> pages-built]   # то
 | `blueprints-ready` | шаг 6b; финальный blueprint есть на каждую страницу - готовые НЕ перегенерировать |
 | `texts-written` | шаг 6c (copy-auditor идемпотентен) |
 | `copy-audited` | шаг 6d |
-| `site-reviewed` | шаг 6e; `verify_report.json` уже с `verdict:"pass"` - к шагу 7 |
+| `site-reviewed` | шаг 6e (оба прохода вычитки); ОБА отчета уже с `verdict:"pass"` - к шагу 7 |
 | `verified` | шаг 7 (прототип) |
 | `prototype-built` | шаг 7e (доставка: Drive + отправка заказчику) |
 | `shared` | шаг 8 (финал) |
@@ -137,7 +138,7 @@ init -> bridge-done -> [pages-drafted -> pages-approved -> pages-built]   # то
 - `inputs.json` - `analysis_dir`, `structure_dir|null`, `tier` (`seo|basic` из meta анализа; при table - нет), slug, domain, `region_name`/`region_yandex` (код структуры; при --from-analysis код null - см. ниже), плюс КОПИИ из brief.json для читателей inputs: `brand_name`, `forbidden_wordings`, `not_in_assortment` (канон - brief; при --from-table пусто - деградация);
 - `pages.json` v2 - русские типы (нормализация: Подуслуга->Услуга, Главная-каталог->Главная, Карточка товара->Товар, О компании/Контакты/Прочее->Инфо, Статья - исключается; нераспознанный тип -> Инфо + предупреждение в сводке) + спаривание `dir_slug` с `brief.directions` (пересечение токенов >= 50%; неспаренное -> `null` - без recon и сегментной ЦА). **При `--from-analysis` первый вызов отдает ПУСТОЙ pages.json** и ставит источник `pages_draft` - состав соберет шаг 2;
 - `leader_blocks.json` - выжимка `blocks_by_type` + `features_to_steal` из `leader_scan.json` v2 (старый анализ без v2-полей - файла нет, это деградация данными);
-- `facts.json` - семена из `analyses/intake.json` (включая подтвержденные own_page-факты, `source: "own_page:<url>"`) + `ЗАКАЗЧИК.md`.
+- `facts.json` - семена из `analyses/intake.json` (включая подтвержденные own_page-факты, `source: "own_page:<url>"`) + `ЗАКАЗЧИК.md`; лексиконный слой (`client_wordings`, `internal_terms`, `client_metaphors`, `client_life_before_after`) мост берет из `analyses/intake_lexicon.json`, а при его отсутствии - из `intake.json` (легаси) и называет источник в своей сводке.
 
 Exit 2 - нет целевых страниц (структура/таблица пустые) - стоп с подсказкой источника.
 
@@ -315,14 +316,23 @@ texts_dir: <texts_dir>
 4. `selling_floor_systemic[]` непустой (провал пола, одинаковый на всех страницах) - строкой в сводку и решение о возврате к `block-planner` (6a) или `offer-strategist` (шаг 3) ДО верификатора.
 `update-meta.sh <texts_dir> site-reviewed`.
 
-**6e. Верификатор (state == site-reviewed).** Слой суждения (ADR-025): ничего не чинит. Маркер: `.claude/tmp/expected-tekst-verifier-<run_id>.txt = <texts_dir>/verify_report.json`. Делегировать `tekst-verifier`: `texts_dir`, `project_root`. Сверяет: функции и баланс блоков (ADR-032), все числа против facts.json, словарь lexicon (ADR-033), выдержанность decisions включая register новой формы (ADR-034), чистоту, полноту, продающий пол F1-F4 (ADR-037; валидный waiver понижает до minor).
+**6e. Финальная вычитка - ДВА прохода (state == site-reviewed).** Слой суждения (ADR-025): ничего не чинит. Один проход находит не все; второй с ДРУГОЙ постановкой задачи удваивает улов важных находок - при том что все они лежат в одних и тех же файлах с самого начала. Поэтому `tekst-verifier` зовется ДВАЖДЫ, **параллельно одним сообщением и БЕЗ expected-маркеров** (два одновременных стопа дают ложный отказ single-marker хука, ADR-012; полноту проверяет оркестратор по файлам):
 
-Ветвление ТОЛЬКО по машинным полям `verify_report.json` (`verdict`, `counters`, `owner`, `needs_human`, `fix_hint`):
-- `fail` (структурный дефект) - чинить по owner, перезапустить верификатор; два круга без выхода - стоп, отчет человеку;
-- `needs-fix` - раздать находки по `owner` (**лимит 2 круга**, затем перезапуск верификатора): `copy-auditor` (локальная чистота) / `page-writer` (блок переписать целиком, затем аудит + verify-copy) / `block-planner` (структурное: возврат на такт 2 + slot-mapper + писатель; но сначала `fix_hint` - «материалов нет» перепланированием не лечится: это waiver `F4` c `source: strategy.materials_missing[...]`, а не круг) / `оркестратор` (facts.json, lexicon, decisions - чинишь сам, агентов не звать);
+- **проход А** - `texts_dir`, `project_root`, `focus: structure`, `out_file: verify_report.json`. Сверяет: полноту страниц/блоков/метатегов, функции и баланс блоков (ADR-032), словарь lexicon (ADR-033), выдержанность decisions включая register новой формы (ADR-034), чистоту клиентского текста, продающий пол F1-F4 (ADR-037; валидный waiver понижает до minor), счет блоков живых страниц.
+- **проход Б** - `texts_dir`, `project_root`, `focus: factcheck`, `out_file: verify_report_factcheck.json`. Сверяет: каждое число и реквизит против `facts.json`, межстраничные противоречия чисел и обещаний, тексты против самих себя. В промт этого прохода добавить дословно: «`site-reviewer` уже прошел и мог что-то починить - проверяй по текущему состоянию файлов, а не по его отчету».
+
+Фокус и имя файла - обязательные параметры обоих вызовов: без них агент останавливается. Проход не записал свой отчет - ре-делегировать ЭТОТ проход (до 2), не записывать за него и не подменять его вторым отчетом.
+
+**Объединение.** Оба отчета на месте - находки складываются в ОДИН список, счетчики суммируются, решение принимается по **ХУДШЕМУ вердикту** двух проходов (`fail` > `needs-fix` > `pass`). Проход А с `pass` не отменяет `needs-fix` прохода Б.
+
+Ветвление ТОЛЬКО по машинным полям объединенных отчетов (`verdict`, `counters`, `owner`, `needs_human`, `fix_hint`):
+- `fail` (структурный дефект) - чинить по owner, перезапустить ОБА прохода; два круга без выхода - стоп, отчет человеку;
+- `needs-fix` - раздать находки по `owner` (**лимит 2 круга**, затем перезапуск ОБОИХ проходов): `copy-auditor` (локальная чистота) / `page-writer` (блок переписать целиком, затем аудит + verify-copy) / `block-planner` (структурное: возврат на такт 2 + slot-mapper + писатель; но сначала `fix_hint` - «материалов нет» перепланированием не лечится: это waiver `F4` c `source: strategy.materials_missing[...]`, а не круг) / `оркестратор` (facts.json, lexicon, decisions - чинишь сам, агентов не звать);
 - находки пола: F2-словами и кнопка F3 - аудитор; F1/F3-нет-CTA/F4 - планировщик; F2 без цифры и адресата в facts - `needs_human`, вопрос заказчику, не круг правок;
 - пережившее 2 круга и `needs_human` - в `accepted_violations` (пол - в `selling_floor_waivers` с основанием), сводка, дальше;
-- `pass` - `update-meta.sh <texts_dir> verified`; `minor` не блокируют - списком в сводку.
+- `pass` у ОБОИХ проходов - `update-meta.sh <texts_dir> verified`; `minor` не блокируют - списком в сводку.
+
+**Гейт проходится заново после любого изменения артефакта.** Тексты страниц изменились любым способом - сборка, сжатие, точечная правка, применение ответов клиента - значит финальный гейт вычитки проходится заново, полностью (оба прохода). Частичная перепроверка «только правленого куска» не допускается: находки прошлого прохода не переносятся, отчеты перезаписываются.
 
 ### 7. Прототип - один файл (state == verified)
 
@@ -368,7 +378,7 @@ git commit -m "Tekst <NNN> for <slug>: <N> страниц (тон <chosen_tone_i
 ```
 ═══ ТЕКСТЫ + ПРОТОТИП ГОТОВЫ ═══
 Клиент: <domain|slug>   Страниц: <N>   Тон: <chosen_tone_id> «<name>» (выбор заказчика | recommended)
-🧪 Кросс-аудит: <site_audit verdict>   🔍 Вычитка: <verify_report verdict> | замечаний: <N>
+🧪 Кросс-аудит: <site_audit verdict>   🔍 Вычитка (2 прохода): <худший вердикт> | замечаний: <N> (структура <a> + факт-чек <b>)
 🖥 Прототип (деливерабл, один файл, все страницы): texts/<NNN>-<slug>/prototype.html | Drive: <share.json.prototype.link>
 📋 Скелеты (согласованы на гейте): <share.json.skeletons.link>
 🎭 Тон-превью (архив выбора): texts/<NNN>-<slug>/tone/tone-preview.html | Drive: <share.json.tone_preview.link>
@@ -386,7 +396,8 @@ git commit -m "Tekst <NNN> for <slug>: <N> страниц (тон <chosen_tone_i
 
 Три списка; агенты словарь только читают (файл у них и так в обязательном чтении). Ключа нет - все работает без него (ADR-031). Ни один агент половины словаря не спаривает - это ручная работа оркестратора:
 
-- **`translate`** (собрать на шаге 3, до скелетов): пройти по `analyses/audience.json.audience_wordings[]` (`{phrase, means, from}` - подтверждены циклом A2) и для каждой строки найти, каким словом ТО ЖЕ явление называет заказчик - термины брать из `analyses/intake.json` (факты `internal_terms` / `client_wordings` / `client_metaphors`). Совпало - `{internal, public: <phrase>, why}`. Пары нет - строка не входит; подбирать «похожее» самому нельзя. Таблица задает лексему, не якорь замены - грамматику подгоняет писатель.
+- **`translate`** (собрать на шаге 3, до скелетов): пройти по `analyses/audience.json.audience_wordings[]` (`{phrase, means, from}`) и для каждой строки найти, каким словом ТО ЖЕ явление называет заказчик - термины брать из лексиконного слоя интейка `analyses/<NNN>/intake_lexicon.json` (факты `internal_terms` / `client_wordings` / `client_metaphors`). **Если `intake_lexicon.json` есть - лексиконные факты берутся из него. Если файла нет - лексиконные факты ищутся в `intake.json.facts[]` по тем же именам полей (легаси-режим однослойного интейка). Отсутствие обоих - не авария, лексикон просто пуст.** В сводку шага - одной строкой, откуда взят лексикон (`intake_lexicon.json` | `intake.json (легаси)`). Совпало - `{internal, public: <phrase>, why}`. Пары нет - строка не входит; подбирать «похожее» самому нельзя. Таблица задает лексему, не якорь замены - грамматику подгоняет писатель.
+  **Фильтр по провенансу (обязательный, ADR-040/ADR-033).** В `public` идет только строка, чей `from` - живая речь (`forum:<домен>`) либо формулировка, подтвержденная заказчиком (фактура интейка, ответы цикла A2, правки записки). Строка с `from: persona:*` или без `from` - реконструкция агента, а не чьи-то слова: в `public` она НЕ идет, даже если кажется точнее. Публикация в A2 подтверждением НЕ является: A2 печатает и реконструкции, там провенанс виден колонкой источника, а в `lexicon.translate` колонки нет - слово уедет на живую страницу голым. Спорная строка - вопрос заказчику, а не догадка оркестратора.
 - **`canonical`** (перенести на `tone-chosen`, после показа записки): `strategy.canonical_wordings` -> `lexicon.canonical` `{thought, wording, where, origin, client_variant}`. Переносится ПОДТВЕРЖДЕННАЯ заказчиком редакция - правки записки сначала применяются к `strategy.canonical_wordings`. `origin`: `формула` (дефолт) / `проверяемый факт` / `клиент-требование`; `client_variant` ложится РЯДОМ, не вместо. Строки с `[ЗАПОЛНИТЬ` / «требует уточнения» НЕ переносить - плейсхолдер в роли канона размножится по всему сайту.
 - **`locked`** (по ходу гейтов): только по трем основаниям ADR-033/037, и `source` обязан называть основание - (а) юридическая/реквизитная формулировка; (б) слоган, самоназвание, торговая марка; (в) заказчик явно потребовал сохранить дословно (на факт-гейте, в записке тон-гейта, в правках). Реплика из транскрипта - никогда автоматически. Одну мысль не заводить и в locked, и в canonical.
   **locked не пробивает машинные инварианты:** лимит H1, «числа только из facts.json», типографика действуют и на locked-строку. Не влезает - вопрос заказчику, а не `accepted_violations`.
@@ -407,7 +418,7 @@ git commit -m "Tekst <NNN> for <slug>: <N> страниц (тон <chosen_tone_i
 
 - **Сводка агента <= 8 строк**; полные тексты/JSON в чат запрещены - фактура передается путями. Parent-fallback запрещен: агент не записал файл - ре-делегация, не запись за него.
 - **Оркестратор не читает большие JSON целиком** - гейты через exit-коды скриптов и точечные выборки полей.
-- **Expected-маркеры - только одиночным вызовам** (pages-planner, offer-strategist, block-planner такт 1, block-planner/slot-mapper одним вызовом, site-reviewer, tekst-verifier): `.claude/tmp/expected-<агент>-<run_id>.txt = <путь результата>`. Веера (писатели x3 тон-гейта, page-writer, copy-auditor, prototype-builder, пачки block-planner/slot-mapper) - БЕЗ маркеров: single-marker hook на одновременных стопах дает ложные отказы (ADR-012); полноту проверяет оркестратор по файлам.
+- **Expected-маркеры - только одиночным вызовам** (pages-planner, offer-strategist, block-planner такт 1, block-planner/slot-mapper одним вызовом, site-reviewer): `.claude/tmp/expected-<агент>-<run_id>.txt = <путь результата>`. Веера (писатели x3 тон-гейта, page-writer, copy-auditor, prototype-builder, пачки block-planner/slot-mapper, **два параллельных прохода tekst-verifier**) - БЕЗ маркеров: single-marker hook на одновременных стопах дает ложные отказы (ADR-012); полноту проверяет оркестратор по файлам.
 - **Размеры пачек:** page-writer / copy-auditor / prototype-builder - по 6-8; block-planner / slot-mapper при > 12 страниц - по 8-10, группируя по типу. Cap против overload.
 - **Лимит ре-делегаций - 2** на агента по одной находке (ADR-025); дальше - accepted_violations / waiver / отчет человеку, не бесконечный цикл.
 - **Диета писателя - в знаках** (ADR-020): VOICE.md <= 20500, VOICE.md + page-writer.md <= 33000; тест `.claude/tests/seo-tekst` провалит нарушение. Исполнитель - автор правок этих файлов; мотив - перегруженный писатель теряет главное.

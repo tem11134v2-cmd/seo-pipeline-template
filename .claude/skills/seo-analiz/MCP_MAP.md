@@ -36,16 +36,23 @@ domain_pages(domain="leader.ru", base="spb", sort="it50|desc", per_page=10)
 
 | Тул | Что дает | На каких шагах |
 |---|---|---|
-| `arsenkin_top` | Топ Яндекса по запросу+регион (домены/URL) | 2 (audience-analyst: опц. поиск форумов/отзывов); 3 (при basic - ОСНОВНОЙ путь кандидатов: по `marker_hint` 3-5 направлений из brief.directions; при seo - только если `brief.city_not_in_keyso == true`, локальные игроки); 5 (direction-scanner: 1 вызов на направление по его `marker_hint`) |
-| `seo_fetch_page` / `seo_fetch_batch` | Статический фетч + разбор HTML (JS не рендерит), объем по профилю | 1 (при basic - скан сайта клиента: sitemap/меню, до 5 страниц -> `client_pages` без метрик); 2 (audience-analyst: форум-майнинг, **max 2-3 вызова**); 3 (проверка спорных доменов на агрегатор/инфопортал, `profile="content"`; при basic - лайт-типизация всех кандидатов); 4 (скан страниц топ-3 лидеров, `profile="content"`; при basic - также ВЫБОР страниц через меню/sitemap лидера вместо `domain_pages`); 5 (direction-scanner: fallback фетча страниц конкурентов направления + own_page) |
-| `mcp__claude-in-chrome__*` (Chrome-плагин) | Rendered-фетч страниц (JS-сайты) | 4 (leader-scanner v2: PRIMARY-фетч страниц лидеров), 5 (direction-scanner: основной фетч 3-5 страниц однотипных конкурентов; fallback - `seo_fetch_batch(urls=[...], profile="content")`) |
+| `arsenkin_top` | Топ Яндекса по запросу+регион (домены/URL); регион задается ТОЛЬКО внутри `se`, параметра `region` на верхнем уровне нет - см. врезку под примерами вызовов | 2 (audience-analyst: опц. поиск форумов/отзывов); 3 (при basic - ОСНОВНОЙ путь кандидатов: по `marker_hint` 3-5 направлений из brief.directions; при seo - только если `brief.city_not_in_keyso == true`, локальные игроки); **5.0 (ОРКЕСТРАТОР: ОДИН batch-вызов по маркерам ВСЕХ направлений ДО веера -> `recon/_serp_raw.md`)**; 5 (direction-scanner: свой вызов ТОЛЬКО если в `_serp_raw.md` его выдачи нет) |
+| `seo_fetch_page` / `seo_fetch_batch` | Статический фетч + разбор HTML (JS не рендерит), объем по профилю | 0c.3a (ОРКЕСТРАТОР: снятие ссылок заказчика в `sources/<slug>.md`, `profile="content"`; пустое тело - рендер Chrome-плагином); 1 (при basic - скан сайта клиента: sitemap/меню, до 5 страниц -> `client_pages` без метрик); 2 (audience-analyst: форум-майнинг, **max 2-3 вызова**); 3 (проверка спорных доменов на агрегатор/инфопортал, `profile="content"`; при basic - лайт-типизация всех кандидатов); 4 (скан страниц топ-3 лидеров, `profile="content"`; при basic - также ВЫБОР страниц через меню/sitemap лидера вместо `domain_pages`); 5 (direction-scanner: fallback фетча страниц конкурентов направления + own_page) |
+| `mcp__claude-in-chrome__*` (Chrome-плагин) | Rendered-фетч страниц (JS-сайты) | 0c.3a (оркестратор: ссылка заказчика отдала пустое тело статическим фетчем), 4 (leader-scanner v2: PRIMARY-фетч страниц лидеров), 5 (direction-scanner: основной фетч 3-5 страниц однотипных конкурентов; fallback - `seo_fetch_batch(urls=[...], profile="content")`) |
 | `web_search` | Поиск форумов/отзывов/обсуждений | 2 (audience-analyst: где ЦА обсуждает проблему - дословные формулировки болей/возражений) |
 
 ```
-arsenkin_top(queries=["<запрос> <город>"], region=213, depth=10, is_snippet=true)
+arsenkin_top(queries=["<запрос> <город>"], se=[{"type": 2, "region": 213}], depth=10, is_snippet=true)
 seo_fetch_page(url="https://leader.ru/services/teambuilding", profile="content")
 seo_fetch_batch(urls=["...", "..."], profile="content")
 ```
+
+**Регион у `arsenkin_top` живет ТОЛЬКО внутри `se`.** Схема инструмента: `queries` (массив),
+`se` (массив объектов, дефолт `[{region: 213, type: 2}]`), `depth`, `is_snippet`, `noreask`.
+Параметра `region` на верхнем уровне НЕТ - переданный там код молча игнорируется, и выдача
+приходит московская десктопная. Для немосковского клиента это тихо подменяет данные (хуже
+явной деградации: `serp_source: "batch"` выглядит достоверным). `type: 2` - десктоп, `type: 1` -
+мобильная выдача.
 
 ### Встроенные Claude
 
@@ -79,6 +86,7 @@ seo_fetch_batch(urls=["...", "..."], profile="content")
 |---|---|---|
 | `uploadFile` / `deleteItem` | заливка `A2_<slug>.docx` в Drive (+ delete при revising и --add-seo re-upload) | 8 (оркестратор, не агент) |
 | `readGoogleDoc(format="markdown")` | чтение Google Doc клиента с его ответами | 9.0 режим `--answers` (оркестратор) |
+| `downloadFile(fileId, localPath, exportMimeType="text/plain")` | скачивание Google Doc из вводных заказчика В ФАЙЛ `sources/<slug>.md` | 0c.3a (оркестратор; в контекст такие документы НЕ читать - в прогоне транскрипт весил 290 КБ) |
 
 Doc_id клиента - в `<analysis_dir>/share.json.drive_file_id`. Все вызовы Drive делает оркестратор, не субагенты. Fallback `readGoogleDoc` (не Google Doc / Docs API не активна) - ручная вставка ответов текстом (см. SKILL 9.0d).
 
@@ -112,9 +120,13 @@ seo:   9.  domain_pages(× 3 лидера)                # выбор стра�
 basic: 9.  seo_fetch_page(меню/sitemap, × 3)       # выбор страниц без Keyso
 10. seo_fetch_page(profile="content", × 9-12)      # скан смыслов + блок-матрица
 
+--- batch-SERP (шаг 5.0, ОРКЕСТРАТОР, ДО веера) ---
+10a. arsenkin_top(× 1, queries = маркеры ВСЕХ направлений,
+                  se=[{"type": 2, "region": <код региона>}])  # -> recon/_serp_raw.md
+
 --- direction-scanner (шаг 5, веер по направлениям; пропускается при --no-recon) ---
-~7 вызовов НА НАПРАВЛЕНИЕ:
-11. arsenkin_top(× 1)                              # топ-10 по marker_hint + регион
+~6-7 вызовов НА НАПРАВЛЕНИЕ:
+11. arsenkin_top(× 0-1)                            # только если в _serp_raw.md выдачи по маркеру нет
 12. Chrome-плагин / seo_fetch_batch(× 3-5 страниц) # фетч однотипных конкурентов
 13. seo_fetch_page(own_page, × 0-1)                # если directions[].url != null
 
@@ -165,5 +177,6 @@ basic: 9.  seo_fetch_page(меню/sitemap, × 3)       # выбор стран�
 | Keyso вернул пустые данные на домене конкурента (tier=seo) | Пометить `"keyso_data": "missing"` в его записи, оставить в списке (тип и тематика важнее) |
 | `seo_fetch_page` 403/404/timeout | Попробовать вторичный fallback `web_fetch` (теряет мету/структуру/HTTP-статус). Если оба не работают - `"fetch_failed": true`, пропустить страницу, продолжать |
 | Chrome-плагин недоступен (шаг 5) | Штатный fallback: `seo_fetch_batch(urls=[...], profile="content")` - статический фетч без рендера JS |
-| `arsenkin_top` не работает | При tier=seo альтернатива: Keyso `check_top` / `history_serp`. При tier=basic альтернативы нет - пометить `"serp_source": "none"` в recon/candidates, собрать что можно из брифа и фетча, продолжать |
+| `arsenkin_top` не работает | Сначала `arsenkin_healthcheck` (мгновенный): есть остаток лимитов - это потолок ОДНОВРЕМЕННЫХ задач, а не квота, подождать и повторить. При tier=seo альтернатива: Keyso `check_top` / `history_serp`. При tier=basic альтернативы нет - пометить `"serp_source": "none"` в recon/candidates, собрать что можно из брифа и фетча, продолжать |
+| batch-SERP шага 5.0 не удался | Файл `recon/_serp_raw.md` создать с пометкой `batch не удался: <причина>` - агенты веера перейдут на самостоятельный вызов. Веер не блокировать |
 | Превышен бюджет MCP | Прекратить добор кандидатов/страниц, перейти к следующему этапу с тем что есть |
