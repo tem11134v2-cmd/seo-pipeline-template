@@ -254,9 +254,10 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── seo-tekst/                       (worktree, конверсионные тексты + HTML-прототипы)
 │   │   │   ├── SKILL.md
 │   │   │   ├── MCP_MAP.md
-│   │   │   └── assets/                      (BLOCKS.md, COPY.md, VOICE.md, COPY-AUDIT.md, KIT-SPEC.md, LEGAL.md,
-│   │   │                                     fragments-manifest.json, PROTOTYPE-MASTER.html, prototype.css, prototype.js,
-│   │   │                                     arrow.svg, fragments/, legal/, themes/ - 7 тем, вкл. theme-wireframe)
+│   │   │   └── assets/                      (BLOCKS.md + BLOCKS-METRICS.md, COPY.md, VOICE.md, COPY-AUDIT.md,
+│   │   │                                     KIT-SPEC.md, LEGAL.md, ORCHESTRATOR-REF.md, fragments-manifest.json,
+│   │   │                                     PROTOTYPE-MASTER.html, prototype.css, prototype.js,
+│   │   │                                     arrow.svg, fragments/, legal/, themes/ - только theme-wireframe, ADR-039)
 │   │   ├── seo-tekst-fix/SKILL.md           (worktree, точечная правка прототипа)
 │   │   ├── share-tekst/SKILL.md             (worktree, перезаливка Skeletons.docx / tone-preview.html / prototype.html в Drive)
 │   │   ├── seo-faq/                         (worktree, SEO-нормализация: FAQ + теги + перелинковка)
@@ -564,7 +565,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `audit-verifier` | Финальная независимая вычитка audit_data.json против 4 JSON-источников: нет выдуманных проблем, ничего значимого не потеряно, бьются цифры карточки → verify_report.json, ничего не чинит (для /seo-tehaudit, шаг 5b) |
 | `audience-analyst` | Глубокий анализ ЦА (порт У5-Б): сегменты/боли-сцены/страхи/возражения по направлениям + компактная сводка → analyses/audience.json (для /seo-analiz, ступень 2) |
 | `offer-strategist` | Стратегия оффера: позиционирование + прогретость + идея + формула + 30 тезисов + палитра + materials-gate → strategy.json (для /seo-tekst, проектный) |
-| `block-planner` | Блок-план всех страниц одним проходом: BLOCKS.md + leader_blocks → blueprints/<slug>.json (блоки + цели + боли + слоты + char-лимиты); снимает каталоги с писателей (для /seo-tekst, проектный) |
+| `block-planner` | Блок-план двумя тактами (скелет типа -> blueprint страницы): BLOCKS.md (решения о составе; метрики - у slot-mapper в BLOCKS-METRICS.md) + leader_blocks → blueprints/<slug>.json (блоки + цели + боли + слоты + char-лимиты); снимает каталоги с писателей (для /seo-tekst, проектный) |
 | `page-writer` | Конверсионный текст одной страницы по готовому blueprint: голос + ЦА-под-страницу + копия по VOICE.md (диета контекста, ADR-020) → page.json (для /seo-tekst, веер) |
 | `prototype-builder` | Сборка HTML-прототипа одной страницы поверх kit: page.json → manifest → build-prototype.mjs + verify + fix (для /seo-tekst, веер) |
 | `prototype-fixer` | Точечная правка прототипа (разбор голосовых PHASE-7 + паттерн article-fixer) (для /seo-tekst-fix) |

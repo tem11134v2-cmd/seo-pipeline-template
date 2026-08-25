@@ -1393,7 +1393,12 @@ step("ADR-020: обязательный вход писателя в знака�
 // Кто исполняет: автор правок этих файлов. Зачем: рост промта должен быть решением, а не
 // побочным следствием дописывания абзаца; перегруженный агент теряет главное.
 const CAPS = [
-  [".claude/skills/seo-tekst/SKILL.md", 57500, "оркестратор"],
+  // SKILL.md упирался в потолок (57 235 из 57 500), то есть следующее правило пришлось бы
+  // вносить за счет вырезания другого. Три справочных блока (словарь проекта, Drive,
+  // pre-commit) вынесены в ORCHESTRATOR-REF.md: они читаются точечно по ссылке из шага и
+  // не участвуют в state machine. Шаги, состояние и запреты остались в SKILL.md.
+  [".claude/skills/seo-tekst/SKILL.md", 52000, "оркестратор (шаги и состояние)"],
+  [".claude/skills/seo-tekst/assets/ORCHESTRATOR-REF.md", 7500, "оркестратор (точечно по ссылке)"],
   [".claude/skills/seo-tekst/assets/KIT-SPEC.md", 38500, "разработчик шаблона (в промты агентов не идет)"],
   [".claude/skills/seo-tekst/assets/COPY.md", 37500, "page-writer (точечно)"],
   [".claude/skills/seo-tekst/assets/COPY-AUDIT.md", 36000, "copy-auditor"],
@@ -1460,6 +1465,140 @@ step("разделение BLOCKS.md: у каждого агента своя п
   if (missing.length) return `блоки индекса без метрик: ${missing.slice(0, 3).join("; ")}`;
   // Char-метрик у планировщика быть не должно: их признак - колонка ОБЪЁМ в таблице каталога
   if (/\| ОБЪ[ЁЕ]М \|/.test(planner)) return "в BLOCKS.md осталась таблица каталога с колонкой ОБЪЁМ - разделение не отработало";
+  return true;
+});
+
+// ── Сквозной аудит кита (25.08) ──
+// Ни одна проверка не сверяла манифест с самой разметкой и с каталогом. Разовый аудит нашел
+// то, чего боевой отчет увидел только край: 21 блок каталога из 45 не имел записи в
+// block_to_fragment, и сборщик молча брал фолбэк cards - для «CTA промежуточный»,
+// «Карта и контакты», «До / после» и карточек товара это ЧУЖАЯ форма, а не просто фолбэк.
+const KIT = join(PROJECT_ROOT, ".claude/skills/seo-tekst/assets");
+const kitManifest = () => JSON.parse(readFileSync(join(KIT, "fragments-manifest.json"), "utf8").replace(/^﻿/, ""));
+const normBlock = (s) => String(s || "").toLowerCase().replace(/ё/g, "е")
+  .replace(/\(обязательн\w*\)/g, "").replace(/[«»"'`]/g, "").replace(/\*\*/g, "")
+  .replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();
+
+step("кит: слоты манифеста и разметка фрагментов совпадают в обе стороны", () => {
+  const man = kitManifest();
+  const bad = [];
+  const ENGINE = new Set(["@index", "item", "empty_state"]);
+  for (const [name, f] of Object.entries(man.fragments)) {
+    const file = join(KIT, "fragments", f.file || `${name}.html`);
+    if (!existsSync(file)) { bad.push(`${name}: нет файла ${f.file}`); continue; }
+    const html = readFileSync(file, "utf8");
+    const declScalars = new Set(f.scalars || []);
+    const declOpts = new Set(f.opts || []);
+    const declRep = f.repeatables || {};
+    const declFields = new Set(Object.values(declRep).flat());
+
+    const usedScalars = new Set(), usedOpts = new Set(), usedRepeats = new Set(), itemFields = new Set();
+    for (const m of html.matchAll(/<!--REPEAT:([^>]+?)-->/g)) {
+      const p = m[1].trim();
+      // вложенный регион <!--REPEAT:item.features--> - это использование ПОЛЯ features
+      if (p.startsWith("item.")) itemFields.add(p.slice(5));
+      else usedRepeats.add(p);
+    }
+    for (const m of html.matchAll(/<!--IF:([^>]+?)-->/g)) {
+      const p = m[1].trim();
+      if (p.startsWith("opts.")) usedOpts.add(p.slice(5));
+      else if (p.startsWith("item.")) itemFields.add(p.slice(5));
+      else usedScalars.add(p);
+    }
+    for (const m of html.matchAll(/<!--CLASS:(\w+)-->/g)) usedOpts.add(m[1]);
+    for (const m of html.matchAll(/\{\{\{?\s*([^}]+?)\s*\}?\}\}/g)) {
+      const p = m[1].trim();
+      if (ENGINE.has(p)) continue;
+      if (p.startsWith("item.")) { itemFields.add(p.slice(5)); continue; }
+      if (p.startsWith("opts.")) { usedOpts.add(p.slice(5)); continue; }
+      usedScalars.add(p);
+    }
+
+    for (const s of declScalars) if (!usedScalars.has(s)) bad.push(`${name}: слот "${s}" объявлен, но в разметке не используется - писатель заполнит его в пустоту`);
+    for (const s of usedScalars) if (!declScalars.has(s) && !declRep[s]) bad.push(`${name}: в разметке {{${s}}}, слота нет в манифесте - slot-mapper его не выпишет`);
+    for (const r of Object.keys(declRep)) if (!usedRepeats.has(r)) bad.push(`${name}: repeatable "${r}" объявлен, REPEAT в разметке нет`);
+    for (const r of usedRepeats) if (!declRep[r]) bad.push(`${name}: REPEAT:${r} без объявления в манифесте`);
+    for (const fl of itemFields) if (!declFields.has(fl)) bad.push(`${name}: в разметке item.${fl}, поля нет в repeatables`);
+    for (const fl of declFields) if (!itemFields.has(fl)) bad.push(`${name}: поле "${fl}" объявлено, в разметке не используется`);
+    for (const o of usedOpts) if (!declOpts.has(o)) bad.push(`${name}: в разметке opts.${o}, в манифесте не объявлен`);
+    // opts, объявленный декларативно (форма уже несет свойство) - законное исключение, оно названо в notes
+    for (const o of declOpts) if (!usedOpts.has(o) && !new RegExp(`${o}[^.]{0,80}декларативн`, "i").test(f.notes || "")) bad.push(`${name}: opts."${o}" объявлен, но в разметке не используется`);
+  }
+  if (bad.length) return `${bad.length} расхождений: ${bad.slice(0, 4).join(" | ")}`;
+  return true;
+});
+
+step("кит: block_to_fragment покрывает ВЕСЬ каталог и не противоречит объявленной форме", () => {
+  const man = kitManifest();
+  const blocksMd = readFileSync(join(KIT, "BLOCKS.md"), "utf8");
+  const byNorm = new Map();
+  for (const [k, v] of Object.entries(man.block_to_fragment || {})) if (!byNorm.has(normBlock(k))) byNorm.set(normBlock(k), v);
+  const lookup = (raw) => {
+    const whole = normBlock(raw);
+    if (byNorm.has(whole)) return byNorm.get(whole);
+    for (const part of whole.split("/").map((s) => s.trim()).filter(Boolean)) if (byNorm.has(part)) return byNorm.get(part);
+    return null;
+  };
+  const bad = [];
+  let rows = 0;
+  for (const m of blocksMd.matchAll(/^\| (\d+к?|-) \| ([^|]+) \| ([^|]+) \|$/gm)) {
+    const [, num, nameRaw, formRaw] = m;
+    rows++;
+    if (/отложен|снят/i.test(nameRaw)) continue; // зона /seo-faq и снятые блоки планировщик не ставит
+    const forms = [...formRaw.matchAll(/`([a-z-]+)`/g)].map((x) => x[1]);
+    if (!forms.length) continue;
+    const mapped = lookup(nameRaw.trim());
+    if (!mapped) { bad.push(`блок ${num} «${nameRaw.trim()}» не найден - сборщик возьмет фолбэк cards`); continue; }
+    if (!forms.includes(mapped)) bad.push(`блок ${num} «${nameRaw.trim()}»: в каталоге ${forms.join("/")}, в манифесте "${mapped}"`);
+  }
+  if (rows < 50) return `в индексе BLOCKS.md только ${rows} строк - каталог обрезан`;
+  for (const [block, frag] of Object.entries(man.block_to_fragment || {}))
+    if (!man.fragments[frag]) bad.push(`"${block}" -> "${frag}": такой формы в ките нет`);
+  if (bad.length) return `${bad.length} блоков без формы: ${bad.slice(0, 4).join(" | ")}`;
+  return true;
+});
+
+step("кит: slot_defaults и маркеры shell ссылаются на существующее", () => {
+  const man = kitManifest();
+  const bad = [];
+  for (const [frag, defs] of Object.entries(man.slot_defaults || {})) {
+    if (frag === "_doc") continue;
+    const f = man.fragments[frag];
+    if (!f) { bad.push(`slot_defaults: формы "${frag}" нет в ките`); continue; }
+    for (const key of Object.keys(defs)) {
+      const m = /^(\w+)\[\]\.(\w+)$/.exec(key);
+      if (m) {
+        const fields = (f.repeatables || {})[m[1]];
+        if (!fields) bad.push(`slot_defaults ${frag}: региона "${m[1]}" нет`);
+        else if (!fields.includes(m[2])) bad.push(`slot_defaults ${frag}: поля "${m[2]}" нет в ${m[1]}`);
+      } else if (!(f.scalars || []).includes(key)) bad.push(`slot_defaults ${frag}: скаляра "${key}" нет`);
+    }
+  }
+  const shell = readFileSync(join(KIT, "PROTOTYPE-MASTER.html"), "utf8");
+  const asm = readFileSync(join(PROJECT_ROOT, ".claude/scripts/assemble-prototype.mjs"), "utf8");
+  for (const m of shell.matchAll(/<!--([A-Z_]+)-->/g)) {
+    if (/^IF_/.test(m[1])) continue;
+    if (!asm.includes(`<!--${m[1]}-->`)) bad.push(`маркер <!--${m[1]}--> ассемблер не подставляет - уедет в документ как есть`);
+  }
+  for (const m of shell.matchAll(/<!--IF_([A-Z_]+)-->/g))
+    if (!asm.includes(`"${m[1]}"`)) bad.push(`условный блок IF_${m[1]} ассемблер не обрабатывает`);
+  if (bad.length) return bad.slice(0, 4).join(" | ");
+  return true;
+});
+
+step("кит: в клиентской разметке нет е-с-точками и тире (фрагменты, legal, shell)", () => {
+  const bad = [];
+  for (const dir of ["fragments", "legal"]) {
+    for (const f of readdirSync(join(KIT, dir))) {
+      const t = readFileSync(join(KIT, dir, f), "utf8");
+      if (/[ёЁ]/.test(t)) bad.push(`${dir}/${f}: е-с-точками`);
+      if (/[—–]/.test(t)) bad.push(`${dir}/${f}: тире`);
+    }
+  }
+  const shell = readFileSync(join(KIT, "PROTOTYPE-MASTER.html"), "utf8");
+  if (/[ёЁ]/.test(shell)) bad.push("PROTOTYPE-MASTER.html: е-с-точками");
+  if (/[—–]/.test(shell)) bad.push("PROTOTYPE-MASTER.html: тире");
+  if (bad.length) return bad.join(" | ");
   return true;
 });
 
