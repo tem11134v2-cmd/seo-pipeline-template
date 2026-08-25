@@ -4,12 +4,13 @@
       <h1 class="pt-hero__h1">{{h1}}</h1>
       <p class="pt-hero__sub">{{subhead}}</p>
       <div class="pt-hero__cta-wrap">
-        <a href="#lead" class="btn btn--primary btn--lg pt-hero__cta">{{cta_label}}</a>
+        <a href="{{cta_href}}" class="btn btn--primary btn--lg pt-hero__cta">{{cta_label}}</a>
         <!--IF:opts.arrow--><span class="pt-arrow" aria-hidden="true"><!--ARROW_SVG--></span><!--/IF:opts.arrow-->
         <!--IF:bonus--><p class="pt-hero__bonus">{{bonus}}</p><!--/IF:bonus-->
       </div>
     </div>
     <div class="pt-hero__plates">
+      <!--IF:media_alt--><div class="pt-hero__media" role="img" aria-label="{{media_alt}}">{{media_alt}}</div><!--/IF:media_alt-->
       <!--REPEAT:plates-->
       <div class="pt-plate">
         <div class="pt-plate__title">{{item.title}}</div>

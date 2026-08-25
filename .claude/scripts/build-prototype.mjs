@@ -107,9 +107,37 @@ function interpolate(text, scope) {
   });
   out = out.replace(/<!--CLASS:(\w+)-->/g, (_m, name) => {
     const v = resolvePath("opts." + name, scope);
+    // Булев модификатор дает класс БЕЗ значения: opts.slider = true -> "slider"
+    // (иначе получался бы бессмысленный "slider-true"). Числовой - как раньше: cols=3 -> "cols-3".
+    if (v === true) return name;
     return v ? `${name}-${v}` : "";
   });
   return out;
+}
+
+// ---------- дефолты слотов (kit: fragments-manifest.slot_defaults) ----------
+// Кто исполняет: сборщик перед рендером. Зачем: адрес ссылки во фрагментах был зашит
+// намертво (href="#lead"), и требование заказчика «кнопка Подробнее ведет на подстраницу
+// конкретного обучения» выполнить было НЕЧЕМ - писатели складывали адреса в notes_internal,
+// откуда их никто не подставлял. Теперь адрес - слот, а дефолт держит прежнее поведение:
+// слот пуст - ссылка ведет на форму своей страницы.
+// Ключ "items[].url" - поле каждого элемента повторяемого региона.
+export function applySlotDefaults(scope, defs) {
+  if (!defs || typeof defs !== "object") return 0;
+  let filled = 0;
+  for (const [key, val] of Object.entries(defs)) {
+    const m = /^([A-Za-z_]\w*)\[\]\.(\w+)$/.exec(key);
+    if (m) {
+      const list = scope[m[1]];
+      if (!Array.isArray(list)) continue;
+      for (const el of list) {
+        if (el && typeof el === "object" && !Array.isArray(el) && !truthy(el[m[2]])) { el[m[2]] = val; filled++; }
+      }
+      continue;
+    }
+    if (!truthy(scope[key])) { scope[key] = val; filled++; }
+  }
+  return filled;
 }
 
 // find matching close index for a given open/close tag pair (handles nested same tag)
@@ -355,6 +383,7 @@ function main() {
   const fillNotes = [];
   const usedFragments = [];
   const unknownFragments = [];
+  let defaultsFilled = 0;
 
   for (const block of blocks) {
     const type = block.type || "";
@@ -383,6 +412,8 @@ function main() {
     // слот писателя, и подмена затирает согласованный текст мимо канона page.json (v7.1:
     // page.json - единственный источник текстов, из него собирается клиентский прототип).
     if (block.empty_state != null && scope.empty_state == null) scope.empty_state = block.empty_state;
+    // Дефолты слотов кита (адреса ссылок) - ДО рендера, иначе href уедет пустым.
+    defaultsFilled += applySlotDefaults(scope, (fragManifest.slot_defaults || {})[fragName]);
 
     let rendered = renderTemplate(fragTpl, scope);
     rendered = rendered.replace(/<!--ARROW_SVG-->/g, arrowSvg);
@@ -405,6 +436,7 @@ function main() {
   console.log(`  fragments: ${[...new Set(usedFragments)].join(", ")}`);
   if (unknownFragments.length) console.log(`  НЕТ В КИТЕ (подставлен cards, блок пустой): ${unknownFragments.join("; ")}`);
   console.log(`  finale forms: ${formCount}${formCount === 1 ? " (ok)" : " (WARN: expected exactly 1)"}`);
+  if (defaultsFilled) console.log(`  дефолты слотов кита (адреса ссылок): ${defaultsFilled} - писатель адрес не задал, ссылка ведет на форму своей страницы`);
   console.log(`  fill-notes (для согласования): ${fillNotes.length}`);
   console.log(`  size: ${(Buffer.byteLength(blocksHtml, "utf8") / 1024).toFixed(1)} KB (render-фрагмент, без shell)`);
 }

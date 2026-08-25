@@ -64,6 +64,7 @@
   <header class="pt-header">
     <div class="container pt-header__row">
       <a href="#" class="pt-logo"><!--LOGO--></a>
+      <!--NAV-->
       <div class="pt-header__contacts">
         <!-- Телефон и график печатаются только когда они ЕСТЬ: условные маркеры IF_PHONE,
              IF_SCHEDULE и IF_CONTACTS снимает ассемблер. Пустой график раньше давал в шапке
@@ -72,7 +73,7 @@
           <!--IF_PHONE--><a href="tel:<!--PHONE_RAW-->" class="pt-phone"><!--PHONE--></a><!--/IF_PHONE-->
           <!--IF_SCHEDULE--><span class="pt-schedule"><!--SCHEDULE--></span><!--/IF_SCHEDULE-->
         </div><!--/IF_CONTACTS-->
-        <a href="#" class="btn btn--primary pt-shell-cta">Оставить заявку</a>
+        <a href="#" class="btn btn--primary pt-shell-cta"><!--SHELL_CTA--></a>
         <button class="pt-burger-btn" aria-label="Меню" onclick="openBurger()">
           <span></span><span></span><span></span>
         </button>
@@ -83,13 +84,14 @@
   <div class="pt-burger-overlay" id="burgerOverlay" onclick="closeBurger()"></div>
   <aside class="pt-burger-drawer" id="burgerDrawer">
     <button class="pt-burger-close" onclick="closeBurger()" aria-label="Закрыть">&times;</button>
+    <!--NAV-->
     <nav class="pt-burger-nav" aria-label="Мобильное меню">
-      <a href="#" class="pt-shell-cta" onclick="closeBurger()">Оставить заявку</a>
+      <a href="#" class="pt-shell-cta" onclick="closeBurger()"><!--SHELL_CTA--></a>
     </nav>
     <div>
       <!--IF_PHONE--><a href="tel:<!--PHONE_RAW-->" class="pt-phone"><!--PHONE--></a><!--/IF_PHONE-->
       <!--IF_SCHEDULE--><p class="pt-schedule" style="margin:4px 0 16px;"><!--SCHEDULE--></p><!--/IF_SCHEDULE-->
-      <a href="#" class="btn btn--primary btn--block btn--lg pt-shell-cta" onclick="closeBurger()">Оставить заявку</a>
+      <a href="#" class="btn btn--primary btn--block btn--lg pt-shell-cta" onclick="closeBurger()"><!--SHELL_CTA--></a>
     </div>
   </aside>
 
@@ -102,7 +104,7 @@
   <!--LEGAL_PAGES-->
 
   <div class="pt-mobile-cta">
-    <a href="#" class="btn btn--primary btn--block btn--lg pt-shell-cta">Оставить заявку</a>
+    <a href="#" class="btn btn--primary btn--block btn--lg pt-shell-cta"><!--SHELL_CTA--></a>
   </div>
 
   <!--COOKIE_BANNER-->

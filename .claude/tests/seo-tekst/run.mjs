@@ -295,6 +295,13 @@ step("засев publish: совпадение с forbidden_wordings брифа 
   return true;
 });
 
+step("inputs.json: region_name - короткое имя, проза брифа сохранена в region_note", () => {
+  const inputs = readJson(join(dirSeed, "inputs.json"));
+  if (inputs.region_name !== "Россия") return `region_name = «${inputs.region_name}» - абзац прозы уедет в промты агентов шумом`;
+  if (!/полностью онлайн/.test(String(inputs.region_note))) return "полная формулировка брифа потеряна (region_note)";
+  return true;
+});
+
 step("засев чистого числа: publish as-is + label выведен машинно (label_auto)", () => {
   const facts = readJson(join(dirSeed, "facts.json"));
   const row = (facts.numbers || []).find((n) => /137 объектов/.test(n.value));
@@ -559,8 +566,12 @@ seedSite(dirSite);
 
 // Клон фикстуры под негативный кейс: каждый ломает свое, эталон не трогает
 function cloneSite(name, mutate) {
+  return cloneSite2(name, dirSite, mutate);
+}
+// То же для любой другой фикстуры сайта (у слотовой свой набор страниц и свой manifest).
+function cloneSite2(name, src, mutate) {
   const dst = join(SANDBOX, name);
-  cpSync(dirSite, dst, { recursive: true });
+  cpSync(src, dst, { recursive: true });
   if (mutate) mutate(dst);
   return dst;
 }
@@ -799,6 +810,160 @@ step("verify v2: склеенный ИНН в legal главной -> exit 2 (р
   const r = run([VERIFY_PROTO, dir]);
   if (r.code !== 2) return `exit ${r.code}, ожидался 2 - длина реквизита опять никем не проверяется`;
   if (!/ИНН|inn/i.test(r.stdout)) return "в выводе нет причины про ИНН";
+  return true;
+});
+
+// ══ Слоты кита и оболочка (боевой прогон save-arch-soft, 24.08) ══
+// Пять требований заказчика, которые до этого выполнить было НЕЧЕМ, и из-за которых
+// пришлось писать постобработчик собранного html: адрес ссылки в карточке, кнопка под
+// сеткой, плейсхолдер изображения, меню второго уровня, надпись кнопки оболочки.
+const dirSlots = join(SANDBOX, "slots");
+{
+  const legal = { company: "ИП Рыжова", brand: "Save", inn: "", ogrn: "", address: "", domain: "save.ru", email: "info@save.ru", phone: "", phone_absent: true };
+  const mk = (slug, title, blocks, extraMeta = {}) => {
+    const d = join(dirSlots, "pages", slug);
+    mkdirSync(d, { recursive: true });
+    writeFileSync(join(d, "manifest.json"), JSON.stringify({
+      meta: Object.assign({ project: "save", slug, page_type: "Услуга", title, description: "Учим архитектурному софту в онлайне, поток раз в месяц." }, extraMeta),
+      legal, blocks,
+    }, null, 2), "utf8");
+  };
+  const heroSlots = {
+    n: 1, type: "Первый экран (Hero)", fragment: "hero", h2: null,
+    slots: { h1: "Онлайн-школа архитектурного софта", subhead: "Ведем от первого урока до диплома за 4 месяца", cta_label: "Начать учиться", cta_href: "/kurs/", media_alt: "Фото студии" },
+    opts: {}, fill_notes: [],
+  };
+  const productsSlots = {
+    n: 2, type: "Каталог", fragment: "product-card", h2: "Save Market",
+    slots: {
+      subhead: "Шаблоны и пресеты для работы",
+      items: [
+        { media_alt: "обложка", title: "Пресеты для Revit", text: "Готовые семейства для рабочей документации", cta: "Подробнее", url: "/kurs/" },
+        { media_alt: "обложка", title: "Шаблон InDesign", text: "Сетка портфолио под печать и экран", cta: "Подробнее" },
+      ],
+      section_cta_label: "Перейти в Market", section_cta_href: "/market/",
+    }, opts: {}, fill_notes: [],
+  };
+  const cardsSlots = {
+    n: 3, type: "Направления", fragment: "cards", h2: "Направления обучения",
+    slots: { items: [{ media_alt: "Архитектура", title: "Архитектура", text: "Проектирование и подача", cta: "Смотреть курс", url: "/kurs/" }] },
+    opts: { cols: 1 }, fill_notes: [],
+  };
+  const reviewsSlider = {
+    n: 4, type: "Отзывы", fragment: "reviews", h2: "Что говорят студенты",
+    slots: { items: [{ initial: "А", name: "Анна", pos: "студентка", text: "Разобралась в подаче за месяц, собрала портфолио и поступила." }] },
+    opts: { slider: true }, fill_notes: [],
+  };
+  const formBlock = { n: 9, type: "Форма захвата", fragment: "form", h2: "Задать вопрос",
+    slots: { subhead: "Отвечаем в рабочее время", form_title: "Ваш вопрос", cta_label: "Задать вопрос" }, opts: {}, fill_notes: [] };
+
+  mk("main", "Save - онлайн-школа архитектурного софта", [heroSlots, productsSlots, cardsSlots, reviewsSlider], { cta_label: "Задать вопрос" });
+  mk("kurs", "Курс по Revit - от основ до рабочей документации", [Object.assign({}, heroSlots, { slots: Object.assign({}, heroSlots.slots, { cta_href: "" }) }), formBlock]);
+  mk("market", "Save Market - шаблоны и пресеты", [heroSlots, formBlock]);
+  mk("sluzhebnaya", "Служебная страница", [heroSlots, formBlock]);
+  writeFileSync(join(dirSlots, "site_manifest.json"), JSON.stringify({
+    pages: [
+      { slug: "main", title: "Главная", type: "Главная", order: 1 },
+      { slug: "market", title: "Save Market", type: "Услуга", order: 2, url: "/market/" },
+      { slug: "kurs", title: "Курс по Revit", type: "Услуга", order: 3, url: "/kurs/", parent: "market" },
+      { slug: "sluzhebnaya", title: "Служебная", type: "Инфо", order: 4, nav: false },
+    ],
+    start: "__index", main_slug: "main",
+  }, null, 2), "utf8");
+  // Форму с главной снял заказчик - waiver F3 (законное основание, ADR-037).
+  writeFileSync(join(dirSlots, "meta.json"), JSON.stringify({
+    state: "prototype-built",
+    selling_floor_waivers: [{ page: "main", rule: "F3", why: "заказчик убрал форму с главной, замена - кнопка «Задать вопрос»", source: "decisions.cta.chosen" }],
+  }, null, 2), "utf8");
+  for (const slug of ["main", "kurs", "market", "sluzhebnaya"]) run([BUILD_PROTO, join(dirSlots, "pages", slug)]);
+}
+
+step("кит: адрес ссылки - слот (item.url, cta_href), пустой слот дает прежний #lead", () => {
+  const main = readFileSync(join(dirSlots, "pages", "main", "render.html"), "utf8");
+  if (!/href="\/kurs\/"[^>]*class="btn btn--primary btn--lg pt-hero__cta"/.test(main))
+    return "cta_href не доехал до кнопки первого экрана";
+  if (!/<a href="\/kurs\/" class="btn btn--primary btn--block pt-product__cta">Подробнее<\/a>/.test(main))
+    return "item.url не доехал до кнопки карточки товара";
+  if (!/<a href="#lead" class="btn btn--primary btn--block pt-product__cta">Подробнее<\/a>/.test(main))
+    return "у карточки без url потерян дефолт #lead - прежнее поведение сломано";
+  const kurs = readFileSync(join(dirSlots, "pages", "kurs", "render.html"), "utf8");
+  if (!/href="#lead"[^>]*pt-hero__cta/.test(kurs)) return "пустой cta_href не дал дефолт #lead";
+  return true;
+});
+
+step("кит: кнопка под сеткой карточек, плейсхолдер изображения, ссылка из карточки", () => {
+  const main = readFileSync(join(dirSlots, "pages", "main", "render.html"), "utf8");
+  if (!/<div class="pt-section-cta"><a href="\/market\/" class="btn btn--primary">Перейти в Market<\/a><\/div>/.test(main))
+    return "нет кнопки под сеткой товаров (section_cta_label/href)";
+  if (!/<div class="pt-hero__media" role="img" aria-label="Фото студии">/.test(main))
+    return "нет плейсхолдера изображения в первом экране (hero.media_alt)";
+  if (!/<div class="pt-card__media"/.test(main)) return "нет плейсхолдера изображения в карточке (item.media_alt)";
+  if (!/<a class="pt-card__link" href="\/kurs\/">Смотреть курс<\/a>/.test(main)) return "нет ссылки из карточки (item.cta + item.url)";
+  return true;
+});
+
+step("кит: opts.slider дает класс без значения, opts.cols=1 - колонку (CSS о ней знает)", () => {
+  const main = readFileSync(join(dirSlots, "pages", "main", "render.html"), "utf8");
+  if (/slider-true/.test(main)) return "булев модификатор отрендерен как slider-true";
+  if (!/<div class="pt-reviews slider">/.test(main)) return "opts.slider не дал класс slider";
+  if (!/<div class="pt-cards cols-1">/.test(main)) return "opts.cols=1 не дал класс cols-1";
+  const css = readFileSync(join(PROJECT_ROOT, ".claude/skills/seo-tekst/assets/prototype.css"), "utf8");
+  if (!/\.pt-cards\.cols-1/.test(css)) return "класс cols-1 в CSS не описан - сборщик выставит его молча в пустоту";
+  if (!/\.pt-reviews\.slider/.test(css)) return "класс slider в CSS не описан";
+  return true;
+});
+
+step("assemble: относительные адреса переведены в маршруты роутера (#p/<slug>)", () => {
+  const r = run([ASSEMBLE_PROTO, dirSlots]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
+  const html = readFileSync(join(dirSlots, "prototype.html"), "utf8");
+  if (/href="\/kurs\/"/.test(html)) return "адрес /kurs/ остался относительным - в одностраничном прототипе он ведет в никуда";
+  if (/href="\/market\/"/.test(html)) return "адрес /market/ остался относительным";
+  if (!/href="#p\/kurs"/.test(html)) return "нет маршрута #p/kurs";
+  if (!/href="#p\/market"/.test(html)) return "нет маршрута #p/market";
+  return true;
+});
+
+step("assemble: страница без формы - кнопки переведены на CTA-обработчик, мертвых якорей нет", () => {
+  const html = readFileSync(join(dirSlots, "prototype.html"), "utf8");
+  if (/href="#main__lead"/.test(html)) return "кнопки главной ведут на #main__lead, а формы на ней нет (снята waiver F3) - мертвый якорь";
+  const sec = html.slice(html.indexOf('data-page="main"'), html.indexOf('data-page="market"'));
+  if (!/pt-shell-cta/.test(sec)) return "кнопки страницы без формы не переведены на pt-shell-cta";
+  if (!/href="#kurs__lead"/.test(html)) return "на странице С формой якорь #kurs__lead потерян - переписали лишнее";
+  return true;
+});
+
+step("verify v2: waiver F3 - страница без формы проходит; мертвый якорь -> exit 2", () => {
+  const ok = run([VERIFY_PROTO, dirSlots]);
+  if (ok.code !== 0) return `валидный waiver F3 не учтен, exit ${ok.code}: ${ok.stdout}`;
+  const dir = cloneSite2("slots-dead", dirSlots, (d) => {
+    const p = join(d, "prototype.html");
+    writeFileSync(p, readFileSync(p, "utf8").replace('href="#p/kurs"', 'href="#main__nope"'), "utf8");
+  });
+  const bad = run([VERIFY_PROTO, dir]);
+  if (bad.code !== 2) return `мертвый якорь не пойман, exit ${bad.code}`;
+  if (!/несуществующий якорь/.test(bad.stdout)) return "причина не названа";
+  return true;
+});
+
+step("assemble: меню сайта из site_manifest - подменю по parent, nav:false исключает пункт", () => {
+  const html = readFileSync(join(dirSlots, "prototype.html"), "utf8");
+  if (!/<nav class="pt-nav" aria-label="Меню сайта">/.test(html)) return "меню не собрано";
+  if (!/pt-nav__item--has-sub/.test(html)) return "нет пункта с подменю (parent не отработал)";
+  // Сверяем по «расшитому» документу: bindHanging ставит неразрывный пробел после «по».
+  const flat = html.split(String.fromCharCode(160)).join(" ");
+  if (!flat.includes('<a class="pt-nav__sublink" href="#p/kurs">Курс по Revit</a>')) return "дочерний пункт не попал в подменю";
+  if (/pt-nav__link[^>]*href="#p\/sluzhebnaya"/.test(html)) return "страница с nav:false попала в меню";
+  if (!/pt-nav__link" href="#p\/main">Главная/.test(html)) return "верхний пункт меню потерян";
+  return true;
+});
+
+step("assemble: бренд в шапке, юрлицо в подвале, надпись кнопки оболочки из meta", () => {
+  const html = readFileSync(join(dirSlots, "prototype.html"), "utf8");
+  if (!/<a href="#" class="pt-logo">Save<\/a>/.test(html)) return "в шапке не бренд (legal.brand)";
+  if (!/ИП Рыжова/.test(html)) return "юрлицо потеряно из подвала";
+  if (/Оставить заявку/.test(html)) return "надпись кнопки оболочки не параметризована - осталась запрещенная заказчиком формулировка";
+  if ((html.match(/Задать вопрос/g) || []).length < 4) return "meta.cta_label подставлен не во все места оболочки";
   return true;
 });
 
@@ -1141,6 +1306,8 @@ console.log("=== диета контекста писателя (ADR-020) + чи
 const DIET_TOTAL = 33000;   // page-writer.md + VOICE.md
 const DIET_VOICE = 20500;   // VOICE.md отдельно
 
+// Диета меряется В ЗНАКАХ, не в байтах. На кириллице wc -c врет примерно в 1.7 раза:
+// на боевом прогоне по байтовой метрике VOICE.md выглядел пробившим потолок, хотя не пробивал.
 step("ADR-020: обязательный вход писателя в знаках не растет", () => {
   const voice = readFileSync(join(PROJECT_ROOT, ".claude/skills/seo-tekst/assets/VOICE.md"), "utf8").length;
   const writer = readFileSync(join(PROJECT_ROOT, ".claude/agents/page-writer.md"), "utf8").length;
@@ -1644,6 +1811,44 @@ step("нет type_skeletons.json -> ненулевой exit, docx не созд�
   if (r.code === 0) return "exit 0 без type_skeletons.json";
   if (!/type_skeletons/.test(r.stderr)) return "в ошибке не назван недостающий файл";
   if (existsSync(join(dirNo, "Skeletons_ventkazan.docx"))) return "docx создан без входа";
+  return true;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== share-record.mjs: запись Drive-ссылок одной схемой ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+// Метку времени ставили руками (разъезжалась с реальностью), а схему поля документы
+// описывали двумя разными наборами ключей - читатели молча считали файл незалитым.
+const SHARE_RECORD = join(PROJECT_ROOT, ".claude/scripts/share-record.mjs");
+
+step("share-record: пишет shared_at сам, соседние ключи не трогает, ревизия хранит прежнюю ссылку", () => {
+  const dir = join(SANDBOX, "share-task");
+  mkdirSync(dir, { recursive: true });
+  let r = run([SHARE_RECORD, dir, "prototype", "--file-id", "ID1", "--link", "https://drive/1", "--mime", "text/html"]);
+  if (r.code !== 0) return `первая запись: exit ${r.code}: ${r.stderr}`;
+  r = run([SHARE_RECORD, dir, "skeletons", "--file-id", "ID2", "--link", "https://drive/2"]);
+  if (r.code !== 0) return `вторая запись: exit ${r.code}: ${r.stderr}`;
+  r = run([SHARE_RECORD, dir, "prototype", "--file-id", "ID3", "--link", "https://drive/3", "--revision", "tekst_fix"]);
+  if (r.code !== 0) return `перезаливка: exit ${r.code}: ${r.stderr}`;
+
+  const share = readJson(join(dir, "share.json"));
+  if (share.prototype.drive_file_id !== "ID3") return "новая ссылка не перезаписала прежнюю";
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(String(share.prototype.shared_at))) return "shared_at не проставлен машинно";
+  if (share.skeletons.drive_link !== "https://drive/2") return "соседний ключ затерт";
+  const rev = share.prototype.revisions || [];
+  if (rev.length !== 1 || rev[0].prev_drive_link !== "https://drive/1") return `прежняя ссылка потеряна: ${JSON.stringify(rev)}`;
+  if ((share.skeletons.revisions || []).length !== 0) return "ревизия записана не в тот ключ";
+  return true;
+});
+
+step("share-record: пустой ответ аплоада -> ненулевой exit, share.json не тронут", () => {
+  const dir = join(SANDBOX, "share-task");
+  const before = readFileSync(join(dir, "share.json"), "utf8");
+  const r = run([SHARE_RECORD, dir, "prototype", "--file-id", "", "--link", ""]);
+  if (r.code === 0) return "битая заливка записана как успешная - заказчик получит ссылку в никуда";
+  if (readFileSync(join(dir, "share.json"), "utf8") !== before) return "share.json изменен при битой заливке";
   return true;
 });
 

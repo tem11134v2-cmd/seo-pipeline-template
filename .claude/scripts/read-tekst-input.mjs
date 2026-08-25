@@ -449,7 +449,12 @@ if (!existsSync(inputsPath)) {
     tier: ctx.tier,
     slug: taskSlug,
     domain: ctx.domain,
-    region_name: ctx.regionName,
+    // region_name читают АГЕНТЫ в промтах, поэтому здесь короткое имя региона, а не проза.
+    // brief.region бывает абзацем («Россия, формат полностью онлайн (без привязки к городу;
+    // заказчик физически в ...)») - целиком он ехал в промты шумом. Полная строка сохраняется
+    // рядом в region_note: она нужна человеку и не теряется.
+    region_name: shortRegion(ctx.regionName),
+    region_note: String(ctx.regionName || "").trim() !== shortRegion(ctx.regionName) ? String(ctx.regionName || "").trim() : null,
     region_yandex: ctx.regionYandex,
     brand_name: ctx.brandName || null,
     forbidden_wordings: ctx.forbiddenWordings || [],
@@ -525,6 +530,16 @@ const REQ_NEGATION = /(?:^|[^а-яё])не\s+(?:назван|указан|уто
 const ADDR_LABEL = /^\s*(?:(?:юр(?:идическ\S*)?\.?|почтов\S*|фактическ\S*)\s*)?адрес\s*[:\-]\s*/i;
 const ADDR_INDEX = /^\s*\d{6}\s*,?\s*/;
 const ADDR_START = /^\s*(?:г\.|гор\.|город\s|с\.\s|село\s|пгт|дер\.|деревня\s|пос\.|пос[её]лок\s|респ\.|республика\s|обл\.|область\s|край\s|р-н|район\s|ул\.|улица\s|просп\.|проспект\s|пр-т|пр-кт|пер\.|переулок\s|ш\.\s|шоссе\s|наб\.|набережная\s|б-р|бульвар\s|мкр|микрорайон\s|тракт\s|москва\s*,|санкт-петербург\s*,|[а-яё][а-яё-]+\s+(?:обл\.|область|край|респ\.|республика|округ)|[а-яё][а-яё-]+\s*,\s*(?:ул\.|улица|просп|пр-т|пр-кт|пер\.|переулок|ш\.|шоссе|наб\.|б-р|бульвар|мкр|г\.|гор\.|город|пос\.|пгт|с\.|дер\.|деревня))/i;
+
+// Короткое имя региона из свободной строки брифа: до первого разделителя, не длиннее 40
+// знаков. Кто исполняет: мост при записи inputs.json. Зачем: поле читают агенты, а абзац
+// прозы в промте - шум, который вытесняет полезное.
+function shortRegion(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return s;
+  const head = s.split(/[,;(]/)[0].trim().replace(/\s+/g, " ");
+  return (head && head.length <= 40 ? head : head.slice(0, 40).trim()) || s.slice(0, 40).trim();
+}
 
 function looksLikeAddress(v) {
   const s = String(v || "").trim().replace(ADDR_LABEL, "").replace(ADDR_INDEX, "");

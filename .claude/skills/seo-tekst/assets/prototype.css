@@ -532,3 +532,91 @@ img { max-width: 100%; display: block; }
   .pt-product-grid { grid-template-columns: 1fr; }
   .pt-filter { flex-direction: column; }
 }
+
+/* ===== Слоты кита, добавленные после боевого прогона (24.08) =====
+   Каждый пункт закрывает прямое требование заказчика, которое до этого нечем было
+   выполнить, и все они опциональны: слот пуст - разметки нет, вид блока прежний.  */
+
+/* Плейсхолдер изображения. Прототип - wireframe, и заказчик обязан видеть, ГДЕ будет
+   фотография: без плашки он не видит композиции и считает блок недоделанным. */
+.pt-hero__media {
+  background: repeating-linear-gradient(45deg, var(--bg-alt) 0 10px, var(--bg) 10px 20px);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary); font-size: 12px; text-align: center; padding: 12px;
+  width: 100%; aspect-ratio: 4 / 3; min-height: 200px;
+}
+.pt-card__media {
+  background: repeating-linear-gradient(45deg, var(--bg-alt) 0 10px, var(--bg) 10px 20px);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-secondary); font-size: 12px; text-align: center; padding: 12px;
+  width: 100%; aspect-ratio: 16 / 10;
+}
+
+/* Кнопка под сеткой карточек: «под всеми товарами кнопка Перейти в Market».
+   У сетки не было своего целевого действия - переход в раздел выполнить было нечем. */
+.pt-section-cta { margin-top: 24px; display: flex; justify-content: center; }
+
+/* Ссылка внутри карточки (кнопка «Подробнее» ведет на конкретную подстраницу). */
+.pt-card__link, .pt-work__link {
+  font-size: 13px; font-weight: 600; color: var(--accent-primary); margin-top: auto;
+}
+
+/* Отзывы боковым слайдером: opts.slider. Нативный scroll-snap, без JS и без стрелок -
+   прототип показывает ФОРМУ подачи, интерактив проектируется на этапе дизайна. */
+.pt-reviews.slider {
+  display: flex; gap: 20px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding-bottom: 8px; -webkit-overflow-scrolling: touch;
+}
+.pt-reviews.slider > .pt-review { flex: 0 0 min(320px, 80%); scroll-snap-align: start; }
+
+/* Одна колонка: opts.cols = 1 (сборщики его выставляли, а CSS о нем не знал и молча
+   отбрасывал - блок ехал сеткой по умолчанию). */
+.pt-cards.cols-1, .pt-cat-grid.cols-1 { grid-template-columns: 1fr; }
+
+/* Меню сайта: «нормальные верхние пункты меню, в том числе меню второго уровня».
+   Собирается ассемблером из site_manifest (маркер NAV в shell); подменю - на hover
+   и на focus-within, чтобы пункт открывался и с клавиатуры. */
+.pt-nav { display: flex; gap: 22px; margin-left: 32px; align-items: center; }
+.pt-nav__item { position: relative; }
+.pt-nav__link {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 15px;
+  color: inherit; text-decoration: none; white-space: nowrap; padding: 8px 0;
+}
+.pt-nav__link:hover { opacity: .65; }
+.pt-nav__caret {
+  width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent;
+  border-top: 5px solid currentColor; opacity: .55;
+}
+.pt-nav__sub {
+  position: absolute; top: 100%; left: -14px; min-width: 210px; z-index: 60;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 6px 0; box-shadow: var(--shadow);
+  opacity: 0; visibility: hidden;
+}
+.pt-nav__item--has-sub:hover .pt-nav__sub,
+.pt-nav__item--has-sub:focus-within .pt-nav__sub { opacity: 1; visibility: visible; }
+.pt-nav__sublink {
+  display: block; padding: 8px 16px; font-size: 14px; color: inherit;
+  text-decoration: none; white-space: nowrap;
+}
+.pt-nav__sublink:hover { background: var(--bg-alt); }
+
+/* В бургере то же меню разворачивается списком: на узком экране выпадающее подменю
+   нечем открыть пальцем так, чтобы оно не перекрыло собой экран. */
+.pt-burger-drawer .pt-nav { display: block; margin: 0 0 18px; }
+.pt-burger-drawer .pt-nav__item { margin-bottom: 4px; }
+.pt-burger-drawer .pt-nav__sub {
+  position: static; opacity: 1; visibility: visible; border: 0; box-shadow: none;
+  padding: 0 0 0 14px; min-width: 0;
+}
+.pt-burger-drawer .pt-nav__caret { display: none; }
+
+@media (max-width: 980px) {
+  .pt-header .pt-nav { display: none; }
+}
+@media (max-width: 900px) {
+  .pt-hero__media { min-height: 160px; }
+  .pt-section-cta { margin-top: 18px; }
+}

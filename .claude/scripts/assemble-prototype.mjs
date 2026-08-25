@@ -308,6 +308,10 @@ if (legalPagesHtml.includes('href="#mainContent"')) {
 const meta = mainManifest.meta || {};
 const legal = mainManifest.legal || {};
 const company = legal.company || meta.project || "Компания";
+// Бренд в шапке и юрлицо в подвале - РАЗНЫЕ поля. Раньше логотип и подпись футера брались
+// из одного legal.company, и развести «в шапке Save, а реквизиты остаются реквизитами ИП»
+// было нечем - требование заказчика уходило в HANDOFF словами. Нет brand - прежнее поведение.
+const brand = String(legal.brand || meta.brand || "").trim() || company;
 
 // Разметка списка - по контракту prototype.css (секция INDEX):
 // section.pt-page.pt-index > .pt-index__body > заголовок + .pt-index__list
@@ -328,7 +332,7 @@ function buildIndexSection() {
   return (
     `<section class="pt-page pt-index" data-page="__index">\n` +
     `      <div class="pt-index__body">\n` +
-    `        <h1 class="pt-index__title">Прототип сайта: ${escapeHtml(company)}</h1>\n` +
+    `        <h1 class="pt-index__title">Прототип сайта: ${escapeHtml(brand)}</h1>\n` +
     `        <p class="pt-index__sub">Служебная страница-оглавление: выберите страницу, чтобы открыть ее. Вернуться к списку можно по плашке над шапкой.</p>\n` +
     `        <nav class="pt-index__list" aria-label="Страницы прототипа">\n${items}\n        </nav>\n` +
     `      </div>\n` +
@@ -336,11 +340,76 @@ function buildIndexSection() {
   );
 }
 
+// ---------- маршрутизация относительных адресов ----------
+// Кто исполняет: ассемблер. Зачем: писатель ставит в слот ссылки живой адрес раздела
+// («/arhitektura/»), а прототип - ОДИН файл с hash-роутером: такая ссылка никуда не ведет,
+// клик уводит из документа. Переписываем на маршрут роутера по карте url -> slug из
+// site_manifest; чего в карте нет - оставляем как есть и печатаем в сводку (блокирует
+// verify-prototype: мертвая ссылка в клиентском деливерабле хуже отсутствующей).
+function normPath(u) {
+  return String(u || "").trim()
+    .replace(/^https?:\/\/[^/]+/i, "")
+    .replace(/[?#].*$/, "")
+    .replace(/^\/+|\/+$/g, "")
+    .toLowerCase();
+}
+const urlToSlug = new Map();
+for (const p of pages) if (typeof p.url === "string" && normPath(p.url)) urlToSlug.set(normPath(p.url), p.slug);
+// Догадка по слагу - только там, где явного url нет: /arhitektura/ -> страница arhitektura.
+for (const p of pages) if (!urlToSlug.has(normPath(p.slug))) urlToSlug.set(normPath(p.slug), p.slug);
+// Корень сайта ("/" в хлебных крошках и в логотипе) - это главная. Без этой строки крошка
+// «Главная» на каждой каталожной странице читалась бы как неразрешенный адрес.
+if (!urlToSlug.has("")) urlToSlug.set("", mainSlug);
+
+const EXTERNAL_HREF = /^(?:#|https?:|\/\/|tel:|mailto:|data:|javascript:)/i;
+const unroutedLinks = [];
+let routedLinks = 0;
+function routeRelative(html, pageSlug) {
+  return html.replace(/href="([^"]*)"/g, (m, href) => {
+    const raw = String(href).trim();
+    if (!raw || EXTERNAL_HREF.test(raw)) return m;
+    const slug = urlToSlug.get(normPath(raw));
+    if (slug) { routedLinks++; return `href="#p/${slug}"`; }
+    unroutedLinks.push(`${pageSlug}: ${raw}`);
+    return m;
+  });
+}
+
+// ---------- мертвые якоря внутри секции ----------
+// Кто исполняет: ассемблер. Зачем: якорь CTA (#lead) зашит в фрагментах кита, а форму
+// со страницы можно СНЯТЬ - waiver продающего пола F3 это разрешает (решение заказчика).
+// Два правила, корректных по отдельности, вместе давали дефект, которого нет ни в одном:
+// все кнопки страницы уезжали на несуществующий якорь. Ассемблер - единственное место,
+// которое видит и разметку секции, и факт отсутствия формы: ссылка на отсутствующий якорь
+// переводится на обработчик pt-shell-cta (скролл к форме активной секции, а если формы
+// нет - к самой секции). Ни одна кнопка прототипа не остается мертвой.
+let deadAnchors = 0;
+function fixDeadAnchors(html) {
+  const ids = new Set();
+  for (const m of html.matchAll(/(?<![-\w])id="([^"]+)"/g)) ids.add(m[1]);
+  return html.replace(/<a\b[^>]*>/g, (tag) => {
+    const hm = /href="#([^"]*)"/.exec(tag);
+    if (!hm) return tag;
+    const id = hm[1];
+    if (keepAnchor(id) || ids.has(id)) return tag;
+    deadAnchors++;
+    let t = tag.replace(/href="#[^"]*"/, 'href="#"');
+    if (/\bclass="/.test(t)) {
+      if (!/\bpt-shell-cta\b/.test(t)) t = t.replace(/\bclass="/, 'class="pt-shell-cta ');
+    } else {
+      t = t.replace(/^<a\b/, '<a class="pt-shell-cta"');
+    }
+    return t;
+  });
+}
+
 const pageSections = pages.map((p) => {
-  const namespaced = namespaceSection(renders.get(p.slug), p.slug);
+  let inner = routeRelative(renders.get(p.slug), p.slug);
+  inner = namespaceSection(inner, p.slug);
+  inner = fixDeadAnchors(inner);
   return (
     `<section class="pt-page" data-page="${escapeAttr(p.slug)}" hidden>\n` +
-    `${namespaced.trim()}\n` +
+    `${inner.trim()}\n` +
     `    </section>`
   );
 });
@@ -377,12 +446,66 @@ const metaDescHtml = desc
     `  <meta property="og:description" content="${escapeAttr(desc)}">`
   : "";
 
+// Надпись кнопки оболочки. Была зашита в shell трижды: заказчик, запретивший формулировку
+// «Оставить заявку», не мог ее изменить - приходилось править собранный html текстовой заменой.
+const shellCta = String(meta.cta_label || legal.cta_label || "").trim() || "Оставить заявку";
+
+// ---------- меню сайта ----------
+// Кто исполняет: ассемблер. Зачем: меню в ките отсутствовало как класс (был бургер с одной
+// кнопкой), а заказчик дважды просил «нормальные верхние пункты меню, в том числе второго
+// уровня». Источник имен - site_manifest.pages[].title (в pages.json человеческих названий
+// нет, только слаги и маркеры). Вложенность: явный parent -> общий dir_slug -> плоский список.
+// Пункт скрывается из меню полем nav: false. Пусто - маркер схлопывается, шапка как раньше.
+const navPages = pages.filter((p) => p.nav !== false);
+const navBySlug = new Map(navPages.map((p) => [p.slug, p]));
+function parentOf(p) {
+  const explicit = typeof p.parent === "string" ? p.parent.trim() : "";
+  if (explicit && explicit !== p.slug && navBySlug.has(explicit)) return explicit;
+  // Фолбэк: направление ассортимента. Родитель - только если такая страница реально есть.
+  const dir = typeof p.dir_slug === "string" ? p.dir_slug.trim() : "";
+  if (dir && dir !== p.slug && navBySlug.has(dir)) return dir;
+  return null;
+}
+function buildNav() {
+  const kids = new Map();
+  const tops = [];
+  for (const p of navPages) {
+    const parent = parentOf(p);
+    if (parent) {
+      if (!kids.has(parent)) kids.set(parent, []);
+      kids.get(parent).push(p);
+    } else tops.push(p);
+  }
+  if (!tops.length) return { html: "", items: 0, withSub: 0 };
+  const items = tops.map((p) => {
+    const sub = kids.get(p.slug) || [];
+    const subHtml = sub.length
+      ? `<div class="pt-nav__sub">${sub.map((k) => `<a class="pt-nav__sublink" href="#p/${escapeAttr(k.slug)}">${escapeHtml(k.title || k.slug)}</a>`).join("")}</div>`
+      : "";
+    const caret = sub.length ? '<span class="pt-nav__caret"></span>' : "";
+    return (
+      `<div class="pt-nav__item${sub.length ? " pt-nav__item--has-sub" : ""}">` +
+      `<a class="pt-nav__link" href="#p/${escapeAttr(p.slug)}">${escapeHtml(p.title || p.slug)}${caret}</a>` +
+      subHtml +
+      "</div>"
+    );
+  });
+  return {
+    html: `<nav class="pt-nav" aria-label="Меню сайта">${items.join("")}</nav>`,
+    items: tops.length,
+    withSub: [...kids.keys()].filter((k) => navBySlug.has(k)).length,
+  };
+}
+const nav = buildNav();
+
 const subs = {
   "<!--META_TITLE-->": metaTitleHtml,
   "<!--META_DESC-->": metaDescHtml,
   "<!--THEME_CSS-->": themeCss,
   "<!--PROTOTYPE_CSS-->": prototypeCss,
-  "<!--LOGO-->": escapeHtml(company),
+  "<!--NAV-->": nav.html,
+  "<!--SHELL_CTA-->": escapeHtml(shellCta),
+  "<!--LOGO-->": escapeHtml(brand),
   "<!--PHONE-->": escapeHtml(legalInfo.phone),
   "<!--PHONE_RAW-->": escapeAttr(legalInfo.phoneRaw),
   "<!--SCHEDULE-->": escapeHtml(schedule),
@@ -456,4 +579,9 @@ console.log(`  theme: wireframe`);
 if (legalInfo.phoneAbsent) console.log("  телефон: не печатается - legal.phone_absent (решение заказчика «телефона нет»)");
 else if (legalInfo.phoneMissing) console.log(`  телефон: заглушка ${PHONE_PLACEHOLDER} - legal.phone не заполнен`);
 console.log(`  график работы: ${schedule ? schedule : "не печатается - meta.schedule/legal.schedule пусты (выдумывать часы нельзя)"}`);
+if (brand !== company) console.log(`  бренд шапки: ${brand} (юрлицо подвала: ${company})`);
+console.log(`  меню: ${nav.items ? `пунктов ${nav.items}, с подменю ${nav.withSub}` : "не собрано (в site_manifest нет страниц для меню)"}`);
+if (routedLinks) console.log(`  относительных ссылок переведено на маршруты роутера: ${routedLinks}`);
+if (unroutedLinks.length) console.error(`  ! адреса, которых нет в site_manifest (в одностраничном прототипе ведут в никуда): ${unroutedLinks.slice(0, 6).join("; ")}${unroutedLinks.length > 6 ? ` и еще ${unroutedLinks.length - 6}` : ""}`);
+if (deadAnchors) console.log(`  ссылок на отсутствующий якорь переведено на CTA-обработчик: ${deadAnchors} (обычно страница без формы - снятие по waiver F3)`);
 console.log(`  size: ${(Buffer.byteLength(html, "utf8") / 1024).toFixed(1)} KB`);

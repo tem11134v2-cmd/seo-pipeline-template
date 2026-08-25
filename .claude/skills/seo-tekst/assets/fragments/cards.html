@@ -9,11 +9,16 @@
     <div class="pt-cards <!--CLASS:cols-->">
       <!--REPEAT:items-->
       <div class="pt-card">
+        <!--IF:item.media_alt--><div class="pt-card__media" role="img" aria-label="{{item.media_alt}}">{{item.media_alt}}</div><!--/IF:item.media_alt-->
         <div class="pt-card__ico" aria-hidden="true">{{@index}}</div>
         <div class="pt-card__title">{{item.title}}</div>
         <div class="pt-card__text">{{item.text}}</div>
+        <!--IF:item.cta--><a class="pt-card__link" href="{{item.url}}">{{item.cta}}</a><!--/IF:item.cta-->
       </div>
       <!--/REPEAT:items-->
     </div>
+    <!--IF:section_cta_label-->
+    <div class="pt-section-cta"><a href="{{section_cta_href}}" class="btn btn--primary">{{section_cta_label}}</a></div>
+    <!--/IF:section_cta_label-->
   </div>
 </section>

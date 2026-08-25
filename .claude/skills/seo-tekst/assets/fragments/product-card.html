@@ -14,10 +14,13 @@
           <div class="pt-product__title">{{item.title}}</div>
           <div class="pt-product__text">{{item.text}}</div>
           <!--IF:item.price--><div class="pt-product__price">{{item.price}}</div><!--/IF:item.price-->
-          <a href="#lead" class="btn btn--primary btn--block pt-product__cta">{{item.cta}}</a>
+          <a href="{{item.url}}" class="btn btn--primary btn--block pt-product__cta">{{item.cta}}</a>
         </div>
       </article>
       <!--/REPEAT:items-->
     </div>
+    <!--IF:section_cta_label-->
+    <div class="pt-section-cta"><a href="{{section_cta_href}}" class="btn btn--primary">{{section_cta_label}}</a></div>
+    <!--/IF:section_cta_label-->
   </div>
 </section>

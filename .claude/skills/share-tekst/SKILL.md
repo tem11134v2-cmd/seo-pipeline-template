@@ -48,15 +48,13 @@ mcp__gdrive-piotr__uploadFile(localPath:<texts_dir>/tone/tone-preview.html | <te
 ```
      `convertToGoogleFormat:true` для html ЗАПРЕЩЕН - конвертация убивает роутер и скрипты прототипа; смысл заливки - постоянная ссылка на живой файл в папке клиента.
    Sanity-check: писать `share.json` только при непустых `id`/`link` в ответе uploadFile; пустой ответ = битый аплоад, повторить.
-6. Записать в `share.json` поле цели (соседние поля не трогать):
-```json
-"skeletons | tone_preview | prototype": {
-  "drive_file_id": "<id>", "drive_link": "<link>",
-  "mime_type": "<итоговый mime>", "shared_at": "<ISO>", "revisions": []
-}
+6. Записать в `share.json` **скриптом** (руками метку времени не ставить - разъедется с реальностью, а проверить ее нечем; соседние ключи скрипт не трогает):
 ```
-   При `--redo` - перезаписать `drive_file_id`/`drive_link`/`shared_at` новыми и добавить в `revisions[]`: `{"type":"manual_redo", "applied_at":"<ISO>", "new_drive_file_id":"<id>", "new_drive_link":"<link>"}`.
-   Поля `share.json.texts` и `share.json.analysis` - поля старых задач (Texts.docx / Analysis.docx существовали до v7.1): не читаем и не пишем.
+.claude\scripts\_node.cmd .claude\scripts\share-record.mjs <texts_dir> <skeletons|tone_preview|prototype> --file-id <id> --link <link> --mime <итоговый mime> [--revision manual_redo]
+```
+   Схема записи: `{drive_file_id, drive_link, mime_type, shared_at, revisions[]}`. При `--redo` передавать `--revision manual_redo` - прежняя ссылка уйдет в `revisions[]`, а не пропадет.
+   Поля `share.json.texts` и `share.json.analysis` - поля старых задач (Texts.docx / Analysis.docx существовали до v7.1): не читаем и не пишем. Старые ключи `{file_id, link, uploaded_at}` (задачи до 25.08) читаем, но больше не пишем.
+   **`--skeletons --redo`:** перед удалением старого документа снять комментарии заказчика - `mcp__gdrive-piotr__listComments` по прежнему `drive_file_id` -> `<texts_dir>/skeletons_comments.json`. Перезаливка создает новый документ, и комментарии к прежней версии иначе остаются на файле, который никто больше не откроет.
 7. `meta.json`: только для `--prototype` и только если `state == "prototype-built"` - `update-meta.sh <texts_dir> shared` (v7.1: `shared` = прототип в Drive). Все остальные состояния и цели - state не трогаем.
 8. Вывести ссылку. Подсказать `/handoff` если задача закончена.
 

@@ -14,9 +14,13 @@
           <!--IF:item.tag--><div class="pt-work__tag">{{item.tag}}</div><!--/IF:item.tag-->
           <div class="pt-work__title">{{item.title}}</div>
           <div class="pt-work__result">{{item.result}}</div>
+          <!--IF:item.cta--><a class="pt-work__link" href="{{item.url}}">{{item.cta}}</a><!--/IF:item.cta-->
         </div>
       </article>
       <!--/REPEAT:items-->
     </div>
+    <!--IF:section_cta_label-->
+    <div class="pt-section-cta"><a href="{{section_cta_href}}" class="btn btn--primary">{{section_cta_label}}</a></div>
+    <!--/IF:section_cta_label-->
   </div>
 </section>

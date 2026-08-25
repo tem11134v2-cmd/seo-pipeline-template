@@ -93,6 +93,25 @@ const mainSlug = sitePages.some((p) => p.slug === siteManifest.main_slug)
   : sitePages[0].slug;
 const mainManifest = (pageManifests.get(mainSlug) || { manifest: {} }).manifest;
 
+// ---------- снятия правил продающего пола (meta.json) ----------
+// Валидность waiver определяется ОДИНАКОВО здесь, в verify-copy.mjs и в build-handoff.mjs
+// (ADR-037 п.3): непустой source + правило ровно из F1-F4 + слаг существующей страницы.
+// Waiver без основания игнорируется молча - иначе им можно было бы глушить любую проверку.
+let waivers = [];
+try {
+  const metaPath = join(textsDir, "meta.json");
+  if (existsSync(metaPath)) {
+    const meta = JSON.parse(readFileSync(metaPath, "utf8").replace(/^﻿/, ""));
+    if (Array.isArray(meta.selling_floor_waivers)) waivers = meta.selling_floor_waivers;
+  }
+} catch { waivers = []; }
+function hasWaiver(slug, rule) {
+  return waivers.some((w) => w && typeof w === "object"
+    && String(w.page || "").trim() === slug
+    && String(w.rule || "").trim().toUpperCase() === rule
+    && String(w.source || "").trim());
+}
+
 // ---------- глобальные инварианты (документ) ----------
 
 // shell v2: ровно один header/footer/cookie-баннер на документ. Ноль - shell не отработал,
@@ -211,6 +230,43 @@ const nakedLead = countMatch(/href="#lead"/g);
 if (nakedLead) V(`голые href="#lead": ${nakedLead} - CTA shell должны быть pt-shell-cta href="#", ссылки внутри секций - #<slug>__lead`);
 if (/href="#mainContent"/.test(html)) V('ссылки href="#mainContent" - возврат юр-страниц в v2 ведет на #__back');
 if (!/id="ptBackbar"/.test(html)) W("нет плашки возврата #ptBackbar (shell v2) - с внутренних страниц не вернуться к списку");
+
+// --- мертвые якоря и неразрешенные адреса ---------------------------------------------
+// Кто исполняет: этот скрипт. Зачем: прототип - клиентский деливерабл, и кнопка, ведущая
+// в никуда, читается заказчиком как «не доделали». Ловится ровно тот класс дефектов, что
+// вылез на боевом прогоне: снятая по waiver форма оставила 10 кнопок на несуществующем
+// якоре, а живые адреса разделов («/arhitektura/») в одностраничном документе не ведут
+// никуда. Ассемблер чинит, что может (перевод на pt-shell-cta, маршрут #p/<slug>);
+// сюда доезжает только то, что чинится решением человека.
+{
+  const docIds = new Set();
+  for (const m of html.matchAll(/\bid="([^"]+)"/g)) docIds.add(m[1]);
+  const SERVICE_ANCHORS = new Set(["privacy", "person-data-consent", "cookie", "thanks"]);
+  const dead = new Set();
+  const unrouted = new Set();
+  const knownSlugs = new Set(sitePages.map((p) => p.slug));
+  for (const m of html.matchAll(/href="([^"]*)"/g)) {
+    const href = String(m[1]).trim();
+    if (!href || href === "#") continue;
+    if (/^(?:https?:|\/\/|tel:|mailto:|data:|javascript:)/i.test(href)) continue;
+    if (href.startsWith("#")) {
+      const id = href.slice(1);
+      if (!id || id === "__back" || SERVICE_ANCHORS.has(id)) continue;
+      if (id.startsWith("p/")) {
+        const slug = id.slice(2);
+        if (slug !== "__index" && !knownSlugs.has(slug)) dead.add(`${href} (нет такой страницы в site_manifest)`);
+        continue;
+      }
+      if (!docIds.has(id)) dead.add(href);
+      continue;
+    }
+    unrouted.add(href); // относительный адрес живого сайта
+  }
+  if (dead.size)
+    V(`ссылки на несуществующий якорь: ${[...dead].slice(0, 6).join(", ")}${dead.size > 6 ? ` и еще ${dead.size - 6}` : ""} - в прототипе это мертвые кнопки. Обычно страница без формы (снятие по waiver F3): пересобери ассемблером, он переведет их на pt-shell-cta`);
+  if (unrouted.size)
+    V(`относительные адреса, не переведенные в маршруты роутера: ${[...unrouted].slice(0, 6).join(", ")}${unrouted.size > 6 ? ` и еще ${unrouted.size - 6}` : ""} - в одностраничном прототипе они уводят из документа. Пропиши url страницы в site_manifest.json либо поставь в слот ссылки #p/<slug>`);
+}
 if (!/\bpt-shell-cta\b/.test(html)) W("нет ни одного pt-shell-cta - CTA шапки/бургера/мобильной панели не переведены на форму активной секции");
 
 // фреймворки / запрещенное
@@ -314,11 +370,20 @@ for (const p of sitePages) {
     // Ровно 1 форма захвата НА СЕКЦИЮ (id <slug>__leadForm). Pre-footer = микро-конверсия,
     // не дубль формы. Чекбокс-гейт prototype.js per-form, но id обязаны быть с префиксом.
     const lf = countIn(sec.inner, new RegExp(`id="${escapeRe(slug)}__leadForm"`, "g"));
-    if (lf === 0) V(`${tag} нет формы захвата в секции (id ${slug}__leadForm) - правило: ровно 1 на секцию`);
-    else if (lf > 1) V(`${tag} форм-захвата в секции ${lf} (правило: ровно 1 на секцию)`);
-    if (!sec.inner.includes(`id="${slug}__f-agree"`)) V(`${tag} в форме нет чекбокса согласия ПДн (#${slug}__f-agree)`);
-    if (!new RegExp(`id="${escapeRe(slug)}__f-submit"[^>]*disabled`).test(sec.inner))
-      W(`${tag} submit формы не disabled по умолчанию (проверь чекбокс-гейт)`);
+    // Снятие формы решением заказчика - законный ход (waiver продающего пола F3, ADR-037).
+    // Без этой ветки страница, сделанная строго по решению заказчика, рапортовала брак:
+    // два наших собственных механизма воевали друг с другом, и отчет с заведомо ложным
+    // нарушением перестают читать целиком - вместе с настоящими.
+    const formWaived = hasWaiver(slug, "F3");
+    if (lf === 0) {
+      if (formWaived) W(`${tag} формы захвата нет - снято waiver'ом F3 (решение заказчика). Кнопки страницы ассемблер перевел на CTA-обработчик`);
+      else V(`${tag} нет формы захвата в секции (id ${slug}__leadForm) - правило: ровно 1 на секцию. Форму снял заказчик - оформи waiver F3 в meta.json.selling_floor_waivers`);
+    } else if (lf > 1) V(`${tag} форм-захвата в секции ${lf} (правило: ровно 1 на секцию)`);
+    if (lf > 0) {
+      if (!sec.inner.includes(`id="${slug}__f-agree"`)) V(`${tag} в форме нет чекбокса согласия ПДн (#${slug}__f-agree)`);
+      if (!new RegExp(`id="${escapeRe(slug)}__f-submit"[^>]*disabled`).test(sec.inner))
+        W(`${tag} submit формы не disabled по умолчанию (проверь чекбокс-гейт)`);
+    }
     // Неймспейс: ВСЕ id внутри секции обязаны нести префикс <slug>__ - голый id это
     // будущий дубль и битый href/label for при второй странице с тем же фрагментом.
     const naked = [];
