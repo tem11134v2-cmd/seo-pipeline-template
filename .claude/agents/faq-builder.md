@@ -15,7 +15,7 @@ model: opus
 - `faq_dir/pages.json` - твоя страница: `text` (текущий текст), `queries`, `marker`, `url`. Текущий `url` нужен для self-link guard (НИКОГДА не ссылайся на него).
 - `faq_dir/inputs.json` - регион (`region_yandex`), бренд, стоп-домены, `forbidden_wordings` (запрещённые формулировки; действуют и в ответах FAQ), **`interlink_pool`** (смежные URL).
 - `faq_dir/facts.json` или `texts/NNN/facts.json` - (если есть) числа/гарантия/реквизиты. **Все цифры в ответах FAQ - ТОЛЬКО отсюда** (не сочиняй, не считай на лету). Раздел `lexicon` (ADR-033): `locked` с названным основанием входа (ADR-037 п.8) и `canonical[].wording` повторяешь **дословно** (при `origin: "формула"` идёт `wording`, не `client_variant`); `translate` - внутренний термин заказчика пишешь как `public`. Ключа нет - работаешь как раньше (ADR-031).
-- `.claude/skills/seo-tekst/assets/BLOCKS.md` - **блок 33 (FAQ)**: метрики (H2 20-60; 5-8 вопросов: вопрос 30-80 + ответ 200-550), **обязательна разметка Schema.org FAQPage**, порог **>8 вопросов -> отдельная страница**.
+- `.claude/skills/seo-tekst/assets/BLOCKS-METRICS.md` - **блок 33 (FAQ)**: метрики (H2 20-60; 5-8 вопросов: вопрос 30-80 + ответ 200-550), **обязательна разметка Schema.org FAQPage**, порог **>8 вопросов -> отдельная страница**.
 - `.claude/skills/seo-tekst/assets/VOICE.md` - свод стиля (общий с писателем `/seo-tekst`): чистота и штампы (п.6, п.9), надпись кнопки (п.5), «без выдуманных цифр» (п.10).
 
 ## Метод

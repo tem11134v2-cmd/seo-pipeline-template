@@ -1385,6 +1385,84 @@ step("ADR-020: обязательный вход писателя в знака�
   return true;
 });
 
+// Диета покрывала только САМОГО ЛЕГКОГО агента: потолок стоял на писателе (12 817 знаков),
+// а три самых тяжелых - block-planner, tekst-verifier, offer-strategist - и методички на
+// 30-55 тысяч знаков не были ограничены ничем. Замер боевого прогона: 27 запусков субагентов,
+// ~3 350 000 токенов, ~3 часа 47 минут на ОДНУ страницу в трех тон-вариантах.
+// Потолки ниже - фактическое состояние после разделения BLOCKS.md плюс небольшой запас.
+// Кто исполняет: автор правок этих файлов. Зачем: рост промта должен быть решением, а не
+// побочным следствием дописывания абзаца; перегруженный агент теряет главное.
+const CAPS = [
+  [".claude/skills/seo-tekst/SKILL.md", 57500, "оркестратор"],
+  [".claude/skills/seo-tekst/assets/KIT-SPEC.md", 38500, "разработчик шаблона (в промты агентов не идет)"],
+  [".claude/skills/seo-tekst/assets/COPY.md", 37500, "page-writer (точечно)"],
+  [".claude/skills/seo-tekst/assets/COPY-AUDIT.md", 36000, "copy-auditor"],
+  [".claude/agents/block-planner.md", 31500, "block-planner"],
+  [".claude/skills/seo-tekst/assets/BLOCKS.md", 31000, "block-planner"],
+  [".claude/skills/seo-tekst/assets/BLOCKS-METRICS.md", 31000, "slot-mapper"],
+  [".claude/agents/tekst-verifier.md", 30000, "tekst-verifier"],
+  [".claude/agents/offer-strategist.md", 30000, "offer-strategist"],
+  [".claude/agents/slot-mapper.md", 16500, "slot-mapper"],
+  [".claude/agents/site-reviewer.md", 16000, "site-reviewer"],
+  // pages-planner намеренно получил +800 знаков диеты чтения (замер прогона: 512 секунд и
+  // ~150 000 токенов на черновик без единого MCP-вызова). Обмен осознанный: короткий блок
+  // правил в промте против нескольких лишних файлов в контексте на каждом запуске.
+  [".claude/agents/pages-planner.md", 16000, "pages-planner"],
+  [".claude/agents/copy-auditor.md", 15500, "copy-auditor"],
+  [".claude/agents/prototype-builder.md", 11000, "prototype-builder"],
+];
+// Связка «промт агента + его методички» - то, что реально уезжает в контекст до данных.
+const BUNDLES = [
+  ["block-planner", 62000, [".claude/agents/block-planner.md", ".claude/skills/seo-tekst/assets/BLOCKS.md"]],
+  ["slot-mapper", 63000, [".claude/agents/slot-mapper.md", ".claude/skills/seo-tekst/assets/BLOCKS-METRICS.md", ".claude/skills/seo-tekst/assets/fragments-manifest.json"]],
+  ["copy-auditor", 51000, [".claude/agents/copy-auditor.md", ".claude/skills/seo-tekst/assets/COPY-AUDIT.md"]],
+];
+
+step("потолки в знаках стоят на ВСЕХ тяжелых файлах, не только на писателе", () => {
+  const over = [];
+  for (const [rel, cap, who] of CAPS) {
+    const n = readFileSync(join(PROJECT_ROOT, rel), "utf8").length;
+    if (n > cap) over.push(`${rel.split("/").pop()} ${n} > ${cap} (читает ${who})`);
+  }
+  if (over.length) return `пробит потолок: ${over.join("; ")} - это решение владельца, а не побочный эффект правки`;
+  return true;
+});
+
+step("связка «агент + его методички» не растет (то, что уезжает в контекст до данных)", () => {
+  const over = [];
+  const lines = [];
+  for (const [who, cap, files] of BUNDLES) {
+    const n = files.reduce((a, f) => a + readFileSync(join(PROJECT_ROOT, f), "utf8").length, 0);
+    lines.push(`${who} ${n}/${cap}`);
+    if (n > cap) over.push(`${who}: ${n} > ${cap}`);
+  }
+  console.log(`      ${lines.join(" | ")}`);
+  if (over.length) return `фиксированный вход пробил потолок: ${over.join("; ")}`;
+  return true;
+});
+
+step("разделение BLOCKS.md: у каждого агента своя половина, обе на месте", () => {
+  const planner = readFileSync(join(PROJECT_ROOT, ".claude/skills/seo-tekst/assets/BLOCKS.md"), "utf8");
+  const metrics = readFileSync(join(PROJECT_ROOT, ".claude/skills/seo-tekst/assets/BLOCKS-METRICS.md"), "utf8");
+  // Решения - у планировщика
+  for (const s of ["Таблица применимости", "Скелеты типов страниц", "Три режима сборки блока", "Регистр текста", "Рецепты блоков по типу", "Индекс блоков"]) {
+    if (!planner.includes(s)) return `в BLOCKS.md нет раздела «${s}» - потерян при разделении`;
+    if (metrics.includes("## " + s) || metrics.includes("### " + s)) return `раздел «${s}» задвоился в BLOCKS-METRICS.md`;
+  }
+  // Метрики - у slot-mapper
+  for (const s of ["Полный каталог из 45 блоков", "Каталожные блоки", "Глобальные правила заголовков", "Пороговые правила по количеству"]) {
+    if (!metrics.includes(s)) return `в BLOCKS-METRICS.md нет раздела «${s}»`;
+  }
+  // Индекс покрывает весь каталог: имя блока планировщика обязано находиться в метриках
+  const idxNames = [...planner.matchAll(/^\| (?:\d+к?|-) \| ([^|]+) \|/gm)].map((m) => m[1].trim());
+  if (idxNames.length < 50) return `в индексе блоков только ${idxNames.length} строк - каталог обрезан`;
+  const missing = idxNames.filter((n) => !metrics.includes(n.split(" **")[0].trim()));
+  if (missing.length) return `блоки индекса без метрик: ${missing.slice(0, 3).join("; ")}`;
+  // Char-метрик у планировщика быть не должно: их признак - колонка ОБЪЁМ в таблице каталога
+  if (/\| ОБЪ[ЁЕ]М \|/.test(planner)) return "в BLOCKS.md осталась таблица каталога с колонкой ОБЪЁМ - разделение не отработало";
+  return true;
+});
+
 step("образцы в методичках не нарушают собственный свод (е-с-точками, тире)", () => {
   const files = [
     ".claude/skills/seo-tekst/assets/VOICE.md",
