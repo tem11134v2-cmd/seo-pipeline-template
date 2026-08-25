@@ -280,15 +280,24 @@ export function bindHanging(src) {
 // ссылка при этом живая - пустой href="tel:" остается нарушением намеренно.
 export const PHONE_PLACEHOLDER = "+7 (000) 000-00-00";
 
+// ТРЕТЬЕ состояние телефона - `legal.phone_absent: true`: у заказчика телефона НЕТ и не будет
+// (онлайн-проект без телефонного канала). Пустое поле и такое решение - разные вещи: пустое
+// означает «реквизит не закрыт» и честно печатается маской, а решение означает «блока быть
+// не должно». Различить их эвристикой нельзя, поэтому нужен явный флаг: его ставит оркестратор
+// в legal-блок inputs.json по ответу заказчика, а не сборщик по виду пустой строки.
+// При phone_absent телефон не печатается нигде (шапка, бургер, мобильная панель, футер),
+// маска не подставляется, и правило verify-prototype «нет кликабельного телефона» не применяется.
 export function buildLegalScope(legal = {}) {
   const reqParts = [];
   if (truthy(legal.inn)) reqParts.push(`ИНН ${legal.inn}`);
   if (truthy(legal.ogrn)) reqParts.push(`ОГРН ${legal.ogrn}`);
   if (truthy(legal.address)) reqParts.push(`адрес: ${legal.address}`);
 
+  const phoneAbsent = truthy(legal.phone_absent);
   const phoneGiven = truthy(legal.phone) ? String(legal.phone).trim() : "";
-  const phoneMissing = phoneGiven.replace(/\D/g, "").length < 5;
-  const phone = phoneMissing ? PHONE_PLACEHOLDER : phoneGiven;
+  // При явном решении «телефона нет» поле пустым не считается: заглушке взяться неоткуда.
+  const phoneMissing = !phoneAbsent && phoneGiven.replace(/\D/g, "").length < 5;
+  const phone = phoneAbsent ? "" : (phoneMissing ? PHONE_PLACEHOLDER : phoneGiven);
   const phoneRaw = phone.replace(/[^\d+]/g, "");
 
   return {
@@ -301,6 +310,7 @@ export function buildLegalScope(legal = {}) {
     phoneRaw,
     phoneMissing,
     phoneGiven,
+    phoneAbsent,
     // Готовый текст предупреждения - ассемблер печатает его как есть, чтобы формулировка
     // «телефон не заполнен» была одна на весь конвейер (лог сборки + сводка verify).
     warning: phoneMissing

@@ -234,6 +234,77 @@ step("семена facts.json из intake: числа дословно, ВКЛЮ
   return true;
 });
 
+// ── Засев facts.json: реквизиты и publish (боевой прогон save-arch-soft, 24.08) ──
+// Три дефекта одного шва, каждый доезжал бы до живого сайта: ИНН склеивался из ВСЕХ цифр
+// строки; publish:"as-is" ставился всем числам подряд, включая снятые заказчиком и чужие;
+// label оставался пустым и размечался руками. Тестов на них не было - потому и не поймали.
+const dirSeedAn = join(SANDBOX, "seed-analysis");
+mkdirSync(dirSeedAn, { recursive: true });
+writeFileSync(join(dirSeedAn, "meta.json"), JSON.stringify({ tier: "basic", state: "completed" }), "utf8");
+writeFileSync(join(dirSeedAn, "brief.json"), JSON.stringify({
+  slug: "save", domain: "saveschool.online", region: "Россия, формат полностью онлайн",
+  forbidden_wordings: ["Софт Культура - больше 10 лет на рынке"],
+}, null, 2), "utf8");
+writeFileSync(join(dirSeedAn, "intake.json"), JSON.stringify({
+  sources: [{ id: "s1", label: "созвон" }],
+  facts: [
+    // Дословный факт боевого интейка: ИНН + дата подтверждения + номер вопроса в одной строке.
+    { field: "requisites", kind: "inn", value: "ИНН 240405032019 - в подвале прошлого лендинга. Требует подтверждения (подтверждено заказчиком 23.08.2026, ответ на вопрос 3)", source: "s1" },
+    { field: "requisites", kind: "ogrn", value: "ОГРН уточняется, в источниках встречались 1234567890123 и 3210987654321", source: "s1" },
+    { field: "numbers", value: "Старые регалии с первого экрана (СНЯТЫ по решению заказчика): 400+ студентов, 4 года, 30+ потоков", source: "s1" },
+    { field: "numbers", value: "Софт Культура - больше 10 лет на рынке, курсы на 3-4 тысячи дороже", source: "s1" },
+    { field: "numbers", value: "137 объектов сдано", source: "s1" },
+  ],
+}, null, 2), "utf8");
+const dirSeed = join(SANDBOX, "seed-texts");
+mkdirSync(dirSeed, { recursive: true });
+run([READ_INPUT, dirSeed, "--from-analysis", dirSeedAn]);
+
+step("засев ИНН: берется группа нужной длины, а не все цифры строки подряд", () => {
+  const facts = readJson(join(dirSeed, "facts.json"));
+  const inn = facts.jur.requisites.inn;
+  if (inn === "240405032019230820263") return "ИНН склеен с датой подтверждения и номером вопроса - дефект вернулся";
+  if (inn !== "240405032019") return `ИНН = ${inn}, ожидался 240405032019`;
+  return true;
+});
+
+step("засев реквизита: несколько кандидатов -> поле пустое + строка в requisites_unresolved", () => {
+  const facts = readJson(join(dirSeed, "facts.json"));
+  if (facts.jur.requisites.ogrn) return `ОГРН = ${facts.jur.requisites.ogrn} - скрипт угадал там, где кандидатов двое`;
+  const un = facts.jur.requisites_unresolved || [];
+  if (!un.some((u) => u.field === "ogrn" && /кандидатов несколько/i.test(String(u.why))))
+    return `в requisites_unresolved нет ОГРН с причиной: ${JSON.stringify(un)}`;
+  return true;
+});
+
+step("засев publish: число, снятое решением заказчика -> \"no\" с основанием", () => {
+  const facts = readJson(join(dirSeed, "facts.json"));
+  const row = (facts.numbers || []).find((n) => /Старые регалии/.test(n.value));
+  if (!row) return "факт не доехал до facts.json";
+  if (row.publish !== "no") return `publish = ${row.publish} - снятые заказчиком регалии засеяны к публикации`;
+  if (!String(row.publish_why || "").trim()) return "нет publish_why - ревизия не увидит, что сработало";
+  return true;
+});
+
+step("засев publish: совпадение с forbidden_wordings брифа -> \"no\"", () => {
+  const facts = readJson(join(dirSeed, "facts.json"));
+  const row = (facts.numbers || []).find((n) => /Софт Культура/.test(n.value));
+  if (!row) return "факт не доехал до facts.json";
+  if (row.publish !== "no") return `publish = ${row.publish} - мост засеял к публикации то, что запретил тот же бриф`;
+  if (!/forbidden_wordings/i.test(String(row.publish_why || ""))) return `publish_why не называет основание: ${row.publish_why}`;
+  return true;
+});
+
+step("засев чистого числа: publish as-is + label выведен машинно (label_auto)", () => {
+  const facts = readJson(join(dirSeed, "facts.json"));
+  const row = (facts.numbers || []).find((n) => /137 объектов/.test(n.value));
+  if (!row) return "факт не доехал до facts.json";
+  if (row.publish !== "as-is") return `publish = ${row.publish} - классификатор глушит чистую фактуру`;
+  if (!String(row.label || "").trim()) return "label пуст - привязку опять размечать руками";
+  if (row.label_auto !== true) return "нет label_auto - ревизия не отличит машинную разметку от подтвержденной";
+  return true;
+});
+
 // Черновик состава - как его отдает pages-planner v2 ПОСЛЕ гейта (контракт 3.1):
 // dir_slug уже проставлен планировщиком (мост берет готовым, заново не спаривает),
 // include "нет" - страница снята заказчиком на гейте.
@@ -670,6 +741,91 @@ step("verify v2: пустой href=\"tel:\" блокирует (exit 2, а не 
   return true;
 });
 
+// ── Оболочка не выдумывает фактуру (боевой прогон save-arch-soft, 24.08) ──
+// Ассемблер печатал в шапку график «Пн-Пт 9:00-19:00» из захардкоженного дефолта - у проекта,
+// который работает полностью онлайн и офлайна не имеет. Проверку это переживало: верификаторы
+// читают page.json, а выдумка жила в оболочке.
+step("assemble: пустой график - в шапку не уезжают выдуманные часы работы", () => {
+  const html = readFileSync(join(dirSite, "prototype.html"), "utf8");
+  if (/Пн-Пт|Пн\.-Пт\.|9:00-19:00/.test(html)) return "в документе часы работы, которых нет ни в meta.schedule, ни в legal.schedule";
+  if (/<span class="pt-schedule"><\/span>/.test(html)) return "пустой элемент графика остался в разметке";
+  return true;
+});
+
+step("assemble: legal.schedule заполнен - график печатается как есть", () => {
+  const dir = cloneSite("site-schedule", (d) => {
+    const p = join(d, "pages", "main", "manifest.json");
+    const m = readJson(p);
+    m.legal.schedule = "Пн-Пт 10:00-18:00";
+    writeFileSync(p, JSON.stringify(m, null, 2), "utf8");
+  });
+  const r = run([ASSEMBLE_PROTO, dir]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
+  const html = readFileSync(join(dir, "prototype.html"), "utf8");
+  if (!/Пн-Пт\s*10:00-18:00/.test(html.replace(/ /g, " "))) return "заполненный график не доехал до шапки";
+  return true;
+});
+
+// «Телефона нет» - решение заказчика, а не пустое поле: пустое честно печатается маской,
+// решение снимает блок целиком. Эвристикой их не различить, поэтому нужен явный флаг.
+step("assemble+verify: legal.phone_absent - телефона нет нигде, сборка проходит (exit 0)", () => {
+  const dir = cloneSite("site-nophone", (d) => {
+    for (const slug of ["main", "uslugi", "catalog"]) {
+      const p = join(d, "pages", slug, "manifest.json");
+      const m = readJson(p);
+      m.legal.phone = "";
+      m.legal.phone_absent = true;
+      writeFileSync(p, JSON.stringify(m, null, 2), "utf8");
+    }
+  });
+  const r = run([ASSEMBLE_PROTO, dir]);
+  if (r.code !== 0) return `assemble exit ${r.code}: ${r.stderr}`;
+  const html = readFileSync(join(dir, "prototype.html"), "utf8");
+  if (/href="tel:/.test(html)) return "tel-ссылка осталась при явном решении «телефона нет»";
+  if (/\+7\s*\(000\)/.test(html)) return "подставлена маска-заглушка - решение заказчика проигнорировано";
+  const v = run([VERIFY_PROTO, dir]);
+  if (v.code !== 0) return `verify exit ${v.code} (правило про телефон не учитывает phone_absent): ${v.stdout}`;
+  return true;
+});
+
+step("verify v2: склеенный ИНН в legal главной -> exit 2 (реквизит уезжает в подвал сайта)", () => {
+  const dir = cloneSite("site-badinn", (d) => {
+    const p = join(d, "pages", "main", "manifest.json");
+    const m = readJson(p);
+    m.legal.inn = "240405032019230820263"; // ИНН + дата + номер вопроса, боевой случай
+    writeFileSync(p, JSON.stringify(m, null, 2), "utf8");
+  });
+  run([ASSEMBLE_PROTO, dir]);
+  const r = run([VERIFY_PROTO, dir]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2 - длина реквизита опять никем не проверяется`;
+  if (!/ИНН|inn/i.test(r.stdout)) return "в выводе нет причины про ИНН";
+  return true;
+});
+
+step("verify v2: ИНН с непроходящей контрольной цифрой -> exit 2, верный ИНН -> молчит", () => {
+  const bad = cloneSite("site-inn-checksum", (d) => {
+    const p = join(d, "pages", "main", "manifest.json");
+    const m = readJson(p);
+    m.legal.inn = "240405032018"; // последняя цифра испорчена: длина верная, сумма нет
+    writeFileSync(p, JSON.stringify(m, null, 2), "utf8");
+  });
+  run([ASSEMBLE_PROTO, bad]);
+  const rb = run([VERIFY_PROTO, bad]);
+  if (rb.code !== 2) return `испорченный ИНН прошел: exit ${rb.code}`;
+  if (!/контрольная/i.test(rb.stdout)) return "причина не названа контрольной цифрой";
+
+  const ok = cloneSite("site-inn-ok", (d) => {
+    const p = join(d, "pages", "main", "manifest.json");
+    const m = readJson(p);
+    m.legal.inn = "240405032019"; // настоящий ИНН заказчика с боевого прогона
+    writeFileSync(p, JSON.stringify(m, null, 2), "utf8");
+  });
+  run([ASSEMBLE_PROTO, ok]);
+  const ro = run([VERIFY_PROTO, ok]);
+  if (ro.code !== 0) return `настоящий ИНН заблокирован (ложное срабатывание): ${ro.stdout}`;
+  return true;
+});
+
 // ──────────────────────────────────────────────────────────────────────────
 console.log("");
 console.log("=== verify-copy.mjs (ремонт ложных срабатываний + метатеги) ===");
@@ -699,6 +855,21 @@ const HERO_OK = { n: 1, type: "Первый экран (Hero)", fragment: "hero"
 step("чистая страница -> exit 0 (фикстура не ловит сама себя)", () => {
   const r = run([VERIFY_COPY, copyPage({ blocks: [HERO_OK] })]);
   if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
+  return true;
+});
+
+// Порча реквизита ловится в истоке (facts.json), а не только на сборке: до этой проверки
+// длину ИНН не смотрел никто на всем конвейере.
+step("verify-copy: склеенный ИНН в facts.json -> exit 2 на каждой странице задачи", () => {
+  const pageDir = copyPage({ blocks: [HERO_OK] });
+  const taskDir = join(pageDir, "..", "..");
+  writeFileSync(join(taskDir, "facts.json"), JSON.stringify({
+    jur: { entity: "ИП Рыжова", requisites: { inn: "240405032019230820263", ogrn: "", address: "" } },
+    numbers: [],
+  }, null, 2), "utf8");
+  const r = run([VERIFY_COPY, pageDir]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
+  if (!/ИНН/.test(r.stdout)) return "в выводе нет причины про ИНН";
   return true;
 });
 

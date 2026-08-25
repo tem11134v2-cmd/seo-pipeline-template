@@ -65,10 +65,13 @@
     <div class="container pt-header__row">
       <a href="#" class="pt-logo"><!--LOGO--></a>
       <div class="pt-header__contacts">
-        <div class="pt-phone-block">
-          <a href="tel:<!--PHONE_RAW-->" class="pt-phone"><!--PHONE--></a>
-          <span class="pt-schedule"><!--SCHEDULE--></span>
-        </div>
+        <!-- Телефон и график печатаются только когда они ЕСТЬ: условные маркеры IF_PHONE,
+             IF_SCHEDULE и IF_CONTACTS снимает ассемблер. Пустой график раньше давал в шапке
+             выдуманные часы работы у проектов, которые работают полностью онлайн. -->
+        <!--IF_CONTACTS--><div class="pt-phone-block">
+          <!--IF_PHONE--><a href="tel:<!--PHONE_RAW-->" class="pt-phone"><!--PHONE--></a><!--/IF_PHONE-->
+          <!--IF_SCHEDULE--><span class="pt-schedule"><!--SCHEDULE--></span><!--/IF_SCHEDULE-->
+        </div><!--/IF_CONTACTS-->
         <a href="#" class="btn btn--primary pt-shell-cta">Оставить заявку</a>
         <button class="pt-burger-btn" aria-label="Меню" onclick="openBurger()">
           <span></span><span></span><span></span>
@@ -84,8 +87,8 @@
       <a href="#" class="pt-shell-cta" onclick="closeBurger()">Оставить заявку</a>
     </nav>
     <div>
-      <a href="tel:<!--PHONE_RAW-->" class="pt-phone"><!--PHONE--></a>
-      <p class="pt-schedule" style="margin:4px 0 16px;"><!--SCHEDULE--></p>
+      <!--IF_PHONE--><a href="tel:<!--PHONE_RAW-->" class="pt-phone"><!--PHONE--></a><!--/IF_PHONE-->
+      <!--IF_SCHEDULE--><p class="pt-schedule" style="margin:4px 0 16px;"><!--SCHEDULE--></p><!--/IF_SCHEDULE-->
       <a href="#" class="btn btn--primary btn--block btn--lg pt-shell-cta" onclick="closeBurger()">Оставить заявку</a>
     </div>
   </aside>

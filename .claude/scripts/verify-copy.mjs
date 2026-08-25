@@ -108,6 +108,26 @@ const SCARCITY = /остал(?:ось|о|ись|ся)\s+(?:всего\s+|лиш�
 const factsPath = join(taskRoot, "facts.json");
 let facts = null;
 try { if (existsSync(factsPath)) facts = JSON.parse(readFileSync(factsPath, "utf8").replace(/^﻿/, "")); } catch { facts = null; }
+
+// --- Формат реквизитов в facts.json ----------------------------------------------------
+// Кто исполняет: этот скрипт на КАЖДОЙ странице. Зачем: facts.json - исток реквизита, из
+// него он попадает в inputs.json, в подвал прототипа и в HANDOFF верстальщику. Ловить порчу
+// на сборке поздно и дороже, чем здесь. Проверяем только строку из чистых цифр: пустое поле
+// и пометка «требует уточнения» - законные состояния незакрытого реквизита.
+{
+  const req = (facts && facts.jur && facts.jur.requisites) || null;
+  for (const [field, name, lens] of [["inn", "ИНН", [10, 12]], ["ogrn", "ОГРН", [13, 15]]]) {
+    const raw = String((req && req[field]) || "").trim();
+    if (!raw || !/^\d+$/.test(raw)) continue;
+    if (!lens.includes(raw.length)) {
+      V(`facts.json: ${name} из ${raw.length} цифр (бывает ${lens.join(" или ")}) - реквизит склеен с соседним числом (дата, номер вопроса). Сверь по источнику: писателю числа со стороны запрещены, эту ошибку ниже не поймает никто`);
+    }
+  }
+  const unresolved = arr(req && req.requisites_unresolved);
+  if (unresolved.length) {
+    W(`facts.json: реквизитов не вычленено ${unresolved.length} (${unresolved.map((u) => String(u && u.field)).join(", ")}) - поля пустые, сырые строки лежат в jur.requisites_unresolved. Закрывает ревизия facts.json, не писатель`);
+  }
+}
 // остаток настоящий, только если ЭТО ЖЕ число лежит в facts.json под меткой про остаток/места/квоту
 // (либо записано там же строкой). Нет facts.json - подтвердить нечем, значит не подтверждено.
 function leftConfirmed(n) {

@@ -531,6 +531,79 @@ function looksLikeAddress(v) {
   return ADDR_START.test(s);
 }
 
+// --- Числовой реквизит из строки факта -------------------------------------------------
+// Кто исполняет: мост при засеве facts.json. Зачем: реквизит отсюда печатается в подвал
+// живого сайта, на юридические страницы и в HANDOFF верстальщику, а сверять его по буквам
+// руками не масштабируется - на боевом прогоне ошибку поймала только ручная вычитка.
+//
+// Было `v.replace(/\D+/g, "")` - «все цифры строки подряд». Факт интейка
+// «ИНН 240405032019 - в подвале прошлого лендинга. Требует подтверждения (подтверждено
+// заказчиком 23.08.2026, ответ на вопрос 3)» давал inn "240405032019230820263":
+// ИНН + дата подтверждения + номер вопроса. Ни одна проверка конвейера длину ИНН не
+// смотрела, и склейка доехала бы до подвала сайта.
+//
+// Правило: берем ЕДИНСТВЕННУЮ группу цифр правильной длины. Ноль кандидатов или несколько -
+// поле остается ПУСТЫМ, а сырая строка уходит в facts.jur.requisites_unresolved: неоднозначность
+// разрешает человек на обязательной ревизии facts.json, а не догадка скрипта.
+const REQ_LEN = { inn: [12, 10], ogrn: [15, 13] };
+function pickRequisite(value, kind) {
+  const lens = REQ_LEN[kind];
+  const found = [];
+  for (const len of lens) {
+    // (?<!\d)...(?!\d) - группа ровно такой длины: 12-значный ИНН не матчится как 10-значный,
+    // а дата 23.08.2026 не даст ни 10, ни 12 цифр подряд.
+    for (const m of String(value).matchAll(new RegExp(`(?<!\\d)\\d{${len}}(?!\\d)`, "g"))) {
+      if (!found.includes(m[0])) found.push(m[0]);
+    }
+  }
+  if (found.length === 1) return { value: found[0], why: null };
+  if (!found.length) return { value: "", why: `нет группы цифр длиной ${lens.join(" или ")} - в строке проза, а не реквизит` };
+  return { value: "", why: `кандидатов несколько (${found.join(", ")}) - выбор за человеком, скрипт не угадывает` };
+}
+
+// --- Флаг публикации числа при засеве ---------------------------------------------------
+// Кто исполняет: мост при засеве facts.json. Зачем: дефолт "as-is" на ВСЕХ числах прямо
+// противоречил forbidden_wordings того же брифа, который мост только что прочитал. На боевом
+// прогоне as-is получили в том числе регалии, СНЯТЫЕ решением заказчика, сорванные
+// сотрудничества и цифра конкурента - восемь чисел из шестнадцати пришлось разворачивать в "no"
+// руками. Ошибка здесь ниже не ловится ничем: писателю числа со стороны запрещены, он берет
+// их отсюда как разрешенные.
+//
+// Направление безопасное: "no" означает «не публиковать до решения человека» (verify-copy и
+// агенты трактуют не-"no" как публикуемое), поэтому ошибка классификатора стоит одного вопроса
+// на ревизии, а не лжи на сайте. Основание пишется в publish_why - ревизия видит, что сработало.
+const REMOVED_MARK = /(?:^|[^а-яё])сня(?:т|ть|л)[аоиы]?(?:[^а-яё]|$)|не\s+публик|не\s+для\s+публикаци|не\s+афишир|внутренн|конфиденциальн|устарел|отозван|отмен[её]н|сорва(?:л|н)|провалил|неудач|\[конкурент\]/i;
+const normFact = (s) => String(s || "").toLowerCase().replace(/[её]/g, "е").replace(/\s+/g, " ").trim();
+
+function publishSeed(f, forbidden) {
+  const hay = normFact([f.value, f.quote, f.comment, f.note].filter(Boolean).join(" "));
+  if (REMOVED_MARK.test(hay)) return { publish: "no", why: "в тексте факта маркер снятия или внутреннего - подтверди на ревизии facts.json" };
+  // Сверка с forbidden_wordings брифа. Порог 8 знаков: короткая строка запрета совпадает
+  // со случайным куском любого факта и глушила бы всю фактуру подряд.
+  for (const fw of forbidden || []) {
+    const needle = normFact(typeof fw === "string" ? fw : (fw && (fw.wording || fw.phrase || fw.text)));
+    if (needle.length >= 8 && hay.includes(needle)) {
+      return { publish: "no", why: `совпадает с forbidden_wordings брифа: «${String(needle).slice(0, 60)}»` };
+    }
+  }
+  return { publish: "as-is", why: null };
+}
+
+// --- Привязка числа (label) -------------------------------------------------------------
+// Кто исполняет: мост при засеве. Зачем: label выводится из value механически, а на боевом
+// прогоне скрипт оставлял его пустым и печатал «разметь привязку каждой цифры» - шестнадцать
+// ручных полей на старте задачи там, где хватает первой клаузы значения.
+// label_auto: true - честная пометка «это машина»: ревизия facts.json подтверждает или правит.
+function deriveLabel(f) {
+  const explicit = String(f.label || f.name || "").trim();
+  if (explicit) return { label: explicit.slice(0, 60), auto: false };
+  // Первая клауза: до провенансной скобки, тире-разделителя или конца предложения.
+  const clause = String(f.value || "").trim().split(/\s+[-–—]\s+|\s*[(;]|\.\s/)[0].trim();
+  const noDigits = clause.replace(/\d[\d\s.,%+-]*/g, " ").replace(/\s+/g, " ").trim();
+  const label = (noDigits.length >= 3 ? noDigits : clause).slice(0, 60);
+  return { label, auto: Boolean(label) };
+}
+
 function buildFactsSeeds() {
   let intake = null;
   let intakeLexicon = null;
@@ -578,7 +651,17 @@ function buildFactsSeeds() {
     opsec_restricted: [],
     lexicon: { locked: [], translate: [], canonical: [] },
   };
-  const stats = { numbers: 0, own_page: 0, locked: 0, opsec: 0, internal_terms: by("internal_terms").length, requisites_unparsed: 0, requisites_candidates: 0 };
+  const stats = { numbers: 0, own_page: 0, locked: 0, opsec: 0, internal_terms: by("internal_terms").length, requisites_unparsed: 0, requisites_candidates: 0, requisites_unresolved: 0, publish_no: 0 };
+  // Реквизиты, которые скрипт разобрать не взялся: пустое поле + сырая строка человеку.
+  const unresolved = [];
+  // Кладет реквизит-число только если он однозначно вычленен; иначе поле остается пустым.
+  const setNumericReq = (slot, raw, kind) => {
+    if (facts.jur.requisites[slot]) return;
+    const r = pickRequisite(raw, kind);
+    if (r.value) { facts.jur.requisites[slot] = r.value; return; }
+    unresolved.push({ field: slot, value: raw, why: r.why });
+    stats.requisites_unresolved++;
+  };
 
   // Реквизиты: один факт = одно поле (правило intake-analyst).
   // Основной путь - структурированное подполе kind от intake-analyst
@@ -591,11 +674,10 @@ function buildFactsSeeds() {
     const v = String(f.value).trim();
     // Провенанс раньше содержимого: неподтвержденный реквизит в facts.json не попадает.
     if (isUnconfirmedFact(f)) { stats.requisites_candidates++; continue; }
-    const digits = v.replace(/\D+/g, "");
     const kind = String(f.kind || "").trim().toLowerCase();
     if (kind) {
-      if (kind === "inn") { if (!facts.jur.requisites.inn) facts.jur.requisites.inn = digits || v; }
-      else if (kind === "ogrn") { if (!facts.jur.requisites.ogrn) facts.jur.requisites.ogrn = digits || v; }
+      if (kind === "inn") setNumericReq("inn", v, "inn");
+      else if (kind === "ogrn") setNumericReq("ogrn", v, "ogrn");
       else if (kind === "address") { if (!facts.jur.requisites.address) facts.jur.requisites.address = v; }
       else if (kind === "entity") { if (!facts.jur.entity) facts.jur.entity = v; }
       else if (kind === "phone" || kind === "email") stats.requisites_unparsed++; // контакты - в legal-блок inputs.json (оркестратор)
@@ -607,8 +689,8 @@ function buildFactsSeeds() {
     if (REQ_NEGATION.test(v)) { stats.requisites_unparsed++; continue; }
     // Орг-форма: \b с кириллицей не работает (не \w), поэтому границы - явные не-буквы.
     if (/(?:^|[^А-Яа-яA-Za-z])(?:ООО|ИП|АО|ЗАО|ПАО|ОАО)(?:[^А-Яа-яA-Za-z]|$)/.test(v) && !facts.jur.entity) facts.jur.entity = v;
-    else if (/ИНН/i.test(v) || /^\d{10}$|^\d{12}$/.test(v)) { if (!facts.jur.requisites.inn) facts.jur.requisites.inn = digits || v; }
-    else if (/ОГРН/i.test(v) || /^\d{13}$|^\d{15}$/.test(v)) { if (!facts.jur.requisites.ogrn) facts.jur.requisites.ogrn = digits || v; }
+    else if (/ИНН/i.test(v) || /^\d{10}$|^\d{12}$/.test(v)) setNumericReq("inn", v, "inn");
+    else if (/ОГРН/i.test(v) || /^\d{13}$|^\d{15}$/.test(v)) setNumericReq("ogrn", v, "ogrn");
     else if (looksLikeAddress(v)) { if (!facts.jur.requisites.address) facts.jur.requisites.address = v; }
     else stats.requisites_unparsed++; // телефон/email, отвергнутое фолбэком и прочее - в legal-блок inputs.json (оркестратор)
   }
@@ -624,11 +706,19 @@ function buildFactsSeeds() {
   const pr = by("prices").map((f) => String(f.value).trim());
   if (pr.length) facts.product_guarantee.prices = pr.join("; ");
 
-  // Числа компании: value дословно; label пуст - его привязку ("3 дня - от чего до чего")
-  // размечает оркестратор на обязательной ревизии facts.json перед письмом.
+  // Числа компании: value дословно. label выводится механически (deriveLabel) с пометкой
+  // label_auto, publish - классификатором publishSeed с основанием в publish_why.
+  // Обязательная ревизия facts.json от этого не отменяется: она подтверждает разметку,
+  // а не создает ее с нуля.
   for (const f of by("numbers")) {
-    facts.numbers.push({ label: "", value: String(f.value).trim(), publish: "as-is" });
+    const { label: lbl, auto } = deriveLabel(f);
+    const { publish, why } = publishSeed(f, ctx.forbiddenWordings);
+    const row = { label: lbl, value: String(f.value).trim(), publish };
+    if (auto) row.label_auto = true;
+    if (why) row.publish_why = why;
+    facts.numbers.push(row);
     stats.numbers++;
+    if (publish === "no") stats.publish_no++;
     if (/^own_page:/.test(String(f.source || ""))) stats.own_page++;
   }
   // own_page-факты полей prices/guarantee уже учтены выше своими полями - посчитаем для сводки.
@@ -645,10 +735,16 @@ function buildFactsSeeds() {
   // Фолбэк реквизитов из ЗАКАЗЧИК.md (как раньше делал оркестратор через _client.mjs).
   if (md) {
     if (!facts.jur.entity) facts.jur.entity = pickField(md, "Юрлицо") || pickField(md, "Юридическое лицо") || pickField(md, "Название компании") || "";
-    if (!facts.jur.requisites.inn) facts.jur.requisites.inn = pickField(md, "ИНН") || "";
-    if (!facts.jur.requisites.ogrn) facts.jur.requisites.ogrn = pickField(md, "ОГРН") || "";
+    // Через тот же вычленитель: в ЗАКАЗЧИК.md строка реквизита тоже бывает с пояснением.
+    const mdInn = pickField(md, "ИНН");
+    if (mdInn) setNumericReq("inn", mdInn, "inn");
+    const mdOgrn = pickField(md, "ОГРН");
+    if (mdOgrn) setNumericReq("ogrn", mdOgrn, "ogrn");
     if (!facts.jur.requisites.address) facts.jur.requisites.address = pickField(md, "Юридический адрес") || pickField(md, "Юр. адрес") || pickField(md, "Адрес") || "";
   }
+
+  // Ключ появляется только когда есть что показать - чистые задачи остаются без лишнего поля.
+  if (unresolved.length) facts.jur.requisites_unresolved = unresolved;
 
   return { facts, stats };
 }
@@ -658,8 +754,10 @@ let factsStatus = "уже есть - не трогаю";
 if (!existsSync(factsPath)) {
   const { facts, stats } = buildFactsSeeds();
   writeFileSync(factsPath, JSON.stringify(facts, null, 2), "utf8");
-  factsStatus = `создан (чисел ${stats.numbers}, из них own_page ${stats.own_page}; opsec ${stats.opsec}; locked не сеется - кандидаты в intake)`;
-  if (stats.numbers) notes.push("facts.numbers засеяны с пустым label - разметь привязку каждой цифры на ревизии facts.json");
+  factsStatus = `создан (чисел ${stats.numbers}, из них own_page ${stats.own_page}; publish:no ${stats.publish_no}; opsec ${stats.opsec}; locked не сеется - кандидаты в intake)`;
+  if (stats.numbers) notes.push(`facts.numbers: label выведен машинно (label_auto) - подтверди привязку каждой цифры на ревизии facts.json`);
+  if (stats.publish_no) notes.push(`чисел с publish:"no" ${stats.publish_no} (маркер снятия или forbidden_wordings; основание в publish_why) - публикуемые верни в "as-is" на ревизии`);
+  if (stats.requisites_unresolved) notes.push(`реквизитов не вычленено однозначно: ${stats.requisites_unresolved} - поля пустые, сырые строки в facts.jur.requisites_unresolved, закрывает ревизия`);
   if (stats.internal_terms) notes.push(`internal_terms в intake: ${stats.internal_terms} - спаривание internal -> public (lexicon.translate) собирает оркестратор`);
   if (stats.requisites_unparsed) notes.push(`реквизитов не разобрано механически: ${stats.requisites_unparsed} (телефон/email и пр.) - они идут в legal-блок inputs.json от оркестратора`);
   if (stats.requisites_candidates) notes.push(`реквизитов-кандидатов пропущено: ${stats.requisites_candidates} - подтвердите у заказчика`);

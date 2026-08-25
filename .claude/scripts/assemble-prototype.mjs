@@ -35,6 +35,9 @@
 // <!--THEME_CSS--> <!--PROTOTYPE_CSS--> <!--LOGO--> <!--PHONE--> <!--PHONE_RAW-->
 // <!--SCHEDULE--> <!--PAGES--> (внутри <main id="ptPages">) <!--FOOTER--> <!--LEGAL_PAGES-->
 // <!--COOKIE_BANNER--> <!--ROUTES_SCRIPT--> <!--PROTOTYPE_JS-->; элемент #ptBackbar над header.
+// Условные куски shell: <!--IF_PHONE--> (телефон заполнен и не снят решением заказчика),
+// <!--IF_SCHEDULE--> (график задан), <!--IF_CONTACTS--> (есть хотя бы одно из двух).
+// Нет данных - блок не печатается: выдуманных часов работы и мертвых tel-ссылок в документе нет.
 
 import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -356,7 +359,15 @@ const routesScriptTag = `<script>window.PT_ROUTES = ${routesJson}</script>`;
 // ---------- shell substitution ----------
 const title = meta.title || meta.slug || "Прототип";
 const desc = meta.description || "";
-const schedule = meta.schedule || legal.schedule || "Пн-Пт 9:00-19:00";
+
+// График работы: ПУСТОЙ дефолт. Кто исполняет: ассемблер. Зачем: раньше здесь стояло
+// "Пн-Пт 9:00-19:00", и у полностью онлайн-проекта без офлайна в шапку сайта печатались
+// конкретные часы работы, которых не существует. Ловушка была двойная: заполнишь
+// плейсхолдером - уедет «[режим работы - требует уточнения]», очистишь - уедет выдумка.
+// Хуже всего, что она переживала любую проверку: верификаторы читают page.json, а выдумка
+// живет в оболочке. Весь конвейер стоит на «числа только из facts.json» - движку сборки
+// тем более нельзя вписывать факт от себя. Нет графика - блока нет (как уже для телефона).
+const schedule = String(meta.schedule || legal.schedule || "").trim();
 
 const metaTitleHtml =
   `<title>${escapeHtml(title)}</title>\n` +
@@ -382,6 +393,26 @@ const subs = {
 };
 
 let html = shell;
+
+// ---------- условные куски shell ----------
+// Минимальный условный блок для ОБОЛОЧКИ: <!--IF_X-->...<!--/IF_X-->. Фрагменты страниц
+// идут через renderTemplate со своим scope, а у shell scope нет - подстановка тут плоская,
+// маркер на маркер. Без условия единственный способ «не печатать телефон» - печатать его
+// пустым, то есть оставить в документе мертвую ссылку или пустую строку под логотипом.
+// Порядок обработки - от внутренних к внешним: снятый CONTACTS уносит уже очищенные PHONE
+// и SCHEDULE вместе со своим блоком.
+function shellCond(src, name, keep) {
+  const open = `<!--IF_${name}-->`;
+  const close = `<!--/IF_${name}-->`;
+  const re = new RegExp(`${open}([\\s\\S]*?)${close}`, "g");
+  return src.replace(re, (_m, inner) => (keep ? inner : ""));
+}
+const hasPhone = Boolean(String(legalInfo.phone || "").trim());
+const hasSchedule = Boolean(schedule);
+for (const [name, keep] of [["PHONE", hasPhone], ["SCHEDULE", hasSchedule], ["CONTACTS", hasPhone || hasSchedule]]) {
+  html = shellCond(html, name, keep);
+}
+
 for (const [marker, value] of Object.entries(subs)) {
   html = html.split(marker).join(value);
 }
@@ -422,5 +453,7 @@ console.log(`  pages: ${pages.length} (+ стартовый список __index
 console.log(`  main_slug: ${mainSlug}`);
 console.log(`  start: ${startRoute}`);
 console.log(`  theme: wireframe`);
-if (legalInfo.phoneMissing) console.log(`  телефон: заглушка ${PHONE_PLACEHOLDER} - legal.phone не заполнен`);
+if (legalInfo.phoneAbsent) console.log("  телефон: не печатается - legal.phone_absent (решение заказчика «телефона нет»)");
+else if (legalInfo.phoneMissing) console.log(`  телефон: заглушка ${PHONE_PLACEHOLDER} - legal.phone не заполнен`);
+console.log(`  график работы: ${schedule ? schedule : "не печатается - meta.schedule/legal.schedule пусты (выдумывать часы нельзя)"}`);
 console.log(`  size: ${(Buffer.byteLength(html, "utf8") / 1024).toFixed(1)} KB`);
