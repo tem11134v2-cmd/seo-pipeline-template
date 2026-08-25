@@ -913,6 +913,32 @@ step("кит: opts.slider дает класс без значения, opts.cols
   return true;
 });
 
+// На боевом прогоне из 12 блоков главной три не смаппились по имени и молча упали в
+// фолбэк cards. Для «CTA финальный» это прямой дефект: вместо формы встали бы карточки -
+// сломанный пол F3 и нарушение «ровно 1 форма на секцию».
+step("имена блоков: составные и синонимы находят свою форму, а не фолбэк cards", () => {
+  const dir = join(SANDBOX, "aliases", "pages", "main");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "manifest.json"), JSON.stringify({
+    meta: { project: "save", slug: "main", page_type: "Главная", title: "Тест имен блоков" },
+    legal: { company: "ИП Рыжова", domain: "save.ru", phone: "", phone_absent: true },
+    blocks: [
+      // fragment НЕ задан нарочно: имя блока обязано найти форму само
+      { n: 1, type: "Портфолио / кейсы", h2: "Работы студентов", slots: { items: [{ media_alt: "работа", title: "Проект жилого дома", result: "Поступила в PoliMi" }] } },
+      { n: 2, type: "КОМАНДА / специалисты", h2: "Кто учит", slots: { items: [{ initial: "А", name: "Анна", pos: "куратор", text: "Ведет курс по подаче и помогает собрать портфолио." }] } },
+      { n: 3, type: "CTA финальный", h2: "Задать вопрос", slots: { form_title: "Ваш вопрос", cta_label: "Задать вопрос" } },
+    ],
+  }, null, 2), "utf8");
+  const r = run([BUILD_PROTO, dir]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
+  const html = readFileSync(join(dir, "render.html"), "utf8");
+  if (!/pt-portfolio/.test(html)) return "«Портфолио / кейсы» не нашел форму portfolio (составное имя)";
+  if (!/pt-reviews/.test(html)) return "«КОМАНДА / специалисты» не нашла форму (регистр или составное имя)";
+  if (!/id="leadForm"/.test(html)) return "«CTA финальный» собран НЕ формой - вместо формы встали бы карточки (ломает пол F3)";
+  if (/НЕТ В КИТЕ|подставлен фолбэк/.test(r.stdout)) return `сборщик уходил в фолбэк: ${r.stdout}`;
+  return true;
+});
+
 step("assemble: относительные адреса переведены в маршруты роутера (#p/<slug>)", () => {
   const r = run([ASSEMBLE_PROTO, dirSlots]);
   if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
@@ -1257,6 +1283,46 @@ step("repeatable: 1 плашка при лимите «ровно 3» -> V (ло
   })]);
   if (r.code !== 2) return `exit ${r.code}, ожидался 2`;
   if (!/plates|плашк/i.test(r.stdout)) return "в выводе не назван слот plates";
+  return true;
+});
+
+// Лимит структурой (контракт 2.2): правило и пояснение в разных полях. Строковый лимит -
+// свободная проза, и валидатор вычитывал числа из ПОЯСНЕНИЯ: строка «НЕ заполнять - плашек
+// нет (правка заказчика); каталожная норма - ровно 3 плашки» давала блокирующее нарушение
+// в блоке, из которого заказчик плашки прямо убрал.
+step("лимит-объект: skip снимает измерение, числа из note не читаются как правило", () => {
+  const r = run([VERIFY_COPY, copyPageBp({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Онлайн-школа архитектурного софта", subhead: "Ведем от первого урока до диплома за 4 месяца", cta_label: "Начать учиться", plates: [{ title: "Сроки", text: "Поток стартует раз в месяц по расписанию" }] } }],
+    bpBlocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", function: "Р", sell: "первый экран",
+      limits: { h1: { min: 20, max: 60 }, plates: { skip: true, note: "плашек нет - правка заказчика; каталожная норма формы, если бы блок собирался целиком, - ровно 3 плашки" } } }],
+  })]);
+  if (r.code !== 0) return `exit ${r.code} - числа из пояснения снова читаются как правило: ${r.stdout}`;
+  return true;
+});
+
+step("лимит-объект: exactly работает так же жестко, как строковое «ровно N»", () => {
+  const r = run([VERIFY_COPY, copyPageBp({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", slots: { h1: "Монтаж вентиляции в Казани", plates: [{ title: "Сроки", text: "Сдаем за 14 дней по договору" }] } }],
+    bpBlocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", limits: { h1: { min: 20, max: 60 }, plates: { count: { exactly: 3 }, title: { min: 10, max: 30 }, text: { min: 30, max: 90 } } } }],
+  })]);
+  if (r.code !== 2) return `exit ${r.code}, ожидался 2 (объектный лимит не проверяется)`;
+  if (!/plates|плашк/i.test(r.stdout)) return "в выводе не назван слот plates";
+  return true;
+});
+
+// Контракт 2.3: слова заказчика систематически короче каталожных диапазонов, и каждый
+// писатель объяснял это в notes_internal отдельно. Признак ставит планировщик, не писатель.
+step("verbatim: формулировка заказчика короче лимита - нарушения нет, в отчете видно почему", () => {
+  const r = run([VERIFY_COPY, copyPageBp({
+    blocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", h2: "Обучение",
+      slots: { h1: "Онлайн-школа архитектурного софта", subhead: "Ведем от первого урока до диплома за 4 месяца", cta_label: "Начать учиться" } }],
+    bpBlocks: [{ n: 1, type: "Первый экран (Hero)", fragment: "hero", function: "Р", sell: "первый экран",
+      verbatim: ["h2", "cta_label"],
+      limits: { h1: "20-60", h2: "20-70", cta_label: "15-30" } }],
+  })]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
+  if (/«h2»|«cta_label»/.test(r.stdout) && /вне лимита/.test(r.stdout)) return "слово заказчика все еще меряется лимитом";
+  if (!/лимит не применялся/.test(r.stdout)) return "в отчете не видно, что лимит снят и почему";
   return true;
 });
 
@@ -1799,6 +1865,60 @@ step("Skeletons_<slug>.docx: клиентский документ без кух
   const listingAt = text.indexOf("Листинг товаров");
   const formAt = text.indexOf("Форма захвата");
   if (listingAt < 0 || formAt < 0 || formAt < listingAt) return "порядок строк не по order_hint (листинг обязан идти раньше формы)";
+  return true;
+});
+
+// Прежняя сортировка брала hint.indexOf(имя), и одноименные блоки получали ОДИН ключ:
+// второй «Каталог» перепрыгивал соседей. Планировщик обходил это, выдавая трем разным
+// блокам главной разные каталожные имена - порядок сохранялся, но имена врали о содержании.
+function skeletonsFixture(name, skeletons, pages) {
+  const dir = join(SANDBOX, name);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "inputs.json"), JSON.stringify({ slug: "save", brand_name: "Save" }), "utf8");
+  writeFileSync(join(dir, "pages.json"), JSON.stringify({ source: "fx", count: pages.length, pages }, null, 2), "utf8");
+  writeFileSync(join(dir, "type_skeletons.json"), JSON.stringify(skeletons, null, 2), "utf8");
+  return dir;
+}
+
+step("Skeletons: одноименные блоки в разных местах order_hint не ломают порядок", () => {
+  const dir = skeletonsFixture("skeletons-order", {
+    types_present: ["Главная"],
+    skeletons: {
+      "Главная": {
+        blocks: [
+          { block: "Первый экран (Hero)", client_why: "Отвечает, что вы предлагаете", notes: "" },
+          { block: "Каталог", title_client: "Витрина обучений", client_why: "Показывает, чему учим", notes: "" },
+          { block: "Отзывы", client_why: "Показывает результат чужими словами", notes: "" },
+          { block: "Каталог", title_client: "Save Market", client_why: "Показывает, что можно купить отдельно", notes: "" },
+        ],
+        order_hint: ["Первый экран (Hero)", "Каталог", "Отзывы", "Каталог"],
+      },
+    },
+  }, [{ n: 1, slug: "main", url: "/", type: "Главная", marker: "школа архитектурного софта" }]);
+  const r = run([BUILD_SKELETONS, dir]);
+  if (r.code !== 0) return `exit ${r.code}: ${r.stderr}`;
+  const { text } = docxText(join(dir, "Skeletons_save.docx"));
+  const at = (s) => text.indexOf(s);
+  if (at("Витрина обучений") < 0 || at("Save Market") < 0) return "title_client не напечатан вместо каталожного имени";
+  if (!(at("Витрина обучений") < at("Отзывы") && at("Отзывы") < at("Save Market")))
+    return "порядок разъехался: второй одноименный блок перепрыгнул соседа (сортировка снова по indexOf)";
+  if (/^Каталог$/m.test(text)) return "каталожное имя напечатано вместо клиентского";
+  return true;
+});
+
+step("Skeletons: техническое имя блока -> ненулевой exit (заказчику такое не отправляют)", () => {
+  const dir = skeletonsFixture("skeletons-tech", {
+    types_present: ["Главная"],
+    skeletons: {
+      "Главная": {
+        blocks: [{ block: "SEO-текст-низ", client_why: "Закрывает вопросы", notes: "" }],
+        order_hint: ["SEO-текст-низ"],
+      },
+    },
+  }, [{ n: 1, slug: "main", url: "/", type: "Главная", marker: "школа" }]);
+  const r = run([BUILD_SKELETONS, dir]);
+  if (r.code === 0) return "техническое имя ушло бы заказчику молча";
+  if (!/ТЕХНИЧЕСКИЕ ИМЕНА|title_client/.test(r.stderr + r.stdout)) return "причина не названа";
   return true;
 });
 

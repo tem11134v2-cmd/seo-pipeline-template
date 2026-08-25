@@ -385,9 +385,28 @@ function main() {
   const unknownFragments = [];
   let defaultsFilled = 0;
 
+  // Лукап имени блока нормализован: регистр, е-с-точками, кавычки, хвост «(обязательный)»
+  // и составное имя «Портфолио / кейсы» (пробуем целиком, затем каждую часть). Мотив: на
+  // боевом прогоне три блока главной из двенадцати не нашлись по имени и молча уехали в
+  // фолбэк cards; для «CTA финальный» это означало карточки вместо формы захвата - то есть
+  // сломанный продающий пол F3 и нарушение правила «ровно 1 форма на секцию».
+  const normName = (s) => String(s || "").toLowerCase().replace(/ё/g, "е")
+    .replace(/\(обязательн\w*\)/g, "").replace(/[«»"']/g, "").replace(/\s+/g, " ").trim();
+  const byNormName = new Map();
+  for (const [k, v] of Object.entries(blockToFragment)) if (!byNormName.has(normName(k))) byNormName.set(normName(k), v);
+  const lookupFragment = (type) => {
+    const whole = normName(type);
+    if (!whole) return null;
+    if (byNormName.has(whole)) return byNormName.get(whole);
+    for (const part of whole.split("/").map((s) => s.trim()).filter(Boolean)) {
+      if (byNormName.has(part)) return byNormName.get(part);
+    }
+    return null;
+  };
+
   for (const block of blocks) {
     const type = block.type || "";
-    let fragName = block.fragment || blockToFragment[type] || "cards";
+    let fragName = block.fragment || lookupFragment(type) || "cards";
     if (!fragManifest.fragments || !fragManifest.fragments[fragName]) {
       // Фолбэк остается (сборка не должна вставать), но факт подмены копится в сводку:
       // фолбэк рисует заголовок и пустую сетку под ним, то есть обещанный блок исчезает.

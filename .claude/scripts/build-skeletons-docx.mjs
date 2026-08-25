@@ -198,7 +198,7 @@ function skeletonTable(blocks) {
   });
   const dataRows = blocks.map((b, i) => {
     const isAlt = i % 2 === 1;
-    const name = b.required ? `${b.block} (обязательный)` : String(b.block ?? "");
+    const name = blockName(b);
     const why = String(b.client_why ?? "").trim() || "-";
     const inside = clientNotes(b.notes) || "-";
     return new TableRow({
@@ -215,6 +215,62 @@ function skeletonTable(blocks) {
     rows: [headerRow, ...dataRows],
     width: { size: CONTENT_WIDTH, type: WidthType.DXA },
   });
+}
+
+// ═══ Порядок строк таблицы ═══
+// Кто исполняет: сборщик. Зачем: прежняя сортировка брала hint.indexOf(имя блока), и ВСЕ
+// одноименные блоки получали один ключ - второй «Каталог» перепрыгивал соседей и порядок
+// разъезжался. Планировщику приходилось обходить это, выдавая трем разным блокам главной
+// разные каталожные имена («Популярные товары» = витрина обучений, «Похожие товары» =
+// библиотека): порядок сохранялся, но имена начинали врать о содержании, и расшифровку
+// приходилось передавать руками каждому следующему агенту. Чинится здесь, а не именами.
+const normBlockName = (s) => String(s ?? "").toLowerCase().replace(/ё/g, "е")
+  .replace(/\(обязательн\w*\)/g, "").replace(/[«»"']/g, "").replace(/\s+/g, " ").trim();
+
+function orderBlocks(sk) {
+  const blocks = [...sk.blocks];
+  // Явная нумерация планировщика сильнее подсказки: если n/order проставлены, это и есть порядок.
+  const numbered = blocks.length > 0 && blocks.every((b) => Number.isFinite(b && (b.n ?? b.order)));
+  if (numbered) return blocks.sort((a, b) => (a.n ?? a.order) - (b.n ?? b.order));
+
+  const hint = Array.isArray(sk.order_hint) ? sk.order_hint : [];
+  if (!hint.length) return blocks;
+
+  // Позиционное потребление: каждая позиция подсказки забирает ПЕРВЫЙ еще не занятый блок
+  // с таким именем. Одноименные блоки перестают конкурировать за одно место.
+  const queue = new Map();
+  blocks.forEach((b, i) => {
+    const k = normBlockName(b.block);
+    if (!queue.has(k)) queue.set(k, []);
+    queue.get(k).push(i);
+  });
+  const used = new Set();
+  const out = [];
+  for (const h of hint) {
+    const q = queue.get(normBlockName(h));
+    if (q && q.length) {
+      const idx = q.shift();
+      used.add(idx);
+      out.push(blocks[idx]);
+    }
+  }
+  // Незнакомые подсказке блоки - в конце, в исходном порядке (как было).
+  blocks.forEach((b, i) => { if (!used.has(i)) out.push(b); });
+  return out;
+}
+
+// ═══ Клиентское имя блока ═══
+// title_client - человеческое название для заказчика; нет его - каталожное имя блока.
+// Техническое имя в клиентском документе - брак: на боевом прогоне планировщик, не имея
+// права поставить FAQ, воткнул блок с именем «SEO-текст-низ», и оно уехало бы в таблицу.
+const TECH_NAME = /(?:^|[^а-яё])(?:seo|lsi|h[1-3]|meta|slug|url|json|blueprint|fragment|фрагмент|n-грамм|ключевик|анкор|перелинковк)(?:[^а-яё]|$)|-(?:низ|верх)(?:$|\s)/i;
+const techNames = [];
+function blockName(b) {
+  const client = String(b.title_client ?? "").trim();
+  const raw = String(b.block ?? "");
+  const name = client || raw;
+  if (!client && TECH_NAME.test(raw)) techNames.push(raw);
+  return b.required ? `${name} (обязательный)` : name;
 }
 
 function pageLabel(p) {
@@ -266,13 +322,7 @@ for (const type of typesPresent) {
     continue;
   }
 
-  // Порядок строк: сценарный order_hint, незнакомые блоки - в конце в исходном порядке
-  const hint = Array.isArray(sk.order_hint) ? sk.order_hint : [];
-  const hintIndex = (b) => {
-    const i = hint.indexOf(b.block);
-    return i < 0 ? hint.length : i;
-  };
-  const ordered = [...sk.blocks].sort((a, b) => hintIndex(a) - hintIndex(b));
+  const ordered = orderBlocks(sk);
 
   blocksTotal += ordered.length;
   noWhy += ordered.filter((b) => !String(b.client_why ?? "").trim()).length;
@@ -323,3 +373,12 @@ const doc = new Document({
 const buf = await Packer.toBuffer(doc);
 writeFileSync(outputPath, buf);
 console.log(`[build-skeletons-docx] wrote ${outputPath} (${buf.length} bytes; типов ${typesPresent.length}, блоков ${blocksTotal})`);
+
+// Технические имена в клиентском документе - брак сдачи, а не косметика: заказчик читает
+// таблицу состава и не обязан знать кухню. Файл написан (правка дешевая - перегенерировать),
+// но выход ненулевой, чтобы гейт не ушел заказчику молча.
+if (techNames.length) {
+  console.error(`[build-skeletons-docx] ТЕХНИЧЕСКИЕ ИМЕНА БЛОКОВ в клиентском документе: ${[...new Set(techNames)].join("; ")}`);
+  console.error("  Заказчику такое имя отправлять нельзя. Дай блоку человеческое имя в type_skeletons.json (поле title_client) и пересобери документ.");
+  process.exit(3);
+}

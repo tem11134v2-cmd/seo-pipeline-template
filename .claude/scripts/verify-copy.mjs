@@ -345,12 +345,41 @@ function parseRange(x) {
 //   объектный (если block-planner отдаст его в будущем): {"count":"3","title":"10-30","text":"30-90"}
 //   строковый (то, что есть сейчас): «ровно 3: title 10-30 + text 30-90», «3-7 шт. по 20-60 симв.»
 // Возврат {count, fields, itemLen}; что не распозналось - null/пусто (свободный формат молча пропускаем).
+// Структурная форма лимита (контракт 2.2, с 25.08): {min, max, exactly, count, skip, note}.
+// Зачем: строковый лимит - свободная проза, и валидатор вычитывал числа из ПОЯСНЕНИЯ. Лимит
+// «НЕ заполнять - плашек нет (правка заказчика); каталожная норма формы, если бы блок
+// собирался целиком, - ровно 3 плашки» давал блокирующее нарушение «нужно ровно 3 плашки»
+// в блоке, из которого заказчик плашки прямо убрал. Лечилось только вычищением чисел из
+// прозы, то есть пояснение приходилось калечить ради парсера. Теперь правило и пояснение
+// живут в разных полях: note не парсится никогда, skip снимает измерение целиком.
+// Строковая форма остается навсегда - она в готовых задачах.
+function rangeFromObj(o) {
+  if (o == null) return null;
+  if (typeof o !== "object" || Array.isArray(o)) return parseRange(o);
+  if (Number.isFinite(o.exactly)) return { lo: +o.exactly, hi: +o.exactly };
+  const lo = Number.isFinite(o.min) ? +o.min : null;
+  const hi = Number.isFinite(o.max) ? +o.max : null;
+  if (lo != null && hi != null) return { lo, hi };
+  if (hi != null) return { lo: 0, hi };
+  if (lo != null) return { lo, hi: Number.MAX_SAFE_INTEGER };
+  return null;
+}
+// Слот измерять не надо: явный skip либо пометка «формулировка заказчика» (контракт 2.3).
+function limitSkipped(lim) {
+  if (!lim || typeof lim !== "object" || Array.isArray(lim)) return false;
+  if (lim.skip === true) return true;
+  return /^(?:client|заказчик|заказчика)$/i.test(String(lim.source || "").trim());
+}
+
 function parseRepeatLimit(lim) {
   const out = { count: null, fields: {}, itemLen: null };
   if (lim && typeof lim === "object" && !Array.isArray(lim)) {
     for (const [k, v] of Object.entries(lim)) {
-      if (/^(?:count|кол-во|количество|шт)$/i.test(k)) out.count = parseRange(v);
-      else { const r = parseRange(v); if (r) out.fields[k.toLowerCase()] = r; }
+      if (/^(?:note|skip|source|why|comment)$/i.test(k)) continue; // пояснение не парсится
+      if (/^(?:count|кол-во|количество|шт)$/i.test(k)) out.count = rangeFromObj(v);
+      else if (/^exactly$/i.test(k)) out.count = { lo: +v, hi: +v };
+      else if (/^(?:item_len|itemlen|длина_элемента)$/i.test(k)) out.itemLen = rangeFromObj(v);
+      else { const r = rangeFromObj(v); if (r) out.fields[k.toLowerCase()] = r; }
     }
     return out;
   }
@@ -388,6 +417,7 @@ function parseRepeatLimit(lim) {
 // проверялись вовсе - проверка выглядела работающей и не работала.
 const SCAL_NOT_LEN = /^(?:шт|элемент|сегмент|позици|пункт|карточ|плашк|строк|слов|предложен|тариф|итем|фото|ссыл|видео|слайд|отзыв|абзац|секунд|минут|дн[еяй]|мес)/i;
 function parseScalarLimit(lim) {
+  if (lim && typeof lim === "object" && !Array.isArray(lim)) return rangeFromObj(lim);
   const s = String(lim == null ? "" : lim).trim();
   if (!s) return null;
   let m = /по\s+(\d+)\s*-\s*(\d+)\s*(?:симв[а-яё]*|знак[а-яё]*)/i.exec(s);
@@ -495,7 +525,7 @@ if (!existsSync(bpPath)) {
     // тарифы - «ровно 3: title 10-30 + text 30-90»). Длины элементов копим и
     // печатаем одной строкой, чтобы не раздувать вывод.
     // -----------------------------------------------------------------------
-    const repHard = [], lenSoft = [], cntHard = [], cntSoft = [], scalHard = [], totalSoft = [];
+    const repHard = [], lenSoft = [], cntHard = [], cntSoft = [], scalHard = [], totalSoft = [], verbatimSlots = [];
     const fold = (list, n = 3) => `${list.slice(0, n).join("; ")}${list.length > n ? ` и ещё ${list.length - n}` : ""}`;
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i];
@@ -503,7 +533,18 @@ if (!existsSync(bpPath)) {
       if (!bb || !bb.limits) continue;
       const bn = b.n != null ? b.n : i + 1;
       const slots = (b.slots && typeof b.slots === "object") ? b.slots : {};
+      // Формулировка заказчика лимиту не подчиняется (контракт 2.3). Каталог рассчитан на
+      // длинные SEO-заголовки, а дословные слова заказчика систематически короче: «Обучение»
+      // (8 знаков при лимите 20-60), «Город» (5 при 10-40), «Начать учиться» (14 при 15-30).
+      // Каждый писатель объяснял это в notes_internal отдельно - объяснение не масштабируется.
+      // Признак ставит block-planner/slot-mapper: blueprint-блок несет verbatim: ["h2", ...]
+      // либо лимит слота приходит объектом с source: "client". «Заказчик важнее свода» (ADR-033).
+      const verbatim = new Set(arr(bb.verbatim).map((s) => String(s).toLowerCase()));
       for (const [slot, lim] of Object.entries(bb.limits)) {
+        if (verbatim.has(String(slot).toLowerCase()) || limitSkipped(lim)) {
+          verbatimSlots.push(`блок ${bn} «${slot}»`);
+          continue;
+        }
         // h2 по контракту (KIT-SPEC, page.json) лежит на уровне БЛОКА рядом со slots,
         // а не внутри slots: без этой подстраховки лимит h2 не проверялся бы никогда.
         let val = slots[slot];
@@ -575,6 +616,7 @@ if (!existsSync(bpPath)) {
     if (repHard.length) W(`длины элементов repeatables выше лимита более чем на 15%: ${fold(repHard)}`);
     if (lenSoft.length) W(`длины слотов и элементов вне лимита: ${fold(lenSoft)}`);
     if (totalSoft.length) W(`объём блока целиком вне бюджета limits.total: ${fold(totalSoft)}`);
+    if (verbatimSlots.length) I(`лимит не применялся (формулировка заказчика либо skip в лимите): ${fold(verbatimSlots, 6)}`);
   } catch { W("blueprint не разобран - длины слотов не сверены"); }
 }
 
