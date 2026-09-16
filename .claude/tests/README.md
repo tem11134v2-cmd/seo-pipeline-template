@@ -15,7 +15,7 @@
 
 ```
 for s in batch-queue build-article-docx kit-mobile machinery metatags seo-analiz \
-         seo-strategiya seo-structure seo-tehaudit seo-tekst seo-temi skill-split \
+         seo-strategiya seo-structure seo-tehaudit seo-tekst seo-temi site skill-split \
          style sync; do
   echo "=== $s ==="; .claude/scripts/_node.cmd .claude/tests/$s/run.mjs || echo "FAILED: $s"
 done
@@ -40,10 +40,11 @@ done
 | `seo-tekst` | мост данных, сборка и проверка прототипа, диета писателя, HANDOFF | 86 |
 | `seo-temi` | `read-topics-xlsx.mjs` | 5 |
 | `skill-split` | якоря `SKILL.md` <-> `REFERENCE.md` у `/seo-statya` | 4 |
+| `site` | v8: контракт `project.json`, `pages.yml`, два клиентских документа, бюджеты количества, страховка неприкосновенности v7 | 76 |
 | `style` | запрет буквы е-с-точками и тире (verify-скрипты + нормализация в сборщиках) | 17 |
 | `sync` | движок `/sync-from-template` (dry-run, apply, миграции) | 14 |
 
-Итого 343 теста (301 до появления набора `machinery`, 313 до правок 23.08 по итогам
+Итого 419 тестов (343 до набора `site` конвейера v8; 301 до появления набора `machinery`, 313 до правок 23.08 по итогам
 боевого прогона: узкий фолбэк маркера в хуке + обе формы заголовка раздела «Вопросы к вам»,
 319 после волн 1-2, 343 после волны 3).
 
