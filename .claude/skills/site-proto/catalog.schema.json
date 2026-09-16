@@ -1,0 +1,259 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "catalog.schema.json",
+  "title": "catalog.json v1 - контракт режима магазина /site proto",
+  "description": "Машинный вход каталожного тракта: дерево, оси фильтра, фасетные посадки, режимы категорий, товарные тиры и ДВА списка блокировок - по данным и по платформе. additionalProperties false везде, поэтому поле-обоснование (rationale, why, note, confidence, evidence, status) в схему физически не влезает. Единица объема работ - ПОСАДКА, а не категория: 40 категорий по 5 посадок дают 200 единиц письма, и считается это по counts.landings. Опубликованная ось лежит только в tree[].facets: ось, не прошедшая порог заполненности 0.7, уезжает в blocked_by_data, ось без поддержки платформы - в blocked_by_platform. Обещанного, но невыполнимого фасета в файле не бывает.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "slug", "at", "verdict", "platform", "tree", "landings", "blocked_by_data", "blocked_by_platform", "counts"],
+  "properties": {
+    "v": { "const": 1 },
+    "slug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,59}$" },
+    "at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "verdict": {
+      "description": "Вердикт приемки товарных данных, приходит из attr_map.json. От него зависит ВЕСЬ объем режима: при must_request_from_client и impossible фасетов и посадок нет, landings пуст, а на диске лежит ask-attributes.csv.",
+      "enum": ["attributes_ready", "derivable_from_name", "must_request_from_client", "impossible"]
+    },
+    "platform": { "$ref": "#/definitions/platform" },
+    "tree": {
+      "description": "Узлы дерева каталога, глубина до 3. Порядок - обход в глубину от корней.",
+      "type": "array",
+      "maxItems": 400,
+      "items": { "$ref": "#/definitions/node" }
+    },
+    "landings": {
+      "description": "Фасетные посадки - единица работы и единица цены. Пуст при must_request_from_client и impossible.",
+      "type": "array",
+      "maxItems": 600,
+      "items": { "$ref": "#/definitions/landing" }
+    },
+    "blocked_by_data": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/definitions/blocked_data" }
+    },
+    "blocked_by_platform": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/definitions/blocked_platform" }
+    },
+    "counts": { "$ref": "#/definitions/counts" }
+  },
+  "definitions": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "url", "src", "sku"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$" },
+        "parent": {
+          "description": "id родителя либо null у корня.",
+          "type": ["string", "null"],
+          "maxLength": 40
+        },
+        "name": { "$ref": "#/definitions/name" },
+        "url": { "type": "string", "maxLength": 300 },
+        "marker": {
+          "description": "Запрос-маркер узла: по нему меряется топ-10 и считаются признаки режима.",
+          "type": "string",
+          "maxLength": 120
+        },
+        "src": {
+          "description": "Откуда узел. Готового master_list из /seo-struktura тут нет: структуру на новый контракт в этой работе не переводят.",
+          "enum": ["price", "brief", "competitors"]
+        },
+        "sku": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "canonical": {
+          "description": "Адрес, на который узел склеивается тегом canonical. Стоит у транзитного узла: своих позиций нет, потомок один, ассортимент и запрос те же - два индексируемых адреса под один запрос были бы каннибализацией, созданной конвейером.",
+          "type": "string",
+          "maxLength": 300
+        },
+        "mode": {
+          "description": "Ставит ТОЛЬКО подкоманда mode, и до нее поля нет: узел без mode - это узел, которому режим еще не считали, и так его видят гейт и сборка ТЗ. Предзаполнять его в tree нельзя - страховка «сначала mode» тогда мертва, а в ТЗ уезжает колонка из нулей. catalog - листинг с фильтрами; service_like - узел уходит в обычный тракт письма к site-author с потолком 6 блоков; thin_category - интро, плитка подкатегорий и noindex до наполнения.",
+          "enum": ["catalog", "service_like", "thin_category"]
+        },
+        "signals": { "$ref": "#/definitions/signals" },
+        "facets": {
+          "description": "ТОЛЬКО опубликованные оси: fill не ниже 0.7 и платформа их держит.",
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "#/definitions/facet" }
+        },
+        "specs": {
+          "description": "Единый набор полей карточки в этой категории, 8-25 строк. Единообразие набора ВНУТРИ категории важнее формулировок: разные наборы у соседних моделей означают, что сравнить нельзя.",
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 25,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,31}$" }
+        },
+        "tier": { "$ref": "#/definitions/tier" }
+      }
+    },
+    "name": {
+      "description": "Три падежные формы имени узла. Без них шаблон печатает «Цены на Насосы циркуляционные» в первой же строке ТЗ.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nom", "gen", "acc"],
+      "properties": {
+        "nom": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "gen": { "type": "string", "minLength": 2, "maxLength": 80 },
+        "acc": { "type": "string", "minLength": 2, "maxLength": 80 }
+      }
+    },
+    "signals": {
+      "description": "Четыре числа режима категории, печатаются колонкой в ТЗ: решение можно проверить глазом. H1 products < 8; H2 non_listing >= 0.5; H3 text_median >= 2500; H4 service_hits >= 3 либо сервисная лексика в маркере. service_like требует обязательного H2 либо H4 плюс любого второго условия. Вето: non_listing не выше 0.2 при products от 20 - service_like не назначается никогда.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["products", "non_listing", "text_median", "service_hits"],
+      "properties": {
+        "products": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "non_listing": { "type": "number", "minimum": 0, "maximum": 1 },
+        "text_median": { "type": "integer", "minimum": 0, "maximum": 100000 },
+        "service_hits": { "type": "integer", "minimum": 0, "maximum": 10 }
+      }
+    },
+    "facet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attr", "label", "kind", "fill"],
+      "properties": {
+        "attr": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,31}$" },
+        "label": { "type": "string", "minLength": 2, "maxLength": 60 },
+        "kind": { "enum": ["enum", "range", "bool"] },
+        "multi": {
+          "description": "В ячейке оси у части позиций стоит несколько значений через разделитель. Факт данных, а не решение: без multi_select платформы фильтр по такой оси не собирается, и гейт обязан перепроверять ось тем же условием, которым ее решал строитель.",
+          "type": "boolean"
+        },
+        "fill": {
+          "description": "Доля SKU категории, у которых атрибут заполнен. Ниже 0.7 ось тут лежать не может: ее место в blocked_by_data.",
+          "type": "number",
+          "minimum": 0.7,
+          "maximum": 1
+        },
+        "values": {
+          "description": "Значения оси с числом позиций. У kind range пуст.",
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value", "sku"],
+            "properties": {
+              "value": { "type": "string", "minLength": 1, "maxLength": 60 },
+              "sku": { "type": "integer", "minimum": 0, "maximum": 1000000 }
+            }
+          }
+        }
+      }
+    },
+    "landing": {
+      "description": "Посадка: узел плюс одна или две пары ось-значение. Свои H1, Title и Description обязательны, иначе это дубль категории и он не ранжируется.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "node", "url", "attrs", "h1", "title", "index", "sku"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,79}$" },
+        "node": { "type": "string", "maxLength": 40 },
+        "url": { "type": "string", "maxLength": 300 },
+        "marker": { "type": "string", "maxLength": 120 },
+        "attrs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["attr", "value"],
+            "properties": {
+              "attr": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,31}$" },
+              "value": { "type": "string", "minLength": 1, "maxLength": 60 }
+            }
+          }
+        },
+        "h1": { "type": "string", "minLength": 5, "maxLength": 120 },
+        "title": { "type": "string", "minLength": 5, "maxLength": 70 },
+        "description": { "type": "string", "maxLength": 160 },
+        "demand": { "type": "integer", "minimum": 0, "maximum": 10000000 },
+        "sku": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "index": {
+          "description": "index - комбинация индексируется: хватило и спроса, и позиций. Остальные закрываются canonical на категорию либо Clean-param.",
+          "enum": ["index", "canonical", "clean_param"]
+        }
+      }
+    },
+    "blocked_data": {
+      "description": "Ось невозможна ПО ДАННЫМ. В ТЗ печатается строкой «заполнено X процентов из 70».",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "attr", "fill"],
+      "properties": {
+        "node": { "type": "string", "maxLength": 40 },
+        "attr": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,31}$" },
+        "label": { "type": "string", "maxLength": 60 },
+        "fill": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sku": { "type": "integer", "minimum": 0, "maximum": 1000000 }
+      }
+    },
+    "blocked_platform": {
+      "description": "Ось невозможна НА ПЛАТФОРМЕ заказчика. need - та возможность анкеты, которой не хватило.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "attr", "need"],
+      "properties": {
+        "node": { "type": "string", "maxLength": 40 },
+        "attr": { "type": "string", "pattern": "^[a-z][a-z0-9_]{1,31}$" },
+        "label": { "type": "string", "maxLength": 60 },
+        "need": { "enum": ["facet_url", "multi_select", "range", "meta_override", "canonical", "clean_param", "noindex"] }
+      }
+    },
+    "platform": {
+      "description": "Анкета платформы, девять ответов. unknown работает как no: неподтвержденная возможность дает блокировку, потому что обещанного и невыполнимого фасета в ТЗ не бывает.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "facet_url", "multi_select", "range", "meta_override", "canonical", "clean_param", "noindex", "import"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 80 },
+        "kind": { "enum": ["bitrix", "opencart", "insales", "woo", "tilda", "1c", "custom", "unknown"] },
+        "facet_url": {
+          "description": "Как фильтр отражается в адресе: своим адресом, параметром либо никак.",
+          "enum": ["path", "query", "none", "unknown"]
+        },
+        "multi_select": { "$ref": "#/definitions/can" },
+        "range": { "$ref": "#/definitions/can" },
+        "meta_override": { "$ref": "#/definitions/can" },
+        "canonical": { "$ref": "#/definitions/can" },
+        "clean_param": { "$ref": "#/definitions/can" },
+        "noindex": { "$ref": "#/definitions/can" },
+        "import": { "enum": ["csv", "xlsx", "yml", "1c", "manual", "unknown"] }
+      }
+    },
+    "can": { "enum": ["yes", "no", "unknown"] },
+    "tier": {
+      "description": "DERIVED. Товарные тиры узла числами: A - топ по спросу или списку клиента, пишет site-author; B - чистый рендер по шаблону, 0 токенов; C - минимальная карточка и noindex, follow до наполнения. a - это КВОТА письма, разложенная по размеру узлов, а не список карточек: кого именно писать, решает спрос в render-products.mjs, и фактическое число лежит в products-tasks.json. Строки SKU живут в products_out.csv, а не тут: 500 позиций сделали бы контракт нечитаемым.",
+      "readOnly": true,
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["a", "b", "c"],
+      "properties": {
+        "a": { "type": "integer", "minimum": 0, "maximum": 1000000, "readOnly": true },
+        "b": { "type": "integer", "minimum": 0, "maximum": 1000000, "readOnly": true },
+        "c": { "type": "integer", "minimum": 0, "maximum": 1000000, "readOnly": true }
+      }
+    },
+    "counts": {
+      "description": "DERIVED. Считает и перезаписывает скрипт, агент проставлять не вправе. landings - то самое число, по которому считается объем работ и цена.",
+      "readOnly": true,
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "landings", "sku", "tier_a", "tier_b", "tier_c"],
+      "properties": {
+        "nodes": { "type": "integer", "minimum": 0, "maximum": 400, "readOnly": true },
+        "landings": { "type": "integer", "minimum": 0, "maximum": 600, "readOnly": true },
+        "sku": { "type": "integer", "minimum": 0, "maximum": 1000000, "readOnly": true },
+        "tier_a": { "type": "integer", "minimum": 0, "maximum": 1000000, "readOnly": true },
+        "tier_b": { "type": "integer", "minimum": 0, "maximum": 1000000, "readOnly": true },
+        "tier_c": { "type": "integer", "minimum": 0, "maximum": 1000000, "readOnly": true }
+      }
+    }
+  }
+}

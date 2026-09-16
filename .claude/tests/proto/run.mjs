@@ -57,7 +57,9 @@ const MADE = [
   ".claude/skills/site-proto/SKILL.md",
   ".claude/skills/site-proto/AUTHOR.md",
   ".claude/skills/site-proto/rules.yml",
+  ".claude/skills/site-proto/CATALOG.md",
   ".claude/agents/leader-mapper.md",
+  ".claude/agents/catalog-architect.md",
   ".claude/agents/site-author.md",
   ".claude/agents/site-strengthener.md",
   ".claude/agents/site-judge.md",
@@ -81,7 +83,8 @@ const PROMPTS = [
   ".claude/agents/site-author.md",
   ".claude/agents/site-strengthener.md",
   ".claude/agents/site-judge.md",
-  ".claude/agents/site-editor.md"
+  ".claude/agents/site-editor.md",
+  ".claude/agents/catalog-architect.md"
 ];
 
 // === Мини-фреймворк (стиль наборов /seo-tekst и site) ===
@@ -501,6 +504,16 @@ step("AUTHOR.md: запретов не больше 2500 знаков", () => {
   return n <= TASKM.CAP_BAN ? true : `${n} знаков запретов при потолке ${TASKM.CAP_BAN}`;
 });
 
+step("CATALOG.md: потолок 9000 знаков, и SKILL.md подгружает его по business.type", () => {
+  // Каталожные инструкции в SKILL.md не влезают и влезать не должны: справочник читается
+  // ТОЧЕЧНО при shop и both, а в самом скиле стоят только строки маршрутизации.
+  const n = chars(text(join(SKILL_DIR, "CATALOG.md")));
+  if (n > 9000) return `${n} знаков`;
+  const t = text(join(SKILL_DIR, "SKILL.md"));
+  if (!/CATALOG\.md/.test(t)) return "в SKILL.md нет строки маршрутизации на CATALOG.md";
+  return /business\.type/.test(t) ? true : "маршрутизация в SKILL.md не названа переключателем business.type";
+});
+
 step("промты слоя письма: потолок 10000 знаков каждый", () => {
   const bad = PROMPTS.map((rel) => ({ rel, n: chars(text(join(ROOT, rel))) })).filter((x) => x.n > 10000);
   return bad.length ? bad.map((x) => `${x.rel}: ${x.n}`).join("; ") : true;
@@ -634,7 +647,7 @@ step("в AUTHOR.md и в промтах приемов и образцов бо�
   if (!sample) return "в AUTHOR.md ни одного образца по явному маркеру: счетчик меряет не то";
   if (sample <= ban) return `AUTHOR.md: запретов ${ban}, приемов и образцов ${sample}: запрет добавляется только вместе с образцом`;
   const bad = [];
-  for (const rel of PROMPTS.concat([".claude/skills/site-proto/SKILL.md"])) {
+  for (const rel of PROMPTS.concat([".claude/skills/site-proto/SKILL.md", ".claude/skills/site-proto/CATALOG.md"])) {
     const x = text(join(ROOT, rel));
     const b = TASKM.banCount(x), n = countBy(x, SAMPLE_RE);
     if (b > n) bad.push(`${rel}: запретов ${b}, образцов ${n}`);
@@ -758,10 +771,12 @@ step("скриптов в .claude/scripts/site: не больше 20", () => {
   return list.length <= 20 ? true : `${list.length} скриптов: ${list.join(", ")}`;
 });
 
-step("агентов конвейера v8: не больше 8 и восьмое место свободно", () => {
+step("агентов конвейера v8: ровно 8 из 8, и список закрыт", () => {
   // Счет идет по ОБЪЯВЛЕННОМУ списку, а не по глобу site-*.md: в .claude/agents лежат
   // site-reviewer и site-scanner из v7, они делят префикс и к слою письма отношения не
-  // имеют. Глоб мерил бы чужое и не видел leader-mapper, названного без префикса.
+  // имеют. Глоб мерил бы чужое и не видел leader-mapper и catalog-architect, названных
+  // без префикса. Восьмое место занял режим магазина: запаса больше нет, и девятый агент
+  // может появиться только ВМЕСТО одного из этих восьми.
   const list = CONTRACT.AGENTS_V8, cap = CONTRACT.AGENTS_V8_CAP;
   if (!Array.isArray(list) || !list.length) return "список агентов конвейера пуст: считать бюджет не по чему";
   if (cap !== 8) return `потолок агентов ${cap} против 8`;
@@ -769,12 +784,14 @@ step("агентов конвейера v8: не больше 8 и восьмо�
   if (dup.length) return `в списке повтор: ${dup.join(", ")}`;
   const miss = list.filter((n) => !existsSync(join(AGENTS, n + ".md")));
   if (miss.length) return `объявлены, но не написаны: ${miss.join(", ")}`;
-  const want = ["site-intake", "site-market", "leader-mapper", "site-author", "site-strengthener", "site-judge", "site-editor"];
+  const want = ["site-intake", "site-market", "leader-mapper", "site-author", "site-strengthener", "site-judge", "site-editor", "catalog-architect"];
   const out = want.filter((w) => !list.includes(w));
   if (out.length) return `в счет бюджета не входит: ${out.join(", ")}`;
   if (list.length > cap) return `${list.length} агентов при потолке ${cap}: ${list.join(", ")}`;
-  if (list.length > cap - 1) return `место занято целиком: ${list.length} из ${cap} (${list.join(", ")}); слоту про запас взяться неоткуда`;
-  return true;
+  // Каталожный агент не зовется site-*: глоб набора site считает файлы site-*.md, и
+  // девятый такой файл уронил бы бюджет соседнего набора.
+  const files = readdirSync(AGENTS).filter((f) => /^site-.*\.md$/.test(f)).length;
+  return files <= 8 ? true : `файлов site-*.md стало ${files}: восьмой агент обязан быть назван без этого префикса`;
 });
 
 step("усиление: маркеров ровно 6, действий ровно 4, и все четыре на добавление", () => {

@@ -45,18 +45,37 @@ export const FN_B_SHARE = 0.5; // R4: доля блоков функции В н
 export const NO_MATTER = "фактуры нет вовсе"; // причина снятия, которая рождает вопрос заказчику
 
 // vol - вилка числа блоков по типу страницы. Медиана лидеров зажимается в нее, при
-// measured false берется середина. Типы каталога сюда не входят: их замер и письмо
-// собирает следующий срез, и вилка без замера была бы догадкой.
+// measured false берется середина.
+//
+// КАТАЛОЖНЫЕ ВИЛКИ НАМЕРЕННО КОРОТКИЕ. Центр тяжести категории - не текст: ее ранжируют
+// ассортимент, цены, наличие, доставка и корзина, а полотно под листингом - прямой риск
+// фильтра за переспам. Категория несет 1800-4500 знаков, и каждый из них несущий: интро
+// над листингом 200-500, текст под листингом 800-2000 структурой, перелинковка 100-500.
+// Дать каталогу вилку страницы услуги (6-11) значило бы заказать ту самую простыню.
 export const VOL = {
   landing: [8, 12],
   home: [6, 10],
   service: [6, 11],
+  category: [4, 6],
+  facet: [3, 5],
+  product: [5, 8],
   info: [3, 7]
 };
-export const TYPES_NOW = ["landing", "home", "service", "info"];
+// Потолок страницы, ПРИШЕДШЕЙ ИЗ КАТАЛОГА обычным трактом письма, то есть узла
+// service_like. Правило «потолок 6 блоков» было написано в пяти файлах и не исполнялось
+// нигде: тонкая категория, поймавшая H2 и H3, выходила лендингом до 11 блоков - ровно тот
+// исход, ради запрета которого признак режима сделали строгим.
+export const VOL_SERVICE_LIKE = [4, 6];
+export const TYPES_NOW = ["landing", "home", "service", "category", "facet", "product", "info"];
 // Кластер замера по типу страницы. info не меряется никогда: рыночного скелета у
 // инфо-страницы нет, ее состав выводится правилом pages.yml из закрытых NEEDS.
-export const CLUSTER_OF = { landing: "landing", home: "home", service: "service", info: "" };
+// Каталожные типы не меряются recon тоже, и это не пропуск: рынок узла уже замерен
+// catalog.mjs mode по маркеру категории - топ-10, доля не-листингов и медиана текста
+// лежат в signals. Второй замер того же рынка дал бы два места, решающих одно.
+export const CLUSTER_OF = { landing: "landing", home: "home", service: "service", category: "", facet: "", product: "", info: "" };
+// Типы, чьи страницы рождаются из catalog.json. Блоки каталога (cat_intro, listing,
+// gallery, specs и прочие) ставятся ТОЛЬКО им.
+export const CATALOG_PAGE_TYPES = ["category", "facet", "product"];
 
 // Лестница деградации ответа. Граница и состав не понижаются: ниже них ответа нет.
 export const LADDER = { "число": "условие", "условие": "состав", "действие": "состав", "состав": "", "граница": "" };
@@ -84,7 +103,14 @@ export const STRUCT = {
   geo: { src: "зоны обслуживания", has: (m) => m.geo >= 1 },
   reviews: { src: "слова клиентов с src forum либо client", has: (m) => m.quotes >= 3 },
   cta_mid: { src: "главное действие оффера", has: (m) => Boolean(m.cta) },
-  cta_form: { src: "главное действие оффера", has: (m) => Boolean(m.cta) }
+  cta_form: { src: "главное действие оффера", has: (m) => Boolean(m.cta) },
+  // Каталожные блоки закрываются не фактурой проекта, а самим каталогом: подкатегориями
+  // узла и числом позиций в нем. Эти два числа приносит pages.json (kids и sku), и без
+  // них плитка подкатегорий и блок похожих позиций уходили бы в снятые на каждом узле.
+  subcats: { src: "подкатегории узла дерева", has: (m) => m.kids >= 1 },
+  cat_text: { src: "оси фильтра и позиции узла", has: (m) => m.sku >= 1 },
+  product_desc: { src: "набор полей карточки и соседние модели", has: (m) => m.sku >= 1 },
+  related: { src: "соседние позиции той же категории", has: (m) => m.sku >= 2 }
 };
 
 const uniq = (xs) => [...new Set(xs)];
@@ -113,12 +139,15 @@ export function siteMaterial(project, page) {
     arr(s.objection).forEach((_, j) => objs.push(`o${i + 1}.${j + 1}`));
   }
   const choose = segs.reduce((n, { s }) => n + arr(s.choose).length, 0);
+  // У каталожной страницы dir пуст, и потомков ей дает дерево каталога, а не directions[].
+  const fromCat = Boolean(page && page.from_catalog);
   return {
     objs,
     pains,
     choose,
+    sku: fromCat ? Number(page.sku) || 0 : 0,
     dirs: dirs.filter((d) => !str(d.parent)).length,
-    kids: dirs.filter((d) => str(d.parent) === str(page.dir)).length,
+    kids: fromCat ? Number(page.kids) || 0 : dirs.filter((d) => str(d.parent) === str(page.dir)).length,
     assort: arr(b.assortment).length,
     geo: arr(b.geo).length,
     limits: arr(o.limits).length,
@@ -195,6 +224,11 @@ function startComposition(st) {
     const core = w.endsWith("!");
     add(core ? w.slice(0, -1) : w, core);
   }
+  // must_have разведки и признаки ниши описывают рынок СТРАНИЦ УСЛУГ: они добавили бы
+  // категории блоки steps, geo и price, а вилка каталога короткая, и вытеснили бы они
+  // ровно скелет - плитку подкатегорий и форму. Рынок каталожного узла меряется отдельно,
+  // маркером узла в catalog.mjs mode, и приезжает режимом, а не списком блоков.
+  if (CATALOG_PAGE_TYPES.includes(st.type)) return;
   for (const id of arr(((st.project.competitors || {}).market || {}).must_have)) add(str(id), false);
   const sig = arr((st.project.business || {}).sig);
   for (const s of sig) for (const id of SIG_CORE[s] || []) add(id, true);
@@ -259,7 +293,9 @@ export const RULES = [
     id: "R4",
     name: "объем - число блоков: медиана живых лидеров в вилке vol, потолок 12; блоков функции В не больше половины",
     apply(st) {
-      const [lo, hi0] = VOL[st.type] || VOL.service;
+      // Узел service_like типизировался в service и брал вилку страницы услуги. Вилку
+      // выбирает признак страницы, а не только ее тип.
+      const [lo, hi0] = (st.type === "service" && st.fromCatalog) ? VOL_SERVICE_LIKE : (VOL[st.type] || VOL.service);
       const cutBy = arr((st.project.business || {}).sig).reduce((n, x) => n + (SIG_SHORT[x] || 0), 0);
       const hi = Math.max(lo, hi0 - cutBy);
       const raw = st.measured ? clamp(st.lead.blocks_median, lo, hi) : Math.round((lo + hi) / 2);
@@ -374,6 +410,7 @@ export function planPage(project, page, lead, yml, kind, catalogOnly) {
     pub,
     byId: new Map(pub.map((f) => [str(f.id), f])),
     site: siteMaterial(project, page),
+    fromCatalog: Boolean(page && page.from_catalog),
     measured: Boolean(lead && lead.measured),
     cov: (lead && lead.cov) || {},
     seen: {},
@@ -420,7 +457,11 @@ export function planPage(project, page, lead, yml, kind, catalogOnly) {
 }
 
 // ---------------------------------------------------------------- сборка проекта
+// Блоки, которые на странице НЕ из каталога не появляются ни при каком покрытии: их место
+// в скелетах category, facet и product. Для каталожной страницы список пуст - иначе
+// скелет вычеркивал бы сам себя, и из 22 страниц магазина планировалась одна.
 export const CATALOG_ONLY = ["cat_intro", "listing", "subcats", "cat_text", "gallery", "specs", "product_desc", "related"];
+export const catalogOnlyFor = (type) => (CATALOG_PAGE_TYPES.includes(str(type)) ? [] : CATALOG_ONLY);
 
 function loadJson(f) {
   if (!existsSync(f)) return null;
@@ -448,7 +489,7 @@ export function buildPlan(dir, root) {
   for (const page of arr(pagesJson.pages)) {
     const type = str(page.type);
     if (!TYPES_NOW.includes(type)) { later.push({ url: str(page.url), type }); continue; }
-    const { out, st } = planPage(project, page, leadOf(type), yml, kind, CATALOG_ONLY);
+    const { out, st } = planPage(project, page, leadOf(type), yml, kind, catalogOnlyFor(type));
     warn.push(...st.warn);
     if (type === "info" && out.blocks.filter((b) => b.ord).length < VOL.info[0]) {
       warn.push(`${str(page.url)}: закрытых блоков меньше ${VOL.info[0]}, инфо-страницы нет - правило pages.yml, а не сбой`);
@@ -533,7 +574,7 @@ function main() {
     }
   }
   if (plan.later.length) {
-    console.log(`  за границей среза: ${uniq(plan.later.map((l) => l.type)).join(", ")} - каталог и товары планирует следующий срез`);
+    console.log(`  плана не получили типы: ${uniq(plan.later.map((l) => l.type)).join(", ")} - их нет в TYPES_NOW, а значит нет ни задания, ни текста`);
   }
   for (const w of plan.warnings) console.log(`  ВНИМАНИЕ: ${w}`);
   if (!flags.dry) {

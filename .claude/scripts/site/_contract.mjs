@@ -146,10 +146,14 @@ export const pageName = (page, taken) => {
 
 // Агенты конвейера v8, объявленные списком. Считать их глобом по каталогу нельзя: в
 // .claude/agents лежат site-reviewer и site-scanner из v7, они делят префикс и к слою
-// письма отношения не имеют. Потолок 8 при списке из 7 и означает свободное место.
+// письма отношения не имеют. Восьмое место занял режим магазина, и список закрыт:
+// девятого агента не будет, новый приходит только вместо старого.
+// catalog-architect назван БЕЗ префикса site- намеренно: файлов site-*.md в каталоге уже
+// восемь, и глоб набора site посчитал бы девятый как перебор бюджета.
 export const AGENTS_V8 = [
   "site-intake", "site-market",
-  "leader-mapper", "site-author", "site-strengthener", "site-judge", "site-editor"
+  "leader-mapper", "site-author", "site-strengthener", "site-judge", "site-editor",
+  "catalog-architect"
 ];
 export const AGENTS_V8_CAP = 8;
 
