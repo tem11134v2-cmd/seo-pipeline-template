@@ -11,7 +11,7 @@ sig:
   visit:       "нужен выезд или замер | business.what, directions | steps и geo обязательны, в hero срок"
   long_cycle:  "решают дольше недели | segments[].choose | усиливает cases и docs"
   licensed:    "работа лицензируемая | legal, facts[].artifact | docs обязателен"
-  urgent:      "выбирают за час, авария | segments[].pain | hero несет телефон и срок, длинные блоки снять"
+  urgent:      "выбирают за час, авария | segments[].pain | steps обязателен, потолок вилки минус два блока"
   b2b:         "платит организация | segments[].who | delivery про счет, cta_form длиннее"
   catalog:     "выбирают по номенклатуре | business.type shop либо both | включает category, facet, product"
   geo_bound:   "цена и срок зависят от адреса | business.geo | geo обязателен, зоны с ценой"

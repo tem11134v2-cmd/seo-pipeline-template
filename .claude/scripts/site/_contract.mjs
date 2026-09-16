@@ -134,6 +134,25 @@ export const PAGE_TYPES = ["home", "landing", "service", "category", "facet", "p
 export const NEEDS_KINDS = ["число", "состав", "условие", "действие", "граница"];
 export const BLOCK_FN = ["Р", "Д", "К", "В"];
 
+// Имя страницы одним правилом на весь конвейер. У главной и у лендинга слаг пустой, а
+// файл называется index: сводить страницу с планом по голому слагу значит не свести ее
+// никогда. Правило жило копиями в пяти скриптах, теперь оно тут одно.
+export const pageName = (page, taken) => {
+  const p = page || {};
+  let n = str(p.slug) || (str(p.url) === "/" ? "index" : str(p.url).split("/").filter(Boolean).pop()) || "index";
+  if (taken) { let k = 2; while (taken.has(n)) n = `${n}-${k++}`; taken.add(n); }
+  return n;
+};
+
+// Агенты конвейера v8, объявленные списком. Считать их глобом по каталогу нельзя: в
+// .claude/agents лежат site-reviewer и site-scanner из v7, они делят префикс и к слою
+// письма отношения не имеют. Потолок 8 при списке из 7 и означает свободное место.
+export const AGENTS_V8 = [
+  "site-intake", "site-market",
+  "leader-mapper", "site-author", "site-strengthener", "site-judge", "site-editor"
+];
+export const AGENTS_V8_CAP = 8;
+
 // ---------------------------------------------------------------- обход схемы
 // Тот же обход на два скрипта: собранный контракт обязан проходить ровно ту проверку,
 // которой его встретит валидатор, иначе сборка пишет на диск заведомый брак.
