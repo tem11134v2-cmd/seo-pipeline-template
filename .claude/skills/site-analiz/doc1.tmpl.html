@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Что мы поняли о вашем бизнесе - {{company}}</title>
+<style>
+body { font-family: Georgia, "Times New Roman", serif; font-size: 11pt; line-height: 1.45; color: #1a1a1a; max-width: 760px; margin: 0 auto; padding: 24px; }
+h1 { font-size: 18pt; margin: 0 0 4px; }
+h2 { font-size: 13pt; margin: 22px 0 6px; border-bottom: 1px solid #ddd; padding-bottom: 3px; }
+h3 { font-size: 11.5pt; margin: 14px 0 4px; }
+p { margin: 6px 0; }
+ul { margin: 4px 0 8px 18px; padding: 0; }
+li { margin: 2px 0; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 10pt; }
+th, td { border: 1px solid #bbb; padding: 5px 7px; text-align: left; vertical-align: top; }
+th { background: #f2f2f2; font-weight: bold; }
+.sub { color: #666; font-size: 9.5pt; margin: 0 0 18px; }
+.hint { color: #666; font-size: 9.5pt; }
+.lbl { font-weight: bold; margin: 8px 0 2px; }
+.tick { font-weight: bold; }
+.fin { margin-top: 24px; padding-top: 8px; border-top: 2px solid #333; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Что мы поняли о вашем бизнесе</h1>
+<p class="sub">{{company}} &middot; {{updated}}. Читается за две минуты. По этому документу пишутся тексты сайта: все, что тут написано, попадет на страницы, и ничего сверх этого мы не придумываем.</p>
+
+{{#has_biz}}
+<h2>Как мы поняли бизнес и направления</h2>
+{{#what}}<p>{{.}}</p>{{/what}}
+{{#positioning}}<p><b>Как вы себя называете:</b> {{.}}</p>{{/positioning}}
+{{#region}}<p><b>Регион работы:</b> {{.}}</p>{{/region}}
+{{#geo_line}}<p><b>Зоны обслуживания:</b> {{.}}</p>{{/geo_line}}
+{{#since}}<p><b>На рынке с</b> {{.}} года.</p>{{/since}}
+{{#has_directions}}
+<h3>Направления, под которые пишем страницы</h3>
+<ul>
+{{#directions}}<li><b>{{name}}</b>{{#marker}} - {{.}}{{/marker}}{{#kids_line}}<br><span class="hint">Внутри: {{.}}</span>{{/kids_line}}{{#serves_line}}<br><span class="hint">Кому это нужно: {{.}}</span>{{/serves_line}}</li>
+{{/directions}}
+</ul>
+{{/has_directions}}
+{{#has_decisions}}
+<h3>Смысловые решения</h3>
+<p>Мы исходим из того, что все решения ниже верны, и уже работаем по ним. Если это не так - скажите сейчас, пока не написаны тексты.</p>
+<table>
+<tr><th>Код</th><th>Решение</th><th>Приняли так (отмечено)</th><th>Другой вариант</th></tr>
+{{#decisions}}<tr><td>{{key}}</td><td>{{title}}</td><td class="tick">{{value}}</td><td>{{#alt}}{{.}}{{/alt}}</td></tr>
+{{/decisions}}
+</table>
+<p class="hint">Если вы ничего не отметите, мы сделаем по отмеченному варианту. Правите - назовите код строки, так ответ попадет ровно в то место, откуда взят.</p>
+{{/has_decisions}}
+{{/has_biz}}
+
+{{#has_reasons}}
+<h2>Чем вы отличаетесь</h2>
+<table>
+<tr><th>Причина выбрать вас</th><th>Чем докажем</th><th>Вид доказательства</th></tr>
+{{#reasons}}<tr><td>{{claim}}</td><td>{{proof}}</td><td>{{#kind}}{{.}}{{/kind}}</td></tr>
+{{/reasons}}
+</table>
+<p class="hint">В таблице стоят только те причины, которые нам есть чем доказать: номер документа, цифра с единицей, срок или кейс. Например: причина «цена не растет по ходу работ», доказательство «фиксация сметы в договоре, пункт 4.2». Причину без доказательства читатель проверить не сможет, а конкуренты пишут ровно то же самое, поэтому такие строки мы печатаем не тут, а вопросом во втором документе.</p>
+{{/has_reasons}}
+
+{{#has_audience}}
+<h2>О чем спрашивают ваши клиенты</h2>
+{{#segments}}
+<h3>{{name}}</h3>
+{{#who}}<p class="hint">{{.}}</p>{{/who}}
+{{#has_pain}}<p class="lbl">С чем приходят</p><ul>{{#pain}}<li>{{.}}</li>{{/pain}}</ul>{{/has_pain}}
+{{#has_fear}}<p class="lbl">Чего боятся</p><ul>{{#fear}}<li>{{.}}</li>{{/fear}}</ul>{{/has_fear}}
+{{#has_objections}}<p class="lbl">Что говорят против и что мы отвечаем</p>
+<table>
+<tr><th>Говорят</th><th>Отвечаем</th></tr>
+{{#objections}}<tr><td>{{says}}</td><td>{{answer}}</td></tr>
+{{/objections}}
+</table>{{/has_objections}}
+{{#has_choose}}<p class="lbl">По чему сравнивают исполнителей</p><ul>{{#choose}}<li>{{.}}</li>{{/choose}}</ul>{{/has_choose}}
+{{/segments}}
+{{#has_words_quoted}}
+<h3>Их слова, которые мы поставим в кавычки</h3>
+<ul>{{#words_quoted}}<li>«{{say}}»{{#means}} - {{.}}{{/means}} <span class="hint">({{src}})</span></li>{{/words_quoted}}</ul>
+{{/has_words_quoted}}
+{{#has_words_plain}}
+<h3>Их слова, которые мы используем по смыслу</h3>
+<ul>{{#words_plain}}<li>{{say}}{{#means}} - {{.}}{{/means}}</li>{{/words_plain}}</ul>
+<p class="hint">Это наша реконструкция того, как говорят ваши клиенты, а не чья-то цитата. В кавычках на сайте такое не появится - только реальная прямая речь.</p>
+{{/has_words_plain}}
+{{/has_audience}}
+
+{{#has_market}}
+<h2>Что говорит рынок</h2>
+{{#scan}}<p class="hint">Померено на {{seen}} из {{total}} страниц конкурентов.</p>{{/scan}}
+{{#has_must_have}}
+<p class="lbl">Есть почти у всех лидеров, значит будет и у вас</p>
+<ul>{{#must_have}}<li>{{ask}}</li>{{/must_have}}</ul>
+{{/has_must_have}}
+{{#has_offers_seen}}<p class="lbl">Что обещают конкуренты</p><ul>{{#offers_seen}}<li>{{.}}</li>{{/offers_seen}}</ul>{{/has_offers_seen}}
+{{#has_seen_numbers}}<p class="lbl">Какие цифры они печатают</p><ul>{{#seen_numbers}}<li>{{.}}</li>{{/seen_numbers}}</ul>{{/has_seen_numbers}}
+{{#has_market_gaps}}<p class="lbl">Чего у них нет, а у вас может быть</p><ul>{{#market_gaps}}<li>{{.}}</li>{{/market_gaps}}</ul>{{/has_market_gaps}}
+{{#rivals_line}}<p class="hint">Смотрели: {{.}}</p>{{/rivals_line}}
+{{/has_market}}
+
+{{#has_facts}}
+<h2>Ваши цифры</h2>
+<p>Это все, чем сайт сможет доказывать свои слова. Значение правьте прямо в таблице: тексты возьмут ваш вариант. В последней колонке уже отмечено наше предложение.</p>
+<table>
+<tr><th>Что</th><th>Значение</th><th>Откуда знаем</th><th>Публиковать</th></tr>
+{{#facts}}<tr><td>{{label}}</td><td>{{value}}</td><td>{{src}}</td><td class="tick">{{rec}}</td></tr>
+{{/facts}}
+</table>
+<p class="hint">Если вы ничего не отметите, мы сделаем по отмеченному варианту. Сильнее всего работают строки, где есть число с единицей измерения или документ: их читатель может проверить, а остальное он просто прочтет.</p>
+{{/has_facts}}
+
+{{#has_tone_block}}
+<h2>Тон и запреты</h2>
+{{#tone}}<p><b>Тон:</b> {{.}}</p>{{/tone}}
+{{#forbidden_line}}<p><b>Слова, которых на сайте не будет:</b> {{.}}</p>{{/forbidden_line}}
+{{#has_limits}}<p class="lbl">Чего не обещаем</p><ul>{{#limits}}<li>{{.}}</li>{{/limits}}</ul>{{/has_limits}}
+{{#has_not_self}}<p class="lbl">Кем вы себя не считаете</p><ul>{{#not_self}}<li>{{.}}</li>{{/not_self}}</ul>{{/has_not_self}}
+{{#has_not_selling}}<p class="lbl">Что не продаем</p><ul>{{#not_selling}}<li>{{.}}</li>{{/not_selling}}</ul>{{/has_not_selling}}
+{{#has_must_say}}<p class="lbl">Что обязаны сказать</p><ul>{{#must_say}}<li>{{.}}</li>{{/must_say}}</ul>{{/has_must_say}}
+{{#opsec}}<p><b>Что не выносим наружу:</b> {{.}}</p>{{/opsec}}
+{{#locked_line}}<p><b>Пишем только так:</b> {{.}}</p>{{/locked_line}}
+{{#canonical_line}}<p><b>Ваши названия, которые не переводим:</b> {{.}}</p>{{/canonical_line}}
+{{#has_translate}}<p class="lbl">Что переводим на язык клиента</p>
+<table>
+<tr><th>Вы говорите</th><th>На сайте будет</th></tr>
+{{#translate}}<tr><td>{{from}}</td><td>{{to}}</td></tr>
+{{/translate}}
+</table>{{/has_translate}}
+{{/has_tone_block}}
+
+<p class="fin">Если вы ничего не поправите, мы работаем по этому документу.</p>
+
+</body>
+</html>

@@ -1,0 +1,797 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "project.schema.json",
+  "title": "project.json v2 - контракт предпроектных данных конвейера v8",
+  "description": "Единственный машинный вход /site proto. additionalProperties false везде: любое поле-обоснование (rationale, why, note, confidence, evidence, status, function_why, client_why) не описано в схеме и потому запрещено самой схемой. Пустая фактура - законное состояние: строку без источника не пишут вовсе, вместо нее заводят gaps, и минимумов на количество тут нет ни у фактов, ни у направлений - недобор это повод для вопроса заказчику, а не для выдумки. Потолки maxLength и maxItems тут - предел одного поля; общий вес файла держит отдельная проверка бюджета в verify-data.mjs, и она строже, чем сумма потолков.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "slug",
+    "updated",
+    "source",
+    "tier",
+    "gates",
+    "business",
+    "offer",
+    "audience",
+    "competitors",
+    "facts",
+    "constraints",
+    "lexicon",
+    "gaps"
+  ],
+  "properties": {
+    "v": {
+      "const": 2
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,59}$"
+    },
+    "updated": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "source": {
+      "description": "Что было на входе. Пустой массив - входа не было вовсе, это законно.",
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 5,
+      "items": {
+        "enum": [
+          "бриф",
+          "созвон",
+          "документ",
+          "сайт",
+          "operator_guess"
+        ]
+      }
+    },
+    "tier": {
+      "enum": [
+        "basic",
+        "seo"
+      ]
+    },
+    "gates": {
+      "description": "DERIVED. Считает и перезаписывает verify-data.mjs, агент проставлять не вправе. Поля заполненности не существует.",
+      "readOnly": true,
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "promise",
+        "facts3",
+        "proof1",
+        "ready"
+      ],
+      "properties": {
+        "promise": {
+          "type": "boolean",
+          "readOnly": true
+        },
+        "facts3": {
+          "type": "boolean",
+          "readOnly": true
+        },
+        "proof1": {
+          "type": "boolean",
+          "readOnly": true
+        },
+        "ready": {
+          "type": "boolean",
+          "readOnly": true
+        }
+      }
+    },
+    "business": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "what",
+        "region",
+        "type",
+        "site_kind",
+        "directions"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "what": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 400
+        },
+        "region": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "geo": {
+          "description": "Зоны обслуживания: города, районы, радиус выезда.",
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "site": {
+          "description": "Действующий сайт клиента: домен или адрес. null - сайта нет. Нужен, чтобы снять старый сайт, построить редиректы и поставить адрес в подвал.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "client_pages": {
+          "description": "Страницы, которые уже есть на сайте клиента: адрес и краткое имя. Пусто - сайта нет или страницы не снимали.",
+          "type": "array",
+          "maxItems": 60,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 120
+              }
+            }
+          }
+        },
+        "assortment": {
+          "description": "Что продаем, списком словами клиента. Сырье для состава страниц и для каталога; направления из него уже сведены в directions[].",
+          "type": "array",
+          "maxItems": 80,
+          "items": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "since": {
+          "type": "integer",
+          "minimum": 1900,
+          "maximum": 2100
+        },
+        "type": {
+          "description": "ЕДИНСТВЕННЫЙ переключатель режима. shop и both включают каталожный справочник /site proto, services не подгружает его вовсе.",
+          "enum": [
+            "services",
+            "shop",
+            "both"
+          ]
+        },
+        "site_kind": {
+          "description": "Решение заказчика. landing - разведка лидеров минимальная (блоки лендингов одинаковы); multipage - разведка по типам страниц.",
+          "enum": [
+            "landing",
+            "multipage"
+          ]
+        },
+        "sig": {
+          "description": "Признаки ниши, которые ВЕРНЫ для этого проекта. Словарь из 9 имен - секция sig в pages.yml, ставит скрипт.",
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 9,
+          "items": {
+            "enum": [
+              "price_open",
+              "visit",
+              "long_cycle",
+              "licensed",
+              "urgent",
+              "b2b",
+              "catalog",
+              "geo_bound",
+              "serp_hot"
+            ]
+          }
+        },
+        "directions": {
+          "description": "Минимума нет: одна услуга и один лендинг - законное состояние. Недобор до трех - предупреждение отчета, а не брак.",
+          "type": "array",
+          "maxItems": 25,
+          "items": {
+            "$ref": "#/definitions/direction"
+          }
+        },
+        "legal": {
+          "$ref": "#/definitions/legal"
+        }
+      }
+    },
+    "offer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "positioning",
+        "reasons",
+        "promise"
+      ],
+      "properties": {
+        "positioning": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "reasons": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/definitions/reason"
+          }
+        },
+        "promise": {
+          "$ref": "#/definitions/promise"
+        },
+        "limits": {
+          "description": "Чего не обещаем и где граница работы.",
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "tone": {
+          "type": "string",
+          "maxLength": 160
+        }
+      }
+    },
+    "audience": {
+      "description": "Только СВОДКА. Развернутые портреты - рабочее рассуждение агента, в файл не едут.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "segments"
+      ],
+      "properties": {
+        "segments": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/definitions/segment"
+          }
+        },
+        "words": {
+          "type": "array",
+          "maxItems": 25,
+          "items": {
+            "$ref": "#/definitions/word"
+          }
+        }
+      }
+    },
+    "competitors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "list": {
+          "type": "array",
+          "maxItems": 15,
+          "items": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "market": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "must_have": {
+              "description": "id блоков из pages.yml, которые стоят у большинства лидеров. Отсюда арифметика состава страницы.",
+              "type": "array",
+              "uniqueItems": true,
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{1,23}$"
+              }
+            },
+            "gaps": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "type": "string",
+                "maxLength": 160
+              }
+            },
+            "offers_seen": {
+              "type": "array",
+              "maxItems": 12,
+              "items": {
+                "type": "string",
+                "maxLength": 160
+              }
+            }
+          }
+        },
+        "seen_numbers": {
+          "description": "Цифры рынка как их печатают лидеры: цена, срок, гарантия.",
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 120
+          }
+        }
+      }
+    },
+    "facts": {
+      "description": "Минимума нет намеренно: 15 придуманных строк хуже 9 настоящих. Недобор до 15 - предупреждение отчета, недостающее уезжает в gaps.",
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "$ref": "#/definitions/fact"
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "forbidden": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "not_self": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "maxLength": 160
+          }
+        },
+        "not_selling": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "maxLength": 160
+          }
+        },
+        "opsec": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "must_say": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "maxLength": 160
+          }
+        }
+      }
+    },
+    "lexicon": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "locked": {
+          "type": "array",
+          "maxItems": 25,
+          "items": {
+            "type": "string",
+            "maxLength": 60
+          }
+        },
+        "translate": {
+          "type": "array",
+          "maxItems": 25,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "to"
+            ],
+            "properties": {
+              "from": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 60
+              },
+              "to": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 80
+              }
+            }
+          }
+        },
+        "canonical": {
+          "type": "array",
+          "maxItems": 25,
+          "items": {
+            "type": "string",
+            "maxLength": 60
+          }
+        }
+      }
+    },
+    "gaps": {
+      "description": "Документ 2. Не больше 10 вопросов, сортировка по weight убыванием, weight считает скрипт.",
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "$ref": "#/definitions/gap"
+      }
+    }
+  },
+  "definitions": {
+    "direction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "parent": {
+          "description": "Пусто или id корневого направления. Глубина ровно 2.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 40
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "marker": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "serves": {
+          "description": "id сегментов из audience.segments. Проставляет build-project.mjs обратной сверкой с segments[].dirs: у агентов этого поля нет - intake не знает сегментов, market не пишет business.",
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "maxLength": 40
+          }
+        }
+      }
+    },
+    "legal": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entity": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "inn": {
+          "type": "string",
+          "pattern": "^([0-9]{10}|[0-9]{12})?$"
+        },
+        "ogrn": {
+          "type": "string",
+          "pattern": "^([0-9]{13}|[0-9]{15})?$"
+        },
+        "address": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "schedule": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "phone_absent": {
+          "type": "boolean"
+        }
+      }
+    },
+    "reason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim",
+        "kind"
+      ],
+      "properties": {
+        "claim": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 200
+        },
+        "proof": {
+          "description": "Пусто - причина не пишется на страницу. Хотя бы один непустой proof держит ворота proof1.",
+          "type": "string",
+          "maxLength": 240
+        },
+        "kind": {
+          "enum": [
+            "число",
+            "документ",
+            "кейс",
+            "процесс",
+            "гарантия",
+            "отзыв"
+          ]
+        }
+      }
+    },
+    "promise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "who",
+        "result",
+        "cta"
+      ],
+      "properties": {
+        "who": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "result": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "how": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "proof_id": {
+          "type": "string",
+          "pattern": "^(f[0-9]{2,3})?$"
+        },
+        "cta": {
+          "type": "string",
+          "maxLength": 60
+        }
+      }
+    },
+    "segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "pain",
+        "objection",
+        "choose"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "who": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "dirs": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "pain": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 160
+          }
+        },
+        "fear": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 160
+          }
+        },
+        "objection": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/definitions/objection"
+          }
+        },
+        "choose": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120
+          }
+        }
+      }
+    },
+    "objection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "says",
+        "answer"
+      ],
+      "properties": {
+        "says": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 200
+        },
+        "behind": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "answer": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 240
+        }
+      }
+    },
+    "word": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "say",
+        "src"
+      ],
+      "properties": {
+        "say": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "means": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "src": {
+          "description": "Ярлык происхождения, а не ворота. persona - штатное значение, дефектом не считается и не штрафуется. Единственное следствие: в кавычках на сайте стоит только forum либо client.",
+          "enum": [
+            "forum",
+            "client",
+            "persona"
+          ]
+        }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "value",
+        "publish",
+        "src"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^f[0-9]{2,3}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "q": {
+          "description": "id блоков из pages.yml, которым этот факт нужен.",
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 12,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,23}$"
+          }
+        },
+        "artifact": {
+          "description": "Ссылка на подтверждение: документ, страница, файл. Непустой artifact делает факт проверяемым даже без числа.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "publish": {
+          "description": "При засеве всегда no. yes ставит только гейт после ответа заказчика.",
+          "enum": [
+            "no",
+            "yes"
+          ]
+        },
+        "src": {
+          "description": "Откуда факт. Значение «ответ» ставит только гейт: фразу заказчика из листа ответов нельзя подписывать брифом, которого могло не быть.",
+          "enum": [
+            "бриф",
+            "созвон",
+            "документ",
+            "сайт",
+            "ответ"
+          ]
+        }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "ask",
+        "hits"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^g[0-9]{1,2}$"
+        },
+        "ask": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 200
+        },
+        "hits": {
+          "description": "id блоков из pages.yml, которые ждут этот факт.",
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,23}$"
+          }
+        },
+        "weight": {
+          "description": "DERIVED: число блоков в hits. Считает verify-data.mjs.",
+          "readOnly": true,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 30
+        }
+      }
+    }
+  }
+}
