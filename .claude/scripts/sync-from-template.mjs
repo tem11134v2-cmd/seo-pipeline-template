@@ -80,9 +80,12 @@ function parseArgs(argv) {
 // Git-хелперы (по образцу project-status.mjs)
 // ──────────────────────────────────────────────────────────────────────────
 
+// core.quotepath=false: иначе git отдает кириллические пути восьмеричными escape-последовательностями
+// («\320\222...»), движок не узнает свои файлы, `git add` падает и коммит синка молча пропускается
+// (первый синк на клиента с ВВОДНЫЕ.md, 2026-09-23). Та же правка, что в pre-commit (ADR-003).
 function git(cwd, args, { allowFail = true, raw = false } = {}) {
   try {
-    const o = execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    const o = execFileSync("git", ["-c", "core.quotepath=false", ...args], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
     return raw ? o : o.trim();
   } catch (e) {
     if (allowFail) return null;
@@ -387,7 +390,9 @@ async function main() {
       const ourPaths = afterPaths
         .filter((e) => !dirtyBefore.has(e.path) && (e.x === "?" || e.y !== " "))
         .map((e) => e.path);
-      if (ourPaths.length) git(target, ["add", "--", ...ourPaths]);
+      if (ourPaths.length && git(target, ["add", "--", ...ourPaths]) === null) {
+        warnings.push(`git add не прошел для ${ourPaths.length} путей (см. git status в target) - коммит синка неполный`);
+      }
       const staged = git(target, ["diff", "--cached", "--name-only"]);
       if (staged) {
         const msg = `sync-from-template: машинерия @ ${tplShort} ` +

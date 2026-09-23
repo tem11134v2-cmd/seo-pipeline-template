@@ -237,6 +237,33 @@ await step("отказ при template == target", () => {
   return true;
 });
 
+// Кириллица в путях (первый синк на клиента, 2026-09-23): без core.quotepath=false git отдавал пути
+// восьмеричными escape-последовательностями, `git add` падал и коммит синка молча пропускался.
+await step("apply: кириллические пути - файл машинерии в коммите, грязные файлы клиента не тронуты", () => {
+  const tpl3 = join(sandbox, "template3"), client3 = join(sandbox, "client3");
+  w(tpl3, ".claude/scripts/keep.mjs", "// keep v1\n");
+  w(tpl3, ".claude/skills/s/SKILL.md", "skill s\n");
+  w(tpl3, ".claude/skills/s/ЗАМЕТКА.md", "заметка шаблона\n");
+  w(tpl3, ".gitignore", "node_modules/\n");
+  gitInit(tpl3);
+  w(client3, ".claude/scripts/keep.mjs", "// keep v1\n");
+  w(client3, ".claude/skills/s/SKILL.md", "skill s\n"); // папка уже есть: новый файл идет в status отдельной строкой
+  w(client3, ".gitignore", "node_modules/\n");
+  w(client3, "analyses/001-x/ВВОДНЫЕ.md", "вводные v1\n");
+  gitInit(client3);
+  w(client3, "analyses/001-x/ВВОДНЫЕ.md", "вводные v2 - правка клиента до синка\n"); // грязный tracked
+  w(client3, "analyses/001-x/ОТВЕТЫ.md", "ответы\n");                             // untracked
+  const r = runEngine(["--template", tpl3, "--target", client3, "--apply", "--json"]);
+  if (!r.json || r.json.status !== "applied") return `status ${r.json && r.json.status}: ${r.stdout}${r.stderr}`;
+  if (!r.json.committed) return `коммит не сделан: ${JSON.stringify(r.json.warnings)}`;
+  const files = sh("git", ["-c", "core.quotepath=false", "show", "--name-only", "--format=", "HEAD"], client3).out;
+  if (!files.includes(".claude/skills/s/ЗАМЕТКА.md")) return `ЗАМЕТКА.md не в коммите: ${files}`;
+  if (/ВВОДНЫЕ|ОТВЕТЫ/.test(files)) return `в коммит синка попали файлы клиента: ${files}`;
+  const st = sh("git", ["-c", "core.quotepath=false", "status", "--porcelain"], client3).out;
+  if (!/ВВОДНЫЕ\.md/.test(st) || !/ОТВЕТЫ\.md/.test(st)) return `грязные файлы клиента пропали из status: ${st}`;
+  return true;
+});
+
 // === Финал ===
 console.log("");
 const passed = results.filter((r) => r.ok).length;

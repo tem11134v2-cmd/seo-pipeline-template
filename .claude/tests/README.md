@@ -41,7 +41,7 @@ done
 | `site-tekst` | `/site-tekst`: линтер и скрипты kit (`lint-cases.mjs`, `scripts-cases.mjs`, в том числе импорт анализа), папка задачи и копия kit (`task.mjs`, `overrides/`), холостой прогон на дымовых фикстурах, `.gitignore`, `read-faq-input` для v9 и v7, цикл worktree и pre-commit, синк kit | 51 |
 | `skill-split` | якоря `SKILL.md` <-> `REFERENCE.md` у `/seo-statya` | 4 |
 | `style` | запрет буквы е-с-точками и тире (verify-скрипты + нормализация в сборщиках) | 12 |
-| `sync` | движок `/sync-from-template` (dry-run, apply, миграции) | 14 |
+| `sync` | движок `/sync-from-template` (dry-run, apply, миграции) | 15 |
 
 Итого 13 наборов, 343 теста. До гейта 0 (2026-09-23) было 17 наборов и 571 тест: наборы
 `proto`, `catalog`, `seo-tekst`, `kit-mobile` и `seo-analiz` ушли вместе с выведенными
