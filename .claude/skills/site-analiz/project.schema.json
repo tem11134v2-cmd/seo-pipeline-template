@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "project.schema.json",
-  "title": "project.json v2 - контракт предпроектных данных конвейера v8",
-  "description": "Единственный машинный вход /site proto. additionalProperties false везде: любое поле-обоснование (rationale, why, note, confidence, evidence, status, function_why, client_why) не описано в схеме и потому запрещено самой схемой. Пустая фактура - законное состояние: строку без источника не пишут вовсе, вместо нее заводят gaps, и минимумов на количество тут нет ни у фактов, ни у направлений - недобор это повод для вопроса заказчику, а не для выдумки. Потолки maxLength и maxItems тут - предел одного поля; общий вес файла держит отдельная проверка бюджета в verify-data.mjs, и она строже, чем сумма потолков.",
+  "title": "project.json v2 - контракт предпроектных данных /site-analiz",
+  "description": "Машинный вход /seo-struktura и /site-tekst. additionalProperties false везде: любое поле-обоснование (rationale, why, note, confidence, evidence, status, function_why, client_why) не описано в схеме и потому запрещено самой схемой. Пустая фактура - законное состояние: строку без источника не пишут вовсе, вместо нее заводят gaps, и минимумов на количество тут нет ни у фактов, ни у направлений - недобор это повод для вопроса заказчику, а не для выдумки. Потолки maxLength и maxItems тут - предел одного поля; общий вес файла держит отдельная проверка бюджета в verify-data.mjs, и она строже, чем сумма потолков.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -158,13 +158,66 @@
             "maxLength": 120
           }
         },
+        "pages_hint": {
+          "description": "Перечень страниц, если бриф или ТЗ его называет: строки словами заказчика. Пусто - состав проектирует pages-planner. Пишет site-intake.",
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
+          }
+        },
+        "profile": {
+          "description": "Профиль ниши для текстов: кто платит, насколько прогрет спрос, чек и срок решения. Заполняет site-market из того же рассуждения, что и сегменты.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "audience",
+            "warmth",
+            "price",
+            "cycle"
+          ],
+          "properties": {
+            "audience": {
+              "enum": [
+                "b2c",
+                "b2b",
+                "mixed"
+              ]
+            },
+            "warmth": {
+              "enum": [
+                "hot",
+                "warm",
+                "cold"
+              ]
+            },
+            "price": {
+              "enum": [
+                "low",
+                "mid",
+                "high",
+                "premium"
+              ]
+            },
+            "cycle": {
+              "enum": [
+                "impulse",
+                "days",
+                "weeks",
+                "months"
+              ]
+            }
+          }
+        },
         "since": {
           "type": "integer",
           "minimum": 1900,
           "maximum": 2100
         },
         "type": {
-          "description": "ЕДИНСТВЕННЫЙ переключатель режима. shop и both включают каталожный справочник /site proto, services не подгружает его вовсе.",
+          "description": "ЕДИНСТВЕННЫЙ переключатель режима: services - услуги, shop - номенклатура и каталог, both - и то и другое. От него зависят типы страниц состава и активные блоки pages.yml.",
           "enum": [
             "services",
             "shop",
@@ -172,7 +225,7 @@
           ]
         },
         "site_kind": {
-          "description": "Решение заказчика. landing - разведка лидеров минимальная (блоки лендингов одинаковы); multipage - разведка по типам страниц.",
+          "description": "Решение заказчика. landing - состав из одной главной, его пишет build-project; multipage - состав пишет pages-planner (tier basic) либо /seo-struktura (tier seo).",
           "enum": [
             "landing",
             "multipage"
@@ -290,7 +343,7 @@
           "additionalProperties": false,
           "properties": {
             "must_have": {
-              "description": "id блоков из pages.yml, которые стоят у большинства лидеров. Отсюда арифметика состава страницы.",
+              "description": "id блоков из pages.yml, которые стоят у большинства из 3-5 главных лидеров. Дает вес вопросам документа 2 и признаки ниши.",
               "type": "array",
               "uniqueItems": true,
               "maxItems": 20,
@@ -313,6 +366,16 @@
               "items": {
                 "type": "string",
                 "maxLength": 160
+              }
+            },
+            "page_types": {
+              "description": "Какие типы страниц стоят в меню 3-5 главных лидеров, словами и с долей: «кейсы - 4 из 5». Сырье для состава страниц без SEO; разбор блоков по типам делает /site-tekst. Пишет site-market.",
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 80
               }
             }
           }
@@ -668,6 +731,16 @@
           "type": "string",
           "minLength": 5,
           "maxLength": 240
+        },
+        "facts": {
+          "description": "id фактов, на которые опирается ответ. Пусто - ответ держится рассуждением. verify-data.mjs проверяет, что такие факты есть.",
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^f[0-9]{2,3}$"
+          }
         }
       }
     },
@@ -705,6 +778,7 @@
         "id",
         "label",
         "value",
+        "kind",
         "publish",
         "src"
       ],
@@ -721,6 +795,18 @@
         "value": {
           "type": "string",
           "maxLength": 200
+        },
+        "kind": {
+          "description": "Вид факта в словаре текстов. Ставит site-intake; пусто - build-project.mjs выводит его мостом q -> kind и печатает строку отчета.",
+          "enum": [
+            "number",
+            "claim",
+            "process",
+            "contact",
+            "legal",
+            "product",
+            "geo"
+          ]
         },
         "q": {
           "description": "id блоков из pages.yml, которым этот факт нужен.",

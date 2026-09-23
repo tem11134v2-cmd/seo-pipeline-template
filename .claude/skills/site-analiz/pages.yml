@@ -1,5 +1,5 @@
-# pages.yml - ядро состава страниц v8. Потолок 7600 знаков, до 30 id блоков.
-# Читают /site proto и verify-data.mjs (id для facts[].q, gaps[].hits, must_have).
+# pages.yml - внутренний словарь блоков /site-analiz. Потолок 7600 знаков, до 30 id блоков.
+# Читают build-project, verify-data и build-doc (facts[].q, gaps[].hits, must_have, sig).
 # id: "Ф | ВОПРОС | ЧТО ОТВЕТ ДЕЛАЕТ | ФОРМА | ЗНАКИ | NEEDS | FALLBACK"
 # Ф: Р результат, Д доказательство, К квалификация, В возражение; писателю не видна,
 # нужна для арифметики: блоков В не больше половины. NEEDS - одно из пяти: число,

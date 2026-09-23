@@ -18,6 +18,9 @@
 //   8. ИНВАРИАНТ v8: запретов в промтах и шаблонах не больше, чем образцов и приемов.
 //      В v7 было 125 отдельных «не» на один образец, и это была корневая причина.
 //   9. Страховка от сноса согласованной машинерии: /seo-faq и faq-builder на месте.
+//  10. Гейт 0 (анализ - единственный вход): словарь pages.yml в site-analiz, Д1, профиль
+//      ниши и kind, цитаты фактов против входа, состав страниц без SEO в формате
+//      import-structure.mjs, решение d9 и связи дальше (/seo-struktura, /site-tekst).
 //
 // Exit 0 - все шаги прошли. Exit 1 - есть провал.
 
@@ -34,7 +37,8 @@ const SANDBOX = join(TMP_ROOT, `${PREFIX}-${process.pid}-${Date.now().toString(3
 
 const SITE_SCRIPTS = join(ROOT, ".claude/scripts/site");
 const SKILL_DIR = join(ROOT, ".claude/skills/site-analiz");
-const PAGES = join(ROOT, ".claude/skills/site-proto/pages.yml");
+const PAGES = join(ROOT, ".claude/skills/site-analiz/pages.yml");
+const PLANNER = join(ROOT, ".claude/agents/pages-planner.md");
 const VERIFY = join(SITE_SCRIPTS, "verify-data.mjs");
 const BUILD_PROJECT = join(SITE_SCRIPTS, "build-project.mjs");
 const BUILD_DOC = join(SITE_SCRIPTS, "build-doc.mjs");
@@ -47,9 +51,10 @@ const MADE = [
   ".claude/skills/site-analiz/project.schema.json",
   ".claude/skills/site-analiz/doc1.tmpl.html",
   ".claude/skills/site-analiz/doc2.tmpl.html",
-  ".claude/skills/site-proto/pages.yml",
+  ".claude/skills/site-analiz/pages.yml",
   ".claude/agents/site-intake.md",
   ".claude/agents/site-market.md",
+  ".claude/agents/pages-planner.md",
   ".claude/scripts/site/_contract.mjs",
   ".claude/scripts/site/verify-data.mjs",
   ".claude/scripts/site/build-project.mjs",
@@ -134,26 +139,26 @@ function readPages(p) {
 // === Фикстура контракта ===
 // Пятнадцать фактов - это минимум схемы, поэтому они строятся, а не переписываются руками.
 const FACT_SEED = [
-  ["Гарантия на монтаж", "3 года по договору", ["edge", "qa"], "doc/dogovor.pdf"],
-  ["Срок выезда замерщика", "2 часа по городу", ["hero", "steps"], ""],
-  ["Опыт работы", "9 лет на рынке", ["numbers", "about"], ""],
-  ["Сдано объектов", "137 объектов", ["cases", "numbers"], ""],
-  ["Цена монтажа", "от 4500 руб за кв м", ["price"], ""],
-  ["Бригад в работе", "12 бригад", ["about", "numbers"], ""],
-  ["Лицензия", "номер 1234 от 2019 года", ["docs"], "doc/licenziya.pdf"],
-  ["Срок работ", "14 дней на объект", ["steps", "cases"], ""],
-  ["Зона выезда", "60 км от города", ["geo"], ""],
-  ["Состав работ", "7 этапов", ["scope", "steps"], ""],
-  ["Оплата", "рассрочка на 6 месяцев", ["delivery"], ""],
-  ["Оценка на картах", "48 отзывов", ["reviews"], "https://example.test/otzyvy"],
-  ["Склад", "300 позиций в наличии", ["listing"], ""],
-  ["Смена", "работаем 12 часов", ["geo", "delivery"], ""],
-  ["Договор", "фиксация цены в договоре", ["price_factors"], "doc/dogovor.pdf"]
+  ["Гарантия на монтаж", "3 года по договору", ["edge", "qa"], "doc/dogovor.pdf", "number"],
+  ["Срок выезда замерщика", "2 часа по городу", ["hero", "steps"], "", "number"],
+  ["Опыт работы", "9 лет на рынке", ["numbers", "about"], "", "number"],
+  ["Сдано объектов", "137 объектов", ["cases", "numbers"], "", "number"],
+  ["Цена монтажа", "от 4500 руб за кв м", ["price"], "", "number"],
+  ["Бригад в работе", "12 бригад", ["about", "numbers"], "", "number"],
+  ["Лицензия", "номер 1234 от 2019 года", ["docs"], "doc/licenziya.pdf", "legal"],
+  ["Срок работ", "14 дней на объект", ["steps", "cases"], "", "number"],
+  ["Зона выезда", "60 км от города", ["geo"], "", "geo"],
+  ["Состав работ", "7 этапов", ["scope", "steps"], "", "process"],
+  ["Оплата", "рассрочка на 6 месяцев", ["delivery"], "", "claim"],
+  ["Оценка на картах", "48 отзывов", ["reviews"], "https://example.test/otzyvy", "number"],
+  ["Склад", "300 позиций в наличии", ["listing"], "", "product"],
+  ["Смена", "работаем 12 часов", ["geo", "delivery"], "", "number"],
+  ["Договор", "фиксация цены в договоре", ["price_factors"], "doc/dogovor.pdf", "legal"]
 ];
 
 function baseProject() {
-  const facts = FACT_SEED.map(([label, value, q, artifact], i) => {
-    const f = { id: "f" + String(i + 1).padStart(2, "0"), label, value, q, publish: "no", src: "бриф" };
+  const facts = FACT_SEED.map(([label, value, q, artifact, kind], i) => {
+    const f = { id: "f" + String(i + 1).padStart(2, "0"), label, value, kind, q, publish: "no", src: "бриф" };
     if (artifact) f.artifact = artifact;
     return f;
   });
@@ -175,7 +180,8 @@ function baseProject() {
         { id: "remont-vannoy", name: "Ремонт ванной", marker: "ремонт ванной комнаты" },
         { id: "otdelka", name: "Отделка новостроек", marker: "отделка квартир в новостройке" }
       ],
-      legal: { entity: "ООО Невский Ремонт", inn: "7801234567" }
+      legal: { entity: "ООО Невский Ремонт", inn: "7801234567" },
+      profile: { audience: "b2c", warmth: "warm", price: "high", cycle: "weeks" }
     },
     offer: {
       positioning: "бригада со своим прорабом на объекте",
@@ -205,7 +211,7 @@ function baseProject() {
       ],
       words: [{ say: "под ключ и без сюрпризов", src: "persona" }]
     },
-    competitors: { market: { must_have: ["hero", "price", "steps"] }, seen_numbers: ["гарантия 3 года"] },
+    competitors: { market: { must_have: ["hero", "price", "steps"], page_types: ["кейсы - 4 из 5", "отзывы - 3 из 5"] }, seen_numbers: ["гарантия 3 года"] },
     facts,
     constraints: { forbidden: ["дешево"] },
     lexicon: {},
@@ -217,12 +223,51 @@ function baseProject() {
 }
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
+// Цитаты фактов живут в parts/facts-src.json и обязаны стоять дословно во входе задачи:
+// фикстура кладет бриф, в котором каждая цитата есть, и сам файл цитат.
+function putQuotes(dir, facts) {
+  mkdirSync(join(dir, "parts"), { recursive: true });
+  mkdirSync(join(dir, "input"), { recursive: true });
+  const src = facts.map((f, i) => ({ id: f.id, quote: `${f.label}: ${f.value || f.artifact}`, where: `input/brief.txt:${i + 1}` }));
+  writeFileSync(join(dir, "parts", "facts-src.json"), JSON.stringify(src, null, 2), "utf8");
+  writeFileSync(join(dir, "input", "brief.txt"), src.map((x) => x.quote).join("\n") + "\n", "utf8");
+  return src;
+}
 function putProject(name, obj) {
   const dir = join(SANDBOX, name);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "project.json"), JSON.stringify(obj, null, 2) + "\n", "utf8");
+  putQuotes(dir, obj.facts || []);
   return dir;
 }
+
+// Состав страниц в том виде, в каком его пишет pages-planner: адреса без слеша на конце,
+// хаб - «Категория» и role «навигация», у страниц направлений section dir:<id>.
+function plannerStructure() {
+  const pg = (n, url, type, name, section, extra = {}) => ({
+    n, url, type, name, section, target_status: "yes", marker: `${name.toLowerCase()} санкт-петербург`,
+    queries: [], role: "", client_notes: "", ...extra
+  });
+  return {
+    source_file: "pages-planner",
+    pages: [
+      pg(1, "/", "Главная", "Главная", "", { marker: "ремонт квартир под ключ санкт-петербург", client_notes: "сегменты s1,s2" }),
+      pg(2, "/uslugi", "Категория", "Услуги", "", { role: "навигация", client_notes: "хаб направлений" }),
+      pg(3, "/uslugi/remont-kvartir", "Услуга", "Ремонт квартир", "dir:remont-kvartir", { client_notes: "сегменты s1" }),
+      pg(4, "/uslugi/remont-vannoy", "Услуга", "Ремонт ванной", "dir:remont-vannoy", { client_notes: "сегменты s1,s2" }),
+      pg(5, "/uslugi/otdelka", "Услуга", "Отделка новостроек", "dir:otdelka", { client_notes: "сегменты s2" }),
+      pg(6, "/keisy", "Инфо", "Кейсы", ""),
+      pg(7, "/otzyvy", "Инфо", "Отзывы", ""),
+      pg(8, "/o-kompanii", "Инфо", "О компании", ""),
+      pg(9, "/kontakty", "Инфо", "Контакты", "")
+    ]
+  };
+}
+function putStructure(dir, sd) {
+  writeFileSync(join(dir, "structure_data.json"), JSON.stringify(sd, null, 2) + "\n", "utf8");
+  return dir;
+}
+const bad2 = (r) => r.all.split("\n").filter((l) => /^\s+!/.test(l)).join(" | ");
 
 // === Счетчики инварианта v8: запреты против образцов и приемов ===
 // Запрет - это конструкция «нельзя», а не любое «не» в прозе: клиентский документ говорит
@@ -282,9 +327,9 @@ step("pages.yml: потолок 7600 знаков", () => {
   return pages.chars <= 7600 ? true : `${pages.chars} знаков`;
 });
 
-step("агенты site-*.md: потолок 10000 знаков каждый", () => {
+step("агенты анализа: потолок 10000 знаков каждый", () => {
   const bad = [];
-  for (const name of ["site-intake.md", "site-market.md"]) {
+  for (const name of ["site-intake.md", "site-market.md", "pages-planner.md"]) {
     const n = chars(text(join(ROOT, ".claude/agents", name)));
     if (n > 10000) bad.push(`${name} ${n}`);
   }
@@ -574,7 +619,7 @@ step("persona в audience.words не штрафуется: ярлык, а не �
   return true;
 });
 
-step("бюджет файла: контракт на 26000 знаков не принимается", () => {
+function fatProject() {
   const p = baseProject();
   const pad = (s, n) => (s + " " + "слово ".repeat(60)).slice(0, n).trim();
   p.constraints.forbidden = Array.from({ length: 30 }, (_, i) => pad("запрещенное слово номер " + i, 80));
@@ -599,11 +644,39 @@ step("бюджет файла: контракт на 26000 знаков не п�
     s.pain = s.pain.map((x) => pad(x, 160));
     s.objection = s.objection.map((o) => ({ says: pad(o.says, 200), answer: pad(o.answer, 240) }));
   }
-  const dir = putProject("fat", p);
+  p.business.client_pages = Array.from({ length: 60 }, (_, i) => ({ url: `https://example.test/razdel-${i}/${"stranica-".repeat(8)}${i}`, name: pad("страница сайта " + i, 60) }));
+  p.business.assortment = Array.from({ length: 80 }, (_, i) => pad("позиция ассортимента " + i, 60));
+  return p;
+}
+
+step("бюджет файла: контракт на 32000 знаков не принимается", () => {
+  const dir = putProject("fat", fatProject());
   const size = chars(JSON.stringify(readJson(join(dir, "project.json"))));
-  if (size < 26000) return `фикстура вышла на ${size} знаков - тест не проверил потолок`;
+  if (size < 32000) return `фикстура вышла на ${size} знаков - тест не проверил потолок`;
   const r = run([VERIFY, dir, "--seed", "--no-write"]);
-  return r.code === 2 && /26000/.test(r.all) ? true : `exit ${r.code} при ${size} знаках`;
+  return r.code === 2 && /32000/.test(r.all) ? true : `exit ${r.code} при ${size} знаках`;
+});
+
+step("бюджет файла: каталожный проект размера IBG (26-31 тысяча знаков) - предупреждение, а не отказ", () => {
+  // Старый потолок 26000 отказывал бы IBG, как только сборка перестала выбрасывать сайт,
+  // страницы сайта и ассортимент. Порог предупреждения при этом обязан сработать.
+  const p = fatProject();
+  const cuts = [
+    () => { p.business.client_pages = p.business.client_pages.slice(0, 2); p.business.assortment = p.business.assortment.slice(0, 14); },
+    () => { p.audience.words = p.audience.words.slice(0, 10); },
+    () => { for (const k of ["locked", "canonical", "translate"]) p.lexicon[k] = p.lexicon[k].slice(0, 5); },
+    () => { for (const k of ["not_self", "not_selling", "must_say"]) p.constraints[k] = p.constraints[k].slice(0, 3); },
+    () => { p.business.directions = p.business.directions.slice(0, 15); },
+    () => { p.competitors.list = p.competitors.list.slice(0, 5); p.competitors.seen_numbers = p.competitors.seen_numbers.slice(0, 8); },
+    () => { p.business.geo = p.business.geo.slice(0, 10); p.constraints.forbidden = p.constraints.forbidden.slice(0, 10); }
+  ];
+  for (const cut of cuts) { if (chars(JSON.stringify(p)) < 30500) break; cut(); }
+  const dir = putProject("ibg-size", p);
+  const size = chars(JSON.stringify(readJson(join(dir, "project.json"))));
+  if (size < 26000 || size >= 32000) return `фикстура вышла на ${size} знаков - нужна вилка 26000-31999`;
+  const r = run([VERIFY, dir, "--seed", "--no-write"]);
+  if (r.code === 2) return `отказ при ${size} знаках: ${bad2(r)}`;
+  return /порог 22000/.test(r.all) ? true : `предупреждение не напечатано при ${size} знаках`;
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -898,12 +971,17 @@ function seedParts(dir, tweak) {
     constraints: src.constraints,
     gaps: src.gaps.map((g) => ({ id: g.id, ask: g.ask, hits: g.hits }))
   };
+  // Профиль ниши пишет site-market, а не site-intake: в parts/facts.json его нет.
+  const profile = facts.business.profile;
+  delete facts.business.profile;
   const market = {
-    audience: src.audience, offer: src.offer, competitors: src.competitors,
+    audience: src.audience, offer: src.offer, competitors: src.competitors, profile,
     lexicon: { locked: ["монтаж под ключ"] }, scan: { pages_seen: 12, pages_total: 15 }
   };
+  if (!profile) delete market.profile;
   writeFileSync(join(dir, "parts", "facts.json"), JSON.stringify(facts, null, 2), "utf8");
   writeFileSync(join(dir, "parts", "market.json"), JSON.stringify(market, null, 2), "utf8");
+  putQuotes(dir, facts.facts);
   return { facts, market };
 }
 
@@ -1058,13 +1136,16 @@ step("после гейта пересборка контракта отказы
   return forced.code === 2 ? `--force не помог: ${forced.all}` : true;
 });
 
-step("решения документа 1 и ключи листа ответов - один список", () => {
-  const dir = putProject("decisions", baseProject());
+step("решения документа 1 и ключи листа ответов - один список (вместе с d9 состава)", () => {
+  const p = baseProject();
+  p.tier = "basic";
+  const dir = putStructure(putProject("decisions", p), plannerStructure());
   const b = run([BUILD_DOC, dir]);
   if (b.code === 2) return `документы: ${b.all}`;
   const html = text(doc(dir, DOC1));
   const printed = [...new Set([...html.matchAll(/<td>(d[0-9]+)<\/td>/g)].map((m) => m[1]))];
   if (printed.length < 4) return `в таблице решений кодов ${printed.length} - решение печатается без ключа возврата`;
+  if (!printed.includes("d9")) return "состав сайта не напечатан решением d9";
   const sheet = run([APPLY, dir]);
   if (sheet.code !== 0) return `лист ответов: ${sheet.all}`;
   const orphan = printed.filter((k) => !new RegExp("^" + k + ":", "m").test(sheet.all));
@@ -1090,11 +1171,402 @@ step("факт из ответа заказчика подписан ответ�
   if (!f) return "факт пропал";
   if (f.src !== "ответ") return `src «${f.src}»: заказчику покажут брифом то, что он сказал вчера`;
   if (f.artifact) return "дословная фраза уехала в artifact и сделала факт проверяемым - сказанное вслух доказательством не является";
+  const q = readJson(join(dir, "parts", "facts-src.json")).filter((x) => x.id === "f05");
+  if (q.length !== 1) return `записей цитаты f05 ${q.length} - старая цитата брифа не заменена ответом`;
+  if (q[0].where !== "answers.txt:1" || !/5200/.test(q[0].quote)) return `цитата ответа записана не так: ${JSON.stringify(q[0])}`;
   const v = run([VERIFY, dir, "--no-write"]);
   if (v.code === 2) return `валидатор не принял источник ответа: ${v.all}`;
   const b = run([BUILD_DOC, dir]);
   if (b.code === 2) return `документы: ${b.all}`;
   return /ваш ответ/.test(text(doc(dir, DOC1))) ? true : "источник ответа не переведен на язык заказчика";
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== Словарь блоков, агенты и связи анализа (гейт 0) ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+const ANALYSIS_FILES = [
+  ".claude/skills/site-analiz/SKILL.md", ".claude/agents/site-intake.md", ".claude/agents/site-market.md",
+  ".claude/agents/pages-planner.md", ".claude/scripts/site/_contract.mjs", ".claude/scripts/site/queue.mjs",
+  ".claude/scripts/site/build-project.mjs", ".claude/scripts/site/verify-data.mjs", ".claude/scripts/site/build-doc.mjs",
+  ".claude/scripts/site/apply-answers.mjs"
+];
+
+step("pages.yml живет в site-analiz: ни скрипт, ни агент анализа не читает site-proto", () => {
+  if (!existsSync(PAGES)) return "нет .claude/skills/site-analiz/pages.yml";
+  const bad = ANALYSIS_FILES.filter((rel) => /site-proto/.test(text(join(ROOT, rel))));
+  return bad.length ? `ссылаются на site-proto: ${bad.join(", ")} - удаление прототипа уронит анализ` : true;
+});
+
+step("связи дальше: seo -> /seo-struktura, basic -> /site-tekst; /site proto следующим шагом не назван", () => {
+  const skill = text(join(SKILL_DIR, "SKILL.md"));
+  const miss = ["/seo-struktura", "/site-tekst --site", "pages-planner", "3b", "d9", "facts-src"].filter((w) => !skill.includes(w));
+  if (miss.length) return `в SKILL.md нет: ${miss.join(", ")}`;
+  const stale = ANALYSIS_FILES.filter((rel) => /\/site proto/.test(text(join(ROOT, rel))));
+  return stale.length ? `/site proto еще назван в ${stale.join(", ")}` : true;
+});
+
+{
+  // Список читается из самого модуля: разойтись ему со счетом негде.
+  const src = text(join(SITE_SCRIPTS, "_contract.mjs"));
+  const m = src.match(/export const AGENTS_V8 = \[([^\]]*)\]/);
+  const cap = (src.match(/export const AGENTS_V8_CAP = (\d+)/) || [])[1];
+  step("AGENTS_V8: три агента анализа, у каждого файл, opus и строка MODEL-POLICY", () => {
+    if (!m) return "в _contract.mjs нет AGENTS_V8";
+    const list = [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+    const want = ["site-intake", "site-market", "pages-planner"];
+    if (want.some((w) => !list.includes(w)) || list.length !== want.length) return `список ${list.join(", ")}, ждали ${want.join(", ")}`;
+    if (Number(cap) !== list.length) return `потолок ${cap} при ${list.length} агентах - список закрыт`;
+    const policy = text(join(ROOT, "docs/MODEL-POLICY.md"));
+    const bad = [];
+    for (const a of list) {
+      const p = join(ROOT, ".claude/agents", a + ".md");
+      if (!existsSync(p)) { bad.push(`${a}: нет файла`); continue; }
+      const fm = (text(p).match(/^---\n([\s\S]*?)\n---/) || [])[1] || "";
+      if (!new RegExp(`^name: ${a}$`, "m").test(fm)) bad.push(`${a}: name во frontmatter`);
+      if (!/^model: opus$/m.test(fm)) bad.push(`${a}: модель не opus`);
+      if (!new RegExp(`^\\| ${a} \\| opus \\|`, "m").test(policy)) bad.push(`${a}: нет строки opus в MODEL-POLICY`);
+    }
+    return bad.length ? bad.join("; ") : true;
+  });
+}
+
+step("pages-planner: вход project.json, выход structure_data.json, Read и Write, без MCP", () => {
+  const t = text(PLANNER);
+  const fm = (t.match(/^---\n([\s\S]*?)\n---/) || [])[1] || "";
+  if (!/^tools: Read, Write$/m.test(fm)) return "инструменты не ровно Read и Write";
+  if (/mcp__|WebFetch|WebSearch/.test(t)) return "в промте планировщика есть сетевые инструменты";
+  const need = ["project.json", "structure_data.json", "pages_hint", "page_types", "Главная", "Услуга", "Категория", "Товар", "Инфо", "Прочее",
+    "навигация", "dir:", "{slug}", "шаблон", "О компании", "Контакты", "Команда", "Отзывы", "Кейсы", "Вопросы", "queries", "target_status", "client_notes", "40"];
+  const miss = need.filter((w) => !t.includes(w));
+  if (miss.length) return `промт не называет: ${miss.join(", ")}`;
+  if (/pages_draft|brief\.json|intake\.json|analyses\//.test(t)) return "промт еще читает вход v7 (brief.json, intake.json, pages_draft)";
+  return true;
+});
+
+step("site-market: глубина лендинга для всех, полного замера многостраничника нет; профиль и page_types на месте", () => {
+  const t = text(join(ROOT, ".claude/agents/site-market.md"));
+  if (/5-8 лидеров|multipage` - по типам|по типам страниц\. Открываешь/.test(t)) return "ветка полного замера многостраничника осталась";
+  const miss = ["3-5", "page_types", "profile", "warmth", "cycle", "objection", "facts"].filter((w) => !t.includes(w));
+  return miss.length ? `промт не называет: ${miss.join(", ")}` : true;
+});
+
+step("site-intake: kind, pages_hint и цитаты, которые живут весь срок задачи", () => {
+  const t = text(join(ROOT, ".claude/agents/site-intake.md"));
+  const miss = ["`kind`", "pages_hint", "facts-src.json"].filter((w) => !t.includes(w));
+  if (miss.length) return `промт не называет: ${miss.join(", ")}`;
+  return /умирает после гейта/.test(t) ? "промт по-прежнему говорит, что цитаты умирают после гейта" : true;
+});
+
+step("схема: kind фактов, профиль ниши, pages_hint, page_types и ссылки ответов на факты", () => {
+  const s = readJson(join(SKILL_DIR, "project.schema.json"));
+  const b = s.properties.business.properties;
+  const bad = [];
+  const kind = s.definitions.fact.properties.kind;
+  if (!kind || ["number", "claim", "process", "contact", "legal", "product", "geo"].join() !== (kind.enum || []).join()) bad.push("facts[].kind");
+  if (!(s.definitions.fact.required || []).includes("kind")) bad.push("kind не обязателен");
+  const pr = b.profile && b.profile.properties;
+  if (!pr || pr.audience.enum.join() !== "b2c,b2b,mixed" || pr.warmth.enum.join() !== "hot,warm,cold" ||
+      pr.price.enum.join() !== "low,mid,high,premium" || pr.cycle.enum.join() !== "impulse,days,weeks,months") bad.push("business.profile");
+  if (!b.pages_hint || b.pages_hint.maxItems !== 40) bad.push("business.pages_hint до 40");
+  if (!s.properties.competitors.properties.market.properties.page_types) bad.push("competitors.market.page_types");
+  const of = s.definitions.objection.properties.facts;
+  if (!of || of.items.pattern !== "^f[0-9]{2,3}$") bad.push("objection[].facts");
+  return bad.length ? `нет или не так: ${bad.join(", ")}` : true;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== Сборка: Д1, профиль, kind, сегменты направлений ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+step("Д1: build-project сохраняет business.site, client_pages и assortment (и null у site)", () => {
+  const dir = join(SANDBOX, "d1");
+  seedParts(dir, (src) => {
+    src.business.site = "https://nevskiy-remont.test";
+    src.business.client_pages = [{ url: "https://nevskiy-remont.test/remont", name: "Ремонт" }];
+    src.business.assortment = ["ремонт квартир", "ремонт ванной", "отделка"];
+    src.business.pages_hint = ["Главная", "Ремонт квартир", "Контакты"];
+  });
+  const r = run([BUILD_PROJECT, dir]);
+  if (r.code === 2) return `сборка: ${bad2(r)}`;
+  const b = readJson(join(dir, "project.json")).business;
+  if (b.site !== "https://nevskiy-remont.test") return `site «${b.site}» потерян`;
+  if (!(b.client_pages || []).length) return "client_pages потерян";
+  if ((b.assortment || []).length !== 3) return "assortment потерян";
+  if ((b.pages_hint || []).length !== 3) return "pages_hint потерян";
+  const dir2 = join(SANDBOX, "d1-null");
+  seedParts(dir2, (src) => { src.business.site = null; });
+  const r2 = run([BUILD_PROJECT, dir2]);
+  if (r2.code === 2) return `сборка с site null: ${bad2(r2)}`;
+  return readJson(join(dir2, "project.json")).business.site === null ? true : "site null («сайта нет») потерян";
+});
+
+step("профиль ниши едет из parts/market.json в business.profile; чужое значение - отказ", () => {
+  const dir = join(SANDBOX, "profile");
+  seedParts(dir);
+  const r = run([BUILD_PROJECT, dir]);
+  if (r.code === 2) return `сборка: ${bad2(r)}`;
+  const pr = readJson(join(dir, "project.json")).business.profile || {};
+  if (pr.price !== "high" || pr.cycle !== "weeks") return `профиль ${JSON.stringify(pr)}`;
+  const dir2 = join(SANDBOX, "profile-bad");
+  seedParts(dir2, (src) => { src.business.profile = { audience: "b2c", warmth: "warm", price: "дорого", cycle: "weeks" }; });
+  const r2 = run([BUILD_PROJECT, dir2]);
+  return r2.code === 2 && /profile\.price/.test(r2.all) ? true : `exit ${r2.code}: чек словами прошел схему`;
+});
+
+step("kind: без него сборка выводит мостом q -> kind и говорит об этом; чужое значение - отказ", () => {
+  const dir = join(SANDBOX, "kind");
+  seedParts(dir, (src) => { for (const f of src.facts) delete f.kind; });
+  const r = run([BUILD_PROJECT, dir]);
+  if (r.code === 2) return `сборка: ${bad2(r)}`;
+  const fs = readJson(join(dir, "project.json")).facts;
+  if (fs.some((f) => !f.kind)) return "у фактов нет kind после сборки";
+  if (fs.find((f) => f.id === "f07").kind !== "legal") return `лицензия получила kind ${fs.find((f) => f.id === "f07").kind}`;
+  if (!/kind не проставлен агентом/.test(r.all)) return "вывод kind прошел молча";
+  const dir2 = join(SANDBOX, "kind-bad");
+  seedParts(dir2, (src) => { src.facts[0].kind = "цифра"; });
+  const r2 = run([BUILD_PROJECT, dir2]);
+  return r2.code === 2 && /kind/.test(r2.all) ? true : `exit ${r2.code}: чужой kind прошел`;
+});
+
+step("направления без сегментов: сборка называет их (villa-pattaya и villa-bali у IBG)", () => {
+  const dir = join(SANDBOX, "lonely");
+  seedParts(dir, (src) => {
+    src.audience.segments[0].dirs = ["remont-kvartir"];
+    src.audience.segments[1].dirs = ["remont-kvartir"];
+  });
+  const r = run([BUILD_PROJECT, dir]);
+  if (r.code === 2) return `сборка: ${bad2(r)}`;
+  return /направления без сегментов[^\n]*remont-vannoy[^\n]*otdelka/.test(r.all) ? true : "направления без покупателя прошли молча";
+});
+
+step("page_types и ссылки ответов на факты доезжают; ссылка на несуществующий факт снимается с предупреждением", () => {
+  const dir = join(SANDBOX, "objfacts");
+  seedParts(dir, (src) => {
+    src.audience.segments[0].objection[0].facts = ["f15", "f77"];
+  });
+  const r = run([BUILD_PROJECT, dir]);
+  if (r.code === 2) return `сборка: ${bad2(r)}`;
+  const p = readJson(join(dir, "project.json"));
+  if (!(p.competitors.market.page_types || []).length) return "page_types потерян";
+  const of = p.audience.segments[0].objection[0].facts || [];
+  if (of.join() !== "f15") return `ссылки ответа ${JSON.stringify(of)}`;
+  return /f77/.test(r.all) ? true : "снятая ссылка не названа";
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== Цитаты фактов: parts/facts-src.json против входа ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+step("нет parts/facts-src.json - отказ: у фактов нет оснований", () => {
+  const dir = putProject("q-nofile", baseProject());
+  rmSync(join(dir, "parts", "facts-src.json"));
+  const r = run([VERIFY, dir, "--seed", "--no-write"]);
+  return r.code === 2 && /facts-src/.test(r.all) ? true : `exit ${r.code}`;
+});
+
+step("факт без цитаты - отказ с id факта", () => {
+  const dir = putProject("q-noid", baseProject());
+  const src = readJson(join(dir, "parts", "facts-src.json")).filter((x) => x.id !== "f03");
+  writeFileSync(join(dir, "parts", "facts-src.json"), JSON.stringify(src), "utf8");
+  const r = run([VERIFY, dir, "--seed", "--no-write"]);
+  return r.code === 2 && /f03[^\n]*нет цитаты/.test(r.all) ? true : `exit ${r.code}: ${bad2(r)}`;
+});
+
+step("цитата, которой нет во входе, - отказ: выдумка ловится там, где факт рождается", () => {
+  const dir = putProject("q-fake", baseProject());
+  const src = readJson(join(dir, "parts", "facts-src.json"));
+  src[4].quote = "монтаж от 3900 руб за квадратный метр";
+  writeFileSync(join(dir, "parts", "facts-src.json"), JSON.stringify(src), "utf8");
+  const r = run([VERIFY, dir, "--seed", "--no-write"]);
+  return r.code === 2 && /f05[^\n]*не найдена дословно/.test(r.all) ? true : `exit ${r.code}: ${bad2(r)}`;
+});
+
+step("нормализация: буква е, тире, кавычки и пробелы цитату не ломают; лист ответов - тоже вход", () => {
+  const dir = putProject("q-norm", baseProject());
+  const src = readJson(join(dir, "parts", "facts-src.json"));
+  // во входе: е, дефис, прямые кавычки; в цитате: е с точками, длинное тире, елочки, двойной пробел
+  writeFileSync(join(dir, "input", "call.txt"), "Прораб: \"все\" сделаем за 14 дней - по договору\n", "utf8");
+  src[7].quote = "\u00ab\u0432\u0441\u0451\u00bb \u0441\u0434\u0435\u043b\u0430\u0435\u043c  \u0437\u0430 14 \u0434\u043d\u0435\u0439 \u2014 \u043f\u043e \u0434\u043e\u0433\u043e\u0432\u043e\u0440\u0443";
+  src[8].quote = "выезжаем за 60 км без доплаты";
+  writeFileSync(join(dir, "answers.txt"), "f09: 60 км от города << выезжаем за 60 км без доплаты\n", "utf8");
+  writeFileSync(join(dir, "parts", "facts-src.json"), JSON.stringify(src), "utf8");
+  const r = run([VERIFY, dir, "--seed", "--no-write"]);
+  return r.code === 2 ? `нормализация не сработала: ${bad2(r)}` : true;
+});
+
+step("цитата из скана или pdf - предупреждение «сверь глазами», а не отказ", () => {
+  const dir = putProject("q-scan", baseProject());
+  writeFileSync(join(dir, "input", "licenziya.pdf"), Buffer.from([37, 80, 68, 70, 0, 1, 2, 0]));
+  const src = readJson(join(dir, "parts", "facts-src.json"));
+  src[6].quote = "лицензия номер 1234 выдана в 2019 году";
+  src[6].where = "input/licenziya.pdf";
+  writeFileSync(join(dir, "parts", "facts-src.json"), JSON.stringify(src), "utf8");
+  const r = run([VERIFY, dir, "--seed", "--no-write"]);
+  if (r.code === 2) return `отказ: ${bad2(r)}`;
+  return /сверь глазами/.test(r.all) ? true : "нетекстовый источник прошел молча";
+});
+
+step("служебная пометка в значении факта - отказ («не разворачиваем в этой версии» из IBG)", () => {
+  const p = baseProject();
+  p.facts[10].value = "не разворачиваем в этой версии сайта";
+  const dir = putProject("q-note", p);
+  const r = run([VERIFY, dir, "--no-write"]);
+  return r.code === 2 && /служебная пометка/.test(r.all) && /facts\[10\]/.test(r.all) ? true : `exit ${r.code}: ${bad2(r)}`;
+});
+
+step("ответ на возражение ссылается на несуществующий факт - отказ", () => {
+  const p = baseProject();
+  p.audience.segments[1].objection[0].facts = ["f02", "f99"];
+  const dir = putProject("q-objfacts", p);
+  const r = run([VERIFY, dir, "--seed", "--no-write"]);
+  return r.code === 2 && /f99/.test(r.all) && !/f02»/.test(r.all) ? true : `exit ${r.code}: ${bad2(r)}`;
+});
+
+step("apply-answers: новый факт из вопроса - с kind и цитатой; пометка вместо ответа фактом не становится", () => {
+  const dir = putProject("q-gap", baseProject());
+  writeFileSync(join(dir, "answers.txt"), "g1: 4800 руб за кв м << так и пишите\ng2: не разворачиваем в этой версии\n", "utf8");
+  const w = run([APPLY, dir, "--apply"]);
+  if (w.code !== 0) return `запись exit ${w.code}: ${w.all}`;
+  const p = readJson(join(dir, "project.json"));
+  const f = p.facts.find((x) => x.value === "4800 руб за кв м");
+  if (!f) return "факт из ответа на вопрос не создан";
+  if (!f.kind) return "у нового факта нет kind - схема его отвергнет";
+  if (p.facts.some((x) => /в этой версии/.test(x.value))) return "служебная пометка стала фактом";
+  const q = readJson(join(dir, "parts", "facts-src.json")).find((x) => x.id === f.id);
+  if (!q || q.where !== "answers.txt:1") return `цитата нового факта: ${JSON.stringify(q)}`;
+  const v = run([VERIFY, dir, "--no-write"]);
+  return v.code === 2 ? `валидатор отверг факты из ответов: ${bad2(v)}` : true;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== Состав страниц без SEO: structure_data.json ===");
+// ──────────────────────────────────────────────────────────────────────────
+
+step("лендинг при basic: сборка пишет состав из одной главной, и он проходит проверку формата", () => {
+  const dir = join(SANDBOX, "st-landing");
+  seedParts(dir, (src) => { src.tier = "basic"; src.business.site_kind = "landing"; src.business.directions = [src.business.directions[0]]; });
+  const r = run([BUILD_PROJECT, dir]);
+  if (r.code === 2) return `сборка: ${bad2(r)}`;
+  const sp = join(dir, "structure_data.json");
+  if (!existsSync(sp)) return "structure_data.json не записан";
+  const sd = readJson(sp);
+  if (sd.pages.length !== 1 || sd.pages[0].url !== "/" || sd.pages[0].type !== "Главная") return `состав лендинга: ${JSON.stringify(sd.pages)}`;
+  if (sd.pages[0].section !== "dir:remont-kvartir") return `section главной лендинга «${sd.pages[0].section}» - одно направление обязано быть названо`;
+  const v = run([VERIFY, dir, "--seed", "--no-write"]);
+  return v.code === 2 ? `проверка формата отвергла состав сборки: ${bad2(v)}` : true;
+});
+
+step("tier seo и многостраничник при basic: сборка состав не пишет", () => {
+  const a = join(SANDBOX, "st-seo");
+  seedParts(a);
+  const ra = run([BUILD_PROJECT, a]);
+  if (ra.code === 2) return `сборка seo: ${bad2(ra)}`;
+  if (existsSync(join(a, "structure_data.json"))) return "при tier seo анализ написал состав - это работа /seo-struktura";
+  const b = join(SANDBOX, "st-multi");
+  seedParts(b, (src) => { src.tier = "basic"; });
+  const rb = run([BUILD_PROJECT, b]);
+  if (rb.code === 2) return `сборка basic: ${bad2(rb)}`;
+  if (existsSync(join(b, "structure_data.json"))) return "многостраничный состав написала сборка вместо pages-planner";
+  return /3b/.test(rb.all) ? true : "сборка не назвала следующий шаг 3b";
+});
+
+step("формат планировщика: образцовый состав проходит без нарушений", () => {
+  const p = baseProject();
+  p.tier = "basic";
+  const dir = putStructure(putProject("st-ok", p), plannerStructure());
+  const r = run([VERIFY, dir, "--seed", "--no-write"]);
+  if (r.code === 2) return bad2(r);
+  return /состав страниц: 9/.test(r.all) ? true : "состав не посчитан";
+});
+
+step("формат планировщика: каждое правило import-structure ловится и называется", () => {
+  const p = baseProject();
+  p.tier = "basic";
+  const cases = [
+    ["слеш на конце", (sd) => { sd.pages[2].url = "/uslugi/remont-kvartir/"; }, /слеш на конце/],
+    ["тип вне словаря", (sd) => { sd.pages[5].type = "Статья"; }, /вне словаря/],
+    ["хаб типом Услуга", (sd) => { sd.pages[1].type = "Услуга"; sd.pages[1].section = "dir:remont-kvartir"; }, /хаб с типом/],
+    ["слово хаб в name", (sd) => { sd.pages[1].name = "Услуги (хаб)"; }, /слово «хаб»/],
+    ["адрес кейсов без слова Кейсы", (sd) => { sd.pages[5].name = "Наши работы"; }, /нет этого слова/],
+    ["адрес перебивает имя", (sd) => { sd.pages.push({ ...sd.pages[8], n: 10, url: "/o-kompanii/komanda", name: "Команда" }); }, /адрес перебивает имя/],
+    ["карточка без шаблона", (sd) => { sd.pages.push({ ...sd.pages[2], n: 10, url: "/katalog/plitka", type: "Товар", name: "Плитка", section: "" }); }, /каждый товар станет/],
+    ["шаблон у услуги", (sd) => { sd.pages[3].name = "Ремонт ванной (шаблон)"; }, /шаблон карточки/],
+    ["услуга без dir", (sd) => { sd.pages[4].section = ""; }, /без section/],
+    ["чужое направление", (sd) => { sd.pages[4].section = "dir:net-takogo"; }, /net-takogo/],
+    ["запросы у состава без SEO", (sd) => { sd.pages[2].queries = ["ремонт квартир спб"]; }, /queries только/],
+    ["name латиницей", (sd) => { sd.pages[6].name = "Otzyvy"; }, /по-русски/],
+    ["нет главной", (sd) => { sd.pages.shift(); }, /главных 0/],
+    ["двухбуквенный адрес", (sd) => { sd.pages[4].url = "/tv"; }, /языковую главную/],
+    ["больше 40 страниц", (sd) => { for (let i = 0; i < 32; i++) sd.pages.push({ ...sd.pages[4], n: 10 + i, url: `/uslugi/otdelka-${i}` }); }, /потолок 40/]
+  ];
+  const miss = [];
+  cases.forEach(([name, spoil, re], i) => {
+    const sd = plannerStructure();
+    spoil(sd);
+    const dir = putStructure(putProject(`st-bad-${i}`, clone(p)), sd);
+    const r = run([VERIFY, dir, "--seed", "--no-write"]);
+    if (r.code !== 2 || !re.test(r.all)) miss.push(`${name} (exit ${r.code})`);
+  });
+  return miss.length ? `не пойманы: ${miss.join("; ")}` : true;
+});
+
+step("очередь: basic и многостраничник - шаг 3b до документов; после гейта - /site-tekst --site", () => {
+  const root = join(SANDBOX, "q3b");
+  const dir = join(root, "sites", "001-q3b-fx");
+  const init = run([QUEUE, "init", "q3b-fx", "--tier", "basic", "--type", "services", "--kind", "multipage", "--root", root]);
+  if (init.code !== 0) return `init: ${init.all}`;
+  seedParts(dir, (src) => { src.tier = "basic"; });
+  const bp = run([BUILD_PROJECT, dir]);
+  if (bp.code === 2) return `сборка: ${bad2(bp)}`;
+  const s1 = run([QUEUE, "state", dir]);
+  if (!/ШАГ 3b/.test(s1.all) || !/pages-planner/.test(s1.all)) return `после сборки не шаг 3b: ${s1.stdout.trim().split("\n").pop()}`;
+  putStructure(dir, plannerStructure());
+  const vd = run([VERIFY, dir, "--seed"]);
+  if (vd.code === 2) return `проверка состава: ${bad2(vd)}`;
+  const s2 = run([QUEUE, "state", dir]);
+  if (!/ШАГ 4/.test(s2.all)) return `с составом не шаг 4: ${s2.stdout.trim().split("\n").pop()}`;
+  const bd = run([BUILD_DOC, dir]);
+  if (bd.code === 2) return `документы: ${bd.all}`;
+  const html = text(join(dir, "docs", "understood.html"));
+  if (!/<td>d9<\/td>/.test(html) || !/\/uslugi\/remont-kvartir/.test(html)) return "состав не напечатан в документе 1 решением d9";
+  run([QUEUE, "docs", dir, "--understood", "https://drive.test/1", "--ask", "https://drive.test/2"]);
+  const g = run([QUEUE, "gate", dir, "--by", "владелец"]);
+  if (g.code !== 0) return `гейт: ${g.all}`;
+  const done = run([QUEUE, "state", dir]);
+  return /\/site-tekst --site 001/.test(done.all) ? true : `после гейта не названы тексты: ${done.stdout.trim().split("\n").pop()}`;
+});
+
+step("очередь: после гейта при tier seo следующий шаг - /seo-struktura", () => {
+  const done = run([QUEUE, "state", e2eDir]);
+  return /\/seo-struktura 001/.test(done.all) ? true : `после гейта при seo: ${done.stdout.trim().split("\n").pop()}`;
+});
+
+step("d9: дифф-лист до записи, запись меняет только target_status; главную снять нельзя, новой страницы ответ не рождает", () => {
+  const p = baseProject();
+  p.tier = "basic";
+  const dir = putStructure(putProject("d9", p), plannerStructure());
+  writeFileSync(join(dir, "answers.txt"), "d9: убрать 8, /keisy; без отзывов; убрать /; добавить /blog << команды и блога у нас нет\n", "utf8");
+  const dry = run([APPLY, dir]);
+  if (dry.code !== 0) return `просмотр: ${dry.all}`;
+  if (!/structure_data\.json \/keisy/.test(dry.all)) return "в дифф-листе нет строки по странице";
+  if (readJson(join(dir, "structure_data.json")).pages.some((x) => x.target_status === "no")) return "просмотр изменил состав";
+  const w = run([APPLY, dir, "--apply"]);
+  if (w.code !== 0) return `запись: ${w.all}`;
+  const sd = readJson(join(dir, "structure_data.json"));
+  const off = sd.pages.filter((x) => x.target_status === "no").map((x) => x.url).sort();
+  if (off.join() !== ["/keisy", "/o-kompanii", "/otzyvy"].sort().join()) return `сняты ${off.join(", ")}`;
+  if (sd.pages.length !== 9) return "ответ добавил или удалил страницу";
+  if (!/главная обязательна/.test(w.all) || !/новый проход pages-planner/.test(w.all)) return "отказы по главной и по новой странице не названы";
+  const v = run([VERIFY, dir, "--no-write"]);
+  if (v.code === 2) return `состав после ответа не проходит проверку: ${bad2(v)}`;
+  const b = run([BUILD_DOC, dir]);
+  if (b.code === 2) return `документы: ${b.all}`;
+  return /Сняли из состава/.test(text(doc(dir, DOC1))) ? true : "снятые страницы не видны в документе 1";
 });
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1120,7 +1592,7 @@ step("длинное тире и е-с-точками в созданных фа
 
 step("ИНВАРИАНТ v8: в промтах агентов запретов не больше, чем образцов и приемов", () => {
   const bad = [];
-  for (const rel of [".claude/agents/site-intake.md", ".claude/agents/site-market.md", ".claude/skills/site-analiz/SKILL.md"]) {
+  for (const rel of [".claude/agents/site-intake.md", ".claude/agents/site-market.md", ".claude/agents/pages-planner.md", ".claude/skills/site-analiz/SKILL.md"]) {
     const t = text(join(ROOT, rel));
     const ban = countBy(t, BAN_RE);
     const sample = countBy(t, SAMPLE_RE);
@@ -1142,7 +1614,7 @@ step("ИНВАРИАНТ v8: в шаблонах документов запре
 
 step("потолок запретов на файл: 25 (файлам писателя v7 приходило вдвое больше)", () => {
   const bad = [];
-  for (const rel of [".claude/agents/site-intake.md", ".claude/agents/site-market.md", ".claude/skills/site-analiz/SKILL.md",
+  for (const rel of [".claude/agents/site-intake.md", ".claude/agents/site-market.md", ".claude/agents/pages-planner.md", ".claude/skills/site-analiz/SKILL.md",
     ".claude/skills/site-analiz/doc1.tmpl.html", ".claude/skills/site-analiz/doc2.tmpl.html"]) {
     const n = countBy(text(join(ROOT, rel)), BAN_RE);
     if (n > 25) bad.push(`${rel}: ${n}`);
@@ -1178,27 +1650,24 @@ step("/seo-faq и faq-builder на месте и не пусты", () => {
   return true;
 });
 
-step("остальные скилы v7 живут дальше", () => {
-  const want = ["seo-statya", "seo-analiz", "seo-struktura", "seo-tekst", "seo-metategi", "seo-tehaudit"];
+// seo-analiz и seo-tekst по гейту 0 уходят (тексты - в /site-tekst), поэтому их тут нет:
+// страховка держит то, что остается и на что опирается конвейер после анализа.
+step("скилы, на которые опирается конвейер после анализа, живут дальше", () => {
+  const want = ["seo-statya", "seo-struktura", "seo-metategi", "seo-tehaudit", "seo-faq"];
   const missing = want.filter((s) => !existsSync(join(ROOT, ".claude/skills", s, "SKILL.md")));
   return missing.length ? `снесены: ${missing.join(", ")}` : true;
 });
 
-step("машинерия текстов v7 на месте: verify-copy, COPY-AUDIT, VOICE, page-writer", () => {
-  const want = [
-    ".claude/scripts/verify-copy.mjs",
-    ".claude/skills/seo-tekst/assets/COPY-AUDIT.md",
-    ".claude/skills/seo-tekst/assets/VOICE.md",
-    ".claude/agents/page-writer.md"
-  ];
-  const bad = want.filter((rel) => !existsSync(join(ROOT, rel)) || chars(text(join(ROOT, rel))) < 1000);
-  return bad.length ? `нет или пусты: ${bad.join(", ")}` : true;
+step("ассеты /seo-faq на месте: VOICE и BLOCKS-METRICS (в seo-faq/assets или до переноса в seo-tekst/assets)", () => {
+  const bad = ["VOICE.md", "BLOCKS-METRICS.md"].filter((n) => ![".claude/skills/seo-faq/assets", ".claude/skills/seo-tekst/assets"]
+    .some((d) => existsSync(join(ROOT, d, n)) && chars(text(join(ROOT, d, n))) >= 1000));
+  return bad.length ? `нет или пусты: ${bad.join(", ")} - /seo-faq остался без своих правил` : true;
 });
 
-step("этап 1 не подменяет /seo-faq и не плодит скилов сверх двух", () => {
+step("анализ не подменяет /seo-faq и не плодит скилов site-* сверх трех", () => {
   const dirs = readdirSync(join(ROOT, ".claude/skills")).filter((d) => /^site-/.test(d));
-  const extra = dirs.filter((d) => !["site-analiz", "site-proto"].includes(d));
-  if (extra.length) return `лишние скилы v8: ${extra.join(", ")}`;
+  const extra = dirs.filter((d) => !["site-analiz", "site-proto", "site-tekst"].includes(d));
+  if (extra.length) return `лишние скилы site-*: ${extra.join(", ")}`;
   return /seo-faq/.test(text(join(SKILL_DIR, "SKILL.md"))) ? true : "в SKILL.md не сказано, что FAQ остается за /seo-faq";
 });
 

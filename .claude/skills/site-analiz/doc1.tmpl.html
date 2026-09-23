@@ -50,6 +50,16 @@ th { background: #f2f2f2; font-weight: bold; }
 </table>
 <p class="hint">Если вы ничего не отметите, мы сделаем по отмеченному варианту. Правите - назовите код строки, так ответ попадет ровно в то место, откуда взят.</p>
 {{/has_decisions}}
+{{#has_site_pages}}
+<h3>Состав сайта (решение d9)</h3>
+<p>Мы исходим из того, что на сайте будут эти страницы, и пишем тексты под них. Лишняя страница или снятая нужная - скажите сейчас, например: «d9: убрать 7; вернуть /otzyvy».</p>
+<table>
+<tr><th>Номер</th><th>Страница</th><th>Адрес</th><th>Что это</th></tr>
+{{#site_pages}}<tr><td>{{n}}</td><td>{{name}}</td><td>{{url}}</td><td>{{#what}}{{.}}{{/what}}</td></tr>
+{{/site_pages}}
+</table>
+{{#has_site_pages_off}}<p class="lbl">Сняли из состава, вернем по вашему слову</p><ul>{{#site_pages_off}}<li>{{name}} ({{url}})</li>{{/site_pages_off}}</ul>{{/has_site_pages_off}}
+{{/has_site_pages}}
 {{/has_biz}}
 
 {{#has_reasons}}

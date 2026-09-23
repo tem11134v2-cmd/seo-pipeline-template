@@ -332,3 +332,31 @@ JustMagic.
    (`from_catalog`, `kids`, `sku`) и таблица вилок `VOL`.
 9. `docs/MODEL-POLICY.md` - строка `catalog-architect` с ярусом из frontmatter, число в
    заголовке поднято с 68 до 69. Без этого набор `machinery` становился красным.
+
+## Заметки гейта 0 (2026-09-23): `/site-analiz` - единственный вход структуры и текстов
+
+Основание - `test-text-template/docs/gate0-2026-09-23/GATE0.md`. Правки ветки `algo-v9`:
+
+1. `pages.yml` переехал в `.claude/skills/site-analiz/`: это внутренний словарь анализа
+   (`facts[].q`, вес вопросов, признаки ниши). Путь по умолчанию один на три скрипта -
+   `PAGES_DEFAULT` в `_contract.mjs`. Скрипты и тесты `/site proto` по старому пути
+   падают до удаления прототипа - это ожидаемо.
+2. Д1 закрыт: `build-project.mjs` сохраняет `business.site` (и `null` - «сайта нет»),
+   `client_pages`, `assortment`. Бюджет `project.json` поднят до 22000 предупреждения и
+   32000 ошибки: IBG без этих полей весил 23900, со всеми новыми полями около 25500.
+3. `parts/facts-src.json` живет весь срок задачи. `verify-data.mjs` сверяет цитату каждого
+   факта дословно с `input/**` и листом ответов (нормализация е, тире, кавычек, пробелов),
+   ловит служебные пометки в значении факта и висячие `objection[].facts`. Цитату со скана
+   или из pdf скрипт сверить не может - это предупреждение «сверь глазами», а не отказ.
+   `apply-answers.mjs` кладет цитату факта из ответа строкой листа (`answers.txt:N`).
+4. Схема: `facts[].kind` (обязателен, забытый выводит сборка мостом `q -> kind`),
+   `business.profile`, `business.pages_hint`, `competitors.market.page_types`,
+   `audience.segments[].objection[].facts`.
+5. `site-market` без полного замера многостраничника: для всех сайтов 3-5 главных лидеров
+   плюс `page_types`. Разбор блоков лидеров по типам - фаза 2 `/site-tekst`.
+6. `pages-planner` переписан под анализ: шаг 3b, вход только `project.json`, выход
+   `structure_data.json` в формате `/seo-struktura`. Лендингу при `basic` одну главную пишет
+   `build-project.mjs`, при `tier seo` состав строит `/seo-struktura`. Формат проверяет
+   `verify-data.mjs` правилами `import-structure.mjs` текстов.
+7. Состав сайта - решение `d9` документа 1; ответ меняет только `target_status`.
+8. `AGENTS_V8` - три агента анализа: `site-intake`, `site-market`, `pages-planner`.

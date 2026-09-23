@@ -2,7 +2,10 @@
 // verify-data.mjs
 // Валидатор контракта v8: project.json против project.schema.json ПЛЮС проверки, которых
 // схема не умеет в принципе - бюджет знаков, запрет полей-обоснований по всему дереву,
-// пересчет и перезапись gates, ссылочная целостность с pages.yml, засев publish, типографика.
+// пересчет и перезапись gates, ссылочная целостность с pages.yml, засев publish, типографика,
+// цитаты фактов против входа задачи (parts/facts-src.json живет весь срок задачи: из него
+// тексты берут source_quote), служебные пометки вместо фактов и формат состава страниц
+// structure_data.json - тот, что принимает import-structure.mjs текстов.
 //
 // Обход схемы, определение проверяемого факта и разбор pages.yml лежат в _contract.mjs -
 // том же модуле, которым пользуется сборщик. Двух определений одного правила в этапе нет.
@@ -13,6 +16,10 @@
 //   --seed     режим засева: любой факт с publish=yes - нарушение (yes ставит только гейт)
 //   --no-write не переписывать gates и gaps[].weight в файле (по умолчанию переписываем)
 //
+// Цитаты: у каждого факта запись {id, quote, where} в <каталог>/parts/facts-src.json, и quote
+// дословно (после нормализации е, тире, кавычек и пробелов) есть в <каталог>/input/** или в
+// листе ответов answers.txt. Факт, добавленный позже (ответ заказчика, снимок сайта), - тоже.
+//
 // Exit: 0 чисто | 1 предупреждения | 2 нарушения (или файл не читается).
 
 import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
@@ -20,7 +27,8 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   arr, str, isCheckable, hasNumber, walkBanned, walkTypo, budget, BUDGET_WARN, BUDGET_MAX,
-  readPages, PAGES_CHARS_MAX, PAGE_TYPES, NEEDS_KINDS, BLOCK_FN, validate, THIN
+  readPages, PAGES_CHARS_MAX, PAGE_TYPES, NEEDS_KINDS, BLOCK_FN, validate, THIN,
+  PAGES_DEFAULT, SERVICE_NOTE, NUM_UNIT, normQuote, inputCorpus, whereFile, checkStructure
 } from "./_contract.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -39,7 +47,8 @@ for (let i = 0; i < argv.length; i++) {
 if (!target) { console.error("[verify-data] usage: <project.json|каталог> [--pages <pages.yml>] [--schema <file>] [--seed] [--no-write]"); process.exit(2); }
 
 const projPath = existsSync(target) && statSync(target).isDirectory() ? join(resolve(target), "project.json") : resolve(target);
-const pagesPath = pagesArg ? resolve(pagesArg) : resolve(HERE, "..", "..", "skills", "site-proto", "pages.yml");
+const pagesPath = pagesArg ? resolve(pagesArg) : PAGES_DEFAULT;
+const taskDir = dirname(projPath);
 const schemaPath = schemaArg ? resolve(schemaArg) : resolve(HERE, "..", "..", "skills", "site-analiz", "project.schema.json");
 
 const violations = [], warnings = [], infos = [];
@@ -165,12 +174,91 @@ const gaps = arr(data.gaps);
   });
   const pid = data.offer && data.offer.promise && data.offer.promise.proof_id;
   if (pid && !factIds.has(pid)) V("offer.promise.proof_id", `нет факта «${pid}»`);
+  segs.forEach((s, i) => arr(s && s.objection).forEach((o, j) => arr(o && o.facts).forEach((id, k) => {
+    if (!factIds.has(id)) V(`audience.segments[${i}].objection[${j}].facts[${k}]`, `нет факта «${id}» - ответ опирается на то, чего в контракте нет`);
+  })));
   const gapIds = new Set();
   gaps.forEach((g, i) => {
     if (!g || !g.id) return;
     if (gapIds.has(g.id)) V(`gaps[${i}].id`, `id «${g.id}» повторяется`);
     gapIds.add(g.id);
   });
+}
+
+// ---------------------------------------------------------------- служебная пометка вместо факта
+// «не разворачиваем в этой версии», «уточним позже» - это заметка оператора, а не факт.
+// В значении она доехала бы до страницы; место такой строке в gaps или в журнале.
+facts.forEach((f, i) => {
+  const v = str(f && f.value);
+  const m = v.match(SERVICE_NOTE);
+  if (m) V(`facts[${i}].value`, `служебная пометка «${m[0]}» вместо факта («${v.slice(0, 80)}») - убери факт или верни вопрос в gaps`);
+});
+
+// ---------------------------------------------------------------- цитаты фактов
+// Защита от выдумки там, где факт рождается: цитата-основание дословно есть во входе.
+if (facts.length) {
+  const srcPath = join(taskDir, "parts", "facts-src.json");
+  let src = null;
+  if (!existsSync(srcPath)) V("parts/facts-src.json", `файла нет (${srcPath}) - у ${facts.length} фактов нет цитат-оснований; его пишет site-intake, он живет весь срок задачи`);
+  else {
+    try { src = JSON.parse(readFileSync(srcPath, "utf8").replace(/^\uFEFF/, "")); }
+    catch (e) { V("parts/facts-src.json", `не разобран: ${e.message}`); }
+    if (src && !Array.isArray(src)) { V("parts/facts-src.json", "ожидался массив записей {id, quote, where}"); src = null; }
+  }
+  if (src) {
+    const byId = new Map();
+    for (const x of src) if (x && typeof x === "object" && str(x.id)) byId.set(str(x.id), x);
+    const corpus = inputCorpus(taskDir);
+    I(`цитаты: вход ${corpus.files.length} текстовых файлов${corpus.binary.length ? `, нетекстовых ${corpus.binary.length}` : ""}; записей с id в facts-src ${byId.size}`);
+    const bad = [];
+    let ok = 0, eyes = 0;
+    facts.forEach((f, i) => {
+      const id = str(f && f.id);
+      const x = byId.get(id);
+      const q = x ? str(x.quote) : "";
+      if (!q) { bad.push(`facts[${i}] ${id} «${str(f && f.label)}» (${str(f && f.src) || "src нет"}): нет цитаты в parts/facts-src.json`); return; }
+      if (normQuote(q) && corpus.text.includes(normQuote(q))) {
+        ok++;
+        // Число из значения, которого нет в цитате, - вывод агента, а не слова источника.
+        const v = str(f.value);
+        if (NUM_UNIT.test(v)) {
+          const nums = (v.match(/\d[\d\s.,]*\d|\d/g) || []).map((n) => n.replace(/[\s.,]/g, ""));
+          const qn = normQuote(q).replace(/[\s.,]/g, "");
+          const miss = nums.filter((n) => !qn.includes(n));
+          if (miss.length) W(`facts[${i}] ${id}`, `числа ${miss.join(", ")} из значения нет в цитате - это вывод, а не слова источника; сверь`);
+        }
+        return;
+      }
+      const wf = whereFile(x.where);
+      if (wf && corpus.binary.includes(wf)) { eyes++; W(`facts[${i}] ${id}`, `цитата из нетекстового файла ${wf} - скрипт ее не сверит, сверь глазами`); return; }
+      bad.push(`facts[${i}] ${id} «${str(f.label)}»: цитата «${q.slice(0, 70)}» не найдена дословно ни в input/, ни в листе ответов`);
+    });
+    for (const b of bad.slice(0, 25)) V("цитаты", b);
+    if (bad.length > 25) V("цитаты", `и еще ${bad.length - 25}`);
+    I(`цитаты: сверено дословно ${ok} из ${facts.length}${eyes ? `, из нетекстовых файлов ${eyes}` : ""}`);
+  }
+}
+
+// ---------------------------------------------------------------- состав страниц
+// Лежит рядом с контрактом, если его писал анализ: лендинг при basic - build-project,
+// многостраничник при basic - pages-planner. Формат обязан пройти import-structure.mjs.
+{
+  const sp = join(taskDir, "structure_data.json");
+  if (existsSync(sp)) {
+    let sd = null;
+    try { sd = JSON.parse(readFileSync(sp, "utf8").replace(/^\uFEFF/, "")); }
+    catch (e) { V("structure_data.json", `не разобран: ${e.message}`); }
+    if (sd) {
+      const chk = checkStructure(sd, data);
+      for (const v of chk.V.slice(0, 25)) V("structure_data.json", v);
+      if (chk.V.length > 25) V("structure_data.json", `и еще ${chk.V.length - 25}`);
+      for (const w of chk.W.slice(0, 10)) W("structure_data.json", w);
+      I(`состав страниц: ${chk.stat.pages} (yes ${chk.stat.yes}, no ${chk.stat.no}) - ${Object.entries(chk.stat.byType).map(([k, n]) => `${k} ${n}`).join(", ")}`);
+      if (data.tier === "seo") W("structure_data.json", "tier seo: состав делает /seo-struktura, этот файл импорт текстов не возьмет");
+    }
+  } else if (data.tier === "basic" && data.business && data.business.site_kind === "multipage") {
+    I("состава страниц еще нет: шаг 3b, агент pages-planner пишет structure_data.json");
+  }
 }
 
 // ---------------------------------------------------------------- засев publish
@@ -245,7 +333,7 @@ if (!quiet) {
   console.log(`[verify-data] ${projPath}  (фактов ${facts.length}, направлений ${arr(data.business && data.business.directions).length}, сегментов ${arr(data.audience && data.audience.segments).length}, вопросов ${arr(data.gaps).length})`);
   for (const m of infos) console.log("   i " + m);
   if (warnings.length) { console.log("  предупреждения:"); for (const w of warnings) console.log("   ~ " + w); }
-  if (violations.length) { console.log("  НАРУШЕНИЯ (документы не собираем):"); for (const v of violations) console.log("   ! " + v); }
+  if (violations.length) { console.log("  НАРУШЕНИЯ (документы не собираем):"); for (const v of violations.slice(0, 30)) console.log("   ! " + v); if (violations.length > 30) console.log(`   ! и еще ${violations.length - 30}`); }
   if (!violations.length && !warnings.length) console.log("  OK - контракт чист.");
 }
 process.exit(violations.length ? 2 : warnings.length ? 1 : 0);
