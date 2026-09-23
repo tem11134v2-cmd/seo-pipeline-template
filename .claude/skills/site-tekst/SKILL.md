@@ -127,8 +127,8 @@ init -> facts-done -> [гейт 1] map-approved -> competitors-done -> types-aud
 | `catalog-done` | фаза 8: сборка | шаг 8 -> `built` |
 | `built` | сдача | шаг 8 -> `completed` |
 
-**Resume:** `task.mjs find [KKK]` -> `meta.json` -> `format` не `v9` - стоп: «задача v7 - старый скил /seo-tekst в клоне
-до синка v9 или новая задача /site-tekst». Иначе `current-task.txt`, `place` (код 3 - вопрос из «Папка задачи»),
+**Resume:** `task.mjs find [KKK]` -> `meta.json` -> `format` не `v9` - стоп: «задача v7: конвейер v7 выведен, режима
+доделки нет - новая задача /site-tekst (FAQ по старой задаче - /seo-faq --from-tekst)». Иначе `current-task.txt`, `place` (код 3 - вопрос из «Папка задачи»),
 `status`, вопрос «продолжить с <state>? [Y/n]», дальше по таблице. Гейтовые state (`facts-done`, `strategy-done`,
 `pilot-done`, `wave-1-done`) - показать гейт заново, закрытое не переспрашивать. `args` с кодом 4 - шаг сделан, дальше.
 

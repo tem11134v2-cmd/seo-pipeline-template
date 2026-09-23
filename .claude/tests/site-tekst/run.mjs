@@ -125,7 +125,7 @@ wj(path.join(P, 'sites', '002-okna', 'structure_data.json'), { pages: [] });
 wj(path.join(P, 'sites', '003-nogate', 'project.json'), {});
 wj(path.join(P, 'sites', '003-nogate', 'queue.json'), { gate: { approved: false } });
 wj(path.join(P, 'structures', '005-okna', 'structure_data.json'), { pages: [] });
-// задача v7 (старый /seo-tekst): для номера и для совместимости FAQ
+// задача v7 (формат выведенного конвейера текстов v7): для номера и для совместимости FAQ
 wj(path.join(P, 'texts', '007-old', 'meta.json'), { format: 'v7', state: 'completed' });
 wj(path.join(P, 'texts', '007-old', 'pages.json'), { pages: [{ slug: 'glavnaya', marker: 'окна тула', queries: ['окна тула', 'пластиковые окна'], url: 'https://old.example/' }] });
 wj(path.join(P, 'texts', '007-old', 'pages', 'glavnaya', 'page.json'), { page: { slug: 'glavnaya', url: 'https://old.example/' }, h1: 'Окна в Туле', blocks: [{ title: 'Монтаж', text: 'Монтаж за один день' }] });

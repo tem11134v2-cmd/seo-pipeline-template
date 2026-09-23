@@ -67,7 +67,7 @@ const MADE = [
   "docs/v8/trace.csv"
 ];
 
-// === Мини-фреймворк (стиль набора /seo-tekst) ===
+// === Мини-фреймворк (стиль наборов машинерии) ===
 let passed = 0;
 let failed = 0;
 const failures = [];
@@ -1650,7 +1650,7 @@ step("/seo-faq и faq-builder на месте и не пусты", () => {
   return true;
 });
 
-// seo-analiz и seo-tekst по гейту 0 уходят (тексты - в /site-tekst), поэтому их тут нет:
+// seo-analiz и seo-tekst по гейту 0 выведены (тексты - в /site-tekst), поэтому их тут нет:
 // страховка держит то, что остается и на что опирается конвейер после анализа.
 step("скилы, на которые опирается конвейер после анализа, живут дальше", () => {
   const want = ["seo-statya", "seo-struktura", "seo-metategi", "seo-tehaudit", "seo-faq"];
@@ -1658,10 +1658,13 @@ step("скилы, на которые опирается конвейер пос
   return missing.length ? `снесены: ${missing.join(", ")}` : true;
 });
 
-step("ассеты /seo-faq на месте: VOICE и BLOCKS-METRICS (в seo-faq/assets или до переноса в seo-tekst/assets)", () => {
-  const bad = ["VOICE.md", "BLOCKS-METRICS.md"].filter((n) => ![".claude/skills/seo-faq/assets", ".claude/skills/seo-tekst/assets"]
-    .some((d) => existsSync(join(ROOT, d, n)) && chars(text(join(ROOT, d, n))) >= 1000));
-  return bad.length ? `нет или пусты: ${bad.join(", ")} - /seo-faq остался без своих правил` : true;
+step("ассеты /seo-faq на месте: VOICE и BLOCKS-METRICS в seo-faq/assets, faq-builder читает их оттуда", () => {
+  const dir = ".claude/skills/seo-faq/assets";
+  const bad = ["VOICE.md", "BLOCKS-METRICS.md"].filter((n) => !(existsSync(join(ROOT, dir, n)) && chars(text(join(ROOT, dir, n))) >= 1000));
+  if (bad.length) return `нет или пусты: ${bad.join(", ")} - /seo-faq остался без своих правил`;
+  const agent = text(join(ROOT, ".claude/agents/faq-builder.md"));
+  const miss = ["VOICE.md", "BLOCKS-METRICS.md"].filter((n) => !agent.includes(`${dir}/${n}`));
+  return miss.length ? `faq-builder не читает ${miss.join(", ")} из ${dir}` : true;
 });
 
 step("анализ не подменяет /seo-faq и не плодит скилов site-* сверх двух (site-analiz, site-tekst)", () => {

@@ -51,7 +51,7 @@ frontmatter (`model: sonnet` или `model: opus`). Правило отнесе�
 механика по чек-листу/шаблону/инструкции -> `sonnet`; клиентская проза, вердикт
 или аудит -> `opus`. `model: inherit` не использовать.
 
-## Таблица агентов (64)
+## Таблица агентов (55)
 
 | Агент | Модель | Почему |
 |---|---|---|
@@ -69,14 +69,12 @@ frontmatter (`model: sonnet` или `model: opus`). Правило отнесе�
 | audit-recon | sonnet | Сбор карточки сайта (host_id, counter_id, CMS) по чек-листу |
 | audit-verifier | opus | Факт-чек audit_data.json против 4 источников + вердикт - аудит |
 | audit-writer | opus | Сборка отчёта с приоритизацией проблем и чеклистом - суждение |
-| block-planner | opus | Состав и порядок блоков, функции и режимы - проектное суждение (механику разворачивает slot-mapper, ADR-036) |
 | brief-structurer | opus | Разбор свободного брифа в параметры - интерпретация |
 | cannibalization-resolver | opus | Разрешение конфликтов каннибализации - суждение |
 | client-profiler | sonnet | Сбор данных с сайта в ЗАКАЗЧИК.md по шаблону |
 | competitor-analyst | opus | Типизация конкурентов + вердикт по выдаче |
 | competitor-finder | opus | Поиск/отбор доменов; конвейер v7 весь на opus (решение владельца 22.08) |
 | context-gatherer | opus | Сбор релевантного контекста + порождение трактовок произвольного вопроса - интерпретация и суждение (не чек-лист) |
-| copy-auditor | opus | Редактор продающего текста: смысл+грамотность - суждение |
 | direction-scanner | opus | Разведка направления: интерпретация топа, must_have и gaps |
 | enhancer | opus | HTML-элементы + FAQ + Schema по смыслу - содержательные вставки |
 | faq-builder | opus | FAQ + перелинковка с вшиванием N-грамм - клиентская проза |
@@ -89,22 +87,16 @@ frontmatter (`model: sonnet` или `model: opus`). Правило отнесе�
 | master-list-builder | opus | Типизация и спаривание страниц - проектное суждение |
 | metatag-researcher | sonnet | Батч частотности/коммерциализации/подсказок - сбор данных |
 | metatag-writer | opus | Финальные H1/Title/Description - клиентская микро-проза |
-| offer-strategist | opus | Позиционирование + формула оффера - стратегическое суждение |
-| page-writer | opus | Конверсионный текст страницы - клиентская проза |
 | pages-planner | opus | v8 /site-analiz, шаг 3b: состав страниц без SEO из project.json в structure_data.json (tier basic) - проектное суждение |
 | photo-promter | sonnet | Промты для фото по меткам [ФОТО] - генерация по форме |
 | photo-producer | sonnet | Генерация+публикация фото по prompts.md, ретраи, urls.json - механика по инструкции |
-| prototype-builder | opus | Сборка прототипа: подбор фрагментов и правка под verify - решения |
-| prototype-fixer | opus | Разбор голосовых правок + правка прототипа - интерпретация |
 | section-writer | opus | Пишет один H2-раздел статьи - клиентская проза |
 | semantic-expander | sonnet | JM semantic_pack: топ-30 на маркер - сбор данных |
 | seo-base | opus | SEO-база структуры: отбор конкурентов с метриками, вердикт по выдаче, стоп-лист - суждение |
 | serp-verdict | opus | SERP-анализ + вердикт совместимости - суждение |
 | site-intake | opus | v8: разбор вводной и засев фактуры из чего угодно - суждение о провенансе |
 | site-market | opus | v8: смыслы ЦА и конкурентов, портреты и возражения - содержательное суждение |
-| site-reviewer | opus | Кросс-страничный аудит текстов - консистентность и суждение |
 | site-scanner | sonnet | Скан живого сайта (sitemap + текущие мета) по шаблону |
-| slot-mapper | opus | Механическая транскрипция (ADR-036), но конвейер v7 весь на opus (решение владельца 22.08) |
 | solution-verifier | opus | Независимая вычитка решения клиенту (факт-чек, простота языка, полнота) - аудит |
 | solution-writer | opus | Решение/ответ заказчику в клиентской прозе - писатель + суждение |
 | strategy-scanner | sonnet | Скан сайта + первичные метрики - сбор данных |
@@ -113,7 +105,6 @@ frontmatter (`model: sonnet` или `model: opus`). Правило отнесе�
 | structure-verifier | opus | Смысловая вычитка A6.md - аудит |
 | structure-writer | opus | Финальный A6.md: формулировки и обоснования - клиентский документ |
 | tariff-architect | sonnet | Подбор трёх тарифов из TARIFFS.md по правилам RULES.md - механика |
-| tekst-verifier | opus | Независимая вычитка текстов сайта (факты против facts.json, функции и баланс блоков, словарь, решения заказчика) - аудит |
 | template-designer | sonnet | Генерация template.html из мастера + ЗАКАЗЧИК по шаблону |
 | text-auditor | opus | Вычитка (маркеры, законность РФ, повествование) - суждение |
 | topic-generator | opus | Генерация 15-25 тем для блога - креатив и суждение |

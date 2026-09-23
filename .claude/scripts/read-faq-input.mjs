@@ -119,7 +119,7 @@ try {
     const queriesBySlug = {};
     if (existsSync(pj)) for (const p of (readJson(pj).pages || [])) queriesBySlug[p.slug] = { marker: p.marker, queries: p.queries || [], url: p.url };
     const pagesDir = join(tdir, "pages");
-    if (!existsSync(pagesDir)) { console.error(`[read-faq-input] нет pages/ в ${tdir} (сначала прогони /seo-tekst)`); process.exit(1); }
+    if (!existsSync(pagesDir)) { console.error(`[read-faq-input] нет pages/ в ${tdir}: задача v7 без написанных страниц, FAQ собирать не из чего`); process.exit(1); }
     for (const d of readdirSync(pagesDir)) {
       const pdir = join(pagesDir, d);
       const pfile = join(pdir, "page.json");
