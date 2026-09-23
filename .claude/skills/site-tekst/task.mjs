@@ -333,6 +333,8 @@ function status(a) {
   const L = [`${rel}: state ${meta.state || 'init'}, источник ${meta.source}${meta.site ? ' ' + meta.site : ''}${meta.structure ? ', структура ' + meta.structure : ''}`];
   const rep = readJsonSafe(path.join(abs, 'work', 'import-report.json'));
   if (rep) L.push(`импорт: предупреждений ${(rep.warnings || []).length}, пустых полей ${(rep.empty || []).length}, антиобещаний без регулярки ${((rep.anti && rep.anti.pending) || []).length}`);
+  const d9 = rep && rep.gate && rep.gate.decisions && rep.gate.decisions.d9;
+  if (d9) L.push(`состав страниц (d9): ${d9.value}; ${d9.how}`);
   const facts = readJsonSafe(path.join(abs, 'work', 'facts.json'));
   if (facts) L.push(`факты: ${(facts.facts || []).length} (publish yes ${(facts.facts || []).filter(f => f.publish === 'yes').length}), пробелов ${(facts.gaps || []).length}`);
   const sm = readJsonSafe(path.join(abs, 'work', 'sitemap.json'));

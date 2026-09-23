@@ -89,7 +89,7 @@ SEO-слой в текстах не делается: за него отвеча
 | `serve.mjs [--dir --port]` | локальный просмотр прототипа в браузере |
 | `validate.mjs <schema> <file>` | проверка JSON по схеме |
 | `normalize.mjs <file...>` | буква е с точками -> е, длинные тире -> «-», в текстах и инструкциях |
-| `import-project.mjs [--project --facts-src --queue --structure --allow-ungated]` | фаза 0 режима `project`: импорт контракта анализа во входы текстов, только после гейта анализа; `--apply-patterns <file>` - проверка и перенос регулярок антиобещаний |
+| `import-project.mjs [--project --facts-src --queue --structure --allow-ungated]` | фаза 0 режима `project`: импорт контракта анализа во входы текстов, только после гейта анализа; связь возражений с фактами - `objection[].facts` контракта (эвристика - только у старого контракта без поля); служебная пометка вместо факта - правило `SERVICE_NOTE` анализа (`serviceNoteRule` в `lib.mjs`); решения гейта d1-d9 (d9 - состав страниц) - в `work/import-report.json` и `inputs/analysis.md`; `--apply-patterns <file>` - проверка и перенос регулярок антиобещаний |
 | `render-analysis.mjs` | модуль `import-project`: `inputs/analysis.md` из контракта с фиксированными заголовками (их грепают промты фаз 2, 3, 7) |
 | `import-structure.mjs` | импорт готовой структуры в `sitemap.json` |
 | `fetch-page.mjs <url> <out.json>` | снимок страницы: html, текст по секциям заголовков, статус ok / antibot / js_only / closed |
@@ -130,6 +130,7 @@ SEO-слой в текстах не делается: за него отвеча
 на `examples/smoke-fixtures` и синтетических данных - `init-project`, `build-briefs` + `writer-inputs` (срезы по схеме, факты из текста задания),
 `blind-prep`, `page-state`, `plan-run` (`hero_mode`, `sample`), `merge-strategy` (`--split` и сборка обратно, `--check`), `prep-args`,
 `dedup` + `cross-digest` (гео-близнецы, утечки гео-фактов), `split-cross` (статусы фиксера, `--merge`), `retro-stats` (пустая и битая папка,
-копии `split_from`), `import-project` + `render-analysis` (синтетический `project.json`, гейт, `--allow-ungated`, `--apply-patterns`, `--structure`),
+копии `split_from`), `import-project` + `render-analysis` (синтетический `project.json`, гейт, `--allow-ungated`, `--apply-patterns`, `--structure`,
+`objection[].facts`, решение d9, правило `SERVICE_NOTE` из `_contract.mjs` анализа и его копия в kit),
 схема конфига без `sources.mode`. Синтетический `project.json` сверяется со схемой анализа site-analiz, если она есть на машине.
 Цепочка скриптов вручную на тех же фикстурах - `examples/smoke-fixtures/README.md`.

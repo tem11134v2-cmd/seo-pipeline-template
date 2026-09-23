@@ -324,6 +324,14 @@ step('status: волна 1, предложение пилота, прототи�
   const r = task(Q, 'status', '1');
   return (r.code === 0 && /волна 1: 2 стр\., брифов 2/.test(r.stdout) && /пилот \(предложение\): home,okna-rehau/.test(r.stdout) && /прототип: texts\/001-smoke\/work\/output\/prototype\.html/.test(r.stdout) && r.stdout.split('\n').length <= 15) || r.out;
 });
+step('status: решение d9 (состав страниц) из отчета импорта - на гейте 1', () => {
+  const rep = path.join(S, 'work', 'import-report.json');
+  const had = fs.existsSync(rep) ? fs.readFileSync(rep) : null;
+  wj(rep, { gate: { approved: true, decisions: { d9: { name: 'состав страниц', value: '2 страниц в работе, снято 1; источник - состав анализа (pages-planner)', how: 'молчание заказчика, принят рекомендованный дефолт (j1)' } } }, warnings: [], empty: [], anti: { pending: [] } });
+  const r = task(Q, 'status', '1');
+  if (had) fs.writeFileSync(rep, had); else fs.rmSync(rep);
+  return (r.code === 0 && /состав страниц \(d9\): 2 страниц в работе, снято 1; источник - состав анализа \(pages-planner\); молчание заказчика/.test(r.stdout) && r.stdout.split('\n').length <= 15) || r.out;
+});
 step('preview: конфиг site-tekst-001 с serve.mjs задачи в .claude/launch.json', () => {
   const r = task(Q, 'preview', '1'); const j = json(r.stdout);
   const lj = rj(path.join(Q, '.claude', 'launch.json'));

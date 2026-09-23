@@ -1,6 +1,7 @@
 // Общие функции для скриптов пайплайна. Node 18+. Запуск из корня папки проекта.
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 export const ROOT = process.cwd();
 export const P = (...parts) => path.join(ROOT, ...parts);
@@ -44,6 +45,29 @@ export function esc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 export const cyr = (p, flags = 'i') => new RegExp(String(p).replace(/\\b/g, B), flags);
 // Клише и запреты ловим по основам слов: «индивидуальный подход» -> «индивидуальн[а-яa-z]* подход[а-яa-z]*»
 export const stemRe = phrase => new RegExp(B + String(phrase).trim().split(/\s+/).map(w => (w.length > 4 ? esc(w.slice(0, -2)) + '[а-яa-z]*' : esc(w))).join('\\s+'), 'i');
+
+// ---------- служебная пометка вместо значения факта ----------
+// Правило одно - SERVICE_NOTE в .claude/scripts/site/_contract.mjs проекта (им же пользуются verify-data.mjs и
+// apply-answers.mjs анализа). serviceNoteRule() ищет этот модуль вверх от переданных папок (папка project.json,
+// папка запуска) и берет правило оттуда. SERVICE_NOTE_COPY - только для kit вне проекта (временные папки тестов);
+// что копия совпадает с правилом анализа, сверяет набор tests/site-tekst.
+export const SERVICE_NOTE_COPY = /в этой версии|не разворачива|уточн[а-я]* (у заказчика|у клиента|позже|потом)|запрос[а-я]* (ответ|позже)|ответ позже|нет данных|данных нет|(^|[^a-z])(todo|tbd|tba)([^a-z]|$)|\?\?|\[(заполнить|уточнить|нужно)|см\. выше/i;
+export async function serviceNoteRule(...starts) {
+  const seen = new Set();
+  for (const s of starts.filter(Boolean)) {
+    for (let d = path.resolve(s); !seen.has(d); d = path.dirname(d)) {
+      seen.add(d);
+      const f = path.join(d, '.claude', 'scripts', 'site', '_contract.mjs');
+      if (exists(f)) {
+        try {
+          const m = await import(pathToFileURL(f).href);
+          if (m.SERVICE_NOTE instanceof RegExp) return { re: m.SERVICE_NOTE, from: f };
+        } catch { /* модуль не грузится - ищем дальше, в конце копия */ }
+      }
+    }
+  }
+  return { re: SERVICE_NOTE_COPY, from: '' };
+}
 
 // ---------- нормализация текста (house style) ----------
 export function normalizeText(s) {

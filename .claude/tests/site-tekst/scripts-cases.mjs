@@ -11,8 +11,8 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { validate } from '../../skills/site-tekst/kit/scripts/lib.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { validate, SERVICE_NOTE_COPY } from '../../skills/site-tekst/kit/scripts/lib.mjs';
 import { blockId } from '../../skills/site-tekst/kit/scripts/render-analysis.mjs';
 
 const TPL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'skills', 'site-tekst', 'kit');
@@ -508,8 +508,10 @@ try {
       },
       audience: {
         segments: [
-          { id: 'family', name: 'Семья в новостройке', who: 'Пара 30-40 лет с ключами от квартиры в новостройке', dirs: ['okna'], pain: ['дует из-под подоконника', 'непонятно, за что платим в смете'], fear: ['поставят криво'], objection: [{ says: 'все равно будет дуть', answer: 'монтаж по ГОСТ 30971, работаем с 2012 года' }, { says: 'цена вырастет после замера', behind: 'обжигались на допах', answer: 'смета по замеру фиксируется в договоре' }], choose: ['гарантия в договоре', 'понятная смета'] },
-          { id: 'dacha', name: 'Владелец дачи', who: '', pain: ['старые деревянные окна', 'холодно зимой на веранде'], objection: [{ says: 'долго ждать замера', answer: 'замер на следующий день после заявки' }, { says: 'грязь после монтажа', answer: 'мусор после монтажа увозим сами' }], choose: ['скорость', 'чистота'] },
+          // O1 и O4 без поля facts (старый контракт) - эвристика; O2 - facts из контракта (f04 не публикуется,
+          // f09 нет среди фактов - обе ссылки снимаются с предупреждением); O3 - facts: [] (ответ держится рассуждением)
+          { id: 'family', name: 'Семья в новостройке', who: 'Пара 30-40 лет с ключами от квартиры в новостройке', dirs: ['okna'], pain: ['дует из-под подоконника', 'непонятно, за что платим в смете'], fear: ['поставят криво'], objection: [{ says: 'все равно будет дуть', answer: 'монтаж по ГОСТ 30971, работаем с 2012 года' }, { says: 'цена вырастет после замера', behind: 'обжигались на допах', answer: 'смета по замеру фиксируется в договоре', facts: ['f02', 'f04', 'f09'] }], choose: ['гарантия в договоре', 'понятная смета'] },
+          { id: 'dacha', name: 'Владелец дачи', who: '', pain: ['старые деревянные окна', 'холодно зимой на веранде'], objection: [{ says: 'долго ждать замера', answer: 'замер на следующий день после заявки', facts: [] }, { says: 'грязь после монтажа', answer: 'мусор после монтажа увозим сами' }], choose: ['скорость', 'чистота'] },
         ],
         words: [{ say: 'чтобы не дуло', means: 'герметичный монтажный шов', src: 'forum' }, { say: 'теплые окна', src: 'persona' }],
       },
@@ -606,6 +608,11 @@ try {
     const aud = rj(IW('audience.json'));
     check('import: портрет без who - имя сегмента', aud.segments[1].portrait === 'Владелец дачи' && aud.segments[0].comes_with === 'дует из-под подоконника');
     check('import: возражения O1..O4 и связь с фактом по числу', aud.segments.flatMap(s => s.objections.map(o => o.id)).join() === 'O1,O2,O3,O4' && canon(aud.segments[0].objections[0].facts) === canon(['F01']), JSON.stringify(aud.segments[0].objections));
+    const objs = aud.segments.flatMap(s => s.objections);
+    check('import: objection[].facts из контракта берутся как есть, только публикуемые (O2 -> F02, O3 пусто)', canon(objs[1].facts) === canon(['F02']) && canon(objs[2].facts) === canon([]), JSON.stringify(objs.map(o => [o.id, o.facts])));
+    check('import: снятые ссылки objection[].facts - в предупреждениях (f04 не публикуется, f09 нет в фактах)', rep.warnings.some(w => /^O2: факт F04 из objection\[\]\.facts не публикуется/.test(w)) && rep.warnings.some(w => /^O2: факт f09 из objection\[\]\.facts не импортирован/.test(w)), JSON.stringify(rep.warnings));
+    const hObj = (rep.heuristic.find(h => h.field === 'audience.objections[].facts') || { items: [] }).items;
+    check('import: эвристика связи возражения с фактом - только у возражений без поля facts', hObj.some(x => x === 'O1: F01') && !hObj.some(x => /^O[23]:/.test(x)) && rep.counts.objections_facts_from_contract === 2 && rep.counts.objections_facts_heuristic === 2, JSON.stringify({ hObj, counts: rep.counts }));
     check('import: слово клиента без means - meaning = say, src сохранен', aud.client_phrases[1].meaning === 'теплые окна' && aud.client_phrases[1].src === 'persona');
     const prefs = rj(IW('client-preferences.json'));
     check('import: пожелание d2 с фактом доказательства F02', prefs.items.some(x => x.source === 'gate:d2' && x.status === 'candidate' && canon(x.facts) === canon(['F02'])) && prefs.items.some(x => x.where === 'must-say'));
@@ -617,6 +624,8 @@ try {
     const sd = rj(path.join(I, 'inputs', 'structure_data.json'));
     check('import --structure: копия со снятым слешем и счетом сверки', sd.pages.map(p => p.url).join() === '/okna,/okna/novomoskovsk,/dveri,/' && rep.structure.slash_fixed === 2 && rep.structure.pages_with_dir_id === 1 && rep.structure.pages_matched_by_url === 1 && cfg.sources.structure_input === structFile, JSON.stringify(rep.structure));
     check('import --structure: неизвестный dir:<id> - предупреждение', rep.warnings.some(w => /dir:<id>, которых нет в business\.directions: dveri/.test(w)), JSON.stringify(rep.warnings));
+    const d9main = rep.gate.decisions.d9 || {};
+    check('import: решение d9 в отчете - состав из внешней структуры (SEO), 4 страницы, принят ее гейтом', d9main.name === 'состав страниц' && /^4 страниц в работе; источник - /.test(d9main.value || '') && /гейте \/seo-struktura/.test(d9main.how || ''), JSON.stringify(d9main));
     check('import: реквизиты при гейте - confirmed', facts.company.status === 'confirmed' && facts.company.phones?.[0] === '+7 000 000-00-00');
     // render-analysis: заголовки-контракт, цитаты дословно, house style
     const md = fs.readFileSync(path.join(I, 'inputs', 'analysis.md'), 'utf8');
@@ -643,6 +652,57 @@ try {
     check('import --apply-patterns: \\b и .* - код 1 с причинами', apBad.code === 1 && /не работают с кириллицей/.test(apBad.out) && /без предела/.test(apBad.out), apBad.out);
     const reimp = run(I, ['scripts/import-project.mjs', '--queue', path.join(SITE, 'queue.json')]);
     check('import: повторный импорт - код 0, регулярка с тем же текстом не применена из плохого файла', reimp.code === 0 && rj(IW('facts.json')).anti_promises[0].lint_pattern === '(?!)', reimp.out);
+
+    // d9 при tier basic: состав пишет анализ (sites/NNN/structure_data.json), молчание заказчика по d9 - строка журнала гейта
+    {
+      const D = path.join(tmpRoot, 'import-d9');
+      run(TPL, ['scripts/init-project.mjs', 'okna-d9', D, '--project', projectFile]);
+      const sdSite = path.join(SITE, 'structure_data.json');
+      wj(sdSite, { pages: [{ n: 1, url: '/', name: 'Главная', type: 'Главная', target_status: 'yes' }, { n: 2, url: '/okna', name: 'Пластиковые окна', type: 'Категория', section: 'dir:okna', target_status: 'yes' }, { n: 3, url: '/otzyvy', name: 'Отзывы', type: 'Инфо', target_status: 'no' }] });
+      const qD9 = path.join(SITE, 'queue-d9.json');
+      wj(qD9, { gate: { approved: true, by: 'заказчик', at: '2026-09-22' }, journal: [{ id: 'j1', kind: 'waiver', subject: 'молчание по решению d9 - состав страниц', ground: 'заказчик не поправил, принят рекомендованный состав: 2 страниц, снято 1' }] });
+      const r = run(D, ['scripts/import-project.mjs', '--queue', qD9, '--structure', sdSite]);
+      const dd = r.code === 0 ? (rj(path.join(D, 'work', 'import-report.json')).gate.decisions.d9 || {}) : {};
+      check('import: d9 при basic - состав анализа, снятая страница посчитана, молчание из журнала гейта', r.code === 0 && dd.value === '2 страниц в работе, снято 1; источник - состав анализа (pages-planner)' && /молчание заказчика, принят рекомендованный дефолт \(j1\)/.test(dd.how || ''), r.code ? r.out : JSON.stringify(dd));
+      const md9 = r.code === 0 ? fs.readFileSync(path.join(D, 'inputs', 'analysis.md'), 'utf8') : '';
+      check('import: d9 в таблице решений гейта analysis.md и в выводе импорта', /\n\| d9 \| состав страниц \| 2 страниц в работе, снято 1/.test(md9) && /решение d9 \(состав страниц\): 2 страниц в работе/.test(r.out), r.out);
+      fs.rmSync(sdSite, { force: true });
+    }
+
+    // служебная пометка вместо значения факта: одно правило с анализом - SERVICE_NOTE из .claude/scripts/site/_contract.mjs
+    {
+      const contractFile = path.resolve(TPL, '..', '..', '..', 'scripts', 'site', '_contract.mjs');
+      if (fs.existsSync(contractFile)) {
+        const { SERVICE_NOTE } = await import(pathToFileURL(contractFile).href);
+        check('SERVICE_NOTE: копия в kit (lib.mjs) совпадает с правилом анализа (_contract.mjs)', SERVICE_NOTE_COPY.source === SERVICE_NOTE.source && SERVICE_NOTE_COPY.flags === SERVICE_NOTE.flags, `${SERVICE_NOTE_COPY} | ${SERVICE_NOTE}`);
+      } else notes.push(`пропущено: нет ${contractFile}`);
+      // вне проекта (во временной папке нет .claude/scripts/site) - копия kit; «уточним позже» снимает publish
+      const pNote = JSON.parse(JSON.stringify(project));
+      pNote.facts.find(f => f.id === 'f05').value = 'телефон уточним позже';
+      const noteFile = path.join(SITE, 'project-note.json');
+      wj(noteFile, pNote);
+      const N1 = path.join(tmpRoot, 'import-note');
+      run(TPL, ['scripts/init-project.mjs', 'okna-note', N1, '--project', noteFile]);
+      const n1 = run(N1, ['scripts/import-project.mjs', '--queue', path.join(SITE, 'queue.json')]);
+      const n1f = n1.code === 0 ? rj(path.join(N1, 'work', 'facts.json')) : { facts: [], gaps: [] };
+      const n1r = n1.code === 0 ? rj(path.join(N1, 'work', 'import-report.json')) : { inputs: {} };
+      check('SERVICE_NOTE вне проекта: правило - копия kit, пометка снимает publish и уходит в gaps', n1.code === 0 && /^копия SERVICE_NOTE/.test(n1r.inputs.service_note_rule || '') && (n1f.facts.find(f => f.id === 'F05') || {}).publish === 'no' && n1f.gaps.some(g => /^F05 «телефон»: в анализе вместо факта пометка/.test(g)), n1.code ? n1.out : JSON.stringify({ rule: n1r.inputs.service_note_rule, gaps: n1f.gaps }));
+      // в проекте: правило берется из _contract.mjs, найденного вверх от project.json (подмененное правило ловит свою пометку)
+      const PR = path.join(tmpRoot, 'proj-note');
+      const fake = path.join(PR, '.claude', 'scripts', 'site', '_contract.mjs');
+      wt(fake, 'export const SERVICE_NOTE = /нестандартная пометка анализа/i;\n');
+      const pFake = JSON.parse(JSON.stringify(project));
+      pFake.facts.find(f => f.id === 'f05').value = 'нестандартная пометка анализа';
+      const fakeSite = path.join(PR, 'sites', '001-okna-test');
+      wj(path.join(fakeSite, 'project.json'), pFake);
+      wj(path.join(fakeSite, 'queue.json'), { gate: { approved: true, by: 'заказчик', at: '2026-09-21' }, journal: [] });
+      const N2 = path.join(PR, 'texts', '001-okna');
+      run(TPL, ['scripts/init-project.mjs', 'okna-note2', N2, '--project', path.join(fakeSite, 'project.json')]);
+      const n2 = run(N2, ['scripts/import-project.mjs']);
+      const n2f = n2.code === 0 ? rj(path.join(N2, 'work', 'facts.json')) : { facts: [] };
+      const n2r = n2.code === 0 ? rj(path.join(N2, 'work', 'import-report.json')) : { inputs: {} };
+      check('SERVICE_NOTE в проекте: правило из _contract.mjs анализа, а не копия kit', n2.code === 0 && path.resolve(n2r.inputs.service_note_rule || '.') === path.resolve(fake) && (n2f.facts.find(f => f.id === 'F05') || {}).publish === 'no', n2.code ? n2.out : JSON.stringify(n2r.inputs));
+    }
   }
 
   // ================================================================== 11. схема конфига: sources.mode необязателен

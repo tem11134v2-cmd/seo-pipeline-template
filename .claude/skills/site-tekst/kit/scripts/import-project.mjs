@@ -14,11 +14,15 @@
 // prompts/00-antipromise-patterns.md в work/anti-promises.patterns.json, а --apply-patterns проверяет каждую
 // на примерах агента (3 должны ловиться, 2 нет) и переносит прошедшие в work/facts.json. Если файл регулярок
 // уже есть, импорт применяет его сам (для антиобещаний с тем же текстом).
+// Связь возражения с фактами: objection[].facts контракта, если поле есть (только публикуемые, остальное - строкой
+// в warnings); у старого контракта без поля - эвристика по числу или паре слов (heuristic). Служебная пометка
+// вместо значения факта - одно правило с анализом, SERVICE_NOTE из .claude/scripts/site/_contract.mjs (lib.mjs ->
+// serviceNoteRule). Решения гейта d1-d8 и d9 (состав страниц) - в report.gate.decisions и в inputs/analysis.md.
 // Коды выхода: 0 - записано; 1 - выход не прошел схему или регулярки не прошли проверку; 2 - нет входа или гейт
 // анализа не согласован (queue.json -> gate.approved), без --allow-ungated.
 import fs from 'node:fs';
 import path from 'node:path';
-import { argv, P, readJson, writeJson, writeText, readText, exists, nowIso, loadSchema, validate, normalizeText, esc } from './lib.mjs';
+import { argv, P, readJson, writeJson, writeText, readText, exists, nowIso, loadSchema, validate, normalizeText, esc, serviceNoteRule } from './lib.mjs';
 import { renderAnalysis } from './render-analysis.mjs';
 
 const a = argv({ 'allow-ungated': 'bool' });
@@ -253,7 +257,10 @@ function quoteFound(q, where) {
 
 const Q_KIND = { price: 'number', price_factors: 'number', compare: 'number', numbers: 'number', cat_intro: 'number', docs: 'legal', steps: 'process', cta_form: 'process', cta_mid: 'process', geo: 'geo', delivery: 'geo', specs: 'product', gallery: 'product', product_desc: 'product', listing: 'product', subcats: 'product' };
 const CONTACT_RE = /телефон|e-?mail|почт[аыу]|(^|[^а-я])адрес|whatsapp|telegram|телеграм|вотсап|youtube|ютуб|(^|[^a-z])vk([^a-z]|$)|вконтакте|instagram|инстаграм|мессенджер|канал[а-я]* (компании|связи)|часы работы|график работы/i;
-const NOTE_RE = /в этой версии|не разворачива|уточн[а-я]* у заказчика|нет данных|не указан|(^|[^a-z])(todo|tbd)([^a-z]|$)|\?\?/i;
+// Служебная пометка вместо факта: одно правило с анализом - SERVICE_NOTE из .claude/scripts/site/_contract.mjs
+// (verify-data.mjs его уже проверяет; импорт - второй рубеж для анализа до гейта и старых контрактов).
+const NOTE = await serviceNoteRule(siteDir, process.cwd());
+report.inputs.service_note_rule = NOTE.from ? NOTE.from : 'копия SERVICE_NOTE в kit (_contract.mjs анализа не найден)';
 const QUALIFIER_RE = /^(до|от|около|более|свыше|менее|не более|не менее|порядка|примерно)\s/i;
 
 // Вид факта: из анализа (facts[].kind ставит site-intake, пустой выводит build-project.mjs), иначе мост q -> kind.
@@ -306,7 +313,7 @@ for (const f of p.facts) {
   if (geo) heur('facts[].geo', 'сверка label и value с business.geo[]', `${id}: ${geo}`);
   const wording = makeWording(id, label, value);
   let publish = f.publish === 'yes' ? 'yes' : 'no';
-  if (publish === 'yes' && NOTE_RE.test(value)) {
+  if (publish === 'yes' && NOTE.re.test(value)) {
     publish = 'no';
     warn(`${id} «${label}»: значение похоже на служебную пометку, а не на факт («${value}») - publish снят`);
     gapsOut.push(`${id} «${label}»: в анализе вместо факта пометка «${value}» - в публикацию не идет, нужен ответ заказчика`);
@@ -433,8 +440,9 @@ report.anti.failed = applied.failed;
 syncAntiGaps(facts, report, applied.conflicts);
 
 // ---------------------------------------------------------------- аудитория
-let objN = 0, objLinks = 0;
+let objN = 0, objLinks = 0, objFromContract = 0, objHeuristic = 0;
 const pubFacts = factsOut.filter(f => f.publish === 'yes');
+const pubIds = new Set(pubFacts.map(f => f.id)), outIds = new Set(factsOut.map(f => f.id));
 const nums = s => (String(s).match(/\d[\d\s]*\d|\d/g) || []).map(x => x.replace(/\s/g, '')).filter(x => x.length >= 2);
 // пары соседних значимых слов по основам (5 букв): «период строительства» = «периоду строительства»
 const bigrams = s => {
@@ -451,8 +459,25 @@ const segmentsOut = segs.slice(0, 9).map(s => {
   const objections = arr(s.objection).map(x => {
     objN++;
     const answer = T(x.answer);
-    const fl = linkFacts(answer);
-    if (fl.length) { objLinks++; heur('audience.objections[].facts', 'в ответе то же число или та же пара слов (по основам), что в value факта; стратег проверяет', `O${objN}: ${fl.join(', ')}`); }
+    let fl;
+    if (Array.isArray(x.facts)) {
+      // контракт анализа сам говорит, на какие факты опирается ответ (site-market, objection[].facts):
+      // берем как есть; в тексты идут только публикуемые, остальное - строкой в предупреждения
+      objFromContract++;
+      fl = [];
+      for (const raw of x.facts) {
+        const id = factIdMap[raw] || String(raw).replace(/^f/, 'F');
+        if (!outIds.has(id)) warn(`O${objN}: факт ${raw} из objection[].facts не импортирован - ссылка снята`);
+        else if (!pubIds.has(id)) warn(`O${objN}: факт ${id} из objection[].facts не публикуется (publish no) - ссылка снята`);
+        else if (!fl.includes(id)) fl.push(id);
+      }
+    } else {
+      // старый контракт без поля: связь по числу или паре слов (эвристика, стратег проверяет)
+      objHeuristic++;
+      fl = linkFacts(answer);
+      if (fl.length) heur('audience.objections[].facts', 'поля facts в контракте нет: в ответе то же число или та же пара слов (по основам), что в value факта; стратег проверяет', `O${objN}: ${fl.join(', ')}`);
+    }
+    if (fl.length) objLinks++;
     return { id: `O${objN}`, text: T(x.says), answer, ...(T(x.behind) ? { behind: T(x.behind) } : {}), facts: fl };
   });
   const pains = arr(s.pain).map(T).filter(Boolean);
@@ -574,6 +599,29 @@ if (structurePath) {
   if (!exists(structDest)) empty('structure_data.json', 'структуры нет: нужен --structure (seo-struktura или планировщик анализа) либо structure_mode fallback');
 }
 
+// ---------------------------------------------------------------- решение d9: состав сайта
+// При tier basic состав пишет анализ (pages-planner, sites/NNN/structure_data.json) и принимает его гейт решением d9:
+// ответ заказчика меняет только target_status. При tier seo состав решает /seo-struktura на своем гейте (A6.xlsx).
+{
+  const tier = T(queue && queue.tier) || T(p.tier);
+  let sd = null;
+  const src = structurePath || (exists(structDest) ? structDest : '');
+  try { sd = src ? readJson(src) : null; } catch { sd = null; }
+  const pages = arr(sd && sd.pages);
+  const origin = T(sd && sd.imported_from) || src;
+  const fromAnalysis = !!origin && path.resolve(path.dirname(origin)) === path.resolve(siteDir);
+  const off = pages.filter(x => x.target_status === 'no').length;
+  let value, how;
+  if (!pages.length) {
+    value = 'состава нет: карту строит фаза 0 (structure_mode fallback)';
+    how = tier === 'seo' ? 'tier seo: состав решает /seo-struktura' : decisionHow('d9');
+  } else {
+    value = `${pages.length - off} страниц в работе${off ? `, снято ${off}` : ''}; источник - ${fromAnalysis ? 'состав анализа (pages-planner)' : rel(origin)}`;
+    how = fromAnalysis ? decisionHow('d9') : 'состав структуры SEO: согласован на гейте /seo-struktura (A6.xlsx), не решением d9';
+  }
+  report.gate.decisions.d9 = { name: 'состав страниц', value, how };
+}
+
 // ---------------------------------------------------------------- счетчики, рендер, запись
 const kinds = {};
 factsOut.forEach(f => { kinds[f.kind] = (kinds[f.kind] || 0) + 1; });
@@ -583,7 +631,8 @@ report.counts = {
   facts: factsOut.length, facts_in_project: p.facts.length, publish_yes: pubFacts.length, kinds, geo_facts: factsOut.filter(f => f.geo).length,
   quotes_from_facts_src: qFromSrc, quotes_fallback: qFallback, quotes_verified_in_input: qVerified, quotes_not_found_in_input: qMissing, quotes_input_file_missing: qNoFile,
   anti_promises: antiOut.length, anti_auto: report.anti.auto.length, anti_pending: report.anti.pending.length,
-  segments: segmentsOut.length, objections: objN, objections_with_facts: objLinks, client_phrases: phrases.length,
+  segments: segmentsOut.length, objections: objN, objections_with_facts: objLinks,
+  objections_facts_from_contract: objFromContract, objections_facts_heuristic: objHeuristic, client_phrases: phrases.length,
   client_phrases_persona: phrases.filter(x => x.src === 'persona').length, preferences: prefCount,
   directions: directions.directions.length, competitors_seed: seedDomains.length, key_phrases: keyPhrases.length, gaps: facts.gaps.length,
 };
@@ -620,7 +669,8 @@ console.log(`импорт ${p.slug} (гейт: ${approved ? 'согласова�
 console.log(`факты: ${factsOut.length} (publish yes ${pubFacts.length}), kind ${JSON.stringify(kinds)}, гео ${report.counts.geo_facts}`);
 console.log(`цитаты: из facts-src ${qFromSrc} (найдено во входе ${qVerified}, не найдено ${qMissing}, нет файла ${qNoFile}), строкой «[src] label: value» ${qFallback}`);
 console.log(`антиобещания: ${antiOut.length}, без регулярки ${report.anti.pending.length}${report.anti.pending.length ? ' - нужен агент по prompts/00-antipromise-patterns.md' : ''}`);
-console.log(`аудитория: сегментов ${segmentsOut.length}, возражений ${objN}, слов клиентов ${phrases.length}; пожелания: ${JSON.stringify(prefCount)}`);
+console.log(`аудитория: сегментов ${segmentsOut.length}, возражений ${objN} (факты ответа из контракта ${objFromContract}, эвристикой ${objHeuristic}), слов клиентов ${phrases.length}; пожелания: ${JSON.stringify(prefCount)}`);
 console.log(`компания: ${company.status}; сайт: ${siteUrl || '-'}; конкурентов в затравке: ${seedDomains.length}; пробелов: ${facts.gaps.length}`);
 if (report.structure.copied) console.log(`структура: ${report.structure.pages} страниц -> ${rel(structDest)}`);
+console.log(`решение d9 (состав страниц): ${report.gate.decisions.d9.value}; ${report.gate.decisions.d9.how}`);
 for (const w of report.warnings) console.log(` ! ${w}`);
