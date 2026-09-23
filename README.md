@@ -1,6 +1,6 @@
 # SEO Pipeline Template
 
-Шаблон проекта SEO-конвейера на Claude Code Desktop. Покрывает: исследование сайта клиента, сбор тем для блога, написание статей с JM-анализом и контролем N-грамм, сборка HTML, Тильда-фиксы, аудит и правки, **формирование SEO-стратегий с тарифами** (стратегия .docx + смета .xlsx), **предпроектный анализ конкурентов** (A2.md + A3.md) и **построение структуры сайта на базе анализа** (A6.xlsx → клиенту → A6.md в проект).
+Шаблон проекта SEO-конвейера на Claude Code Desktop. Покрывает: исследование сайта клиента, сбор тем для блога, написание статей с JM-анализом и контролем N-грамм, сборка HTML, Тильда-фиксы, аудит и правки, **формирование SEO-стратегий с тарифами** (стратегия .docx + смета .xlsx), **предпроектный анализ** (`/site-analiz`: контракт `project.json` + два документа заказчику), **структуру сайта** по анализу (A6.xlsx -> клиенту -> A6.md), **тексты сайта** (`/site-tekst`: тексты уровня лидеров ниши + прототип одним html), метатеги, FAQ и техаудит.
 
 Архитектура — **worktree-first multi-task**: каждая задача в отдельной git worktree, единственная команда в основной папке — `/handoff-process` (применяет накопленные результаты). Подробности — в [docs/adr/](docs/adr/).
 
@@ -15,34 +15,31 @@
 ОДИНОЧКА - технический аудит (тех-здоровье сайта под Яндекс, самодостаточен; нужны доступы Вебмастер+Метрика)
   /seo-tehaudit <domain> -> A12.md + A12.docx (проблемы по приоритетам + чеклист разработчику)
 
-ТРЕК «Коммерческое SEO» (коммерческие страницы сайта, от брифа; /seo-shablon НЕ нужен)
-  1. /seo-analiz        -> A2.md (+ A3.md при tier=seo) (ступенчатый предпроектный анализ)
-  2. /seo-struktura NNN -> A6.xlsx -> клиент -> A6.md (структура сайта)
+ТРЕК «Сайт» (анализ -> [структура при SEO] -> тексты; от брифа, /seo-shablon НЕ нужен)
+  1. /site-analiz       -> sites/NNN: project.json + 2 документа заказчику + гейт (единственный вход;
+                           tier basic - состав страниц пишет сам анализ, structure_data.json)
+  2. /seo-struktura NNN -> A6.xlsx -> клиент -> A6.md + structure_data.json (только tier=seo)
        └─ с --metatags в конце автоматически -> A7.xlsx (метатеги)
   3. /seo-metategi      -> A7.xlsx (H1/Title/Description; или хвостом из шага 2)
-  4. /seo-tekst         -> Skeletons.docx (Google Doc, гейт скелетов) + prototype.html ОДНИМ файлом
-       на весь сайт (ДЕЛИВЕРАБЛ текстов: файл заказчику + Drive-копия файлом) + HANDOFF.md
-       (продающие тексты; гейт скелетов - согласование состава блоков заказчиком ДО письма;
-        тон-гейт - выбор манеры заказчиком на 3 вариантах живой главной; Texts.docx в v7.1 нет)
-       └─ /seo-tekst-fix NNN "..." - точечная правка прототипа + перезаливка Drive-файла
-  5. /seo-faq           -> faq.html (Schema.org FAQPage) на страницу + FAQ.docx
-       (SEO-нормализация: FAQ + плитка тегов + перелинковка с недостающими N-граммами)
+  4. /site-tekst --site NNN [--structure MMM] -> texts/KKK: тексты страниц + prototype.html
+       (алгоритм v9 в kit; гейты: карта, стратегия, пилот, волна 1)
+  5. /seo-faq --from-tekst KKK -> FAQ.docx (Schema.org FAQPage; только tier=seo)
 
-ТРЕК «Информационное SEO» (блог/статьи) - ПОЛНОСТЬЮ независим от коммерческого
+ТРЕК «Информационное SEO» (блог/статьи) - ПОЛНОСТЬЮ независим от трека «Сайт»
   1. /seo-shablon URL  -> ЗАКАЗЧИК.md + template.html (профиль + шаблон статьи)
   2. /seo-temi         -> topics.xlsx (15-25 тем для блога)
   3. /seo-statya N     -> Article.docx + output.html (на каждую тему)
 ```
 
 Связи - только ВНУТРИ трека, между треками их НЕТ:
-- `/seo-struktura` читает `analyses/NNN/brief.json + competitors.json + serp.json + leader_scan.json` (внутри коммерческого) - обязательная стыковка
+- `/seo-struktura` и `/site-tekst` читают `sites/NNN/project.json` от `/site-analiz` и только после гейта заказчика (внутри трека «Сайт»); состав страниц у текстов - `structure_data.json` структуры (seo) или анализа (basic)
 - `/seo-temi` и `/seo-statya` читают `ЗАКАЗЧИК.md` от `/seo-shablon` (внутри информационного); `/seo-statya` ещё `topics.xlsx + template.html`
 - `/seo-strategiya` ни от чего не зависит (читает `ЗАКАЗЧИК.md` если есть, иначе спрашивает нишу/регион напрямую)
 - `/seo-tehaudit` самодостаточен (домен + доступы Вебмастер/Метрика; `ЗАКАЗЧИК.md` не требуется); результат - чеклист для разработчика
 
 Заметки:
 - Направления независимы - бери любое, какое заказал клиент, в любом порядке (или несколько параллельно).
-- Порядок важен только ВНУТРИ трека (коммерческий: анализ перед структурой; информационный: шаблон перед темами/статьями).
+- Порядок важен только ВНУТРИ трека (сайт: анализ с гейтом -> структура при SEO -> тексты; информационный: шаблон перед темами/статьями).
 - `/seo-strategiya` можно запускать когда угодно (например, переутвердить тарифы).
 
 ---
@@ -172,102 +169,79 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── CLAUDE.md                            ← политика, читается каждой сессией
 │   ├── settings.json                        ← Claude Code hooks config
 │   │
-│   ├── agents/                              ← 58 субагентов (см. ниже)
-│   │   ├── client-profiler.md
-│   │   ├── template-designer.md
-│   │   ├── topic-generator.md
-│   │   ├── jm-analyst.md
-│   │   ├── tz-builder.md
-│   │   ├── section-writer.md
-│   │   ├── article-finalizer.md
-│   │   ├── text-auditor.md
-│   │   ├── enhancer.md
-│   │   ├── photo-promter.md
-│   │   ├── article-fixer.md
-│   │   ├── article-fixer-batch.md
-│   │   ├── strategy-scanner.md              ← /seo-strategiya
-│   │   ├── competitor-analyst.md            ← /seo-strategiya
-│   │   ├── growth-strategist.md             ← /seo-strategiya
-│   │   ├── tariff-architect.md              ← /seo-strategiya
-│   │   ├── strategy-writer.md               ← /seo-strategiya
-│   │   ├── brief-structurer.md              ← /seo-analiz
-│   │   ├── competitor-finder.md             ← /seo-analiz
-│   │   ├── serp-verdict.md                  ← /seo-analiz
-│   │   ├── leader-scanner.md                ← /seo-analiz
-│   │   ├── analysis-writer.md               ← /seo-analiz
-│   │   ├── master-list-builder.md           ← /seo-struktura
-│   │   ├── marker-finder.md                 ← /seo-struktura
-│   │   ├── semantic-expander.md             ← /seo-struktura
-│   │   ├── cannibalization-resolver.md      ← /seo-struktura
-│   │   ├── structure-writer.md              ← /seo-struktura
-│   │   ├── site-scanner.md                  ← /seo-metategi
-│   │   ├── metatag-researcher.md            ← /seo-metategi
-│   │   ├── metatag-writer.md                ← /seo-metategi
-│   │   ├── audit-recon.md                   ← /seo-tehaudit
-│   │   ├── audit-indexing.md                ← /seo-tehaudit
-│   │   ├── audit-onpage.md                  ← /seo-tehaudit
-│   │   ├── audit-analytics.md               ← /seo-tehaudit
-│   │   ├── audit-writer.md                  ← /seo-tehaudit
-│   │   ├── audience-analyst.md              ← /seo-analiz (v7: ступень 2, анализ ЦА)
-│   │   ├── offer-strategist.md              ← /seo-tekst
-│   │   ├── leader-scanner.md                ← /seo-analiz (v2: + блок-матрица, поглотил leader-block-scanner)
-│   │   ├── direction-scanner.md             ← /seo-analiz (v7: ступень 3, разведка направлений)
-│   │   ├── block-planner.md                 ← /seo-tekst
-│   │   ├── page-writer.md                   ← /seo-tekst
-│   │   ├── copy-auditor.md                  ← /seo-tekst
-│   │   ├── site-reviewer.md                 ← /seo-tekst
-│   │   ├── prototype-builder.md             ← /seo-tekst
-│   │   ├── prototype-fixer.md               ← /seo-tekst-fix
-│   │   └── faq-builder.md                   ← /seo-faq
+│   ├── agents/                              ← 45 субагентов (см. ниже)
+│   │   ├── client-profiler.md                   ← /seo-shablon
+│   │   ├── template-designer.md                 ← /seo-shablon
+│   │   ├── topic-generator.md                   ← /seo-temi
+│   │   ├── topics-verifier.md                   ← /seo-temi
+│   │   ├── jm-analyst.md                        ← /seo-statya
+│   │   ├── tz-builder.md                        ← /seo-statya
+│   │   ├── section-writer.md                    ← /seo-statya
+│   │   ├── article-finalizer.md                 ← /seo-statya
+│   │   ├── text-auditor.md                      ← /seo-statya
+│   │   ├── article-fixer-batch.md               ← /seo-statya
+│   │   ├── enhancer.md                          ← /seo-statya
+│   │   ├── photo-promter.md                     ← /seo-statya
+│   │   ├── photo-producer.md                    ← /seo-statya
+│   │   ├── article-verifier.md                  ← /seo-statya
+│   │   ├── fast-writer.md                       ← /seo-statya
+│   │   ├── article-fixer.md                     ← /fix-article
+│   │   ├── strategy-scanner.md                  ← /seo-strategiya
+│   │   ├── competitor-analyst.md                ← /seo-strategiya
+│   │   ├── growth-strategist.md                 ← /seo-strategiya
+│   │   ├── tariff-architect.md                  ← /seo-strategiya
+│   │   ├── strategy-writer.md                   ← /seo-strategiya
+│   │   ├── strategy-verifier.md                 ← /seo-strategiya
+│   │   ├── site-intake.md                       ← /site-analiz
+│   │   ├── site-market.md                       ← /site-analiz
+│   │   ├── pages-planner.md                     ← /site-analiz
+│   │   ├── seo-base.md                          ← /seo-struktura
+│   │   ├── master-list-builder.md               ← /seo-struktura
+│   │   ├── marker-finder.md                     ← /seo-struktura
+│   │   ├── semantic-expander.md                 ← /seo-struktura
+│   │   ├── cannibalization-resolver.md          ← /seo-struktura
+│   │   ├── structure-writer.md                  ← /seo-struktura
+│   │   ├── structure-verifier.md                ← /seo-struktura
+│   │   ├── site-scanner.md                      ← /seo-metategi
+│   │   ├── metatag-researcher.md                ← /seo-metategi
+│   │   ├── metatag-writer.md                    ← /seo-metategi
+│   │   ├── audit-recon.md                       ← /seo-tehaudit
+│   │   ├── audit-indexing.md                    ← /seo-tehaudit
+│   │   ├── audit-onpage.md                      ← /seo-tehaudit
+│   │   ├── audit-analytics.md                   ← /seo-tehaudit
+│   │   ├── audit-writer.md                      ← /seo-tehaudit
+│   │   ├── audit-verifier.md                    ← /seo-tehaudit
+│   │   ├── faq-builder.md                       ← /seo-faq
+│   │   ├── context-gatherer.md                  ← /custom-question
+│   │   ├── solution-writer.md                   ← /custom-question
+│   │   └── solution-verifier.md                 ← /custom-question
 │   │
-│   ├── skills/                              ← 28 скилов
-│   │   ├── guide/SKILL.md                   (любая зона, справочник процесса)
-│   │   ├── seo-shablon/SKILL.md           (worktree, исследование сайта)
-│   │   ├── seo-temi/SKILL.md              (worktree, сбор тем)
-│   │   ├── share-topics/SKILL.md            (worktree, загрузка Topics.xlsx в Drive)
-│   │   ├── seo-statya/SKILL.md           (worktree, цикл статьи)
-│   │   ├── fix-article/SKILL.md             (worktree, точечная правка)
-│   │   ├── rewrite-section/SKILL.md         (worktree, переписать один H2)
-│   │   ├── share-article/SKILL.md           (worktree, загрузка Article.docx в Drive)
-│   │   ├── seo-strategiya/                        (worktree, стратегия + тарифы)
-│   │   │   ├── SKILL.md
-│   │   │   ├── MCP_MAP.md
-│   │   │   └── strategy_data_schema.json
-│   │   ├── share-strategy/SKILL.md          (worktree, загрузка .docx + .xlsx в Drive)
-│   │   ├── seo-analiz/                    (worktree, предпроектный анализ)
-│   │   │   ├── SKILL.md
-│   │   │   └── MCP_MAP.md
-│   │   ├── share-analysis/SKILL.md          (worktree, загрузка A2.docx в Drive)
-│   │   ├── seo-struktura/                   (worktree, структура сайта по анализу)
-│   │   │   ├── SKILL.md
-│   │   │   └── MCP_MAP.md
-│   │   ├── share-structure/SKILL.md         (worktree, загрузка A6.xlsx в Drive)
-│   │   ├── seo-metategi/                    (worktree, метатеги H1/Title/Description)
-│   │   │   ├── SKILL.md
-│   │   │   ├── MCP_MAP.md
-│   │   │   └── PLAYBOOK.md
-│   │   ├── share-metatags/SKILL.md          (worktree, загрузка A7.xlsx в Drive)
-│   │   ├── seo-tehaudit/                     (worktree, технический аудит сайта)
-│   │   │   ├── SKILL.md
-│   │   │   └── MCP_MAP.md
-│   │   ├── share-audit/SKILL.md             (worktree, загрузка A12.docx в Drive)
-│   │   ├── seo-tekst/                       (worktree, конверсионные тексты + HTML-прототипы)
-│   │   │   ├── SKILL.md
-│   │   │   ├── MCP_MAP.md
-│   │   │   └── assets/                      (BLOCKS.md + BLOCKS-METRICS.md, COPY.md, VOICE.md, COPY-AUDIT.md,
-│   │   │                                     KIT-SPEC.md, LEGAL.md, ORCHESTRATOR-REF.md, fragments-manifest.json,
-│   │   │                                     PROTOTYPE-MASTER.html, prototype.css, prototype.js,
-│   │   │                                     arrow.svg, fragments/, legal/, themes/ - только theme-wireframe, ADR-039)
-│   │   ├── seo-tekst-fix/SKILL.md           (worktree, точечная правка прототипа)
-│   │   ├── share-tekst/SKILL.md             (worktree, перезаливка Skeletons.docx / tone-preview.html / prototype.html в Drive)
-│   │   ├── seo-faq/                         (worktree, SEO-нормализация: FAQ + теги + перелинковка)
-│   │   │   ├── SKILL.md
-│   │   │   └── MCP_MAP.md
-│   │   ├── share-faq/SKILL.md               (worktree, загрузка FAQ.docx в Drive)
-│   │   ├── request-shared-edit/SKILL.md     (worktree, запрос на общий файл)
-│   │   ├── handoff/SKILL.md                 (worktree, финализация)
-│   │   ├── handoff-process/SKILL.md         (main, применение запросов)
-│   │   └── sync-from-template/SKILL.md      (main, обновление машинерии из шаблона)
+│   ├── skills/                              ← 25 скилов
+│   │   ├── guide/SKILL.md                       (любая зона, справочник процесса)
+│   │   ├── seo-shablon/SKILL.md                 (worktree, исследование сайта)
+│   │   ├── seo-temi/SKILL.md                    (worktree, сбор тем)
+│   │   ├── share-topics/SKILL.md                (worktree, загрузка Topics.xlsx в Drive)
+│   │   ├── seo-statya/SKILL.md                  (worktree, цикл статьи; SKILL.md + REFERENCE.md)
+│   │   ├── fix-article/SKILL.md                 (worktree, точечная правка)
+│   │   ├── rewrite-section/SKILL.md             (worktree, переписать один H2)
+│   │   ├── share-article/SKILL.md               (worktree, загрузка Article.docx в Drive)
+│   │   ├── seo-strategiya/SKILL.md              (worktree, стратегия + тарифы; MCP_MAP.md, strategy_data_schema.json)
+│   │   ├── share-strategy/SKILL.md              (worktree, загрузка .docx + .xlsx в Drive)
+│   │   ├── site-analiz/SKILL.md                 (worktree, предпроектный анализ: project.schema.json, pages.yml, шаблоны документов)
+│   │   ├── seo-struktura/SKILL.md               (worktree, структура сайта по sites/NNN; MCP_MAP.md)
+│   │   ├── share-structure/SKILL.md             (worktree, загрузка A6.xlsx в Drive)
+│   │   ├── seo-metategi/SKILL.md                (worktree, метатеги; MCP_MAP.md, PLAYBOOK.md)
+│   │   ├── share-metatags/SKILL.md              (worktree, загрузка A7.xlsx в Drive)
+│   │   ├── seo-tehaudit/SKILL.md                (worktree, технический аудит; MCP_MAP.md)
+│   │   ├── share-audit/SKILL.md                 (worktree, загрузка A12.docx в Drive)
+│   │   ├── site-tekst/SKILL.md                  (worktree, тексты сайта v9: SKILL.md, task.mjs, kit/)
+│   │   ├── seo-faq/SKILL.md                     (worktree, SEO-нормализация; MCP_MAP.md, assets/VOICE.md, assets/BLOCKS-METRICS.md)
+│   │   ├── share-faq/SKILL.md                   (worktree, загрузка FAQ.docx в Drive)
+│   │   ├── custom-question/SKILL.md             (worktree, нестандартный вопрос заказчика)
+│   │   ├── request-shared-edit/SKILL.md         (worktree, запрос на общий файл)
+│   │   ├── handoff/SKILL.md                     (worktree, финализация)
+│   │   ├── handoff-process/SKILL.md             (main, применение запросов)
+│   │   └── sync-from-template/SKILL.md          (main, обновление машинерии из шаблона)
 │   │
 │   ├── hooks/                               ← Claude Code hooks
 │   │   ├── check-file.sh                    (SubagentStop, проверка вывода)
@@ -279,7 +253,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── git-hooks/                           ← git hooks (НЕ Claude Code)
 │   │   └── pre-commit                       (whitelist путей в worktree)
 │   │
-│   ├── scripts/                             ← обёртки + 55 .mjs
+│   ├── scripts/                             ← обертки + 48 .mjs + site/ (6)
 │   │   ├── _node.cmd / _node.sh             (обёртки, ищут node)
 │   │   ├── _client.mjs                      (общий helper)
 │   │   ├── finalize-setup.mjs               (git init + первый коммит)
@@ -296,7 +270,6 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── tilda-split.mjs                  (output.html → head + t123)
 │   │   ├── build-strategy-docx.mjs          (strategy_content.json → SEO_Strategy.docx)
 │   │   ├── build-smeta-xlsx.mjs             (tariffs.json → Smeta.xlsx)
-│   │   ├── build-analysis-docx.mjs          (A2.md → A2_<slug>.docx)
 │   │   ├── select-top10.mjs                 (semantic_pack.json → top10 + cannibalization)
 │   │   ├── build-structure-xlsx.mjs         (master_list+top10 → A6_<slug>.xlsx)
 │   │   ├── import-structure.mjs             (client_filled.xlsx → structure_data.json)
@@ -305,7 +278,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── verify-audit.mjs                 (проверка audit_data.json)
 │   │   ├── select-audit-pages.mjs           (indexing.json → page_plan.json: выборка+шарды)
 │   │   ├── merge-onpage.mjs                 (onpage_*.json шарды → onpage.json)
-│   │   └── ...                              (всего 55 .mjs - полный список в таблице «Node-скрипты» ниже)
+│   │   ├── validate-project-input.mjs       (вход /seo-struktura: sites/NNN/project.json + тир-гейт)
+│   │   ├── site/                            (6 скриптов /site-analiz: _contract, apply-answers, build-doc, build-project, queue, verify-data)
+│   │   └── ...                              (всего 48 .mjs - полный список в таблице «Node-скрипты» ниже)
 │   │
 │   ├── handoff-requests/                    ← запросы worktree → main
 │   │   ├── .gitkeep
@@ -317,28 +292,54 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   └── tmp/                                 ← служебные файлы сессии (gitignore)
 │       └── current-task.txt                 (путь текущей задачи, читается хуками)
 │
-├── docs/adr/                                ← architecture decision records
-│   ├── README.md
-│   ├── 001-worktree-first.md
-│   ├── 002-handoff-split.md
-│   ├── 003-pre-commit-whitelist.md
-│   ├── 004-global-mcp-and-knowledge.md
-│   ├── 005-node-wrapper.md
-│   ├── 006-github-distribution.md
-│   ├── 007-strategy-task-type.md
-│   ├── 008-drive-sharing-anchor-folders.md
-│   ├── 009-seo-analysis-task-type.md
-│   ├── 010-structures-task-type.md
-│   ├── 011-template-self-guard.md
-│   ├── 012-metatags-task-type.md
-│   ├── 013-numbering-by-topic-derived-index.md
-│   ├── 014-audit-task-type.md
-│   ├── 015-tekst-task-type.md
-│   ├── 016-faq-task-type.md
-│   ├── 017-leader-block-scan-and-catalog.md
-│   ├── 018-v4-copy-quality-layer.md
-│   ├── 019-machinery-sync.md
-│   └── 020-writer-context-diet-and-voice.md
+├── docs/
+│   ├── MODEL-POLICY.md                      (ярусы моделей агентов, ADR-024)
+│   ├── v8/                                  (карта этапов v8: README.md, rubric.md, trace.csv)
+│   └── adr/                                 ← architecture decision records
+│       ├── README.md
+│       ├── 001-worktree-first.md
+│       ├── 002-handoff-split.md
+│       ├── 003-pre-commit-whitelist.md
+│       ├── 004-global-mcp-and-knowledge.md
+│       ├── 005-node-wrapper.md
+│       ├── 006-github-distribution.md
+│       ├── 007-strategy-task-type.md
+│       ├── 008-drive-sharing-anchor-folders.md
+│       ├── 009-seo-analysis-task-type.md
+│       ├── 010-structures-task-type.md
+│       ├── 011-template-self-guard.md
+│       ├── 012-metatags-task-type.md
+│       ├── 013-numbering-by-topic-derived-index.md
+│       ├── 014-audit-task-type.md
+│       ├── 015-tekst-task-type.md
+│       ├── 016-faq-task-type.md
+│       ├── 017-leader-block-scan-and-catalog.md
+│       ├── 018-v4-copy-quality-layer.md
+│       ├── 019-machinery-sync.md
+│       ├── 020-writer-context-diet-and-voice.md
+│       ├── 021-direction-recon-site-review-wireframe.md
+│       ├── 022-commercial-copy-not-anti-ai.md
+│       ├── 023-yo-letter-ban.md
+│       ├── 024-subagent-model-policy.md
+│       ├── 025-final-verifiers.md
+│       ├── 026-article-pipeline-scaling.md
+│       ├── 027-slug-engine-and-url-validation.md
+│       ├── 028-intake-provenance-and-questions.md
+│       ├── 029-custom-question-skill.md
+│       ├── 030-fast-article-mode.md
+│       ├── 031-autonomous-brief-driven-texts.md
+│       ├── 032-block-function-taxonomy.md
+│       ├── 033-project-lexicon.md
+│       ├── 034-text-register.md
+│       ├── 035-prototype-handoff-and-modes.md
+│       ├── 036-block-planner-slot-mapper-split.md
+│       ├── 037-selling-floor.md
+│       ├── 038-tiered-analysis-and-writing-split.md
+│       ├── 039-single-file-prototype.md
+│       ├── 040-two-layer-intake.md
+│       ├── 041-v9-site-analiz-single-entry-and-site-tekst.md
+│       ├── 042-v7-and-site-proto-retirement.md
+│       └── 043-anti-ai-formulas-as-lint.md
 │
 ├── ЗАКАЗЧИК.md                              ← создаётся через /seo-shablon + /handoff-process
 ├── template.html                            ← аналогично
@@ -367,24 +368,22 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── Smeta_<domain>.xlsx                  (финал внутренний, с ценами)
 │   └── share.json                           (ссылки Drive: Doc + Sheet)
 │
-├── analyses/NNN-domain-slug/                ← рабочие папки предпроектных анализов
-│   ├── meta.json                            (state machine)
-│   ├── brief_raw.txt                        (исходный бриф клиента)
-│   ├── brief.json                           (16 параметров + путь Keyso)
-│   ├── candidates.json                      (15+ доменов до фильтрации)
-│   ├── competitors.json                     (6-10 + топ-3 лидера)
-│   ├── serp.json                            (SERP-анализ + вердикт + стоп-лист)
-│   ├── leader_scan.json                     (блоки/посылы/фишки топ-3)
-│   ├── A2.md                                (финал - markdown-отчёт)
-│   ├── A3.md                                (финал - стоп-лист)
-│   ├── recommendations.json                 (рекомендации для /seo-strategiya, /seo-statya)
-│   ├── stop_list_detailed.json              (стоп-лист с причинами)
-│   ├── A2_<domain>.docx                     (для клиента, кроме --no-share)
-│   └── share.json                           (ссылка Drive + ревизии)
+├── sites/NNN-slug/                          ← предпроектный анализ /site-analiz (единственный вход структуры и текстов)
+│   ├── queue.json                           (tier seo|basic, type, site_kind, гейт заказчика, журнал исключений)
+│   ├── input/                               (бриф, созвон, документы, снимки сайта)
+│   ├── parts/facts.json + facts-src.json    (фактура с источниками + дословные цитаты, живут весь срок задачи)
+│   ├── parts/market.json                    (сегменты, профиль ниши, оффер, лексикон, 3-5 лидеров)
+│   ├── project.json                         (контракт по project.schema.json - вход структуры и текстов)
+│   ├── structure_data.json                  (tier basic: состав страниц, решение d9)
+│   ├── docs/understood.html + ask.html      (документы 1 и 2 заказчику)
+│   └── answers.txt                          (ответы заказчика -> apply-answers.mjs -> гейт)
+│
+├── analyses/NNN-slug/                       ← старые анализы v7 (скил выведен, ADR-042): только данные
 │
 ├── structures/NNN-domain-slug/              ← рабочие папки структур сайта
 │   ├── meta.json                            (state machine)
-│   ├── inputs.json                          (analysis_dir + slug + регион)
+│   ├── inputs.json                          (project_path + slug + регион + keyso_base, от validate-project-input.mjs)
+│   ├── competitors.json + serp.json + stop_list.md (SEO-база, агент seo-base)
 │   ├── master_list.json                     (страницы из конкурентов + спаривание)
 │   ├── markers.json                         (маркер + источник + частотность на страницу)
 │   ├── semantic_pack.json                   (топ-30 JM на каждый маркер)
@@ -418,26 +417,16 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── A12_<slug>.docx                      (финал - клиентский документ, дизайн TIMUR SEO)
 │   └── share.json                           (ссылка Drive)
 │
-├── texts/NNN-domain-slug/                   ← рабочие папки текстов + прототипов (/seo-tekst)
-│   ├── meta.json                            (state machine v7.1 + tone_gate + drive-учет)
-│   ├── inputs.json                          (slug/домен/регион/ниша/УТП + реквизиты для legal)
-│   ├── facts.json                           (единый источник цифр: реквизиты/гарантии/числа - все цифры сайта только отсюда, v4)
-│   ├── pages.json                           (целевые страницы)
-│   ├── leader_blocks.json                   (опц.: выжимка блок-матрицы лидеров из analyses/leader_scan.json v2 - мост)
-│   ├── type_skeletons.json                  (скелеты блоков по типам страниц + client_why - block-planner такт 1)
-│   ├── Skeletons_<slug>.docx                (гейт скелетов v7.1: «Блок / Зачем / Что внутри» по типам -> Google Doc, цикл правок ДО письма)
-│   ├── strategy.json                        (стратегия оффера + 3 кандидата тона - offer-strategist; ЦА и recon живут в analyses/)
-│   ├── tone/                                (тон-гейт: 3 варианта главной + tone-preview.html; в Drive - файлом)
-│   ├── blueprints/<page-slug>.json          (блок-план страницы: блоки+цели+слоты+лимиты - block-planner+slot-mapper)
-│   ├── site_audit.json                      (кросс-страничный аудит - site-reviewer)
-│   ├── site_manifest.json                   (порядок страниц для ассемблера)
-│   ├── prototype.html                       (ДЕЛИВЕРАБЛ текстов - весь сайт ОДНИМ self-contained файлом, ADR-039; файл заказчику + Drive-копия файлом без конвертации)
-│   ├── HANDOFF.md                           (контракт передачи дизайнеру/разработчику; для верстки - page.json + HANDOFF)
-│   ├── pages/<page-slug>/                   (по странице)
-│   │   ├── page.json                        (тексты блоков - page-writer)
-│   │   ├── manifest.json                    (метаданные страницы - prototype-builder)
-│   │   └── render.html                      (отрендеренные блоки без shell - из них ассемблер собирает prototype.html)
-│   └── share.json                           (ссылки Drive: skeletons + tone_preview + prototype; Texts.docx в v7.1 нет)
+├── texts/KKK-slug/                          ← тексты сайта /site-tekst (формат v9)
+│   ├── meta.json                            (state, format "v9", ссылки на sites/NNN и structures/MMM, пилот, волна)
+│   ├── config/project.json                  (профиль проекта; sources.* от ссылок meta)
+│   ├── rules/decisions.md                   (решения проекта: гейт 1, стратегия)
+│   ├── overrides/<путь kit>                 (проектные правки файлов kit, ложатся поверх копии)
+│   ├── inputs/                              (structure_data.json, analysis.md - рендер импорта)
+│   ├── work/                                (facts, audience, sitemap, конкуренты, типы, стратегия,
+│   │                                         pages/<slug>/page.md, audit/, output/prototype.html + report.md)
+│   └── (копия kit: workflows/, prompts/, scripts/, schemas/, html/ - кеш, в .gitignore)
+│   старые задачи v7 (без format; скил /seo-tekst выведен, ADR-042) - только данные, их читает /seo-faq --from-tekst
 │
 ├── faq/NNN-domain-slug/                     ← рабочие папки SEO-блоков (/seo-faq)
 │   ├── meta.json + inputs.json + pages.json (текст страниц + целевые запросы)
@@ -476,11 +465,11 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 ## Компоненты
 
 Три сквозных паттерна, общих для большинства рабочих скилов:
-- **Финальный верификатор.** Перед сборкой итогового документа почти каждый пайплайн ставит независимого `opus`-агента `<domain>-verifier` (например `article-verifier`, `structure-verifier`, `strategy-verifier`, `audit-verifier`, `analysis-verifier`, `topics-verifier`): он ничего не чинит, только пишет `verify_report.json` и переводит задачу в состояние `*-verified`. Решение — [ADR-025](docs/adr/025-final-verifiers.md); методология для новых скилов — раздел «Финальный верификатор» в [docs/SKILL-ADAPTATION-GUIDE.md](docs/SKILL-ADAPTATION-GUIDE.md).
+- **Финальный верификатор.** Перед сборкой итогового документа почти каждый пайплайн ставит независимого `opus`-агента `<domain>-verifier` (например `article-verifier`, `structure-verifier`, `strategy-verifier`, `audit-verifier`, `topics-verifier`): он ничего не чинит, только пишет `verify_report.json` и переводит задачу в состояние `*-verified`. Решение - [ADR-025](docs/adr/025-final-verifiers.md); методология для новых скилов - раздел «Финальный верификатор» в [docs/SKILL-ADAPTATION-GUIDE.md](docs/SKILL-ADAPTATION-GUIDE.md).
 - **Ядро + REFERENCE.md.** У самых длинных скилов (`seo-statya`) `SKILL.md` разрезан на компактное ядро (шаги оркестрации) и `REFERENCE.md` (справочные секции по якорям — форматы, чек-листы, edge-кейсы), чтобы не грузить контекст оркестратора тем, что нужно редко.
 - **Серийный режим на очереди.** `/seo-statya` умеет писать пачку тем за одну worktree-сессию через `.claude/scripts/batch-queue.mjs` и `.claude/tmp/batch-queue.json` — детерминированная очередь `init/next/set/status`, переживающая авто-компакт контекста.
 
-### 28 скилов (14 рабочих, 9 share-утилит, 4 управляющих, 1 справочный)
+### 25 скилов (13 рабочих, 7 share-утилит, 4 управляющих, 1 справочный)
 
 | Скил | Зона | Назначение |
 |---|---|---|
@@ -494,18 +483,15 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/share-article NNN [--redo]` | worktree | Утилита: перезалить Article.docx в Drive после правок, или догрузить если Drive был недоступен |
 | `/seo-strategiya <URL> [--resume]` | worktree | Полный цикл SEO-стратегии: скан → конкуренты → точки роста → 3 тарифа → стратегия .docx + смета .xlsx → **автозагрузка в Google Drive с конверсией в Google Doc/Sheet** |
 | `/share-strategy NNN [--redo]` | worktree | Утилита: перезалить в Drive после правок локальных файлов, либо догрузить если Drive был недоступен при первом прогоне `/seo-strategiya` |
-| `/seo-analiz [--resume]` | worktree | Предпроектный анализ конкурентов: бриф → структурирование → конкуренты → SERP-вердикт → скан смыслов топ-3 → A2.md + A3.md + опц. .docx |
-| `/share-analysis NNN [--redo]` | worktree | Утилита: перезалить A2.docx в Drive после правок, или догрузить если Drive был недоступен |
-| `/seo-struktura NNN [--resume] [--review\|--auto] [--import <xlsx>]` | worktree | Построение структуры сайта на базе анализа: мастер-список → маркеры → JM semantic_pack → топ-10 + каннибализация → A6.xlsx → клиент → A6.md |
+| `/site-analiz [<слаг>] [--tier basic\|seo] [--type ...] [--kind landing\|multipage] [--answers <файл>]` | worktree | Предпроектный анализ - единственный вход для структуры и текстов: три вопроса оператору -> фактура с дословными цитатами -> смыслы и 3-5 лидеров -> контракт `project.json` -> при basic состав страниц -> два документа заказчику -> гейт ответов |
+| `/seo-struktura NNN [--resume] [--review\|--auto] [--import <xlsx>]` | worktree | Структура сайта по `sites/NNN/project.json` (tier seo): SEO-база (`seo-base`) -> мастер-список -> маркеры -> JM semantic_pack -> топ-10 + каннибализация -> A6.xlsx -> клиент -> A6.md + `structure_data.json` |
 | `/share-structure NNN [--redo]` | worktree | Утилита: перезалить A6.xlsx в Drive после правок, или догрузить если Drive был недоступен |
 | `/seo-metategi [--from-structure NNN] [--site <домен>] [--table <путь>] [--depth deep\|bulk] [--resume]` | worktree | Генерация метатегов (H1, Title, Description) под Яндекс: один движок, две глубины - deep (анализ выдачи + Акварель, по странице последовательно) и bulk (по PLAYBOOK + батч-данные, дёшево, параллельно). Три источника страниц: структура / сканирование сайта / таблица. Выход: A7_<slug>.xlsx (3 листа) |
 | `/share-metatags NNN [--redo]` | worktree | Утилита: перезалить A7.xlsx в Drive после правок, или догрузить если Drive был недоступен |
-| `/seo-tehaudit <domain> [--resume] [--no-share]` | worktree | Технический SEO-аудит сайта под Яндекс: разведка/карточка → индексация → URL/мета/Schema/JS → аналитика/ссылки → A12.md + A12.docx (проблемы по приоритетам, чеклист разработчику, динамические приложения) → автозагрузка в Drive + цикл правок |
+| `/seo-tehaudit <domain> [--resume] [--no-share] [--from-analysis NNN]` | worktree | Технический SEO-аудит сайта под Яндекс: разведка/карточка → индексация → URL/мета/Schema/JS → аналитика/ссылки → A12.md + A12.docx (проблемы по приоритетам, чеклист разработчику, динамические приложения) → автозагрузка в Drive + цикл правок |
 | `/share-audit NNN [--redo]` | worktree | Утилита: перезалить A12.docx в Drive после правок, или догрузить если Drive был недоступен |
-| `/seo-tekst [--from-structure NNN\|--from-analysis NNN\|--from-table <путь>] [--review\|--auto] [--resume]` | worktree | Конверсионные тексты (v7.1 - скил только пишет: ЦА/конкуренты/разведка приходят из analyses/NNN). Мост → [состав страниц + гейт] → оффер-слой → скелеты типов → ГЕЙТ СКЕЛЕТОВ (Skeletons.docx в Google Doc, согласование заказчиком ДО письма) → ТОН-ГЕЙТ (главная в 3 тонах одним html) → веер писателей → прототип ОДНИМ html-файлом (ДЕЛИВЕРАБЛ; wireframe, стартовый список; файл + Drive-копия файлом) + HANDOFF.md. Texts.docx не существует |
-| `/seo-tekst-fix NNN [slug] "..."` | worktree | Точечная правка страницы прототипа (разбор голосовых; manifest/page.json → пересборка общего prototype.html → перезаливка Drive-файла → дифф по секции) |
-| `/share-tekst NNN [--skeletons\|--tone\|--prototype] [--redo]` | worktree | Утилита: перезалить в Drive Skeletons.docx (Google Doc) / tone-preview.html / prototype.html (дефолт prototype; html - файлом, без конвертации), или догрузить если Drive был недоступен |
-| `/seo-faq [--from-tekst NNN\|--from-table\|--url] [--review\|--auto]` | worktree | SEO-нормализация: JM-анализ пробелов текста → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка с недостающими N-граммами. Выход: faq.html (вставляемый сниппет) на страницу + FAQ.docx (Google Doc) |
+| `/site-tekst --site NNN [--structure MMM] \| KKK --resume \| --wave N \| --fix <slug> "..."` | worktree | Тексты сайта v9 (алгоритм целиком в `kit/`, копия kit в папке задачи как кеш): импорт анализа после гейта -> карта -> разбор лидеров, типы, стратегия, раскладки -> пилот -> волны -> аудит -> прототип одним html. Гейты человека: карта, стратегия, пилот, волна 1 |
+| `/seo-faq [--from-tekst NNN\|--from-table\|--url] [--review\|--auto]` | worktree | SEO-нормализация (tier seo; `--from-tekst` читает задачи v9 и старые v7): JM-анализ пробелов текста → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка с недостающими N-граммами. Выход: faq.html (вставляемый сниппет) на страницу + FAQ.docx (Google Doc) |
 | `/share-faq NNN [--redo]` | worktree | Утилита: перезалить FAQ.docx в Drive после правок, или догрузить если Drive был недоступен |
 | `/custom-question [<вопрос>\|<файл>] [--resume] [--format auto\|answer\|recommendation\|doc]` | worktree | Разбор нестандартного вопроса заказчика: контекст по файлам проекта → обязательный гейт трактовки (AskUserQuestion, опция «передать заказчику») → решение (ответ/рекомендация/документ) без SEO-жаргона → запись в общий QA-ЖУРНАЛ.md |
 | `/request-shared-edit "..."` | worktree | Отложенный запрос на правку общего файла |
@@ -513,7 +499,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/handoff-process` | main | Применение накопленных запросов к общим файлам |
 | `/sync-from-template [путь] [--apply]` | main | Обновление машинерии (`.claude/{scripts,agents,skills,hooks,git-hooks,migrations,tests}` + package.json) из локального шаблона; без `--apply` - dry-run |
 
-### 58 субагентов (вызываются скилами)
+### 45 субагентов (вызываются скилами)
 
 Каждый агент объявляет модель явно - ярус `sonnet` (механика: сбор данных, применение правок, парсинг/генерация по шаблону) или `opus` (клиентская проза, вердикты, аудит), а не `inherit`. Полная таблица ярусов и обоснований - в [docs/MODEL-POLICY.md](docs/MODEL-POLICY.md) ([ADR-024](docs/adr/024-subagent-model-policy.md)).
 
@@ -528,26 +514,23 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `section-writer` | Пишет один H2-раздел статьи (используется `opus`) |
 | `article-finalizer` | Заключение + метатеги + сборка article.md и report.md |
 | `text-auditor` | Вычитка: AI-маркеры, орфография, законность РФ, повествование |
+| `article-fixer-batch` | Массовое применение правок аудита одним проходом (для `/seo-statya`) |
 | `enhancer` | HTML-элементы по меткам + FAQ + Schema.org JSON-LD |
 | `photo-promter` | Промты для фото по меткам `[ФОТО: ...]` |
 | `photo-producer` | Генерирует и публикует фото статьи: читает prompts.md, вызывает MCP генерации (Nano Banana 2) + Cloudinary напрямую → photos/urls.json (для /seo-statya, шаг 9b) |
 | `article-verifier` | Финальная независимая вычитка собранной статьи: article.md + output.html + report.md против ТЗ, свип е-с-точками/тире, сверка меток фото → verify_report.json, ничего не чинит (для /seo-statya, шаг 10c) |
+| `fast-writer` | Пишет всю fast-статью (`--fast`) одним проходом: интро + H2 x N + заключение + метатеги (для /seo-statya --fast) |
 | `article-fixer` | Точечная правка статьи (по запросу из `/fix-article`) |
-| `article-fixer-batch` | Массовое применение правок аудита одним проходом (для `/seo-statya`) |
 | `strategy-scanner` | Скан сайта + первичные метрики клиента (для /seo-strategiya) |
 | `competitor-analyst` | Конкуренты, типизация, выдача, вердикт (для /seo-strategiya) |
 | `growth-strategist` | Точки роста + сборка strategy_data.json (для /seo-strategiya) |
 | `tariff-architect` | Подбор трёх тарифов из TARIFFS.md по правилам RULES.md |
 | `strategy-writer` | Проза для 6 разделов стратегии в strategy_content.json |
 | `strategy-verifier` | Финальная независимая вычитка strategy_content.json: нет цен в прозе тарифов, цифры против data/scan/metrics/competitors/serp, согласованность тарифов → verify_report.json, ничего не чинит (для /seo-strategiya, шаги 6.5а/6.5б) |
-| `intake-analyst` | Читает всю вводную фактуру (бриф, транскрибации, файлы, ЗАКАЗЧИК.md) → intake.json (факты с провенансом) + ВВОДНЫЕ.md (для /seo-analiz, шаг 1.5, до брифования) |
-| `brief-structurer` | Парсинг свободного брифа в 16 параметров + путь Keyso (для /seo-analiz) |
-| `competitor-finder` | Поиск + фильтрация + типизация + отбор 6-10 конкурентов + топ-3 лидера (для /seo-analiz) |
-| `serp-verdict` | SERP-анализ по запросам + вердикт совместимости + стоп-лист + смежные (для /seo-analiz) |
-| `leader-scanner` | Скан смыслов Э2-лайт: блоки/посылы/фишки 9-12 страниц топ-3 лидеров (для /seo-analiz) |
-| `analysis-writer` | Сборка A2.md (5 разделов, вкл. «0. Вопросы к вам») + A3.md (стоп-лист) из всех JSON-данных (для /seo-analiz) |
-| `answer-extractor` | Извлекает ответы клиента на questions.json из его правок в Google Doc + свободные комментарии → answers.json (для /seo-analiz, режим `--answers`) |
-| `analysis-verifier` | Финальная независимая вычитка A2.md: цифры против brief/intake/competitors/serp/leader_scan, полнота разделов, согласованность раздела 0 → verify_report.json, ничего не чинит (для /seo-analiz, шаг 6b) |
+| `site-intake` | Фактура анализа: бриф, созвон, документы, старый сайт -> `parts/facts.json` (источник у каждой строки, `publish: no` при засеве) + `parts/facts-src.json` (дословные цитаты) (для /site-analiz, шаг 1) |
+| `site-market` | Смыслы и разведка: 2-4 сегмента с болями и возражениями, профиль ниши, оффер, лексикон, 3-5 главных лидеров -> `parts/market.json` (для /site-analiz, шаг 2) |
+| `pages-planner` | Состав страниц без SEO: `project.json` -> `sites/NNN/structure_data.json` в формате /seo-struktura (для /site-analiz, шаг 3b, tier basic) |
+| `seo-base` | SEO-база структуры: база Keyso, конкуренты с метриками, SERP-вердикт, стоп-лист -> `competitors.json`, `serp.json`, `stop_list.md` (для /seo-struktura, шаг 1d) |
 | `master-list-builder` | Мастер-список страниц (типизация + нормализация + спаривание) на базе анализа (для /seo-struktura) |
 | `marker-finder` | Маркерные запросы на каждую страницу через каскад Keyso + фолбэки (для /seo-struktura) |
 | `semantic-expander` | JM semantic_pack: топ-30 запросов на маркер + проверка баланса (для /seo-struktura) |
@@ -563,22 +546,12 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `audit-analytics` | Аналитика/поведенческие/ссылки + финальный вердикт Яндекс Бизнеса → analytics.json (для /seo-tehaudit, шаг 4) |
 | `audit-writer` | Сборка audit_data.json (карточка + проблемы + чеклист + динамические приложения) из 4 JSON (для /seo-tehaudit, шаг 5) |
 | `audit-verifier` | Финальная независимая вычитка audit_data.json против 4 JSON-источников: нет выдуманных проблем, ничего значимого не потеряно, бьются цифры карточки → verify_report.json, ничего не чинит (для /seo-tehaudit, шаг 5b) |
-| `audience-analyst` | Глубокий анализ ЦА (порт У5-Б): сегменты/боли-сцены/страхи/возражения по направлениям + компактная сводка → analyses/audience.json (для /seo-analiz, ступень 2) |
-| `offer-strategist` | Стратегия оффера: позиционирование + прогретость + идея + формула + 30 тезисов + палитра + materials-gate → strategy.json (для /seo-tekst, проектный) |
-| `block-planner` | Блок-план двумя тактами (скелет типа -> blueprint страницы): BLOCKS.md (решения о составе; метрики - у slot-mapper в BLOCKS-METRICS.md) + leader_blocks → blueprints/<slug>.json (блоки + цели + боли + слоты + char-лимиты); снимает каталоги с писателей (для /seo-tekst, проектный) |
-| `page-writer` | Конверсионный текст одной страницы по готовому blueprint: голос + ЦА-под-страницу + копия по VOICE.md (диета контекста, ADR-020) → page.json (для /seo-tekst, веер) |
-| `prototype-builder` | Сборка HTML-прототипа одной страницы поверх kit: page.json → manifest → build-prototype.mjs + verify + fix (для /seo-tekst, веер) |
-| `prototype-fixer` | Точечная правка прототипа (разбор голосовых PHASE-7 + паттерн article-fixer) (для /seo-tekst-fix) |
 | `faq-builder` | SEO-блок одной страницы: JM-анализ пробелов → FAQ (Schema.org) + возражения + плитка тегов + перелинковка с недостающими N-граммами (для /seo-faq, веер) |
-| `leader-scanner` (v2) | Скан смыслов И композиции блоков лидеров (посылы + матрица «блок x тип» + фишки; поглотил leader-block-scanner в v7). Для /seo-analiz ступень 3 |
-| `copy-auditor` | Pre-flight редактор продающего текста: чек-лист COPY-AUDIT.md (смысл+грамотность первым, удар в боль ЦА, чистота/штампы/утечка кухни Сургай-кастдев) → чинит page.json свежим проходом перед HTML; анти-ИИ-детект не делает (ADR-022) (для /seo-tekst, веер) |
-| `direction-scanner` | Контент-разведка одного направления: SERP топ-10 по маркеру -> фильтр однотипных -> фетч 3-5 страниц (Chrome/fetch) + own_page живой страницы -> analyses/recon/<dir_slug>.json (для /seo-analiz, ступень 3, веер) |
-| `site-reviewer` | Финальный кросс-страничный аудит текстов сайта: межстраничные самоповторы, уникальность H1/Title, консистентность decisions и фактов -> чинит + site_audit.json (для /seo-tekst, один на проект) |
 | `context-gatherer` | Собирает релевантный контекст по файлам проекта под нестандартный вопрос заказчика + 2-4 трактовки вопроса → context.json (для /custom-question) |
 | `solution-writer` | Пишет решение по вопросу заказчика в выбранном формате (answer/recommendation/doc), клиентские части без SEO-жаргона → solution.md (+ answer_client.md) (для /custom-question) |
 | `solution-verifier` | Независимая вычитка решения: факт-чек по файлам проекта, простота языка, полнота ответа, честность блока «Что я не проверял» → verify_report.json (для /custom-question) |
 
-### 55 Node-скриптов
+### 48 Node-скриптов в `.claude/scripts` + 6 в `.claude/scripts/site`
 
 | Скрипт | Делает |
 |---|---|
@@ -607,15 +580,11 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `build-strategy-docx.mjs` | strategy_content.json + tariffs.json + inputs.json → SEO_Strategy_<domain>.docx |
 | `build-smeta-xlsx.mjs` | tariffs.json + inputs.json → Smeta_<domain>.xlsx (3 вкладки + формулы SUM) |
 | `verify-strategy.mjs` | механическая финальная проверка стратегии перед docx: цены в прозе тарифов, стоп-паттерны воды, тире/буква Ё, объём (для /seo-strategiya, шаг 6.5а) |
-| `build-analysis-docx.mjs` | A2.md → A2_<domain>.docx (Arial, цветной вердикт, таблицы) |
-| `_questions.mjs` | единый источник схемы/логики questions.json («0. Вопросы к вам»); импортируют build-analysis-docx.mjs и apply-answers.mjs (для /seo-analiz) |
-| `apply-answers.mjs` | ядро режима `/seo-analiz --answers`: сливает answers.json в questions.json, решает какие шаги перезапускать → rerun_plan.json |
 | `_slug.mjs` | единый источник транслита + построения slug/URL + валидации URL для /seo-struktura; импортируют build-structure-xlsx, select-top10, import-structure, verify-structure |
 | `select-top10.mjs` | semantic_pack.json → top10.json + cannibalization.json (детекция конфликтов) |
 | `build-structure-xlsx.mjs` | master_list + top10 + cannibalization + competitors → A6_<slug>.xlsx (4 листа) |
 | `import-structure.mjs` | client_filled.xlsx → structure_data.json (exit-коды 0/3/4 для развилок) |
 | `verify-structure.mjs` | механический финальный гейт A6.md перед смысловым structure-verifier: URL/структура/дубли, дёшево и детерминированно (для /seo-struktura, шаг 9г) |
-| `validate-analysis-inputs.mjs` | жёсткая валидация входа /seo-struktura: наличие файлов анализа + канонические поля брифа (ловит дрейф схемы) |
 | `read-metatags-input.mjs` | вход метатегов: структура / таблица / аудит → pages.json (exit 0/2/1) |
 | `select-variations.mjs` | research.json → shortlist.json (отсев Comm, сорт по exact, форма+резерв на страницу) |
 | `build-metatags-xlsx.mjs` | inputs + pages + pages/N.json → A7_<slug>.xlsx (3 листа, подсветка длины) |
@@ -625,18 +594,28 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `verify-audit.mjs` | проверка audit_data.json: счётчики=длины, ссылки на приложения, плейсхолдеры (exit 0/2) |
 | `select-audit-pages.mjs` | indexing.json → page_plan.json (типизация + url_structure + шардинг страниц для on-page аудита, `--pages N`) |
 | `merge-onpage.mjs` | onpage_*.json (шарды) → onpage.json (Title-заглушка, дубли, schema_summary по всей выборке) |
-| `read-tekst-input.mjs` | структура/таблица/анализ → pages.json (целевые страницы для /seo-tekst) |
-| `build-prototype.mjs` | manifest.json + kit (shell+css+js+фрагменты+тема+legal) → prototype.html (рекурсивный mini-template) |
-| `verify-prototype.mjs` | POST-FLIGHT прототипа: 1 форма в финале, header/footer/tel/cookie, без фреймворков/тире, стоп-формулы (exit 0/2) |
-| `assemble-prototype.mjs` | render.html всех страниц + site_manifest.json → один prototype.html (стартовый список, роутер, неймспейс - ADR-039) |
-| `build-skeletons-docx.mjs` | type_skeletons.json + pages.json → Skeletons_<slug>.docx (гейт скелетов v7.1: по типу страницы таблица «Блок / Зачем / Что внутри» + список страниц типа) |
 | `read-faq-input.mjs` | tekst/таблица/url → pages.json (текст страницы + целевые запросы для JM) |
 | `_faq-util.mjs` | общие утилиты /seo-faq: единая нормализация URL + декод сущностей + резолв self-url; импортируют build-faq.mjs, build-faq-docx.mjs, verify-faq.mjs |
 | `build-faq.mjs` | faq_blocks.json → faq.html (аккордеон + Schema.org FAQPage + плитка тегов + перелинковка) + faq.md |
 | `verify-faq.mjs` | проверка SEO-блока: Schema валидна, объёмы FAQ, стоп-формулы, тире, normalized_keywords (exit 0/2) |
 | `build-faq-docx.mjs` | faq_blocks → FAQ_<slug>.docx (клиенту) |
-| `verify-copy.mjs` | pre-flight копи-валидатор (v4): механические пункты чек-листа COPY-AUDIT.md по page.json до HTML (самозащита/жаргон/манипуляции/сленг/H1, exit 0/2) |
 | `sync-from-template.mjs` | движок синка машинерии шаблона на клиентский проект: dry-run отчёт +/~/-, версия, миграции, само-коммит (для /sync-from-template и /sync-all) |
+| `_forecast-money.mjs` | единый источник денежной математики прогноза и окупаемости стратегии; импортируют build-smeta-xlsx, verify-strategy, build-strategy-docx |
+| `verify-fast-style.mjs` | механическая проверка тела fast-статьи (`--fast`) на букву е-с-точками и длинное/среднее тире (exit 0/2) |
+| `validate-project-input.mjs` | вход `/seo-struktura` (шаг 1a): `sites/NNN/project.json` по схеме анализа, тир-гейт по `queue.json.tier` без обхода, `keyso_base` / `region_yandex` / `domain` для `inputs.json` (exit 0/1/2); регион и базу из него берет и `/seo-tehaudit --from-analysis` |
+
+Скрипты `/site-analiz` (`.claude/scripts/site/`, 6):
+
+| Скрипт | Делает |
+|---|---|
+| `_contract.mjs` | общие правила контракта: проверяемый факт, `SERVICE_NOTE` (служебная пометка вместо факта), разбор `pages.yml`, обход схемы, бюджет, типографика, решения гейта d1-d9, формат `structure_data.json` |
+| `queue.mjs` | раскладка `sites/NNN-slug/`, следующий шаг из содержимого, журнал исключений, отметка гейта (`gate --by`) |
+| `build-project.mjs` | склейка `parts/` в `project.json` по белому списку полей; лендингу при basic - `structure_data.json` из одной главной |
+| `verify-data.mjs` | валидатор контракта: схема, бюджет знаков, поля-обоснования, дословность цитат фактов, служебные пометки, формат `structure_data.json` |
+| `build-doc.mjs` | два документа заказчику подстановкой из `project.json` |
+| `apply-answers.mjs` | гейт: ответы заказчика -> ровно одно поле на решение, дифф-лист до записи; d9 меняет `target_status` страниц |
+
+Скрипты алгоритма текстов (31) живут в `.claude/skills/site-tekst/kit/scripts/` и описаны в `kit/README.md`; копию kit в папку задачи кладет `task.mjs`.
 
 ### 5 Claude Code хуков
 
@@ -695,18 +674,16 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 
 ### Как обновить существующих клиентов
 
-Из активной клиентской папки:
-```
-git fetch origin
-git diff main..origin/main -- .claude/   # посмотреть что меняется
-git checkout origin/main -- .claude/     # вытянуть только .claude/, не трогая клиентские файлы
-git add .claude/
-git commit -m "Update template from upstream"
-```
+Машинерия доезжает до клиентов синком, а не `git checkout` (см. [ADR-019](docs/adr/019-machinery-sync.md)):
 
-⚠️ Тщательно проверять diff — обновление может конфликтовать с локальными правками в `.claude/`.
+1. Правка в `template-project` -> коммит (и push в origin, чтобы новые `/new-project` получили то же).
+2. Один проект - `/sync-from-template` в main-сессии клиента: без `--apply` - dry-run (+новые / ~изменятся / -удалятся), с `--apply` - точное зеркало `.claude/{scripts, agents, skills, hooks, git-hooks, migrations, tests}` + `package.json`, `.gitignore`, `.claude/settings.json`, метка `.claude/.machinery-version`, невыполненные миграции, само-коммит с командой отката.
+3. Все проекты - `/sync-all` из `~/seo-projects/`: dry-run дает матрицу «кто отстал», `--apply` пропускает грязные деревья и worktree, `--only a,b` - выборочно.
+4. После синка в клиенте - наборы `.claude/tests/*/run.mjs` (цикл в `.claude/tests/README.md`).
 
-В планах — скил `/update-template` для безопасной автоматизации этого процесса (см. [ADR-006](docs/adr/006-github-distribution.md) → Последствия).
+Что синк не трогает: клиентские файлы и папки задач, `settings.local.json`, `docs/` и `CLAUDE.md` (движок только покажет расхождение `CLAUDE.md`). Из-за `docs/` набор `machinery` в клиентском клоне может показать расхождение `MODEL-POLICY.md` с агентами - источник истины шаблон.
+
+⚠️ **Синк после гейта 0 удаляет выведенные скилы** (`/seo-analiz`, `/seo-tekst` и др., [ADR-042](docs/adr/042-v7-and-site-proto-retirement.md)). Проекты с незавершенными задачами v7 не синкаются, пока задачи не закрыты или не отменены; список - в ADR-042. Синк на клиентов - только по отдельному решению владельца.
 
 ---
 
@@ -714,32 +691,51 @@ git commit -m "Update template from upstream"
 
 Каждое крупное решение задокументировано в `docs/adr/`. Читай прежде чем менять архитектуру:
 
-| # | Решение |
-|---|---|
-| [001](docs/adr/001-worktree-first.md) | Все задачи в отдельных worktree-сессиях |
-| [002](docs/adr/002-handoff-split.md) | `/handoff` делает merge, `/handoff-process` — apply |
-| [003](docs/adr/003-pre-commit-whitelist.md) | Pre-commit hook с белым списком путей |
-| [004](docs/adr/004-global-mcp-and-knowledge.md) | MCP и `seo-knowledge` — глобально |
-| [005](docs/adr/005-node-wrapper.md) | Обёртка `_node.cmd` для устойчивости PATH |
-| [006](docs/adr/006-github-distribution.md) | Шаблон через публичный GitHub |
-| [007](docs/adr/007-strategy-task-type.md) | Новый тип задачи `strategies/` + порт Python-шаблонов на Node |
-| [008](docs/adr/008-drive-sharing-anchor-folders.md) | Расшаривание стратегий через Drive + якорь-папки (обход бага addPermission) |
-| [009](docs/adr/009-seo-analysis-task-type.md) | Новый тип задачи `analyses/` для предпроектного анализа (повторное применение паттерна ADR-007) |
-| [010](docs/adr/010-structures-task-type.md) | Новый тип задачи `structures/` для построения структуры сайта на базе анализа (третье повторение паттерна; гибрид «скрипт + агент» на шаге каннибализации) |
-| [011](docs/adr/011-template-self-guard.md) | Самозащита каталога-шаблона от клиентских команд и артефактов (маркер `.is-template-root` + UserPromptSubmit-guard + pre-commit backstop) |
-| [012](docs/adr/012-metatags-task-type.md) | Новый тип задачи `metatags/` для генерации метатегов (один движок, две глубины deep/bulk; verify скриптом не hook'ом из-за параллельного веера; авто-хвост из `/seo-struktura`) |
-| [013](docs/adr/013-numbering-by-topic-derived-index.md) | Реестры `_index.json` не коммитятся - производные кеши, пересобираются из per-folder meta.json (ноль merge-конфликтов при параллели) |
-| [014](docs/adr/014-audit-task-type.md) | Новый тип задачи `audits/` для техаудита (4-е повторение паттерна; `audit_data.json` как источник истины, двойной рендер md+docx + verify, порт `docx_template.py` на Node) |
-| [015](docs/adr/015-tekst-task-type.md) | Новый тип задачи `texts/` для конверсионных текстов + HTML-прототип (/seo-tekst); манифест-JSON + детерминированный сборщик вместо LLM-печати HTML (осознанное отступление от гайда); клиентский гейт согласования + двухуровневый веер |
-| [016](docs/adr/016-faq-task-type.md) | Новый тип задачи `faq/` для SEO-нормализации (/seo-faq); JM-анализ пробелов → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка; читает kit из seo-tekst/assets |
-| [017](docs/adr/017-leader-block-scan-and-catalog.md) | Доказательный подбор блоков через скан лидеров (Chrome → rendered, fetch → fallback, статическая матрица → пол) + поддержка каталожных сайтов (типы Категория/Карточка + 5 фрагментов) |
-| [018](docs/adr/018-v4-copy-quality-layer.md) | Слой качества копирайта v4 (постмортемы): смысловое = выбор заказчика (offer-варианты + гейт), FACTS единый источник, стоп-листы + verify-copy + copy-auditor проход |
-| [019](docs/adr/019-machinery-sync.md) | Синхронизация машинерии в существующие клоны: детерминированный движок sync-from-template.mjs + скилы /sync-from-template (один проект) и /sync-all (все разом), версионная метка `.claude/.machinery-version`, идемпотентные миграции данных |
-| [020](docs/adr/020-writer-context-diet-and-voice.md) | Диета контекста писателя + анти-ИИ слой: block-planner выносит выбор блоков из page-writer (blueprint на страницу), COPY.md распилен по читателям (VOICE.md писателю, COPY-AUDIT.md контролёру), чек-лист 14 пунктов (п.14 - маркеры ИИ-текста) |
-| [021](docs/adr/021-direction-recon-site-review-wireframe.md) | Контент-разведка направлений (direction-scanner) + кросс-страничный аудит (site-reviewer) + wireframe-прототипы (v5.1) |
-| [022](docs/adr/022-commercial-copy-not-anti-ai.md) | Коммерческий текст под боль ЦА, не под анти-ИИ-детект: анти-ИИ-слой убран, приоритет смысл+грамотность+боль, заслон утечки кухни (Сургай/кастдев) |
-| [023](docs/adr/023-yo-letter-ban.md) | Запрет буквы ё во всех клиентских текстах и метатегах (единый стандарт, рядом с запретом тире; enforcement в 3 слоя) |
-| [024](docs/adr/024-subagent-model-policy.md) | Ярусы моделей субагентов (sonnet - механика, opus - проза/суждение/аудит) вместо `inherit` - политика в [docs/MODEL-POLICY.md](docs/MODEL-POLICY.md) |
+| # | Решение | Статус |
+|---|---|---|
+| [001](docs/adr/001-worktree-first.md) | Все задачи в отдельных worktree-сессиях | Принято |
+| [002](docs/adr/002-handoff-split.md) | `/handoff` делает merge, `/handoff-process` - apply | Принято |
+| [003](docs/adr/003-pre-commit-whitelist.md) | Pre-commit hook с белым списком путей | Принято |
+| [004](docs/adr/004-global-mcp-and-knowledge.md) | MCP и `seo-knowledge` - глобально | Принято |
+| [005](docs/adr/005-node-wrapper.md) | Обертка `_node.cmd` для устойчивости PATH | Принято |
+| [006](docs/adr/006-github-distribution.md) | Шаблон через публичный GitHub | Принято |
+| [007](docs/adr/007-strategy-task-type.md) | Новый тип задачи `strategies/` + порт Python-шаблонов на Node | Принято |
+| [008](docs/adr/008-drive-sharing-anchor-folders.md) | Расшаривание стратегий через Drive + якорь-папки (обход бага addPermission) | Принято |
+| [009](docs/adr/009-seo-analysis-task-type.md) | Новый тип задачи `analyses/` для предпроектного анализа (повторное применение паттерна ADR-007) | Заменено (см. ADR-041) |
+| [010](docs/adr/010-structures-task-type.md) | Новый тип задачи `structures/` для построения структуры сайта на базе анализа (третье повторение паттерна; гибрид «скрипт + агент» на шаге каннибализации) | Принято, врезка 23.09 |
+| [011](docs/adr/011-template-self-guard.md) | Самозащита каталога-шаблона от клиентских команд и артефактов (маркер `.is-template-root` + UserPromptSubmit-guard + pre-commit backstop) | Принято |
+| [012](docs/adr/012-metatags-task-type.md) | Новый тип задачи `metatags/` для генерации метатегов (один движок, две глубины deep/bulk; verify скриптом не hook'ом из-за параллельного веера; авто-хвост из `/seo-struktura`) | Принято |
+| [013](docs/adr/013-numbering-by-topic-derived-index.md) | Реестры `_index.json` не коммитятся - производные кеши, пересобираются из per-folder meta.json (ноль merge-конфликтов при параллели) | Принято |
+| [014](docs/adr/014-audit-task-type.md) | Новый тип задачи `audits/` для техаудита (4-е повторение паттерна; `audit_data.json` как источник истины, двойной рендер md+docx + verify, порт `docx_template.py` на Node) | Принято, врезка 23.09 |
+| [015](docs/adr/015-tekst-task-type.md) | Новый тип задачи `texts/` для конверсионных текстов + HTML-прототип (/seo-tekst); манифест-JSON + детерминированный сборщик вместо LLM-печати HTML (осознанное отступление от гайда); клиентский гейт согласования + двухуровневый веер | Заменено (см. ADR-041) |
+| [016](docs/adr/016-faq-task-type.md) | Новый тип задачи `faq/` для SEO-нормализации (/seo-faq); JM-анализ пробелов → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка; ассеты VOICE и BLOCKS-METRICS в `seo-faq/assets` | Принято, врезка 23.09 |
+| [017](docs/adr/017-leader-block-scan-and-catalog.md) | Доказательный подбор блоков через скан лидеров (Chrome → rendered, fetch → fallback, статическая матрица → пол) + поддержка каталожных сайтов (типы Категория/Карточка + 5 фрагментов) | Заменено (см. ADR-042) |
+| [018](docs/adr/018-v4-copy-quality-layer.md) | Слой качества копирайта v4 (постмортемы): смысловое = выбор заказчика (offer-варианты + гейт), FACTS единый источник, стоп-листы + verify-copy + copy-auditor проход | Заменено (см. ADR-042) |
+| [019](docs/adr/019-machinery-sync.md) | Синхронизация машинерии в существующие клоны: детерминированный движок sync-from-template.mjs + скилы /sync-from-template (один проект) и /sync-all (все разом), версионная метка `.claude/.machinery-version`, идемпотентные миграции данных | Принято |
+| [020](docs/adr/020-writer-context-diet-and-voice.md) | Диета контекста писателя + анти-ИИ слой: block-planner выносит выбор блоков из page-writer (blueprint на страницу), COPY.md распилен по читателям (VOICE.md писателю, COPY-AUDIT.md контролеру), чек-лист 14 пунктов (п.14 - маркеры ИИ-текста) | Заменено (см. ADR-042) |
+| [021](docs/adr/021-direction-recon-site-review-wireframe.md) | Контент-разведка направлений (direction-scanner) + кросс-страничный аудит (site-reviewer) + wireframe-прототипы (v5.1) | Заменено (см. ADR-042) |
+| [022](docs/adr/022-commercial-copy-not-anti-ai.md) | Коммерческий текст под боль ЦА, не под анти-ИИ-детект: анти-ИИ-слой убран, приоритет смысл+грамотность+боль, заслон утечки кухни (Сургай/кастдев) | Принято, врезка 23.09 |
+| [023](docs/adr/023-yo-letter-ban.md) | Запрет буквы е-с-точками во всех клиентских текстах и метатегах (единый стандарт, рядом с запретом тире; enforcement в 3 слоя) | Принято |
+| [024](docs/adr/024-subagent-model-policy.md) | Ярусы моделей субагентов (sonnet - механика, opus - проза/суждение/аудит) вместо `inherit` - политика в [docs/MODEL-POLICY.md](docs/MODEL-POLICY.md) | Принято, врезка 23.09 |
+| [025](docs/adr/025-final-verifiers.md) | Финальный гейт в каждом клиентском скиле: механический `verify-*.mjs` + opus-верификатор (не чинит, отдельный state `*-verified`) | Принято, врезка 23.09 |
+| [026](docs/adr/026-article-pipeline-scaling.md) | Масштабирование `/seo-statya`: агент photo-producer, серийная очередь `batch-queue`, распил SKILL/REFERENCE | Принято |
+| [027](docs/adr/027-slug-engine-and-url-validation.md) | Единый `_slug.mjs` (URL из приоритетного источника) + валидация «Адрес страницы»; writer копирует URL, не генерит | Принято |
+| [028](docs/adr/028-intake-provenance-and-questions.md) | Интейк с провенансом (`source` + `quote`), вопросы заказчику, импорт ответов (v7) | Заменено (см. ADR-042) |
+| [029](docs/adr/029-custom-question-skill.md) | Скил `/custom-question`: обязательный гейт трактовки, решение без жаргона, память в `QA-ЖУРНАЛ.md` | Принято |
+| [030](docs/adr/030-fast-article-mode.md) | Режим `--fast` для `/seo-statya`: fast-writer одним проходом, механическая верификация | Принято |
+| [031](docs/adr/031-autonomous-brief-driven-texts.md) | Автономный источник текстов `--from-brief` и принцип «деградация только отсутствием данных» (v7) | Заменено (см. ADR-038, ADR-042) |
+| [032](docs/adr/032-block-function-taxonomy.md) | Функция блока Р/Д/К/В (результат/доказательство/квалификация/возражение) и баланс страницы | Частично заменено (см. ADR-042) |
+| [033](docs/adr/033-project-lexicon.md) | Словарь проекта `facts.json.lexicon` (locked / translate / canonical) | Частично заменено (см. ADR-042) |
+| [034](docs/adr/034-text-register.md) | Регистр текста - смысловое решение заказчика, выбор на тон-гейте (v7) | Заменено (см. ADR-042) |
+| [035](docs/adr/035-prototype-handoff-and-modes.md) | Граница передачи прототипа v7: HANDOFF, режимы сборки блока, tekst-verifier | Заменено (см. ADR-042) |
+| [036](docs/adr/036-block-planner-slot-mapper-split.md) | Разделение block-planner / slot-mapper по шву «решения / механика» (v7) | Заменено (см. ADR-042) |
+| [037](docs/adr/037-selling-floor.md) | Продающий пол F1-F4: первый экран, оффер в Hero, CTA вне стоп-листа, рабочий Д-блок | Частично заменено (см. ADR-042) |
+| [038](docs/adr/038-tiered-analysis-and-writing-split.md) | Ступенчатый анализ `/seo-analiz` и разделение «анализ / письмо» (v7) | Заменено (см. ADR-041) |
+| [039](docs/adr/039-single-file-prototype.md) | Прототип одним html-файлом: двухфазная сборка, hash-роутер, wireframe (v7) | Заменено (см. ADR-042) |
+| [040](docs/adr/040-two-layer-intake.md) | Двухслойный интейк: факты анализа отдельно от лексикона текстов (v7) | Заменено (см. ADR-042) |
+| [041](docs/adr/041-v9-site-analiz-single-entry-and-site-tekst.md) | Конвейер v9: `/site-analiz` - единственный вход (`sites/NNN`, `project.json`), единый формат состава страниц `structure_data.json`, `/seo-struktura` по `project.json`, новый скил `/site-tekst` (kit, копия как кеш, гейты); v8 задним числом | Принято |
+| [042](docs/adr/042-v7-and-site-proto-retirement.md) | Вывод из эксплуатации `/seo-analiz`, `/share-analysis`, `/seo-tekst`, `/seo-tekst-fix`, `/share-tekst`, слоя письма v8 `site-proto`; куда переехали ассеты и планировщик; синк проектов с незавершенными задачами v7 закрыт до их закрытия | Принято |
+| [043](docs/adr/043-anti-ai-formulas-as-lint.md) | Слой против ИИ-формул в текстах `/site-tekst` - линтер формы с бюджетами на страницу, заголовки только предупреждением, без гуманизации | Принято |
 
 ---
 

@@ -11,17 +11,19 @@
 .claude\scripts\_node.cmd .claude\tests\<имя>\run.mjs
 ```
 
-Все наборы подряд (Git Bash из корня проекта):
+Все наборы подряд, по одному (Git Bash из корня проекта). Список наборов берется с диска -
+папки `.claude/tests/*` с `run.mjs`, поэтому новый набор в цикл попадает сам:
 
 ```
-for s in batch-queue build-article-docx machinery metatags seo-strategiya \
-         seo-structure seo-tehaudit seo-temi site site-tekst skill-split style sync; do
-  echo "=== $s ==="; .claude/scripts/_node.cmd .claude/tests/$s/run.mjs || echo "FAILED: $s"
+for d in .claude/tests/*/; do
+  s=$(basename "$d"); [ -f "$d/run.mjs" ] || continue
+  echo "=== $s ==="; .claude/scripts/_node.cmd ".claude/tests/$s/run.mjs" || echo "FAILED: $s"
 done
 ```
 
 Общего раннера нет намеренно: наборы независимы, каждый возвращает `exit 0` при
 успехе и `exit 1` при провале, и запускать имеет смысл те, чью зону ты трогал.
+Параллельно наборы не гонять: часть из них пишет песочницы в `.claude/tmp/`.
 
 ## Состав наборов
 
@@ -29,20 +31,22 @@ done
 |---|---|---|
 | `batch-queue` | `batch-queue.mjs` - серийный режим `/seo-statya` | 14 |
 | `build-article-docx` | сборка docx статьи (таблицы, нумерация фото) | 8 |
-| `machinery` | модельная политика, ссылки на ADR, JSON-lint и узкий фолбэк маркера в хуке | 16 |
+| `machinery` | модельная политика против frontmatter агентов, висячие ссылки на ADR, JSON-lint и узкий фолбэк маркера в хуке | 16 |
 | `metatags` | четыре скрипта `/seo-metategi` | 16 |
 | `seo-strategiya` | прогноз денег, смета, `verify-strategy.mjs` | 27 |
-| `seo-structure` | `select-top10`, `build-structure-xlsx`, `import-structure`, `verify-structure` | 35 |
+| `seo-structure` | `validate-project-input` (вход `sites/NNN/project.json`, тир-гейт), `select-top10`, `build-structure-xlsx`, `import-structure`, `verify-structure`, словарь вердиктов `seo-base` | 50 |
 | `seo-tehaudit` | `merge-onpage`, схема `onpage.json`, `verify-audit.mjs` | 23 |
 | `seo-temi` | `read-topics-xlsx.mjs` | 5 |
+| `site` | `/site-analiz`: контракт `project.json`, `pages.yml`, цитаты фактов и служебные пометки, два документа заказчику, гейт ответов и d9, `structure_data.json` планировщика, бюджеты количества, страховка живых скилов и ассетов `/seo-faq` | 104 |
+| `site-tekst` | `/site-tekst`: линтер и скрипты kit (`lint-cases.mjs`, `scripts-cases.mjs`, в том числе импорт анализа), папка задачи и копия kit (`task.mjs`, `overrides/`), холостой прогон на дымовых фикстурах, `.gitignore`, `read-faq-input` для v9 и v7, цикл worktree и pre-commit, синк kit | 49 |
 | `skill-split` | якоря `SKILL.md` <-> `REFERENCE.md` у `/seo-statya` | 4 |
-| `site` | v8: контракт `project.json`, `pages.yml`, два клиентских документа, бюджеты количества, страховка неприкосновенности v7 | 76 |
-| `style` | запрет буквы е-с-точками и тире (verify-скрипты + нормализация в сборщиках) | 17 |
+| `style` | запрет буквы е-с-точками и тире (verify-скрипты + нормализация в сборщиках) | 12 |
 | `sync` | движок `/sync-from-template` (dry-run, apply, миграции) | 14 |
 
-Итого 571 тест (480 до набора `catalog` режима магазина, 552 до его правок по находкам критиков; 419 до набора `proto` слоя письма v8; 343 до набора `site`; 301 до появления набора `machinery`, 313 до правок 23.08 по итогам
-боевого прогона: узкий фолбэк маркера в хуке + обе формы заголовка раздела «Вопросы к вам»,
-319 после волн 1-2, 343 после волны 3).
+Итого 13 наборов, 342 теста. До гейта 0 (2026-09-23) было 17 наборов и 571 тест: наборы
+`proto`, `catalog`, `seo-tekst`, `kit-mobile` и `seo-analiz` ушли вместе с выведенными
+скилами, набор `site-tekst` пришел с `/site-tekst`, регресс валидатора входа
+структуры переехал из `seo-analiz` в `seo-structure`.
 
 ## Что покрыто, а что нет (важное замечание)
 

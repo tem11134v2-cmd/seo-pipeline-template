@@ -362,11 +362,11 @@ echo "<path/to/expected-output>" > .claude/tmp/expected-<agent-name>-<run_id>.tx
 - Если перед ним уже есть механический `verify-*.mjs` (тире/буква Ё/длины/структура) —
   верификатор берёт то, чего скрипт **не видит**: смысл, а не форму.
 - Успешный проход — отдельное состояние в `meta.json` (например
-  `analysis-verified`, `structure-verified`, `strategy-verified`).
+  `structure-verified`, `strategy-verified`, `audit-verified`).
 
-Примеры в системе: `analysis-verifier` (/seo-analiz), `structure-verifier`
-(/seo-struktura), `strategy-verifier` (/seo-strategiya), `audit-verifier`
-(/seo-tehaudit), `article-verifier` (/seo-statya), `topics-verifier` (/seo-temi).
+Примеры в системе: `structure-verifier` (/seo-struktura), `strategy-verifier`
+(/seo-strategiya), `audit-verifier` (/seo-tehaudit), `article-verifier` (/seo-statya),
+`solution-verifier` (/custom-question), `topics-verifier` (/seo-temi, на sonnet - чек-лист).
 Архитектурное решение и полный список экземпляров — [ADR-025](adr/025-final-verifiers.md).
 
 ### Naming conventions

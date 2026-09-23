@@ -1,12 +1,14 @@
 # ADR-033: Словарь проекта (facts.json.lexicon) - одна сущность вместо трех правил
 
-**Статус:** Принято
+**Статус:** Частично заменено (см. [ADR-042](042-v7-and-site-proto-retirement.md))
 
 **Дополнено 2026-08-22 (v7, [ADR-038](038-tiered-analysis-and-writing-split.md)):** канал сборки словаря - мост v7: `audience_wordings` ({phrase, means, from}) пишет audience-analyst в `analyses/audience.json` и подтверждает revising-цикл A2 (печатаются в A2-разделе ЦА) - отдельного гейта в текстах нет; кандидаты `client_wordings`/`internal_terms`/`client_metaphors` живут в `analyses/intake.json` (intake-analyst - теперь агент только `/seo-analiz`). Спаривание internal/public и наполнение `lexicon` - по-прежнему ручная работа оркестратора `/seo-tekst`; поведение агентов-читателей не меняется.
 
 **Уточнен 2026-08-23 ([ADR-040](040-two-layer-intake.md)):** кандидаты `client_wordings` / `internal_terms` / `client_metaphors` (и `client_life_before_after`) лежат в `analyses/NNN/intake_lexicon.json`, а не внутри `intake.json`; если файла нет, читатели ищут те же поля в `intake.json` (легаси-режим однослойного интейка). Владельцы наполнения и сборка `facts.json.lexicon` мостом не меняются.
 
 **Дата:** 2026-08-20
+
+> **Выведено 2026-09-23 (гейт 0).** Мост `/seo-tekst` выведен. `facts.json.lexicon` старых задач v7 по-прежнему читает `faq-builder`; словарь анализа - `project.json.lexicon`.
 
 ## Контекст
 

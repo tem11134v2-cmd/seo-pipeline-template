@@ -1,8 +1,10 @@
 # ADR-036: Разделение block-planner на два агента - решения (block-planner) и механика (slot-mapper)
 
-**Статус:** Принято
+**Статус:** Заменено (см. [ADR-042](042-v7-and-site-proto-retirement.md))
 
 **Дата:** 2026-08-20
+
+> **Выведено 2026-09-23 (гейт 0).** `block-planner` и `slot-mapper` выведены вместе с `/seo-tekst`.
 
 ## Контекст
 

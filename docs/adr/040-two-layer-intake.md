@@ -1,8 +1,10 @@
 # ADR-040: Двухслойный интейк - факты для анализа отдельно от лексикона для текстов
 
-**Статус:** Принято
+**Статус:** Заменено (см. [ADR-042](042-v7-and-site-proto-retirement.md))
 
 **Дата:** 2026-08-23
+
+> **Выведено 2026-09-23 (гейт 0).** `intake-analyst` и `read-tekst-input.mjs` выведены с `/seo-analiz` и `/seo-tekst`. Фактура анализа - `parts/facts.json` и `parts/facts-src.json` скила `/site-analiz`.
 
 ## Контекст
 
