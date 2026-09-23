@@ -3,7 +3,7 @@ export const meta = {
   description: 'Phase 6: judge (runs lint-page itself) -> one fixer pass over judge + lint findings -> judge round 2 only on blocker or low scores; cross-judge over dedup pairs and geo twins; blind readers on a sample; one render-md',
   phases: [{ title: 'Judge' }, { title: 'Cross' }, { title: 'Blind' }],
 }
-// args: { root, pages: [{slug, type}], sample?: [slug...], skipCross?: boolean, skipBlind?: boolean, model?, model_light?,
+// args: { root, pages: [{slug, type}], sample?: [slug...], skipCross?: boolean, skipBlind?: boolean, model?, model_light?, models?: {роль: модель},
 //         thresholds?: { hero_questions: 4, clonability: 4, flow: 4, objections_closed: 0.9, blocks_on_question: 0.9 } }
 // Агентов на страницу: судья 1 (сам запускает lint-page) + фиксер 0-1 (blocker/major у судьи или у линтера страницы, один проход
 // по обоим файлам) + судья круга 2 0-1 (после фиксера остались blocker или оценка круга 1 ниже порога) + фиксер 0-1
@@ -16,8 +16,19 @@ if (!pages.length) throw new Error('args.pages пуст')
 const sample = (args && args.sample) || []
 const ROOT = (args && args.root) || ''
 if (!ROOT) throw new Error('args.root обязателен: абсолютный путь к папке проекта')
+// Модели по ролям (docs/RUNBOOK.md, «Модели по ролям»): light -> args.model_light, strong -> args.model;
+// args.models {роль: модель} переопределяет умолчание роли. Те же args - те же модели (resume берет кэш).
 const MODEL = (args && args.model) || undefined
 const MODEL_LIGHT = (args && args.model_light) || MODEL
+const ROLE_MODELS = (args && args.models) || {}
+if (typeof ROLE_MODELS !== 'object' || Array.isArray(ROLE_MODELS)) throw new Error('args.models: объект {роль: модель}')
+const ROLES = {
+  run: 'light', judge: 'strong', fixer: 'strong', 'cross-judge': 'strong', blind: 'strong',
+}
+const modelFor = role => {
+  if (!ROLES[role]) throw new Error(`роль ${role} не описана в ROLES`)
+  return ROLE_MODELS[role] || (ROLES[role] === 'light' ? MODEL_LIGHT : MODEL)
+}
 const TH = Object.assign({ hero_questions: 4, clonability: 4, flow: 4, objections_closed: 0.9, blocks_on_question: 0.9 }, (args && args.thresholds) || {})
 const pre = p => `Папка проекта: ${ROOT}. Все относительные пути в промтах считаются от нее; команды запускай из нее (cd "${ROOT}" && ...). Сначала прочитай ${ROOT}/CLAUDE.md, затем ${ROOT}/${p}, и выполни роль строго по нему.`
 const ITEM = { type: 'object', properties: { severity: { type: 'string', enum: ['blocker', 'major', 'minor'] }, category: { type: 'string' }, rule: { type: 'string' }, problem: { type: 'string' }, page: { type: 'string' }, block_id: { type: 'string' }, quote: { type: 'string' }, proposal: { type: 'string' }, needs_fact: { type: 'boolean' } }, required: ['severity', 'rule', 'problem'] }
@@ -28,11 +39,11 @@ const JUDGE = { type: 'object', properties: { findings: { type: 'array', items: 
   required: ['findings', 'verdict', 'summary', 'scores', 'lint_page'] }
 const FIX = { type: 'object', properties: { slug: { type: 'string' }, fixed: { type: 'number' }, rejected: { type: 'number' }, left_open: { type: 'number' }, blocker_open: { type: 'number' }, blocks_touched: { type: 'array', items: { type: 'string' } }, lint: { type: 'string' }, page_lint: { type: 'string' }, page_lint_summary: { type: 'string' } }, required: ['slug', 'fixed', 'rejected', 'left_open', 'blocker_open', 'lint', 'page_lint'] }
 const RUN = { type: 'object', properties: { ok: { type: 'boolean' }, exit_code: { type: 'number' }, stdout_tail: { type: 'string' } }, required: ['ok', 'exit_code', 'stdout_tail'] }
-const run = (cmd, label, phase) => agent(`Запусти команду из папки проекта ${ROOT}:\ncd "${ROOT}" && ${cmd}\nНичего не исправляй. Верни ok (код выхода 0), exit_code и последние 40 строк вывода.`, { label, phase, effort: 'low', model: MODEL_LIGHT, schema: RUN })
+const run = (cmd, label, phase) => agent(`Запусти команду из папки проекта ${ROOT}:\ncd "${ROOT}" && ${cmd}\nНичего не исправляй. Верни ok (код выхода 0), exit_code и последние 40 строк вывода.`, { label, phase, effort: 'low', model: modelFor('run'), schema: RUN })
 const serious = r => (r && r.findings || []).filter(f => f.severity !== 'minor')
 const below = s => Object.keys(TH).filter(k => !(s && typeof s[k] === 'number' && s[k] >= TH[k]))
-const judge = (slug, round, extra) => agent(`${pre('prompts/06-page-judge.md')}\nПараметры: slug=${slug}; round=${round}; scope=${round === 1 ? 'full' : 'fixed'}${extra || ''}.`, { label: `judge:${slug}:${round}`, phase: 'Judge', effort: 'high', model: MODEL, schema: JUDGE })
-const fixer = (slug, files, phase, label) => agent(`${pre('prompts/06-fixer.md')}\nПараметры: slug=${slug}; findings=${files.join(',')}.`, { label, phase, effort: 'high', model: MODEL, schema: FIX })
+const judge = (slug, round, extra) => agent(`${pre('prompts/06-page-judge.md')}\nПараметры: slug=${slug}; round=${round}; scope=${round === 1 ? 'full' : 'fixed'}${extra || ''}.`, { label: `judge:${slug}:${round}`, phase: 'Judge', effort: 'high', model: modelFor('judge'), schema: JUDGE })
+const fixer = (slug, files, phase, label) => agent(`${pre('prompts/06-fixer.md')}\nПараметры: slug=${slug}; findings=${files.join(',')}.`, { label, phase, effort: 'high', model: modelFor('fixer'), schema: FIX })
 
 phase('Judge')
 const judged = await pipeline(pages,
@@ -57,7 +68,7 @@ log(`судья: страниц ${judged.filter(Boolean).length}, закрыто
 let cross = null, crossFixes = []
 if (!(args && args.skipCross)) {
   phase('Cross')
-  cross = await agent(`${pre('prompts/06-cross-judge.md')}`, { label: 'cross-judge', phase: 'Cross', effort: 'high', model: MODEL, schema: FINDINGS })
+  cross = await agent(`${pre('prompts/06-cross-judge.md')}`, { label: 'cross-judge', phase: 'Cross', effort: 'high', model: modelFor('cross-judge'), schema: FINDINGS })
   const fixable = serious(cross).filter(f => !f.needs_fact)
   const affected = [...new Set(fixable.map(f => f.page).filter(Boolean))].filter(s => pages.some(p => p.slug === s))
   if (affected.length) crossFixes = (await parallel(affected.map(s => () => fixer(s, [`work/audit/${s}/cross.json`], 'Cross', `fix:${s}:cross`)))).filter(Boolean)
@@ -67,7 +78,7 @@ let blind = []
 if (!(args && args.skipBlind) && sample.length) {
   phase('Blind')
   blind = await pipeline(sample,
-    s => agent(`${pre('prompts/06-blind-reader.md')}\nПараметры: slug=${s}.`, { label: `blind:${s}`, phase: 'Blind', effort: 'high', model: MODEL, schema: FINDINGS }),
+    s => agent(`${pre('prompts/06-blind-reader.md')}\nПараметры: slug=${s}.`, { label: `blind:${s}`, phase: 'Blind', effort: 'high', model: modelFor('blind'), schema: FINDINGS }),
     async (r, s) => (r && serious(r).length) ? { slug: s, blind: r.summary, scores: r.scores, fix: await fixer(s, [`work/audit/${s}/blind.json`], 'Blind', `fix:${s}:blind`) } : { slug: s, blind: r && r.summary, scores: r && r.scores })
 }
 await run(crossFixes.length ? 'node scripts/split-cross.mjs --merge; node scripts/render-md.mjs' : 'node scripts/render-md.mjs', 'render-md', 'Blind')

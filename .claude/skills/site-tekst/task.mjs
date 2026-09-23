@@ -42,7 +42,7 @@ export const KEEP = new Set(['rules/decisions.md']);
 export const MANIFEST = '.kit.json';
 export const OVERRIDES = 'overrides';
 export const DATA_DIRS = ['inputs', 'work/competitors/raw', 'work/page-types', 'work/layouts', 'work/pages', 'work/audit', 'work/catalog', 'work/output'];
-// Модели агентов воркфлоу: писатели, судьи, стратеги - opus; скрипты и сборка - sonnet (docs/RUNBOOK.md kit, «Обязательные args»).
+// Модели агентов воркфлоу: сильная роль - opus, легкая - sonnet, раскладка ролей и args.models (docs/RUNBOOK.md kit, «Обязательные args»).
 export const MODELS = { model: 'opus', model_light: 'sonnet' };
 
 const ROOT = process.cwd();

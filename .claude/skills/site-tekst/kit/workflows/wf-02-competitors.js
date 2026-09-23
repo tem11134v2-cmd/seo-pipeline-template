@@ -3,7 +3,7 @@ export const meta = {
   description: 'Phase 2: verify competitors, inventory pages per domain, extract blocks in batches per domain, aggregate per page type (small types in batches), analyze catalogs',
   phases: [{ title: 'Verify' }, { title: 'Inventory' }, { title: 'Extract' }, { title: 'Aggregate' }],
 }
-// args: { root, types:[...], type_pages?:{type:N}, catalog?, model?, model_light?,
+// args: { root, types:[...], type_pages?:{type:N}, catalog?, model?, model_light?, models?: {роль: модель},
 //   extract_batch?: 4 - снимков одного домена на вызов экстрактора,
 //   small_type_max?: 2, small_batch?: 4, solo_types?: ["home"] - типы с <= small_type_max страниц в карте (кроме solo_types)
 //     агрегируются пакетами по small_batch типов, файл по-прежнему один на тип,
@@ -16,8 +16,20 @@ const types = A.types || []
 if (!types.length) throw new Error('args.types обязателен: список типов страниц из work/sitemap.json')
 const ROOT = A.root || ''
 if (!ROOT) throw new Error('args.root обязателен: абсолютный путь к папке проекта')
+// Модели по ролям (docs/RUNBOOK.md, «Модели по ролям»): light -> args.model_light, strong -> args.model;
+// args.models {роль: модель} переопределяет умолчание роли. Те же args - те же модели (resume берет кэш).
 const MODEL = A.model || undefined
 const MODEL_LIGHT = A.model_light || MODEL
+const ROLE_MODELS = A.models || {}
+if (typeof ROLE_MODELS !== 'object' || Array.isArray(ROLE_MODELS)) throw new Error('args.models: объект {роль: модель}')
+const ROLES = {
+  'prep-args': 'light', verify: 'light', inventory: 'light', 'catalog-analyst': 'light', aggregate: 'strong',
+  extract: 'strong', // 02-block-extractor: пока strong до решения по эксперименту; умолчание меняется этой строкой
+}
+const modelFor = role => {
+  if (!ROLES[role]) throw new Error(`роль ${role} не описана в ROLES`)
+  return ROLE_MODELS[role] || (ROLES[role] === 'light' ? MODEL_LIGHT : MODEL)
+}
 const EXTRACT_BATCH = Math.max(1, Number(A.extract_batch) || 4)
 const SMALL_MAX = A.small_type_max == null ? 2 : Number(A.small_type_max)
 const SMALL_BATCH = Math.max(1, Number(A.small_batch) || 4)
@@ -59,7 +71,7 @@ const needPrep = (!typePages && !A.skipAggregate) || (A.skipInventory && !snapsh
 if (needPrep) {
   const wantSnaps = A.skipInventory && !snapshots
   const flags = [`--types ${types.join(',')}`, wantSnaps ? '--snapshots' : '', wantSnaps && A.extract_types ? `--snapshot-types ${A.extract_types.join(',')}` : '', wantSnaps && A.extract_domains ? `--domains ${A.extract_domains.join(',')}` : ''].filter(Boolean).join(' ')
-  const prep = await agent(`Запусти команду из папки проекта ${ROOT}:\ncd "${ROOT}" && node scripts/prep-args.mjs ${flags}\nНичего не исправляй. stdout команды - JSON: перенеси type_pages как список {type, pages} и snapshots (если есть) без изменений. ok - код выхода 0; при ошибке - текст в error.`, { label: 'prep-args', phase: A.skipInventory ? 'Extract' : 'Verify', effort: 'low', model: MODEL_LIGHT, schema: PREP })
+  const prep = await agent(`Запусти команду из папки проекта ${ROOT}:\ncd "${ROOT}" && node scripts/prep-args.mjs ${flags}\nНичего не исправляй. stdout команды - JSON: перенеси type_pages как список {type, pages} и snapshots (если есть) без изменений. ok - код выхода 0; при ошибке - текст в error.`, { label: 'prep-args', phase: A.skipInventory ? 'Extract' : 'Verify', effort: 'low', model: modelFor('prep-args'), schema: PREP })
   if (prep && prep.ok) {
     if (!typePages) typePages = Object.fromEntries(prep.type_pages.map(x => [x.type, x.pages]))
     if (A.skipInventory && !snapshots) snapshots = prep.snapshots || []
@@ -72,17 +84,17 @@ let pages = []
 let catalogP = null
 if (!A.skipInventory) {
   phase('Verify')
-  verify = await agent(`${pre('prompts/02-competitor-verifier.md')}`, { label: 'verify', phase: 'Verify', effort: 'medium', model: MODEL, schema: VERIFY })
+  verify = await agent(`${pre('prompts/02-competitor-verifier.md')}`, { label: 'verify', phase: 'Verify', effort: 'medium', model: modelFor('verify'), schema: VERIFY })
   if (!verify || !verify.kept.length) throw new Error('нет доступных конкурентов')
   log(`конкурентов в работе: ${verify.kept.length} (${verify.kept.join(', ')})`)
 
   phase('Inventory')
-  inventories = (await parallel(verify.kept.map(d => () => agent(`${pre('prompts/02-page-classifier.md')}\nПараметры: domain=${d}; types=${JSON.stringify(types.filter(t => t !== 'info_other'))}.`, { label: `inventory:${d}`, phase: 'Inventory', effort: 'medium', model: MODEL, schema: INVENTORY })))).filter(Boolean)
+  inventories = (await parallel(verify.kept.map(d => () => agent(`${pre('prompts/02-page-classifier.md')}\nПараметры: domain=${d}; types=${JSON.stringify(types.filter(t => t !== 'info_other'))}.`, { label: `inventory:${d}`, phase: 'Inventory', effort: 'medium', model: modelFor('inventory'), schema: INVENTORY })))).filter(Boolean)
   pages = inventories.flatMap(inv => inv.pages.filter(p => ['ok', 'browser'].includes(p.status)).map(p => ({ domain: inv.domain, type: p.type, url: p.url, raw: p.raw })))
   // главные страницы тоже разбираем как тип home
   for (const d of verify.kept) if (types.includes('home') && !pages.find(p => p.domain === d && p.type === 'home')) pages.push({ domain: d, type: 'home', url: `https://${d}/`, raw: `work/competitors/raw/${d}/home.json` })
   // каталоги не зависят от разбора блоков: запускаем сразу, ждем в конце
-  if (A.catalog) catalogP = agent(`${pre('prompts/02-catalog-analyst.md')}\nПараметры: domains=${JSON.stringify(verify.kept.slice(0, 4))}.`, { label: 'catalog-analyst', phase: 'Aggregate', effort: 'medium', model: MODEL, schema: CAT }).catch(() => null)
+  if (A.catalog) catalogP = agent(`${pre('prompts/02-catalog-analyst.md')}\nПараметры: domains=${JSON.stringify(verify.kept.slice(0, 4))}.`, { label: 'catalog-analyst', phase: 'Aggregate', effort: 'medium', model: modelFor('catalog-analyst'), schema: CAT }).catch(() => null)
 } else {
   pages = (snapshots || []).map(p => ({ domain: p.domain, type: p.type, url: p.url, raw: p.raw }))
   log(`skipInventory: снимков из ${A.snapshots ? 'args.snapshots' : 'competitors.json'}: ${pages.length}`)
@@ -96,7 +108,7 @@ phase('Extract')
 const batches = extractBatches(pages)
 log(`снимков к разбору: ${pages.length}, вызовов экстрактора: ${batches.length} (до ${EXTRACT_BATCH} снимков домена на вызов), разборы в ${EXTRACT_OUT}`)
 // замер для агрегаторов делает первый пакет (снимки к этому моменту сняты все, разбору CSV не нужен)
-const extracts = (await parallel(batches.map((b, i) => () => agent(`${pre('prompts/02-block-extractor.md')}\nПараметры: domain=${b.domain}; out=${EXTRACT_OUT}; measure=${i === 0 && !A.skipInventory}; items=${JSON.stringify(b.items.map(p => ({ raw: p.raw, type: p.type, url: p.url })))}.`, { label: `extract:${b.domain}:${b.part}`, phase: 'Extract', effort: 'medium', model: MODEL, schema: EXTRACT })))).filter(Boolean)
+const extracts = (await parallel(batches.map((b, i) => () => agent(`${pre('prompts/02-block-extractor.md')}\nПараметры: domain=${b.domain}; out=${EXTRACT_OUT}; measure=${i === 0 && !A.skipInventory}; items=${JSON.stringify(b.items.map(p => ({ raw: p.raw, type: p.type, url: p.url })))}.`, { label: `extract:${b.domain}:${b.part}`, phase: 'Extract', effort: 'medium', model: modelFor('extract'), schema: EXTRACT })))).filter(Boolean)
 const extracted = extracts.flatMap(e => e.results || [])
 const failed = extracted.filter(e => e.error || !e.file)
 log(`разобрано снимков: ${extracted.length - failed.length} из ${pages.length}, блоков всего: ${extracted.reduce((s, e) => s + (e.blocks || 0), 0)}${failed.length ? `; не разобраны: ${failed.map(e => e.raw || e.file).join(', ')}` : ''}`)
@@ -111,7 +123,7 @@ if (!A.skipAggregate) {
   const packs = groups.filter(g => g.length > 1)
   if (packs.length) log(`мелкие типы пакетами: ${packs.map(g => g.join('+')).join(' | ')}`)
   const noData = g => A.skipInventory ? [] : g.filter(t => missingTypes.includes(t))
-  agg = (await parallel(groups.map(g => () => agent(`${pre('prompts/02-type-aggregator.md')}\nПараметры: types=${JSON.stringify(g)}; no_data=${JSON.stringify(noData(g))}; blocks_dir=${EXTRACT_OUT}; out=${AGG_OUT}.`, { label: `aggregate:${g.join('+')}`, phase: 'Aggregate', effort: 'high', model: MODEL, schema: AGG })))).filter(Boolean).flatMap(r => r.results || [])
+  agg = (await parallel(groups.map(g => () => agent(`${pre('prompts/02-type-aggregator.md')}\nПараметры: types=${JSON.stringify(g)}; no_data=${JSON.stringify(noData(g))}; blocks_dir=${EXTRACT_OUT}; out=${AGG_OUT}.`, { label: `aggregate:${g.join('+')}`, phase: 'Aggregate', effort: 'high', model: modelFor('aggregate'), schema: AGG })))).filter(Boolean).flatMap(r => r.results || [])
   const lost = types.filter(t => !agg.find(r => r.type === t))
   if (lost.length) log(`нет результата агрегатора для типов: ${lost.join(', ')}`)
 }

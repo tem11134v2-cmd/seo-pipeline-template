@@ -6,7 +6,8 @@
 //   SITE_TEKST_TEST_KEEP=1 - не удалять песочницу (разбор упавшего шага руками)
 //
 // Состав:
-//   1. kit: lint-cases.mjs (линтер) и scripts-cases.mjs (скрипты) рядом - против kit, код 0.
+//   1. kit: lint-cases.mjs (линтер), scripts-cases.mjs (скрипты) и workflow-models.mjs (модели по ролям в воркфлоу,
+//      подставные agent/parallel/pipeline/workflow) рядом - против kit, код 0.
 //   2. Папка задачи: task.mjs plan/init/place - номер max+1 по всем texts/* (v7 тоже), ссылки meta.json, пути sources
 //      от папки задачи, копия kit по манифесту, правка на месте -> код 3, overrides/ поверх kit, --force, запрет
 //      overrides на данные, пересчет sources после импорта (абсолютные пути чужой worktree).
@@ -102,8 +103,8 @@ console.log('=== site-tekst (kit v9, папка задачи, холостой �
 console.log(`Песочница: ${SANDBOX}`);
 
 // ================================================================ 1. kit
-section('1. kit: lint-cases и scripts-cases');
-for (const f of ['lint-cases.mjs', 'scripts-cases.mjs']) {
+section('1. kit: lint-cases, scripts-cases, workflow-models');
+for (const f of ['lint-cases.mjs', 'scripts-cases.mjs', 'workflow-models.mjs']) {
   step(`${f}: код 0`, () => {
     const r = node(ROOT, [path.join(HERE, f)]);
     const tail = r.out.trim().split('\n').slice(-1)[0];

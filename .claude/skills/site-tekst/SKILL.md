@@ -84,7 +84,9 @@ kit в шаблоне доходят и до задач, начатых рань
 `--wave N` / `--slugs a,b`, `--concurrency`), `audit` (wf-06, только страницы без `round-N.json`, `--all` - все),
 `fix` (wf-06b, `--slug`, `--findings`, `--judge`), `hero` (wf-05b, `--slug`, `--block`), `catalog` (wf-07). `--extra '<json>'` добавляет поля
 (`{"skipDump":true}`, `{"skipCross":true}` и т.п. из RUNBOOK). В каждом `args`: `root` - абсолютный путь папки задачи
-в этой worktree, `model` - `opus`, `model_light` - `sonnet`.
+в этой worktree, `model` - `opus` (роли `strong`), `model_light` - `sonnet` (роли `light`). При необходимости оркестратор
+добавляет `models` - точечную замену модели роли: `--extra '{"models":{"extract":"sonnet"}}'` (роли и умолчания -
+`kit/docs/RUNBOOK.md`, «Модели по ролям»).
 
 ## Запуск воркфлоу
 

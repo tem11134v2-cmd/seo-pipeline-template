@@ -10,11 +10,67 @@
 "root":"<абсолютный путь к папке проекта>","model":"claude-opus-5","model_light":"claude-sonnet-5"
 ```
 - `root` - агенты не полагаются на текущую папку сессии (она сбрасывается после перезапуска).
-- `model` - рабочие агенты (писатели, судьи, стратеги, аудиторы, фиксеры).
-- `model_light` - дешевые шаги: запуск скриптов, `prep-args`, `merge-strategy` + `build-briefs`, импорт в режиме `project`, сборка.
+- `model` - роли с умолчанием `strong` (факты, разбор лидеров, аудит типов, стратеги, писатели, судьи, фиксеры, ТЗ каталога).
+- `model_light` - роли с умолчанием `light` (дамп и снимки, импорт анализа, верификация и классификация конкурентов, анализ
+  каталогов, раскладки, публикация ТЗ, запуск скриптов kit). Без `model_light` легкие роли берут `model`.
 - Без `model` и `model_light` агенты наследуют модель сессии оркестратора.
+- Необязательное `models` - `{"<роль>":"<модель>"}`, точечная замена модели роли (ниже, «Модели по ролям»).
 
 `<вывод скрипта>` в `args` значит: поля JSON, который скрипт печатает в stdout, добавляются в `args` как есть.
+
+## Модели по ролям
+
+У каждого воркфлоу своя таблица `ROLES` (роль -> `light` или `strong`) и функция `modelFor`: роль из `args.models` берет
+указанную модель, иначе `light` -> `model_light`, `strong` -> `model`. Роль - короткое стабильное имя, не label вызова.
+Модель зависит только от `args`: при `resumeFromRunId` с теми же `args` модели те же и кэш работает.
+
+| Роль | Умолчание | Воркфлоу | Исполнитель |
+|---|---|---|---|
+| `dump` | light | wf-00 | `00-analysis-dumper` |
+| `snapshot` | light | wf-00 | `00-site-snapshot` |
+| `import` | light | wf-00 | `00-project-import` (режим `project`) |
+| `facts-extract` | strong | wf-00 | `00-facts-extractor`, первый проход |
+| `facts-check` | strong | wf-00 | `00-facts-checker`, оба круга |
+| `facts-fix` | strong | wf-00 | `00-facts-extractor`, второй проход по находкам |
+| `structure-fallback` | strong | wf-00 | `01-structure-fallback` |
+| `sitemap-enrich` | strong | wf-00 | `01-sitemap-enricher` |
+| `verify` | light | wf-02 | `02-competitor-verifier` |
+| `inventory` | light | wf-02 | `02-page-classifier` |
+| `extract` | strong | wf-02 | `02-block-extractor` - пока strong, решение по эксперименту (строка `extract:` в `ROLES`) |
+| `aggregate` | strong | wf-02 | `02-type-aggregator` |
+| `catalog-analyst` | light | wf-02 | `02-catalog-analyst` |
+| `type-audit` | strong | wf-03 | `03-type-auditor`, оба круга |
+| `type-fix` | strong | wf-03 | `03-type-fixer` |
+| `strategist-global` | strong | wf-04 | `04-strategist-global` |
+| `strategist-type` | strong | wf-04 | `04-strategist-type` |
+| `layout` | light | wf-04 | `04-layout-generator`, оба круга |
+| `writer` | strong | wf-05 | `05-block-writer` - пока strong (строка `writer:` в `ROLES`) |
+| `hero-writer` | strong | wf-05, wf-05b | `05-hero-writer` (single и три писателя турнира) |
+| `hero-judge` | strong | wf-05b | оба судьи турнира: `05-hero-selector` mode=score и слепой читатель |
+| `hero-select` | strong | wf-05, wf-05b | `05-hero-selector` mode=select |
+| `judge` | strong | wf-06, wf-06b | `06-page-judge`, все круги |
+| `fixer` | strong | wf-06, wf-06b | `06-fixer`, все вызовы (судья, кросс, слепой читатель) |
+| `cross-judge` | strong | wf-06 | `06-cross-judge` |
+| `blind` | strong | wf-06 | `06-blind-reader` |
+| `catalog-spec` | strong | wf-07 | `07-catalog-spec-writer` |
+| `tz-write` | strong | wf-07 | `07-catalog-tz-writer`, оба круга |
+| `tz-audit` | strong | wf-07 | `07-catalog-tz-auditor`, оба круга |
+| `tz-publish` | light | wf-07 | `07-catalog-publisher` |
+| `distill` | strong | wf-T1 | `T1-rules-distiller`, оба прохода |
+| `distill-check` | strong | wf-T1 | `T1-rules-checker`, оба круга |
+| `retro` | strong | wf-T2 | `T2-retro` |
+| `prep-args` | light | wf-02, wf-03, wf-04 | `node scripts/prep-args.mjs` |
+| `briefs` | light | wf-04 | `merge-strategy.mjs` + `build-briefs.mjs` |
+| `build` | light | wf-06b | `lint-page`, `render-md`, `build-html`, `check-html`, `report` |
+| `run` | light | wf-00, wf-06, wf-T1 | прочие node-команды: `import-structure`, `render-md`, `normalize` |
+
+Пример: экстрактор на легкой модели, писатели блоков и судьи турнира - на явно заданных:
+```
+"models":{"extract":"sonnet","writer":"opus","hero-judge":"opus"}
+```
+Через `task.mjs args` - `--extra '{"models":{"extract":"sonnet"}}'`. Одно `models` можно передавать всем воркфлоу: роли,
+которых в воркфлоу нет, не действуют; `models` из `wf-05` уходит и во вложенный `wf-05b`. Смена умолчания роли - правка
+ее строки в `ROLES` воркфлоу и в таблице выше (тест `.claude/tests/site-tekst/workflow-models.mjs` сверяет обе).
 
 ## Сборка шаблона (один раз)
 
@@ -160,8 +216,8 @@ Workflow wf-T2-retro.js args={<base>,"template":"<путь к шаблону>"}
 `node scripts/sync-from-template.mjs <шаблон>`.
 
 ## Если что-то упало
-- Воркфлоу: перезапуск с `resumeFromRunId` и теми же `args` - завершенные агенты берутся из кэша. Смена `model` в `args` кэш
-  не использует: агенты пойдут заново.
+- Воркфлоу: перезапуск с `resumeFromRunId` и теми же `args` - завершенные агенты берутся из кэша. Смена `model`, `model_light`
+  или `models` в `args` меняет модель части агентов: с первого такого агента прогон идет заново.
 - Фазы 5-6: заново `plan-run` и запуск - готовые блоки не переписываются.
 - Фаза 0, `project`: код 2 у импорта - гейт не согласован или нет входного файла; код 1 - выход не прошел схему или регулярки
   антиобещаний не прошли проверку (`work/import-report.json`).
