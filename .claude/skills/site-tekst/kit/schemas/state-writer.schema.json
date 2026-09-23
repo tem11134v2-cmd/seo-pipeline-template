@@ -1,0 +1,19 @@
+{
+  "$id": "state-writer",
+  "description": "Компактное состояние страницы для следующего писателя: work/pages/<slug>/state.writer.json. Пишет scripts/page-state.mjs рядом с полным state.json.",
+  "type": "object",
+  "required": ["slug", "blocks_done", "facts_used", "objections_covered", "do_not_repeat", "blocks_summary", "last_block"],
+  "properties": {
+    "slug": { "type": "string" },
+    "blocks_done": { "type": "string" },
+    "facts_used": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
+    "objections_covered": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } },
+    "do_not_repeat": { "type": "array", "items": { "type": "string" } },
+    "blocks_summary": { "type": "array", "items": { "type": "string" } },
+    "last_block": {
+      "type": "object",
+      "required": ["block_id", "text"],
+      "properties": { "block_id": { "type": "string" }, "text": { "type": "array", "items": { "type": "string" } }, "handoff_note": { "type": "string" } }
+    }
+  }
+}

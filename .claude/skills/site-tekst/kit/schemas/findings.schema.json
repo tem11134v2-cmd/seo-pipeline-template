@@ -1,0 +1,59 @@
+{
+  "$id": "findings",
+  "description": "Находки аудиторов, судей и скриптов в едином формате: work/audit/**.json. Обязательные поля общие для всех производителей; необязательные ниже пишут отдельные роли фазы 6 и скрипты.",
+  "type": "object",
+  "required": ["scope", "producer", "findings", "verdict"],
+  "properties": {
+    "scope": { "type": "string" },
+    "producer": { "type": "string", "enum": ["lint", "dedup", "page-judge", "cross-judge", "blind-reader", "type-auditor", "layout-validator", "html-check", "catalog-auditor", "facts-checker", "hero-selector", "human"] },
+    "round": { "type": "number" },
+    "created_at": { "type": "string" },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "category", "rule", "problem"],
+        "properties": {
+          "id": { "type": "string" },
+          "page": { "type": "string" },
+          "block_id": { "type": "string" },
+          "element_index": { "type": "number" },
+          "quote": { "type": "string" },
+          "severity": { "type": "string", "enum": ["blocker", "major", "minor"] },
+          "category": { "type": "string", "enum": ["fact", "repeat", "logic", "rule", "coverage", "weak", "style", "structure", "format"] },
+          "rule": { "type": "string" },
+          "problem": { "type": "string" },
+          "proposal": { "type": "string" },
+          "status": { "type": "string", "enum": ["open", "fixed", "rejected", "wontfix"] },
+          "auto_fixable": { "type": "boolean" },
+          "needs_fact": { "type": "boolean", "description": "Кросс-судья: без новых фактов не исправить. Фиксер такую находку не правит, ставит status wontfix и resolution «нет факта: ...»." },
+          "resolution": { "type": "string", "description": "Фиксер: что сделано или почему отказ. split-cross.mjs --merge переносит его в общий work/audit/cross.json." },
+          "fix_note": { "type": "string", "description": "Прежнее имя resolution в отчетах до этапа 2; читается retro-stats.mjs, новые отчеты пишут resolution." }
+        }
+      }
+    },
+    "scores": { "type": "object" },
+    "verdict": { "type": "string", "enum": ["pass", "fix", "blocked"] },
+    "summary": { "type": "string" },
+    "lint_page": {
+      "type": "object",
+      "description": "Судья страницы: итог lint-page.mjs, который он запустил сам (вердикт и summary work/audit/<slug>/lint-page.json).",
+      "properties": {
+        "verdict": { "type": "string", "enum": ["pass", "fix", "blocked"] },
+        "summary": { "type": "string" }
+      }
+    },
+    "fixer": {
+      "description": "Фиксер фазы 6: объект {\"blocks_touched\":[...],\"page_lint\":\"<verdict lint-page>\"} в файлах судьи, слепого читателя и постраничного кросса; по blocks_touched второй круг судьи проверяет только правленое. Тип не задан: в старых отчетах фазы 3 здесь строка с именем роли.",
+      "properties": {
+        "blocks_touched": { "type": "array", "items": { "type": "string" } },
+        "page_lint": { "type": "string" }
+      }
+    },
+    "split_from": { "type": "string", "description": "split-cross.mjs: постраничная копия находок кросс-судьи, значение - путь общего файла (work/audit/cross.json)." },
+    "source_created_at": { "type": "string", "description": "split-cross.mjs: created_at общего отчета, из которого сделана копия (сохранение статусов при повторной раскладке)." },
+    "pairs": { "type": "array", "items": { "type": "object" }, "description": "dedup.mjs: пары страниц-кандидатов для кросс-судьи (shingles, h1, hero-sub, geo-twin)." },
+    "geo_groups": { "type": "array", "items": { "type": "object" }, "description": "dedup.mjs: группы гео-близнецов (один тип, один родитель, разный geo)." },
+    "pairs_summary": { "type": "string", "description": "dedup.mjs: счет пар по причинам." }
+  }
+}

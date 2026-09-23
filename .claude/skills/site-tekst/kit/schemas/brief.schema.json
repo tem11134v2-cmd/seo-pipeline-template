@@ -1,0 +1,66 @@
+{
+  "$id": "brief",
+  "type": "object",
+  "required": ["slug", "url", "type", "subject", "block_set", "segment", "unique_argument", "offer_formula", "cta", "facts", "anti_promises", "terminology", "client_phrases", "blocks"],
+  "properties": {
+    "slug": { "type": "string" },
+    "url": { "type": "string" },
+    "type": { "type": "string" },
+    "subject": { "type": "string" },
+    "geo": { "type": "string" },
+    "block_set": { "type": "string", "enum": ["full", "short"] },
+    "company": { "type": "string" },
+    "positioning": { "type": "string" },
+    "main_promise": { "type": "string" },
+    "segment": {
+      "type": "object",
+      "required": ["id", "name", "portrait", "pains", "fears", "objections"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "portrait": { "type": "string" },
+        "comes_with": { "type": "string" },
+        "pains": { "type": "array", "items": { "type": "string" } },
+        "fears": { "type": "array", "items": { "type": "string" } },
+        "criteria": { "type": "array", "items": { "type": "string" } },
+        "objections": { "type": "array", "items": { "type": "object", "required": ["id", "text", "answer"], "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "answer": { "type": "string" }, "facts": { "type": "array", "items": { "type": "string" } } } } }
+      }
+    },
+    "unique_argument": { "type": "string" },
+    "hook": { "type": "string" },
+    "offer_formula": { "type": "object", "required": ["id", "name", "recipe"], "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "recipe": { "type": "string" } } },
+    "cta": { "type": "object", "required": ["main"], "properties": { "main": { "type": "string" }, "secondary": { "type": "string" } } },
+    "facts": { "type": "array", "items": { "type": "object", "required": ["id", "label", "value", "wording"], "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "value": { "type": "string" }, "wording": { "type": "string" }, "kind": { "type": "string" }, "angle": { "type": "string" } } } },
+    "anti_promises": { "type": "array", "items": { "type": "object", "required": ["id", "text"], "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "allowed_context": { "type": "string" } } } },
+    "disclaimer_text": { "type": "string" },
+    "terminology": { "type": "object" },
+    "client_phrases": { "type": "array", "items": { "type": "object", "required": ["phrase", "meaning"], "properties": { "phrase": { "type": "string" }, "meaning": { "type": "string" }, "src": { "type": "string", "description": "forum | client - дословная речь, можно в кавычках; persona - только смысл своими словами" } } } },
+    "do_not_say": { "type": "array", "items": { "type": "string" } },
+    "cliches_to_avoid": { "type": "array", "items": { "type": "string" } },
+    "client_preferences": { "type": "array", "items": { "type": "object", "required": ["text", "status"], "properties": { "text": { "type": "string" }, "status": { "type": "string" }, "where": { "type": "string" } } } },
+    "links": { "type": "array", "items": { "type": "object", "required": ["url", "subject"], "properties": { "url": { "type": "string" }, "subject": { "type": "string" }, "type": { "type": "string" } } } },
+    "blocks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["block_id", "type", "name", "role", "reader_question", "pattern", "cta_allowed", "objection_ids", "facts", "elements"],
+        "properties": {
+          "block_id": { "type": "string", "pattern": "^B[0-9]{2}-[a-z0-9-]+$" },
+          "type": { "type": "string" },
+          "name": { "type": "string" },
+          "role": { "type": "string", "enum": ["hero", "conversion", "info"] },
+          "reader_question": { "type": "string" },
+          "pattern": { "type": "string" },
+          "cta_allowed": { "type": "boolean" },
+          "objection_ids": { "type": "array", "items": { "type": "string" } },
+          "facts": { "type": "array", "items": { "type": "string" } },
+          "elements": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["kind", "count", "chars"], "properties": { "kind": { "type": "string" }, "count": { "type": "string" }, "chars": { "type": "object", "required": ["min", "max"], "properties": { "min": { "type": "number" }, "median": { "type": "number" }, "max": { "type": "number" } } }, "note": { "type": "string" } } } },
+          "examples": { "type": "array", "items": { "type": "object", "required": ["domain", "text"], "properties": { "domain": { "type": "string" }, "text": { "type": "string" }, "why_strong": { "type": "string" } } } },
+          "task": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}

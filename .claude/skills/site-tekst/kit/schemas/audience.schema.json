@@ -1,0 +1,48 @@
+{
+  "$id": "audience",
+  "type": "object",
+  "required": ["segments", "client_phrases"],
+  "properties": {
+    "source": { "type": "string" },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "portrait", "pains", "fears", "objections", "criteria"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^S[0-9]$" },
+          "name": { "type": "string" },
+          "portrait": { "type": "string", "maxLength": 600 },
+          "comes_with": { "type": "string", "maxLength": 400 },
+          "pains": { "type": "array", "items": { "type": "string" } },
+          "fears": { "type": "array", "items": { "type": "string" } },
+          "objections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "text", "answer"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^O[0-9]{1,2}$" },
+                "text": { "type": "string" },
+                "answer": { "type": "string" },
+                "facts": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "criteria": { "type": "array", "items": { "type": "string" } },
+          "directions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "client_phrases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["phrase", "meaning"],
+        "properties": { "phrase": { "type": "string" }, "meaning": { "type": "string" }, "segments": { "type": "array", "items": { "type": "string" } } }
+      }
+    },
+    "reader_questions": { "type": "array", "items": { "type": "string" } }
+  }
+}

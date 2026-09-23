@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1140">
+<title>{{title}}</title>
+<!--
+  ПРОТОТИП ТЕКСТОВ, НЕ МАКЕТ.
+  Что сохранить дословно: все тексты внутри секций data-block-id (сверены с исходными файлами скриптом).
+  Что переопределяет дизайн: сетки, порядок колонок, размеры, картинки, цвета.
+  Подписи над блоками (серые рамки) и метки [[...]] - служебные, на сайт не попадают.
+  Собрано скриптом build-html.mjs {{built_at}}.
+-->
+<style>
+{{css}}
+</style>
+</head>
+<body>
+<div class="topbar wrap-full"><a href="#index">К списку страниц</a><span id="crumb"></span><span style="margin-left:auto">{{company}} - прототип текстов</span></div>
+<div class="contract">Это прототип текстов, а не дизайн. Тексты внутри блоков сохраняются дословно. Серые подписи над блоками и пометки <mark class="ph">[[...]]</mark> - служебные: подпись говорит, что за блок и на какой вопрос читателя он отвечает, пометка показывает место, где не хватило данных.</div>
+<div class="wrap">
+<section id="index" class="idx">
+<h1>{{title}}</h1>
+<p>Страниц: {{pages_count}}. Блоков: {{blocks_count}}. Пометок «нужны данные»: {{placeholders_count}}.</p>
+{{index}}
+</section>
+{{pages}}
+</div>
+<script>
+(function(){
+  function show(){
+    var h = location.hash || '#index';
+    var m = h.match(/^#p\/([a-z0-9-]+)$/);
+    document.querySelectorAll('article[data-page]').forEach(function(a){ a.classList.remove('on'); });
+    var idx = document.getElementById('index');
+    if (m) {
+      var el = document.querySelector('article[data-page="' + m[1] + '"]');
+      if (el) { el.classList.add('on'); idx.style.display = 'none'; document.getElementById('crumb').textContent = ' / ' + el.getAttribute('data-url'); window.scrollTo(0,0); return; }
+    }
+    idx.style.display = 'block'; document.getElementById('crumb').textContent = '';
+  }
+  window.addEventListener('hashchange', show); show();
+})();
+</script>
+</body>
+</html>

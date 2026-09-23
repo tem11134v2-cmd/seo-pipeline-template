@@ -1,0 +1,35 @@
+{
+  "$id": "antipromise-patterns",
+  "_doc": "work/anti-promises.patterns.json - регулярки антиобещаний с примерами. Пишет агент по prompts/00-antipromise-patterns.md, проверяет и переносит в work/facts.json скрипт: node scripts/import-project.mjs --apply-patterns work/anti-promises.patterns.json. must_match - 3 позитивные формы обещания (регулярка обязана ловить все), must_not_match - 2 безобидные фразы с теми же словами (не должна ловить ни одну).",
+  "type": "object",
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "lint_pattern", "must_match", "must_not_match"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^A[0-9]{2}$" },
+          "text": { "type": "string" },
+          "lint_pattern": { "type": "string", "minLength": 3 },
+          "allowed_context": { "type": "string" },
+          "must_match": { "type": "array", "minItems": 3, "items": { "type": "string", "minLength": 3 } },
+          "must_not_match": { "type": "array", "minItems": 2, "items": { "type": "string", "minLength": 3 } }
+        }
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["fact", "anti"],
+        "properties": {
+          "fact": { "type": "string", "pattern": "^F[0-9]{2,3}$" },
+          "anti": { "type": "string", "pattern": "^A[0-9]{2}$" },
+          "why": { "type": "string" }
+        }
+      }
+    }
+  }
+}

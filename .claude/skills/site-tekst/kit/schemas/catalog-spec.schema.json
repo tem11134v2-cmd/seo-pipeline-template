@@ -1,0 +1,42 @@
+{
+  "$id": "catalog-spec",
+  "type": "object",
+  "required": ["entities", "listing", "card_fields", "filters", "sorting", "states", "card_cta", "sources"],
+  "properties": {
+    "generated_at": { "type": "string" },
+    "entities": { "type": "array", "items": { "type": "object", "required": ["name", "url_pattern", "page_type"], "properties": { "name": { "type": "string" }, "url_pattern": { "type": "string" }, "page_type": { "type": "string" }, "note": { "type": "string" } } } },
+    "listing": {
+      "type": "object",
+      "required": ["layout", "cards_per_page", "pagination"],
+      "properties": { "layout": { "type": "string" }, "cards_per_page": { "type": "number" }, "pagination": { "type": "string" }, "breadcrumbs": { "type": "boolean" }, "intro_text_zone": { "type": "boolean" }, "seo_text_zone": { "type": "boolean" } }
+    },
+    "card_fields": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "required", "source"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["text", "number", "money", "enum", "date", "bool", "image", "list", "link"] },
+          "required": { "type": "boolean" },
+          "source": { "type": "string" },
+          "in_listing_card": { "type": "boolean" },
+          "in_detail_page": { "type": "boolean" },
+          "example": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "filters": { "type": "array", "items": { "type": "object", "required": ["name", "type", "source"], "properties": { "name": { "type": "string" }, "type": { "type": "string", "enum": ["select", "multiselect", "range", "toggle", "search"] }, "values": { "type": "array", "items": { "type": "string" } }, "source": { "type": "string" } } } },
+    "sorting": { "type": "array", "items": { "type": "string" } },
+    "states": { "type": "array", "items": { "type": "object", "required": ["state", "behavior"], "properties": { "state": { "type": "string" }, "behavior": { "type": "string" } } } },
+    "card_cta": { "type": "object", "required": ["main"], "properties": { "main": { "type": "string" }, "secondary": { "type": "string" } } },
+    "detail_page_blocks": { "type": "array", "items": { "type": "string" } },
+    "similar_items": { "type": "string" },
+    "roles": { "type": "array", "items": { "type": "object", "required": ["role", "does"], "properties": { "role": { "type": "string" }, "does": { "type": "string" } } } },
+    "data_gate": { "type": "object", "properties": { "file": { "type": "string" }, "required_columns": { "type": "array", "items": { "type": "string" } }, "status": { "type": "string" } } },
+    "sources": { "type": "array", "items": { "type": "object", "required": ["domain", "url"], "properties": { "domain": { "type": "string" }, "url": { "type": "string" }, "raw": { "type": "string" }, "observed": { "type": "string" } } } },
+    "notes": { "type": "string" }
+  }
+}

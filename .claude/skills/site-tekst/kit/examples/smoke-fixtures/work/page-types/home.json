@@ -1,0 +1,30 @@
+{
+  "type": "home",
+  "generated_at": "2026-09-20 12:00",
+  "sources": [ { "domain": "example-okna.ru", "url": "https://example-okna.ru/", "raw": "work/competitors/raw/example-okna.ru/home.json", "status": "ok" }, { "domain": "okna-primer.ru", "url": "https://okna-primer.ru/", "raw": "work/competitors/raw/okna-primer.ru/home.json", "status": "ok" } ],
+  "market_blocks": [
+    { "id": "hero", "name": "Первый экран", "role": "hero", "reader_question": "Куда я попал и что мне здесь дадут", "pattern": "hero-split", "core": true, "cta_allowed": true, "objection_slot": false, "fact_kinds": [ "number", "legal", "claim" ],
+      "elements": [ { "kind": "h1", "count": "1", "chars": { "min": 35, "median": 52, "max": 70 } }, { "kind": "sub", "count": "1", "chars": { "min": 80, "median": 120, "max": 160 } }, { "kind": "badges", "count": "3-4", "chars": { "min": 12, "median": 22, "max": 40 } }, { "kind": "button", "count": "1", "chars": { "min": 10, "median": 18, "max": 30 } }, { "kind": "image", "count": "1", "chars": { "min": 0, "median": 0, "max": 120 } } ],
+      "seen_at": [ "example-okna.ru", "okna-primer.ru" ], "examples": [ { "domain": "example-okna.ru", "text": "Пластиковые окна в Туле от производителя. Замер бесплатно, монтаж за 1 день.", "why_strong": "есть срок, нет выгоды для семьи" } ] },
+    { "id": "benefits", "name": "Почему нам верят", "role": "conversion", "reader_question": "Почему я должен верить именно вам", "pattern": "grid-3", "core": true, "cta_allowed": false, "objection_slot": true, "fact_kinds": [ "number", "claim", "legal" ],
+      "elements": [ { "kind": "h2", "count": "1", "chars": { "min": 20, "median": 40, "max": 80 } }, { "kind": "card", "count": "3-4", "chars": { "min": 60, "median": 120, "max": 220 } } ],
+      "seen_at": [ "example-okna.ru", "okna-primer.ru" ], "examples": [] },
+    { "id": "process", "name": "Как проходит заказ", "role": "conversion", "reader_question": "Что будет после заявки", "pattern": "steps", "core": false, "cta_allowed": false, "objection_slot": true, "fact_kinds": [ "process" ],
+      "elements": [ { "kind": "h2", "count": "1", "chars": { "min": 20, "median": 40, "max": 80 } }, { "kind": "step", "count": "3-5", "chars": { "min": 40, "median": 90, "max": 200 } } ],
+      "seen_at": [ "example-okna.ru", "okna-primer.ru" ], "examples": [] },
+    { "id": "cta", "name": "Финальный призыв", "role": "conversion", "reader_question": "Что делать дальше", "pattern": "cta-band", "core": true, "cta_allowed": true, "objection_slot": false, "fact_kinds": [ "process" ],
+      "elements": [ { "kind": "h2", "count": "1", "chars": { "min": 20, "median": 40, "max": 80 } }, { "kind": "text", "count": "1", "chars": { "min": 60, "median": 120, "max": 200 } }, { "kind": "button", "count": "1", "chars": { "min": 10, "median": 18, "max": 30 } } ],
+      "seen_at": [ "example-okna.ru", "okna-primer.ru" ], "examples": [] }
+  ],
+  "differentiation_blocks": [
+    { "id": "not-promise", "name": "Чего мы не обещаем", "role": "conversion", "reader_question": "Где здесь подвох", "pattern": "list", "core": false, "cta_allowed": false, "objection_slot": true, "fact_kinds": [ "legal" ],
+      "elements": [ { "kind": "h2", "count": "1", "chars": { "min": 20, "median": 40, "max": 80 } }, { "kind": "bullets", "count": "3-5", "chars": { "min": 30, "median": 70, "max": 120 } } ],
+      "seen_at": [], "source": "анализ: чего не обещаем", "examples": [] }
+  ],
+  "recommended_order": [ "hero", "benefits", "process", "not-promise", "cta" ],
+  "short_set": [ "hero", "benefits", "cta" ],
+  "competitor_promises": [ "example-okna.ru: монтаж за 1 день" ],
+  "cliches_to_avoid": [ "индивидуальный подход", "окна под ключ" ],
+  "only_we_can_say": [ "гарантия 5 лет на монтаж в договоре" ],
+  "notes": "фикстура для дымового теста"
+}

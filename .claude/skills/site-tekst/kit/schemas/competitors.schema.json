@@ -1,0 +1,38 @@
+{
+  "$id": "competitors",
+  "type": "object",
+  "required": ["verified_at", "competitors"],
+  "properties": {
+    "verified_at": { "type": "string" },
+    "method": { "type": "string" },
+    "competitors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain", "status", "source"],
+        "properties": {
+          "domain": { "type": "string" },
+          "home_url": { "type": "string" },
+          "status": { "type": "string", "enum": ["ok", "js_only", "antibot", "closed", "aggregator", "excluded"] },
+          "source": { "type": "string", "enum": ["analysis", "serp", "both"] },
+          "reason": { "type": "string" },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["url", "type", "raw", "status"],
+              "properties": {
+                "url": { "type": "string" },
+                "type": { "type": "string" },
+                "raw": { "type": "string" },
+                "status": { "type": "string", "enum": ["ok", "js_only", "antibot", "closed", "browser"] },
+                "chars": { "type": "number" },
+                "headings": { "type": "number" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

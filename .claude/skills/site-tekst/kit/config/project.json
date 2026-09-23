@@ -1,0 +1,51 @@
+{
+  "_doc": "Профиль проекта. Заполняется при копировании шаблона. Поля с префиксом _ не читаются скриптами.",
+  "slug": "",
+  "company": "",
+  "site_url": "",
+  "language": "ru",
+  "niche": {
+    "_doc": "Профиль ниши для выбора формул офферов и CTA. business_type: services | catalog | both. audience_type: b2c | b2b | mixed. demand_warmth: hot (ищут конкретный товар/услугу сейчас) | warm (сравнивают) | cold (не знают о решении). price_level: low | mid | high | premium. purchase_cycle: impulse | days | weeks | months.",
+    "description": "",
+    "business_type": "both",
+    "audience_type": "b2c",
+    "demand_warmth": "warm",
+    "price_level": "mid",
+    "purchase_cycle": "weeks",
+    "geo": ""
+  },
+  "sources": {
+    "_doc": "mode: doc | project. doc - анализ в Google Doc (analysis_doc_id), агент дампит его в analysis_dump и извлекает факты. project - анализ из контракта site-analiz (project.json v2 после гейта): scripts/import-project.mjs пишет work/facts.json, audience.json, client-preferences.json, directions.json, competitors/seed.json, эти поля конфига и рендерит analysis_dump из контракта (его грепают промты фаз 2, 3, 7). project_json - путь к sites/NNN-<slug>/project.json; facts_src и queue - пусто значит рядом с ним (parts/facts-src.json, queue.json); structure_input - внешний structure_data.json (seo-struktura или планировщик анализа), импорт копирует его в structure_source. structure_mode: import (готовая структура в structure_source) | fallback (структуру строит резервный агент). client_preferences - необязательный файл с формулировками, которые заказчик уже одобрил.",
+    "mode": "doc",
+    "analysis_doc_id": "",
+    "analysis_dump": "inputs/analysis.md",
+    "project_json": "",
+    "facts_src": "",
+    "queue": "",
+    "structure_input": "",
+    "structure_mode": "import",
+    "structure_source": "inputs/structure_data.json",
+    "client_preferences": "inputs/client-preferences.md",
+    "key_phrases": []
+  },
+  "competitors": {
+    "_doc": "Список доменов берется из анализа. max_domains - предел после верификации. pages_per_type - сколько URL одного типа брать у одного конкурента. aggregators_stoplist - домены-агрегаторы, которые не считаем конкурентами по структуре.",
+    "max_domains": 8,
+    "pages_per_type": 2,
+    "aggregators_stoplist": []
+  },
+  "limits": {
+    "_doc": "Верхние границы по элементам, если файл типа страницы не дает замеров. В символах без пробелов.",
+    "h1_max": 70,
+    "sub_max": 160,
+    "text_max": 350,
+    "bullet_max": 120,
+    "button_max": 30,
+    "placeholders_per_page_max": 3,
+    "drop_blocks_without_facts": ["reviews", "team", "cases:number", "media", "gallery", "founder"]
+  },
+  "house_style_overrides": {
+    "_doc": "Переопределения config/house_style.md для проекта: например, quotes: straight, address: ty.",
+    "currency_note": ""
+  }
+}

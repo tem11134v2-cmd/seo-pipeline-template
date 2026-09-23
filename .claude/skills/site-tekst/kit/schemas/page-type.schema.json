@@ -1,0 +1,86 @@
+{
+  "$id": "page-type",
+  "type": "object",
+  "required": ["type", "sources", "market_blocks", "differentiation_blocks", "recommended_order", "cliches_to_avoid"],
+  "properties": {
+    "type": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["domain", "url", "raw", "status"],
+        "properties": {
+          "domain": { "type": "string" },
+          "url": { "type": "string" },
+          "raw": { "type": "string" },
+          "status": { "type": "string", "enum": ["ok", "js_only", "antibot", "closed", "browser"] },
+          "fetched_at": { "type": "string" }
+        }
+      }
+    },
+    "market_blocks": { "type": "array", "items": { "$ref": "#/definitions/block" } },
+    "differentiation_blocks": { "type": "array", "items": { "$ref": "#/definitions/block" } },
+    "recommended_order": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "short_set": { "type": "array", "items": { "type": "string" } },
+    "competitor_promises": { "type": "array", "items": { "type": "string" } },
+    "cliches_to_avoid": { "type": "array", "items": { "type": "string" } },
+    "only_we_can_say": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "string" }
+  },
+  "definitions": {
+    "block": {
+      "type": "object",
+      "required": ["id", "name", "role", "reader_question", "pattern", "elements", "seen_at"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["hero", "conversion", "info"] },
+        "reader_question": { "type": "string", "minLength": 5 },
+        "pattern": { "type": "string", "enum": ["hero-split", "hero-center", "grid-2", "grid-3", "grid-4", "steps", "accordion", "list", "table", "listing", "cards-slider", "form", "text", "badges", "map", "numbers", "quote", "cta-band", "gallery", "tiles"] },
+        "core": { "type": "boolean" },
+        "cta_allowed": { "type": "boolean" },
+        "objection_slot": { "type": "boolean" },
+        "fact_kinds": { "type": "array", "items": { "type": "string", "enum": ["number", "claim", "process", "contact", "legal", "product", "geo"] } },
+        "elements": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["kind", "count", "chars"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["h1", "h2", "h3", "sub", "text", "bullets", "button", "badges", "card", "step", "qa", "quote", "image", "field", "number", "note", "link", "filters", "table_row"] },
+              "count": { "type": "string" },
+              "chars": {
+                "type": "object",
+                "required": ["min", "median", "max"],
+                "properties": { "min": { "type": "number" }, "median": { "type": "number" }, "max": { "type": "number" } }
+              },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "seen_at": { "type": "array", "items": { "type": "string" } },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["domain", "raw", "heading_quote"],
+            "properties": { "domain": { "type": "string" }, "raw": { "type": "string" }, "heading_quote": { "type": "string" }, "chars": { "type": "number" } }
+          }
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["domain", "text"],
+            "properties": { "domain": { "type": "string" }, "text": { "type": "string", "maxLength": 900 }, "why_strong": { "type": "string" } }
+          }
+        },
+        "source": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

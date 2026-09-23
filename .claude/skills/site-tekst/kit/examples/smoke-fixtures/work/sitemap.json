@@ -1,0 +1,80 @@
+{
+  "source": "inputs/structure_data.json",
+  "generated_at": "2026-09-20 12:00",
+  "page_types": [
+    "home",
+    "hub",
+    "category",
+    "service",
+    "product",
+    "info_about",
+    "info_contacts",
+    "info_team",
+    "info_reviews",
+    "info_cases",
+    "info_faq",
+    "info_other"
+  ],
+  "pages": [
+    {
+      "slug": "home",
+      "url": "/",
+      "type": "home",
+      "subject": "Пластиковые окна с монтажом в Туле",
+      "parent": "",
+      "level": 0,
+      "geo": "tula",
+      "segment": "S1",
+      "facts_available": [
+        "F01",
+        "F02",
+        "F03",
+        "F04",
+        "F05"
+      ],
+      "fact_coverage": 5,
+      "block_set": "full",
+      "listing": false,
+      "wave": 1,
+      "status": "planned",
+      "source_h1": "Пластиковые окна в Туле",
+      "source_queries": [
+        "пластиковые окна тула"
+      ],
+      "notes": ""
+    },
+    {
+      "slug": "okna-rehau",
+      "url": "/okna/rehau",
+      "type": "category",
+      "subject": "Окна Rehau",
+      "parent": "/",
+      "level": 1,
+      "geo": "tula",
+      "segment": "S1",
+      "facts_available": [
+        "F04",
+        "F05"
+      ],
+      "fact_coverage": 2.5,
+      "block_set": "short",
+      "listing": true,
+      "wave": 1,
+      "status": "planned",
+      "source_h1": "Окна Rehau",
+      "source_queries": [
+        "окна rehau тула"
+      ],
+      "notes": ""
+    },
+    {
+      "slug": "privacy",
+      "url": "/privacy",
+      "type": "info_other",
+      "subject": "Политика",
+      "parent": "/",
+      "level": 1,
+      "status": "skip"
+    }
+  ]
+}

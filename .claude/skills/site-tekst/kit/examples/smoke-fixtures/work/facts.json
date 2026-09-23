@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-09-20 12:00",
+  "source": "inputs/analysis.md",
+  "facts": [
+    { "id": "F01", "label": "год основания", "value": "2012", "wording": "устанавливаем окна с 2012 года", "publish": "yes", "source_quote": "работаем с 2012 года", "kind": "number" },
+    { "id": "F02", "label": "установлено окон", "value": "12 400", "wording": "12 400 окон установлено в квартирах и домах", "publish": "yes", "source_quote": "12 400 установленных окон", "kind": "number" },
+    { "id": "F03", "label": "срок замера", "value": "1 день", "wording": "замерщик приезжает на следующий день после заявки", "publish": "yes", "source_quote": "замер на следующий день", "kind": "process" },
+    { "id": "F04", "label": "гарантия на монтаж", "value": "5 лет", "wording": "гарантия 5 лет на монтаж по договору", "publish": "yes", "source_quote": "гарантия на монтаж 5 лет", "kind": "legal" },
+    { "id": "F05", "label": "стандарт монтажа", "value": "ГОСТ 30971", "wording": "монтаж по ГОСТ 30971 с трехслойным швом", "publish": "yes", "source_quote": "монтаж по ГОСТ 30971", "kind": "claim" },
+    { "id": "F06", "label": "старая цена", "value": "9 900", "wording": "окно от 9 900", "publish": "no", "source_quote": "цены не публикуем", "kind": "number" }
+  ],
+  "anti_promises": [
+    { "id": "A01", "text": "не обещаем самую низкую цену", "lint_pattern": "сам(ая|ые) низк(ая|ие) цен|дешевле всех|гарантируем лучшую цену", "allowed_context": "блок «что мы не обещаем»" }
+  ],
+  "terminology": {
+    "use": [ { "say": "монтажный шов", "not": "пена" } ],
+    "jargon": [ { "internal": "ОП", "public": "отдел продаж" } ],
+    "untranslatable": [ "Rehau" ]
+  },
+  "company": { "legal_name": "ООО «Веста»", "brand": "Веста Окна", "address": "Тула, ул. Примерная, 1", "phones": [ "+7 000 000-00-00" ], "email": "info@example.com", "hours": "9:00-19:00", "channels": {}, "status": "confirmed", "source": "inputs/analysis.md" },
+  "tone": { "register": "деловой, на вы", "idea": "считаем по замеру, а не по прайсу", "forbidden_words": [] },
+  "gaps": [ "нет цен «от» по типам окон" ]
+}

@@ -1,0 +1,41 @@
+{
+  "$id": "retro",
+  "type": "object",
+  "required": ["generated_at", "project", "stats_file", "checklist", "proposals"],
+  "properties": {
+    "generated_at": { "type": "string" },
+    "project": { "type": "string" },
+    "stats_file": { "type": "string" },
+    "checklist": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "required": ["item", "status", "note"],
+        "properties": {
+          "item": { "type": "number" },
+          "status": { "type": "string", "enum": ["proposals", "nothing-found", "no-data"] },
+          "note": { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    "proposals": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": ["id", "target", "change", "evidence", "priority", "kind"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^R\\d{2}$" },
+          "target": { "type": "string", "pattern": "^((scripts|prompts|rules|schemas|workflows|config|html|docs)/\\S+|CLAUDE\\.md)$" },
+          "change": { "type": "string", "minLength": 10, "maxLength": 400 },
+          "evidence": { "type": "string", "minLength": 10, "maxLength": 500 },
+          "priority": { "type": "string", "enum": ["high", "medium", "low"] },
+          "kind": { "type": "string", "enum": ["lint-rule", "prompt-rule", "facts-gap", "decision"] },
+          "checklist_item": { "type": "number" }
+        }
+      }
+    },
+    "not_proposed": { "type": "array", "items": { "type": "string" } }
+  }
+}
