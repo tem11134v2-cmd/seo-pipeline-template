@@ -208,7 +208,6 @@ for (const script of VERIFY_YO) {
 const NORMALIZE_YO = [
   "render-audit-md.mjs",
   "build-audit-docx.mjs",
-  "build-analysis-docx.mjs",
   "build-faq-docx.mjs",
   "assemble-html.mjs",
   "build-article-docx.mjs",

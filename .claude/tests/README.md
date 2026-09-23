@@ -14,9 +14,8 @@
 Все наборы подряд (Git Bash из корня проекта):
 
 ```
-for s in batch-queue build-article-docx kit-mobile machinery metatags \
-         seo-analiz seo-strategiya seo-structure seo-tehaudit seo-tekst seo-temi site \
-         site-tekst skill-split style sync; do
+for s in batch-queue build-article-docx machinery metatags seo-strategiya \
+         seo-structure seo-tehaudit seo-temi site site-tekst skill-split style sync; do
   echo "=== $s ==="; .claude/scripts/_node.cmd .claude/tests/$s/run.mjs || echo "FAILED: $s"
 done
 ```
@@ -30,14 +29,11 @@ done
 |---|---|---|
 | `batch-queue` | `batch-queue.mjs` - серийный режим `/seo-statya` | 14 |
 | `build-article-docx` | сборка docx статьи (таблицы, нумерация фото) | 8 |
-| `kit-mobile` | эталонная страница кита + мобильные проверки прототипа | 5 (+6 skip без playwright) |
 | `machinery` | модельная политика, ссылки на ADR, JSON-lint и узкий фолбэк маркера в хуке | 16 |
 | `metatags` | четыре скрипта `/seo-metategi` | 16 |
-| `seo-analiz` | `_questions.mjs`, `apply-answers.mjs`, `build-analysis-docx.mjs`, `validate-analysis-inputs.mjs` | 73 |
 | `seo-strategiya` | прогноз денег, смета, `verify-strategy.mjs` | 27 |
 | `seo-structure` | `select-top10`, `build-structure-xlsx`, `import-structure`, `verify-structure` | 35 |
 | `seo-tehaudit` | `merge-onpage`, схема `onpage.json`, `verify-audit.mjs` | 23 |
-| `seo-tekst` | мост данных, сборка и проверка прототипа, диета писателя, HANDOFF | 86 |
 | `seo-temi` | `read-topics-xlsx.mjs` | 5 |
 | `skill-split` | якоря `SKILL.md` <-> `REFERENCE.md` у `/seo-statya` | 4 |
 | `site` | v8: контракт `project.json`, `pages.yml`, два клиентских документа, бюджеты количества, страховка неприкосновенности v7 | 76 |
@@ -47,20 +43,6 @@ done
 Итого 571 тест (480 до набора `catalog` режима магазина, 552 до его правок по находкам критиков; 419 до набора `proto` слоя письма v8; 343 до набора `site`; 301 до появления набора `machinery`, 313 до правок 23.08 по итогам
 боевого прогона: узкий фолбэк маркера в хуке + обе формы заголовка раздела «Вопросы к вам»,
 319 после волн 1-2, 343 после волны 3).
-
-Волна 3 добавила 24 теста в набор `seo-analiz` - это дефекты **revising-цикла**, той части
-алгоритма, которая срабатывает уже ПОСЛЕ отдачи документа клиенту (заказчик ответил на
-вопросы, отчет пересобрался под ответы). Оба закрытых регресса - одного рода: машинерия
-принимала решение по СВОБОДНОМУ ТЕКСТУ там, где нужно структурное поле или детерминированный
-список.
-
-- **Пробелы (`gaps`) закрываются по идентификатору** (`closes_gaps`), а не регуляркой по
-  тексту пробела: в бою из восьми снятых пробелов пять снялись ошибочно. Легаси-форма
-  (`gaps` - массив строк) обязана работать и механически не закрываться никогда - на это
-  отдельные тесты.
-- **Запрет на самоназвание** (`brief.forbidden_self_names[]`) проверяется грепом по `A2.md` и
-  `recommendations.json` со словоформами: суждение агента не поймало «комиссия за счет
-  школы», потому что искало нарушения позиционирования, а не подсобные обороты.
 
 ## Что покрыто, а что нет (важное замечание)
 

@@ -87,7 +87,7 @@
 | **Wordstat / частотность** | Частотность не нужна для техаудита |
 | **SpeedyIndex** | Индексацию проверяем через Вебмастер, не через отправку на переобход |
 | **Sheets** | Артефакты - markdown и docx |
-| **domain_competitors / keyword_info** (Keyso) | Это конкурентный анализ (/seo-analiz), не техаудит |
+| **domain_competitors / keyword_info** (Keyso) | Это конкурентный анализ (SEO-база `/seo-struktura`), не техаудит |
 
 ---
 

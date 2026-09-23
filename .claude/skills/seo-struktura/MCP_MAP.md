@@ -33,7 +33,7 @@ keyword_similar(keyword="ремонт квартир", base="spb")
 
 ### seo-base (шаг 1d)
 
-SEO-замер, который раньше делал `/seo-analiz`, теперь внутренний шаг структуры. Вход - `project.json` анализа
+SEO-замер, который раньше делал выведенный анализ v7, теперь внутренний шаг структуры. Вход - `project.json` анализа
 (`competitors.list`, `directions[].marker`, `business.*`) и `inputs.json` (`keyso_base`, `region_yandex`, `domain`).
 Выход - `competitors.json`, `serp.json`, `stop_list.md` в папке структуры.
 
