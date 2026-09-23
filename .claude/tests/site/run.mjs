@@ -1664,9 +1664,9 @@ step("ассеты /seo-faq на месте: VOICE и BLOCKS-METRICS (в seo-faq
   return bad.length ? `нет или пусты: ${bad.join(", ")} - /seo-faq остался без своих правил` : true;
 });
 
-step("анализ не подменяет /seo-faq и не плодит скилов site-* сверх трех", () => {
+step("анализ не подменяет /seo-faq и не плодит скилов site-* сверх двух (site-analiz, site-tekst)", () => {
   const dirs = readdirSync(join(ROOT, ".claude/skills")).filter((d) => /^site-/.test(d));
-  const extra = dirs.filter((d) => !["site-analiz", "site-proto", "site-tekst"].includes(d));
+  const extra = dirs.filter((d) => !["site-analiz", "site-tekst"].includes(d));
   if (extra.length) return `лишние скилы site-*: ${extra.join(", ")}`;
   return /seo-faq/.test(text(join(SKILL_DIR, "SKILL.md"))) ? true : "в SKILL.md не сказано, что FAQ остается за /seo-faq";
 });
