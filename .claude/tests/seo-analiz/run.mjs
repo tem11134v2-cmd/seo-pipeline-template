@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // run.mjs - регрессионный smoke-тест новой машинерии /seo-analiz (Этап 3: интейк, раздел
 // «Вопросы к вам», импорт ответов, финальная проверка) + этап A программы v7 (словарь
-// rerun_hint v2, новый STAGE_ORDER, tier-aware validate-analysis-inputs - контракты 1.4а/1.6/1.7).
+// rerun_hint v2, новый STAGE_ORDER - контракты 1.4а/1.6).
 //
 // Использование:
 //   .claude\scripts\_node.cmd .claude\tests\seo-analiz\run.mjs
@@ -13,12 +13,9 @@
 //   3. build-analysis-docx.mjs - рендер раздела «Вопросы к вам» на fixtures/analysis_dir/
 //      (смоук + graceful без questions.json + обе формы заголовка раздела: без номера и
 //      легаси «0. Вопросы к вам»).
-//   4. validate-analysis-inputs.mjs - регрессия на fixtures/validate_dir/ (легаси-путь без
-//      meta.json.tier: канон-гейт brief/competitors/serp как раньше, новые файлы Этапа 3 не
-//      ломают, легаси-фикстура без них тоже проходит) + tier-aware гейт v2 (контракты
-//      1.4а/1.7): basic (fixtures/validate_dir_basic/) без serp.json и Keyso-полей проходит;
-//      v2-формат (tier в meta.json) требует непустых brief.directions[] с уникальными
-//      dir_slug и audience.json; старый анализ без поля tier валидируется по старым правилам.
+//   Бывшие блоки 4-5 (validate-analysis-inputs.mjs: канон-гейт анализа и запрет самоназвания)
+//   удалены вместе со скриптом: вход /seo-struktura теперь проверяет validate-project-input.mjs,
+//   его тесты - в tests/seo-structure.
 //
 // Волна 3 (дефекты revising-цикла - того, что срабатывает ПОСЛЕ отдачи документа клиенту):
 //   N3. Пробелы (gaps) закрываются по ИДЕНТИФИКАТОРУ, а не регуляркой по тексту. Элемент
@@ -28,17 +25,12 @@
 //       id, без разбора текста. Регрессия, ради которой это затевалось: чистка регулярками
 //       дала ПЯТЬ ошибочных снятий из восьми («возврат Тильды» сняло словом «возврат»,
 //       «DOR не расшифрован» - словом «DOR»).
-//   N2. Запрет на самоназвание - грепабельный список brief.forbidden_self_names[], а не
-//       суждение агента: в бою слово «школа» проскочило в служебной прозе («комиссия за счет
-//       школы») мимо обоих проходов верификатора, при том что запрет назвать клиента школой
-//       стоял в разделе запрещенных формулировок ТОГО ЖЕ отчета. Проверка детерминированная,
-//       в validate-analysis-inputs.mjs, по A2.md и recommendations.json.
 //
 // Устойчивость к параллельной разработке (раздел 8 спеки Этапа 3, Пакеты 2-3 пишутся
 // параллельно с этим набором): если .claude/scripts/_questions.mjs или apply-answers.mjs ещё
 // не существуют на момент прогона - соответствующие блоки помечаются SKIP (не FAIL), с
-// сообщением в вывод. build-analysis-docx.mjs и validate-analysis-inputs.mjs существуют уже
-// сейчас (Пакет 3 только правит их) - их тесты выполняются всегда.
+// сообщением в вывод. build-analysis-docx.mjs существует уже сейчас (Пакет 3 только правит
+// его) - его тесты выполняются всегда.
 //
 // Exit 0 - все выполненные тесты (не SKIP) прошли. Exit 1 - хоть один тест упал.
 
@@ -851,230 +843,6 @@ await step("build-analysis-docx.mjs: «## Вопросы к вам» (без н�
 await step("build-analysis-docx.mjs: легаси «## 0. Вопросы к вам» -> тот же рендер, markdown-дубликат заглушен", () =>
   questionsHeadingCase("## 0. Вопросы к вам")
 );
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Блок 4: validate-analysis-inputs.mjs - новый состав папки не ломает гейт
-// ═══════════════════════════════════════════════════════════════════════════
-console.log("");
-console.log("=== validate-analysis-inputs.mjs (новые файлы Этапа 3 + tier-aware v2) ===");
-
-const validateDir = join(sandboxRoot, "validate_dir");
-const validateBasicDir = join(sandboxRoot, "validate_dir_basic");
-
-// Готовит seo-анализ в формате v2: полный старый канон (validate_dir) + meta.tier=seo +
-// brief.directions[] + audience.json (directions и audience берем из basic-фикстуры,
-// чтобы dir_slug сегментов и направлений оставались согласованными).
-function makeSeoV2Dir() {
-  freshDir(validateDir, "validate_dir");
-  writeJson(join(validateDir, "meta.json"), { tier: "seo", state: "report-done" });
-  cpSync(join(fixturesDir, "validate_dir_basic", "audience.json"), join(validateDir, "audience.json"));
-  const brief = readJson(join(validateDir, "brief.json"));
-  brief.directions = readJson(join(fixturesDir, "validate_dir_basic", "brief.json")).directions;
-  writeJson(join(validateDir, "brief.json"), brief);
-  return validateDir;
-}
-
-await step("validate-analysis-inputs.mjs: полный канон + intake.json/questions.json/ВВОДНЫЕ.md -> exit 0", () => {
-  freshDir(validateDir, "validate_dir");
-  const r = runScript("validate-analysis-inputs.mjs", validateDir);
-  if (r.code !== 0) return `exit ${r.code}, stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
-  return true;
-});
-
-await step("validate-analysis-inputs.mjs: легаси-фикстура (без intake/questions/ВВОДНЫЕ) -> exit 0 (не блок)", () => {
-  freshDir(validateDir, "validate_dir");
-  rmSync(join(validateDir, "intake.json"));
-  rmSync(join(validateDir, "questions.json"));
-  rmSync(join(validateDir, "ВВОДНЫЕ.md"));
-  const r = runScript("validate-analysis-inputs.mjs", validateDir);
-  if (r.code !== 0) return `exit ${r.code} (легаси-анализ без новых файлов Этапа 3 не должен блокироваться), stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
-  return true;
-});
-
-await step("validate-analysis-inputs.mjs: сломан канон (competitors.direct пуст) -> exit 2 (контракт не сломан правками Этапа 3)", () => {
-  freshDir(validateDir, "validate_dir");
-  const comp = readJson(join(validateDir, "competitors.json"));
-  comp.direct = [];
-  writeJson(join(validateDir, "competitors.json"), comp);
-  const r = runScript("validate-analysis-inputs.mjs", validateDir);
-  if (r.code !== 2) return `expected exit 2, got ${r.code}, stdout=${r.stdout.trim()}`;
-  return true;
-});
-
-// --- tier-aware v2 (этап A программы v7, контракты 1.4а/1.7) ---
-
-await step("validate-analysis-inputs.mjs: СТАРЫЙ анализ (meta.json без поля tier) -> старые правила, без требования directions/audience -> exit 0", () => {
-  freshDir(validateDir, "validate_dir");
-  writeJson(join(validateDir, "meta.json"), { state: "approved" }); // meta есть, tier - нет
-  const r = runScript("validate-analysis-inputs.mjs", validateDir);
-  if (r.code !== 0) return `exit ${r.code} (старый анализ без tier не должен требовать directions/audience), stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
-  return true;
-});
-
-await step("validate-analysis-inputs.mjs: tier=basic БЕЗ serp.json и Keyso-полей, с directions+audience -> exit 0", () => {
-  freshDir(validateBasicDir, "validate_dir_basic");
-  // Фикстура: meta.tier=basic; brief без keyso_base; competitors.direct без метрик-ключей;
-  // serp.json отсутствует; directions[] и audience.json на месте.
-  const r = runScript("validate-analysis-inputs.mjs", validateBasicDir);
-  if (r.code !== 0) return `exit ${r.code} (basic-анализ без serp/Keyso должен проходить), stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
-  return true;
-});
-
-await step("validate-analysis-inputs.mjs: tier=seo v2 полный (канон + directions + audience) -> exit 0 (базлайн для негативных кейсов)", () => {
-  makeSeoV2Dir();
-  const r = runScript("validate-analysis-inputs.mjs", validateDir);
-  if (r.code !== 0) return `exit ${r.code}, stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
-  return true;
-});
-
-await step("validate-analysis-inputs.mjs: tier=seo v2 без audience.json -> exit 2", () => {
-  makeSeoV2Dir();
-  rmSync(join(validateDir, "audience.json"));
-  const r = runScript("validate-analysis-inputs.mjs", validateDir);
-  if (r.code !== 2) return `expected exit 2 (v2-формат требует audience.json), got ${r.code}, stdout=${r.stdout.trim()}`;
-  return true;
-});
-
-await step("validate-analysis-inputs.mjs: tier=seo v2 с пустыми brief.directions -> exit 2", () => {
-  makeSeoV2Dir();
-  const brief = readJson(join(validateDir, "brief.json"));
-  brief.directions = [];
-  writeJson(join(validateDir, "brief.json"), brief);
-  const r = runScript("validate-analysis-inputs.mjs", validateDir);
-  if (r.code !== 2) return `expected exit 2 (v2-формат требует непустой directions[]), got ${r.code}, stdout=${r.stdout.trim()}`;
-  return true;
-});
-
-await step("validate-analysis-inputs.mjs: дубль dir_slug в brief.directions -> exit 2", () => {
-  freshDir(validateBasicDir, "validate_dir_basic");
-  const brief = readJson(join(validateBasicDir, "brief.json"));
-  brief.directions[1].dir_slug = brief.directions[0].dir_slug;
-  writeJson(join(validateBasicDir, "brief.json"), brief);
-  const r = runScript("validate-analysis-inputs.mjs", validateBasicDir);
-  if (r.code !== 2) return `expected exit 2 (dir_slug должны быть уникальны), got ${r.code}, stdout=${r.stdout.trim()}`;
-  return true;
-});
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Блок 5: волна 3, N2 - запрет на самоназвание (brief.forbidden_self_names)
-//
-// Боевой кейс: заказчица просила называть проект «архитектурной софт-мастерской», а не
-// «школой»; запрет был записан в разделе запрещенных формулировок отчета - и в том же
-// отчете, в служебной прозе, стояло «комиссия за счет школы». Оба прохода верификатора
-// поймали это уже ПОСЛЕ отдачи документа: суждение агента ищет нарушения позиционирования,
-// а подсобные обороты звучат нейтрально. Значит проверка обязана быть детерминированной.
-//
-// Фикстура validate_dir/ ни A2.md, ни recommendations.json не несет (оба опциональны) -
-// раскладываем их в песочнице под конкретный случай.
-// ═══════════════════════════════════════════════════════════════════════════
-console.log("");
-console.log("=== validate-analysis-inputs.mjs (запрет на самоназвание, волна 3) ===");
-
-// names: значение brief.forbidden_self_names (undefined - ключа нет вовсе).
-// files: { "A2.md": "...", "recommendations.json": "..." } - что положить в папку.
-function selfNameCase({ names, files }) {
-  freshDir(validateDir, "validate_dir");
-  const brief = readJson(join(validateDir, "brief.json"));
-  if (names !== undefined) brief.forbidden_self_names = names;
-  writeJson(join(validateDir, "brief.json"), brief);
-  for (const [name, content] of Object.entries(files || {})) {
-    writeFileSync(join(validateDir, name), content, "utf8");
-  }
-  return runScript("validate-analysis-inputs.mjs", validateDir);
-}
-
-const A2_CLEAN_HEAD = "# A2 - предпроектный анализ\n\n## Executive Summary\n\nПроект - архитектурная софт-мастерская.\n";
-
-await step("самоназвание: запрещенное слово в СЛУЖЕБНОЙ прозе A2.md -> exit 2 с файлом, строкой и оборотом", () => {
-  const r = selfNameCase({
-    names: ["школа"],
-    files: { "A2.md": A2_CLEAN_HEAD + "\n## Монетизация\n\nКомиссия удерживается за счет школы, а не с ученика.\n" },
-  });
-  if (r.code !== 2) return `expected exit 2, got ${r.code}, stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
-  const out = r.stderr + r.stdout;
-  // Номер строки жесткий: без него сообщение бесполезно на отчете в сотни строк.
-  if (!out.includes("A2.md:9:")) return `не назван файл со строкой (ожидал «A2.md:9:»):\n${out}`;
-  if (!out.includes("самоназвание")) return `в сообщении нет слова «самоназвание»:\n${out}`;
-  if (!out.includes("школы")) return `не назван найденный оборот «школы»:\n${out}`;
-  return true;
-});
-
-await step("самоназвание: словоформа в recommendations.json (машиночитаемый выход) -> exit 2", () => {
-  // recommendations.json читают /seo-struktura и /seo-tekst и исполняют буквально - слово
-  // уедет на живую страницу, поэтому файл проверяется наравне с прозой отчета.
-  const r = selfNameCase({
-    names: ["школа"],
-    files: {
-      "A2.md": A2_CLEAN_HEAD,
-      "recommendations.json": '{\n  "for_pages": [\n    { "note": "Работаем со школами по договору" }\n  ]\n}\n',
-    },
-  });
-  if (r.code !== 2) return `expected exit 2 (словоформа «школами» обязана ловиться), got ${r.code}, stdout=${r.stdout.trim()}`;
-  const out = r.stderr + r.stdout;
-  if (!out.includes("recommendations.json:")) return `не назван файл recommendations.json:\n${out}`;
-  if (!out.includes("школами")) return `не названа найденная словоформа «школами»:\n${out}`;
-  return true;
-});
-
-await step("самоназвание: ПУСТОЙ forbidden_self_names -> exit 0 (запретов нет - проверять нечего)", () => {
-  const r = selfNameCase({
-    names: [],
-    files: { "A2.md": A2_CLEAN_HEAD + "\nКомиссия удерживается за счет школы.\n" },
-  });
-  if (r.code !== 0) return `exit ${r.code} (пустой массив запретов не должен ничего ловить), stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
-  if (r.stdout.includes("самоназвание")) return `при пустом списке лишняя info-строка:\n${r.stdout}`;
-  return true;
-});
-
-await step("самоназвание: ключа forbidden_self_names НЕТ (легаси-brief) -> exit 0", () => {
-  const r = selfNameCase({
-    names: undefined,
-    files: { "A2.md": A2_CLEAN_HEAD + "\nКомиссия удерживается за счет школы.\n" },
-  });
-  if (r.code !== 0) return `exit ${r.code} (легаси-brief без нового поля не должен блокироваться), stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
-  return true;
-});
-
-await step("самоназвание: ложных срабатываний внутри других слов нет (школьник/дошкольное/курсант) -> exit 0", () => {
-  // Контрпримеры выбраны так, чтобы завалить ровно ту реализацию, от которой отказались:
-  // «школьник» и «дошкольное» содержат основу «школ» целиком (наивный поиск подстроки или
-  // основы без правой/левой границы сработал бы на обоих), «курсант» - то же для «курсы»
-  // (основа «курс»). Все три - обычные слова ниши, они обязаны проходить.
-  const r = selfNameCase({
-    names: ["школа", "курсы"],
-    files: {
-      "A2.md": A2_CLEAN_HEAD + "\nК нам приходит школьник после уроков, дошкольное отделение рядом.\n",
-      "recommendations.json": '{\n  "for_pages": [\n    { "note": "Курсант получает сертификат" }\n  ]\n}\n',
-    },
-  });
-  if (r.code !== 0) return `ложное срабатывание: exit ${r.code}, stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
-  if (!r.stdout.includes("самоназвание: 2 запрет")) return `нет info-строки о проверенных запретах:\n${r.stdout}`;
-  if (!r.stdout.includes("A2.md") || !r.stdout.includes("recommendations.json")) {
-    return `info-строка не называет оба проверенных файла:\n${r.stdout}`;
-  }
-  return true;
-});
-
-await step("самоназвание: строка-ДЕКЛАРАЦИЯ запрета нарушением не считается -> exit 0", () => {
-  // Писатель обязан перечислить запрет в разделе запрещенных формулировок отчета. Если бы
-  // такая строка считалась нарушением, гейт падал бы на каждом корректном отчете.
-  const r = selfNameCase({
-    names: ["школа"],
-    files: {
-      "A2.md": A2_CLEAN_HEAD +
-        "\n## Запрещенные формулировки\n\n- Не называть проект школой или университетом.\n\n## Смежные направления\n\nВсе чисто.\n",
-    },
-  });
-  if (r.code !== 0) return `exit ${r.code} (декларация запрета не нарушение), stdout=${r.stdout.trim()}, stderr=${r.stderr.trim()}`;
-  return true;
-});
-
-await step("самоназвание: forbidden_self_names не массив -> exit 2 (проверка формы поля)", () => {
-  const r = selfNameCase({ names: "школа", files: { "A2.md": A2_CLEAN_HEAD } });
-  if (r.code !== 2) return `expected exit 2, got ${r.code}, stdout=${r.stdout.trim()}`;
-  if (!(r.stderr + r.stdout).includes("forbidden_self_names")) return `сообщение не про forbidden_self_names:\n${r.stderr}`;
-  return true;
-});
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Финал

@@ -11,6 +11,10 @@
 //   4. Создаёт client_filled.xlsx (копия A6) с 3 значениями: да / нет / обсудить.
 //   5. Прогоняет import-structure.mjs - ожидает exit 3 + structure_data.json с правильным разбиением.
 //   6. Прогоняет import-structure.mjs ещё раз с очищенной колонкой - ожидает exit 4.
+//   7. validate-project-input.mjs (вход шага 1a): фикстура fixtures/sites/999-test/{project.json,queue.json}
+//      в песочнице с --root: проход и JSON для inputs.json, тир-гейт (basic, нет tier, отставший tier),
+//      несогласованный гейт анализа, схема, пустые поля, регион и домен. Смысл бывших блоков 4-5
+//      tests/seo-analiz (тесты validate-analysis-inputs.mjs) переехал сюда в части входа структуры.
 //
 // Exit 0 - всё ок. Exit 1 - хоть один тест упал.
 
@@ -69,8 +73,7 @@ mkdirSync(sandboxDir, { recursive: true });
 
 // Копируем все fixture-файлы в sandbox (структурно):
 // - fixtures/structure_dir/* -> sandbox/
-// - fixtures/analyses/999-test/* -> .claude/tests/seo-structure/fixtures/analyses/999-test/ (как есть)
-//   (inputs.json указывает на fixtures-путь относительно project root)
+//   (там же stop_list.md и competitors.json - выход seo-base, шаг 1d: скрипты читают их из папки структуры)
 cpSync(join(fixturesDir, "structure_dir"), sandboxDir, { recursive: true });
 
 console.log("=== /seo-struktura scripts smoke ===");
@@ -97,7 +100,7 @@ await step("select-top10 detected expected cannibalization", () => {
 
 await step("select-top10 filtered competitor brand", () => {
   const top = JSON.parse(readFileSync(join(sandboxDir, "top10.json"), "utf8"));
-  // "evil-competitor.ru ремонт" не должен пройти фильтр - бренд из A3.md
+  // "evil-competitor.ru ремонт" не должен пройти фильтр - бренд из stop_list.md папки структуры
   const allQueries = top.pages.flatMap((p) => p.queries.map((q) => q.query));
   if (allQueries.some((q) => q.includes("evil-competitor"))) {
     return "evil-competitor query survived filter, queries: " + allQueries.join("; ");
@@ -158,6 +161,36 @@ await step("A6.xlsx has 4 sheets in correct order", async () => {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     return `sheets: ${actual.join(", ")} (expected: ${expected.join(", ")})`;
   }
+  return true;
+});
+
+await step("A6.xlsx лист «Конкуренты» берет competitors.json из папки структуры (выход seo-base)", async () => {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(join(sandboxDir, "A6_test.xlsx"));
+  const ws = wb.getWorksheet("Конкуренты");
+  const rows = [];
+  ws.eachRow((row, i) => { if (i > 1) rows.push(row.values.slice(1).map((v) => String(v ?? ""))); });
+  const leader = rows.find((r) => r[0] === "leader.ru");
+  const comp2 = rows.find((r) => r[0] === "comp2.ru");
+  if (!leader || !comp2) return `в листе нет конкурентов из structure_dir/competitors.json: ${JSON.stringify(rows)}`;
+  if (!leader[8].includes("лидер")) return `leader.ru не помечен лидером: ${leader.join(" | ")}`;
+  if (leader[5] !== "200") return `«Стр. в базе» лидера ${leader[5]}, ожидалось 200 (pages_keyso)`;
+  if (comp2[5] !== "80") return `«Стр. в базе» comp2 ${comp2[5]}, ожидалось 80 (фолбэк pages_in_base)`;
+  return true;
+});
+
+await step("select-top10 без stop_list.md -> exit 0 (фильтр брендов молчит, остальное работает)", () => {
+  const dir = join(projectRoot, ".claude", "tmp", "seo-structure-test-nostop");
+  if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+  cpSync(join(fixturesDir, "structure_dir"), dir, { recursive: true });
+  rmSync(join(dir, "stop_list.md"));
+  const r = runScript("select-top10.mjs", dir);
+  const top = existsSync(join(dir, "top10.json")) ? JSON.parse(readFileSync(join(dir, "top10.json"), "utf8")) : null;
+  rmSync(dir, { recursive: true, force: true });
+  if (r.code !== 0) return `exit ${r.code}, stderr=${r.stderr.trim()}`;
+  if (!top) return "top10.json не создан";
+  const all = top.pages.flatMap((p) => p.queries.map((q) => q.query));
+  if (!all.some((q) => q.includes("evil-competitor"))) return "без стоп-листа бренд все равно отфильтрован - фильтр читает что-то не то";
   return true;
 });
 
@@ -594,6 +627,197 @@ await step("verify-structure: битый вход (нет A6.md) -> exit 3", () 
   return true;
 });
 
+// === Блок: validate-project-input.mjs - вход структуры и тир-гейт (шаг 1a) ===
+// Фикстура fixtures/sites/999-test/{project.json,queue.json}: валидный контракт v8 (tier seo, гейт
+// согласован, Санкт-Петербург, сайт с www и путем). Песочница - свой корень с sites/, скрипт зовется
+// с --root, чтобы номер и слаг искались в ней. Каждый тест сбрасывает песочницу.
+// Смысл бывших тестов validate-analysis-inputs.mjs (tests/seo-analiz, блоки 4-5): канон проходит,
+// сломанный канон - exit 2, tier решает, что требуется. Скан самоназвания (блок 5) не переехал:
+// он проверял файлы отчета анализа v7 (A2.md, recommendations.json), структуре они не нужны.
+console.log("");
+console.log("=== validate-project-input (вход структуры, тир-гейт) ===");
+
+const vpiRoot = join(projectRoot, ".claude", "tmp", "seo-structure-test-vpi");
+const vpiSite = join(vpiRoot, "sites", "999-test");
+
+function resetVpi(mutate) {
+  if (existsSync(vpiRoot)) rmSync(vpiRoot, { recursive: true, force: true });
+  mkdirSync(join(vpiRoot, "sites"), { recursive: true });
+  cpSync(join(fixturesDir, "sites", "999-test"), vpiSite, { recursive: true });
+  if (mutate) {
+    const project = JSON.parse(readFileSync(join(vpiSite, "project.json"), "utf8"));
+    const queue = JSON.parse(readFileSync(join(vpiSite, "queue.json"), "utf8"));
+    mutate({ project, queue });
+    writeFileSync(join(vpiSite, "project.json"), JSON.stringify(project, null, 2));
+    writeFileSync(join(vpiSite, "queue.json"), JSON.stringify(queue, null, 2));
+  }
+}
+const vpi = (arg = "999", ...rest) => runScript("validate-project-input.mjs", arg, "--root", vpiRoot, ...rest);
+function vpiJson(r) {
+  try { return JSON.parse(r.stdout); } catch { return null; }
+}
+
+await step("vpi: валидный контракт по номеру -> exit 0 + JSON для inputs.json", () => {
+  resetVpi();
+  const r = vpi("999");
+  if (r.code !== 0) return `exit ${r.code}, stderr=${r.stderr.trim()}`;
+  const j = vpiJson(r);
+  if (!j) return `stdout не JSON: ${r.stdout.slice(0, 200)}`;
+  const want = {
+    nnn: "999", slug: "test", structure_dir: "structures/999-test/", keyso_base: "spb", region_yandex: 2,
+    domain: "nevskiy-remont.ru", tier: "seo", tier_lagging: false, project_gate: true, business_type: "services",
+    competitors_source: "structures/999-test/competitors.json", stop_list_source: "structures/999-test/stop_list.md",
+  };
+  for (const [k, v] of Object.entries(want)) {
+    if (j[k] !== v) return `${k}=${JSON.stringify(j[k])}, ожидалось ${JSON.stringify(v)}`;
+  }
+  if (!String(j.project_path).endsWith("sites/999-test/project.json")) return `project_path=${j.project_path}`;
+  if ("analysis_dir" in j) return "в выводе остался analysis_dir";
+  return true;
+});
+
+await step("vpi: поиск по слагу и по пути каталога -> exit 0; --out пишет файл", () => {
+  resetVpi();
+  const bySlug = vpi("test");
+  if (bySlug.code !== 0) return `по слагу exit ${bySlug.code}, stderr=${bySlug.stderr.trim()}`;
+  const byPath = runScript("validate-project-input.mjs", vpiSite);
+  if (byPath.code !== 0) return `по пути exit ${byPath.code}, stderr=${byPath.stderr.trim()}`;
+  const out = join(vpiRoot, "structures", "999-test", "inputs.json");
+  const withOut = vpi("999", "--out", out);
+  if (withOut.code !== 0) return `--out exit ${withOut.code}`;
+  if (withOut.stdout.trim()) return "при --out stdout должен быть пуст";
+  if (!existsSync(out)) return "--out не записал inputs.json";
+  if (JSON.parse(readFileSync(out, "utf8")).keyso_base !== "spb") return "в файле --out не тот JSON";
+  return true;
+});
+
+await step("vpi: тир-гейт queue.tier=basic -> exit 2, подсказка «queue.mjs init ... --tier seo»", () => {
+  resetVpi(({ project, queue }) => { queue.tier = "basic"; project.tier = "basic"; });
+  const r = vpi();
+  if (r.code !== 2) return `expected exit 2, got ${r.code}`;
+  if (!/SEO не куплено \(tier=basic\)/.test(r.stderr)) return `нет «SEO не куплено (tier=basic)»:\n${r.stderr}`;
+  if (!r.stderr.includes("queue.mjs init test --tier seo")) return `нет подсказки докупки:\n${r.stderr}`;
+  if (r.stdout.trim()) return "при отказе stdout должен быть пуст (inputs.json не пишется)";
+  return true;
+});
+
+await step("vpi: тир-гейт - в queue.json tier нет, в project.json seo -> exit 2 (источник только ответ оператора)", () => {
+  resetVpi(({ queue }) => { queue.tier = ""; });
+  const r = vpi();
+  if (r.code !== 2) return `expected exit 2, got ${r.code}, stderr=${r.stderr.trim()}`;
+  if (!r.stderr.includes("queue.json")) return `сообщение не называет queue.json:\n${r.stderr}`;
+  return true;
+});
+
+await step("vpi: тир-гейт - tier нет нигде -> exit 2 (лазейки legacy нет)", () => {
+  resetVpi(({ project, queue }) => { delete queue.tier; delete project.tier; });
+  const r = vpi();
+  if (r.code !== 2) return `expected exit 2, got ${r.code}`;
+  if (!r.stderr.includes("tier нет ни в queue.json, ни в project.json")) return `не тот текст отказа:\n${r.stderr}`;
+  return true;
+});
+
+await step("vpi: tier в контракте отстал (queue seo, project basic) -> exit 0 с предупреждением, tier_lagging=true", () => {
+  resetVpi(({ project }) => { project.tier = "basic"; });
+  const r = vpi();
+  if (r.code !== 0) return `expected exit 0, got ${r.code}, stderr=${r.stderr.trim()}`;
+  const j = vpiJson(r);
+  if (!j || j.tier_lagging !== true) return `tier_lagging=${j && j.tier_lagging}`;
+  if (!r.stderr.includes("tier в контракте отстал")) return `нет предупреждения:\n${r.stderr}`;
+  return true;
+});
+
+await step("vpi: гейт анализа не согласован -> exit 0, project_gate=false и предупреждение", () => {
+  resetVpi(({ queue }) => { queue.gate = { approved: false, by: "", at: "" }; });
+  const r = vpi();
+  if (r.code !== 0) return `expected exit 0, got ${r.code}`;
+  const j = vpiJson(r);
+  if (!j || j.project_gate !== false) return `project_gate=${j && j.project_gate}`;
+  if (!r.stderr.includes("не согласован")) return `нет предупреждения о гейте:\n${r.stderr}`;
+  return true;
+});
+
+await step("vpi: контракт не проходит схему -> exit 2 с путем поля", () => {
+  resetVpi(({ project }) => { project.business.type = "services-and-shop"; project.business.extra = 1; });
+  const r = vpi();
+  if (r.code !== 2) return `expected exit 2, got ${r.code}`;
+  if (!r.stderr.includes("схема business.type")) return `не назван business.type:\n${r.stderr}`;
+  if (!r.stderr.includes("business.extra")) return `не пойман лишний ключ business.extra:\n${r.stderr}`;
+  return true;
+});
+
+await step("vpi: пустой регион, пустые assortment+directions, дубль id направления -> exit 2", () => {
+  resetVpi(({ project }) => { project.business.region = ""; });
+  const r1 = vpi();
+  if (r1.code !== 2 || !r1.stderr.includes("business.region пуст")) return `пустой регион: exit ${r1.code}\n${r1.stderr}`;
+  resetVpi(({ project }) => { project.business.assortment = []; project.business.directions = []; });
+  const r2 = vpi();
+  if (r2.code !== 2 || !r2.stderr.includes("оба пусты")) return `пустые assortment+directions: exit ${r2.code}\n${r2.stderr}`;
+  resetVpi(({ project }) => { project.business.directions[1].id = project.business.directions[0].id; });
+  const r3 = vpi();
+  if (r3.code !== 2 || !r3.stderr.includes("id не уникальны")) return `дубль id: exit ${r3.code}\n${r3.stderr}`;
+  return true;
+});
+
+await step("vpi: нет project.json или нет проекта -> exit 2 с подсказкой /site-analiz", () => {
+  resetVpi();
+  rmSync(join(vpiSite, "project.json"));
+  const r1 = vpi();
+  if (r1.code !== 2 || !r1.stderr.includes("/site-analiz")) return `нет project.json: exit ${r1.code}\n${r1.stderr}`;
+  resetVpi();
+  const r2 = vpi("998");
+  if (r2.code !== 2 || !r2.stderr.includes("/site-analiz")) return `нет проекта: exit ${r2.code}\n${r2.stderr}`;
+  return true;
+});
+
+await step("vpi: регион вне баз Keyso и федеральный -> msk с пометкой, region_yandex 213 (не 225/0)", () => {
+  resetVpi(({ project }) => { project.business.region = "Пхукет, Таиланд"; });
+  const j1 = vpiJson(vpi());
+  if (!j1) return "Пхукет: нет JSON";
+  if (j1.keyso_base !== "msk" || j1.city_not_in_keyso !== true || !j1.note_keyso) return `Пхукет: keyso ${j1.keyso_base}, city_not_in_keyso ${j1.city_not_in_keyso}`;
+  if (j1.region_yandex !== 213 || !j1.note_region) return `Пхукет: region_yandex ${j1.region_yandex}, note_region «${j1.note_region}»`;
+  resetVpi(({ project }) => { project.business.region = "Россия"; });
+  const j2 = vpiJson(vpi());
+  if (!j2 || j2.region_yandex !== 213 || !/федеральн/.test(j2.note_region)) return `Россия: ${JSON.stringify(j2 && [j2.region_yandex, j2.note_region])}`;
+  resetVpi(({ project }) => { project.business.region = "Омская область"; });
+  const j3 = vpiJson(vpi());
+  if (!j3 || j3.keyso_base !== "oms" || j3.region_yandex !== 66) return `Омск: ${JSON.stringify(j3 && [j3.keyso_base, j3.region_yandex])}`;
+  return true;
+});
+
+await step("vpi: домен - Punycode -> кириллица, площадка вместо сайта -> null, сайта нет -> null", async () => {
+  const { domainToASCII } = await import("node:url");
+  const puny = domainToASCII("невский-ремонт.рф");
+  resetVpi(({ project }) => { project.business.site = `https://www.${puny}/uslugi/`; });
+  const j1 = vpiJson(vpi());
+  if (!j1 || j1.domain !== "невский-ремонт.рф") return `IDN: domain=${j1 && j1.domain}`;
+  resetVpi(({ project }) => { project.business.site = "https://vk.com/nevskiy"; });
+  const r2 = vpi();
+  const j2 = vpiJson(r2);
+  if (!j2 || j2.domain !== null) return `vk.com: domain=${j2 && j2.domain}`;
+  if (!r2.stderr.includes("площадку")) return `нет предупреждения про площадку:\n${r2.stderr}`;
+  resetVpi(({ project }) => { project.business.site = null; });
+  const j3 = vpiJson(vpi());
+  if (!j3 || j3.domain !== null) return `site=null: domain=${j3 && j3.domain}`;
+  return true;
+});
+
+// Дефект Д5 гейта 0: structure-verifier ждал вердиктов, которых шаг выдачи не выдает, и проверка
+// была мертвой. Словарь один: четыре значения seo-base обязаны стоять в structure-verifier дословно.
+await step("дрейф-гард: словарь verdict.type seo-base совпадает со structure-verifier (Д5)", () => {
+  const VERDICTS = ["ИДЕМ", "КОРРЕКТИРУЕМ ТИП САЙТА", "МЕНЯЕМ СТРАТЕГИЮ - инфоконтент", "ИДЕМ С ОГОВОРКАМИ"];
+  const agents = join(projectRoot, ".claude", "agents");
+  const base = readFileSync(join(agents, "seo-base.md"), "utf8");
+  const verifier = readFileSync(join(agents, "structure-verifier.md"), "utf8");
+  const miss = [];
+  for (const v of VERDICTS) {
+    if (!base.includes("`" + v + "`")) miss.push(`seo-base: ${v}`);
+    if (!verifier.includes("«" + v + "»")) miss.push(`structure-verifier: ${v}`);
+  }
+  if (/ИНФОКОНТЕНТ»|НОВЫЙ САЙТ/.test(verifier)) miss.push("structure-verifier: остались мертвые значения v7");
+  return miss.length ? `словари разошлись: ${miss.join("; ")}` : true;
+});
+
 // === Финал ===
 console.log("");
 const passed = results.filter((r) => r.ok).length;
@@ -613,4 +837,5 @@ if (failed > 0) {
 rmSync(sandboxDir, { recursive: true, force: true });
 rmSync(hierarchyDir, { recursive: true, force: true });
 rmSync(verifyDir, { recursive: true, force: true });
+rmSync(vpiRoot, { recursive: true, force: true });
 process.exit(0);

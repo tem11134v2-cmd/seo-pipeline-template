@@ -1,10 +1,22 @@
 {
-  "analysis_dir": ".claude/tests/seo-structure/fixtures/analyses/999-test/",
+  "project_path": ".claude/tests/seo-structure/fixtures/sites/999-test/project.json",
+  "site_dir": ".claude/tests/seo-structure/fixtures/sites/999-test/",
+  "nnn": "999",
   "slug": "hier",
+  "structure_dir": "structures/999-hier/",
   "domain": null,
   "keyso_base": "msk",
-  "region_yandex": "213",
+  "city_not_in_keyso": false,
+  "note_keyso": "",
+  "region_yandex": 213,
   "region_name": "Москва",
-  "competitors_source": ".claude/tests/seo-structure/fixtures/analyses/999-test/competitors.json",
-  "stop_list_source": ".claude/tests/seo-structure/fixtures/analyses/999-test/A3.md"
+  "note_region": "",
+  "business_type": "services",
+  "site_kind": "multipage",
+  "tier": "seo",
+  "tier_lagging": false,
+  "project_gate": true,
+  "competitors_source": "structures/999-hier/competitors.json",
+  "serp_source": "structures/999-hier/serp.json",
+  "stop_list_source": "structures/999-hier/stop_list.md"
 }

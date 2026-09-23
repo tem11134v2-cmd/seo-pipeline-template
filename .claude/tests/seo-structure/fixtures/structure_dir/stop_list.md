@@ -1,4 +1,4 @@
-# A3 - Стоп-лист доменов
+# Стоп-лист доменов
 
 avito.ru
 evil-competitor.ru

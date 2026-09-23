@@ -1,6 +1,6 @@
 ---
 name: structure-verifier
-description: Финальная независимая смысловая вычитка A6.md. Сверяет цифры с JSON-источниками, состав и порядок разделов по шаблону, непротиворечивость рекомендаций вердикту анализа, чистоту клиентского языка. Пишет verify_report.json, ничего не чинит. Используется в /seo-struktura на шаге 9д.
+description: Финальная независимая смысловая вычитка A6.md. Сверяет цифры с JSON-источниками, состав и порядок разделов по шаблону, непротиворечивость рекомендаций вердикту по выдаче (serp.json шага seo-base), чистоту клиентского языка. Пишет verify_report.json, ничего не чинит. Используется в /seo-struktura на шаге 9д.
 tools: Read, Write
 model: opus
 ---
@@ -15,7 +15,6 @@ model: opus
 ## Вход (в делегирующем промте)
 
 - `structure_dir` - путь к `structures/NNN-slug/`
-- `analysis_dir` - путь к `analyses/NNN-slug/`
 - `project_root` - корень проекта
 
 ## Обязательное чтение
@@ -26,8 +25,9 @@ model: opus
 4. `<structure_dir>/master_list.json` - use_sections, sections[], url_nesting_recommendation, pairing.
 5. `<structure_dir>/decisions.json` (опц.) - журнал решений.
 6. `<structure_dir>/semantic_pack.json` (опц.) - degraded/region_note (замечания прогона).
-7. `<analysis_dir>/serp.json` - verdict.type (не противоречат ли рекомендации вердикту анализа).
-8. `<analysis_dir>/competitors.json` - сверка чисел в разделе «Конкуренты».
+7. `<structure_dir>/serp.json` (выход seo-base) - verdict.type (не противоречат ли рекомендации вердикту по выдаче).
+8. `<structure_dir>/competitors.json` (выход seo-base) - сверка чисел в разделе «Конкуренты», `list_check[]`.
+9. `<structure_dir>/inputs.json` - `project_gate`, `tier_lagging`, `note_region`, `note_keyso` (замечания прогона).
 
 ## Проверки
 
@@ -38,10 +38,20 @@ model: opus
    прогона при наличии], Целевые страницы, Архитектура меню (шапка), Блок перелинковки в шапке,
    Рекомендации по расширению, Наши SEO-решения, Конкуренты, Миграция, Отложенные. Пропажа/сдвиг
    фиксированного раздела -> kind "structural", severity critical.
-3. **Рекомендации не противоречат вердикту анализа.** Если serp.verdict.type = «ИНФОКОНТЕНТ» или
-   «НОВЫЙ САЙТ», а A6 рекомендует агрессивную коммерческую посадку без оговорок - флаг
-   kind "logic", severity important. Замечания прогона (degraded/реконструкция) должны быть отражены,
-   если semantic_pack.degraded или inputs.analysis_reconstructed.
+3. **Рекомендации не противоречат вердикту по выдаче.** Словарь `serp.verdict.type` - ровно те значения,
+   которые выдает seo-base (сравнивай без регистра, е с точками приравнивай к е, любое тире к дефису;
+   «ИДЕМ С ОГОВОРКАМИ» проверяй раньше «ИДЕМ»):
+   - «МЕНЯЕМ СТРАТЕГИЮ - инфоконтент» - A6 рекомендует новые коммерческие посадки под инфо-запросы
+     без оговорки про статьи -> kind "logic", severity important;
+   - «КОРРЕКТИРУЕМ ТИП САЙТА» - в целевых нет ни одного раздела-хаба или категории, и рекомендации
+     не предлагают каталожную структуру -> kind "logic", severity important;
+   - «ИДЕМ С ОГОВОРКАМИ» - A6 обещает ТОП-3 по главным запросам, не упоминая агрегаторы в выдаче ->
+     kind "logic", severity minor;
+   - «ИДЕМ» - проверки нет.
+   Значение вне словаря или нет serp.json -> kind "logic", severity minor («вердикт не распознан»),
+   проверку по вердикту пропусти. Замечания прогона должны быть отражены, если semantic_pack.degraded,
+   inputs.project_gate == false, inputs.tier_lagging, непустые inputs.note_region / note_keyso или
+   в competitors.list_check есть конкуренты анализа, не вошедшие в список (in_final == false).
 4. **Клиентский язык без жаргона.** В прозе A6.md не должно быть протекших имен файлов/полей/
    инструментов в клиентских формулировках (decisions.json, umbrella, commercial_pct, arsenkin,
    semantic_pack, info_dominant, ключ id-slug) - только человеческий русский. (Журнал «Наши

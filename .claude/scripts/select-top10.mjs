@@ -11,7 +11,7 @@
 //   <structure_dir>/semantic_pack.json   - топ-30 от JM по каждой странице
 //   <structure_dir>/markers.json         - маркеры (для проверки соответствия)
 //   <structure_dir>/master_list.json     - типы и названия страниц
-//   <structure_dir>/inputs.json          - analysis_dir для чтения A3.md
+//   <structure_dir>/stop_list.md         - стоп-лист доменов от seo-base (шаг 1d): бренды для фильтра
 // Выход:
 //   <structure_dir>/top10.json           - топ-10 на каждую страницу
 //   <structure_dir>/cannibalization.json - конфликты + альтернативы
@@ -46,7 +46,6 @@ function readJson(path) {
 const semanticPack = readJson(join(structureDir, "semantic_pack.json"));
 const markers = readJson(join(structureDir, "markers.json"));
 const masterList = readJson(join(structureDir, "master_list.json"));
-const inputs = readJson(join(structureDir, "inputs.json"));
 
 // === page_id (стабильный паспорт страницы) ===
 // master-list-builder проставляет master.id = slug(name). Если отсутствует (legacy/фикстуры) -
@@ -54,18 +53,18 @@ const inputs = readJson(join(structureDir, "inputs.json"));
 // slugifyBase - общий модуль _slug.mjs, поведение бит-в-бит прежнее (та же карта, тот же slice(0,60),
 // без вырезания скобок/стоп-слов/лимита слов) - id-ключи decisions.json не сдвигаются.
 
-// === A3.md - доменный стоп-лист (как блок-фильтр для брендов в запросах) ===
+// === stop_list.md - доменный стоп-лист (как блок-фильтр для брендов в запросах) ===
+// Формат прежнего A3.md анализа: заголовок и по домену на строку. Пишет его seo-base (шаг 1d)
+// в папку структуры; от анализа v8 структура стоп-листа не получает.
 // Мы не блокируем все запросы по доменам - это не имеет смысла на уровне запросов,
-// но из A3 можно вытащить «бренды конкурентов» (если домен типа «vasya-master.ru» -
-// слово «vasya master» в запросе вряд ли нам подходит). Пока берём базовый эвристический список -
-// слова из доменов A3 без TLD.
+// но из стоп-листа можно вытащить «бренды конкурентов» (если домен типа «vasya-master.ru» -
+// слово «vasya master» в запросе вряд ли нам подходит). Пока берем базовый эвристический список -
+// слова из доменов без TLD. Нет файла - фильтр брендов молчит, остальное работает.
 
 let competitorBrands = [];
-// inputs.analysis_dir хранится как путь от project root (например "analyses/NNN-slug/").
-// Скрипт запускается из project root (через .claude\scripts\_node.cmd), поэтому resolve от cwd.
-const analysisDir = inputs.analysis_dir ? resolve(inputs.analysis_dir) : null;
-if (analysisDir && existsSync(join(analysisDir, "A3.md"))) {
-  const a3 = readFileSync(join(analysisDir, "A3.md"), "utf8");
+const stopListPath = join(structureDir, "stop_list.md");
+if (existsSync(stopListPath)) {
+  const a3 = readFileSync(stopListPath, "utf8");
   competitorBrands = a3
     .split(/\r?\n/)
     .filter((l) => l && !l.startsWith("#") && !l.startsWith(">"))

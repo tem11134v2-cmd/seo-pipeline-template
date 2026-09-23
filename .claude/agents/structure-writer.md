@@ -14,7 +14,6 @@ MCP не используешь. Это чистая компиляция дан
 ## Вход
 
 - `structure_dir` - путь к `structures/NNN-<slug>/`
-- `analysis_dir` - путь к `analyses/NNN-<slug>/`
 - `project_root` - корень проекта
 
 ## Обязательное чтение
@@ -27,47 +26,52 @@ MCP не используешь. Это чистая компиляция дан
    - `competitor_url_depth` (object) - замер вложенности URL конкурентов: `median_segments`, `dominant_pattern` (`flat`/`one_level`/`two_level`/`deep`), `examples[]`, `note`.
    - `url_nesting_recommendation` (object) - политика по URL: `mode` (`flat`/`nested`), `rationale`, `migration_needed` (читается в разделе «Миграция»).
    - Все новые поля парси с guard на отсутствие (как существующий гейт по `use_sections`): нет поля - веди себя как при дефолте (`category` пусто, `mode` = `flat`).
-4. `<structure_dir>/inputs.json` - параметры проекта (`slug`, `domain`, `keyso_base`, `region_yandex`, `region_name`, `note_region`, `analysis_reconstructed`).
-5. `<analysis_dir>/brief.json` - `niche`, `region`, `domain`, `company_name`.
-6. `<analysis_dir>/competitors.json` - `direct[]`, `leaders_top3[]` для секции «Конкуренты».
-7. `<analysis_dir>/A3.md` - стоп-лист (для информации в шапке, опц.).
-8. `<structure_dir>/semantic_pack.json` (опц.) - поля `degraded`, `degraded_reason`, `region_note` (для блока «Замечания прогона» - честно отразить, если JM деградировал).
-9. `<structure_dir>/decisions.json` (опц.) - журнал авто-решений алгоритма (для раздела «Наши SEO-решения»; low-confidence выносятся отдельным чек-листом).
+4. `<structure_dir>/inputs.json` - параметры проекта (`slug`, `nnn`, `domain`, `keyso_base`, `note_keyso`, `region_yandex`, `region_name`, `note_region`, `business_type`, `tier_lagging`, `project_gate`, `project_path`, `site_dir`).
+5. `<project_path>` (контракт анализа `sites/NNN-<slug>/project.json`, только чтение) - `business.name`, `business.what`, `business.region`, `business.directions[]` (`name`, `parent`).
+6. `<structure_dir>/competitors.json` (выход seo-base) - `direct[]`, `leaders_top3[]` для секции «Конкуренты»; `list_check[]` - какие конкуренты анализа не вошли в список и почему.
+7. `<structure_dir>/serp.json` (выход seo-base) - `verdict.type` для шапки.
+8. `<structure_dir>/stop_list.md` - стоп-лист (для информации в шапке, опц.).
+9. `<structure_dir>/semantic_pack.json` (опц.) - поля `degraded`, `degraded_reason`, `region_note` (для блока «Замечания прогона» - честно отразить, если JM деградировал).
+10. `<structure_dir>/decisions.json` (опц.) - журнал авто-решений алгоритма (для раздела «Наши SEO-решения»; low-confidence выносятся отдельным чек-листом).
 
 ## Что делать
 
 Запиши `<structure_dir>/A6.md` со следующей структурой. **Жёстко соблюдай порядок разделов и подразделов.**
 
 ````markdown
-# A6 - Структура сайта - <brief.company_name или domain или niche>
+# A6 - Структура сайта - <business.name или inputs.domain или slug>
 
 **Дата:** <YYYY-MM-DD сегодня>
-**Источник:** /seo-struktura NNN (на базе /seo-analiz NNN)
+**Источник:** /seo-struktura NNN (на базе контракта анализа <inputs.site_dir>)
 **Аналитик:** TIMUR SEO
 
 ---
 
 ## Параметры проекта
 
-- **Ниша:** <brief.niche>
-- **Регион:** <brief.region>
-- **Домен:** <brief.domain или "нет домена">
+- **Ниша:** <имена корневых направлений `business.directions[]` (пустой `parent`) через запятую; направлений нет - `business.what`>
+- **Регион:** <business.region>
+- **Домен:** <inputs.domain или "нет домена">
 - **База Keyso:** <inputs.keyso_base>
 - **Регион Яндекса:** <inputs.region_yandex> (<region_name>)
 - **Конкурентов в анализе:** <competitors.direct.length>
 - **Топ-3 лидера:** <competitors.leaders_top3 через запятую>
-- **Доменов в стоп-листе:** <количество строк A3.md минус заголовок>
+- **Вердикт по выдаче:** <serp.verdict.type; нет serp.json - «не проверялся»>
+- **Доменов в стоп-листе:** <количество доменов в stop_list.md (строки без заголовка)>
 - **Спаривание с клиентом выполнено:** <да/нет; если нет - указать master_list.pairing_skipped_reason>
 
-<Если есть хоть одно из: inputs.analysis_reconstructed==true, inputs.note_region непуст, semantic_pack.degraded==true, master_list.pairing_skipped_reason непуст - добавить подраздел ниже. Иначе пропустить.>
+<Если есть хоть одно из: inputs.project_gate==false, inputs.tier_lagging==true, inputs.note_region непуст, inputs.note_keyso непуст, в competitors.list_check есть in_final==false, semantic_pack.degraded==true, master_list.pairing_skipped_reason непуст - добавить подраздел ниже. Иначе пропустить.>
 
 ### Замечания прогона
 
 > Честный статус данных, на которых построена структура. Не скрывать.
 
 <построчно, только непустые:>
-- ⚠️ **Анализ реконструирован:** структура построена на реконструированных данных (не нативный прогон /seo-analiz). <если inputs.analysis_reconstructed>
+- ⚠️ **Контракт анализа не согласован:** структура построена до согласования анализа с заказчиком, состав направлений еще может поменяться. <если inputs.project_gate == false>
+- ⚠️ **Тариф в контракте отстал:** SEO докуплено после сборки анализа (в контракте стоит базовый тариф) - структура построена по ответу оператора. <если inputs.tier_lagging>
 - ⚠️ **Регион:** <inputs.note_region> <если непуст - например про замену федерального кода на 213 и что Казахстан/.kz вне scope этого прогона>
+- ⚠️ **База Keyso:** <inputs.note_keyso> <если непуст>
+- ⚠️ **Конкуренты расходятся с анализом:** <из competitors.list_check с in_final == false: «<item> - <reason>» через точку с запятой> <если такие есть>
 - ⚠️ **JM деградировал:** <semantic_pack.degraded_reason> - семантика собрана на урезанном наборе источников; топ-10 ранжированы по частотности (она цела), но охват кандидатов уже обычного. <если semantic_pack.degraded>
 - ⚠️ **Спаривание не выполнено:** <master_list.pairing_skipped_reason>. <если непуст и pairing не делалось>
 
@@ -93,7 +97,7 @@ MCP не используешь. Это чистая компиляция дан
 <Если `master_list.use_sections == true` - дерево по уровням. Ветвь по типу сайта:
 - Услуги (2 уровня): «разделы услуг» - раздел(hub) -> страница. Поле `category` пусто, третий уровень не выводить.
 - Товары (3 уровня): «каталог -> категории -> товары» - раздел(hub) -> категория -> товар. Третий уровень - из непустого `category`.
-Тип определяй по brief.business_type / типу сайта из scan; если у страниц встречается непустой `category` - значит уровней три.>
+Тип определяй по inputs.business_type (`business.type` контракта); если у страниц встречается непустой `category` - значит уровней три.>
 
 <Для каждого раздела из `master_list.sections[]` по порядку - подзаголовок и его целевые страницы (`target_status == "yes"`, у которых `section` совпадает с разделом).>
 
@@ -204,7 +208,7 @@ MCP не используешь. Это чистая компиляция дан
 
 <если master_list.pairing_performed:>
 
-> Решения по существующим страницам клиента (`<brief.domain>`).
+> Решения по существующим страницам клиента (`<inputs.domain>`).
 
 | Текущий URL | ТОП-10 | ТОП-50 | Спарена с (№ из «Целевые») | Решение | Новый URL | Примечания |
 |---|---|---|---|---|---|---|
@@ -219,7 +223,7 @@ MCP не используешь. Это чистая компиляция дан
 
 <если не было спаривания:>
 
-Миграция текущих страниц не требуется - нет текущего сайта с видимостью (домен `<brief.domain или "не указан">` без данных в Keyso). Политику URL (выше) всё равно отрази.
+Миграция текущих страниц не требуется - нет текущего сайта с видимостью (домен `<inputs.domain или "не указан">` без данных в Keyso). Политику URL (выше) все равно отрази.
 
 ---
 
@@ -252,8 +256,8 @@ MCP не используешь. Это чистая компиляция дан
 - /seo-statya - для проверки связки «тема статьи -> целевая страница для перелинковки»
 
 **См. также:**
-- `<analysis_dir>/A2.md` - предпроектный анализ
-- `<analysis_dir>/A3.md` - стоп-лист доменов
+- `<inputs.project_path>` - контракт предпроектного анализа
+- `<structure_dir>/stop_list.md` - стоп-лист доменов
 ````
 
 ## Правила формирования
@@ -305,7 +309,7 @@ URL уже проставлены к этому шагу (сборка A6.xlsx �
 ## Запреты
 
 - НЕ редактируй `structure_data.json`, `cannibalization.json`, `master_list.json` - только Read.
-- НЕ редактируй файлы в `analyses/NNN/`.
+- НЕ редактируй `project.json` и ничего в `sites/NNN/` (контракт анализа).
 - НЕ используй MCP - `tools: Read, Write, Edit`.
 - НЕ меняй порядок и состав разделов и подразделов A6.md - он фиксирован для передачи в У5/У6/У7/У8. В частности, «Архитектура меню (шапка)» и «Блок перелинковки в шапке» - **фиксированные** разделы, выводятся ВСЕГДА (даже при плоской структуре - тогда плоским списком), их нельзя пропускать или схлопывать; нельзя терять и любой другой подраздел из шаблона.
 - НЕ переименовывай страницы из `structure_data` - клиент мог сам поправить названия, уважай это.

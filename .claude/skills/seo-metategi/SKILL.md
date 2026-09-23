@@ -113,8 +113,9 @@ resume = true/false
 
 **Источник = структура** (`--from-structure NNN` или выбор 3):
 - `structure_dir = structures/<NNN>-*/` (glob). Если нет - стоп с подсказкой `/seo-struktura`.
-- Прочитать `structure_dir/inputs.json` -> `slug`, `domain`, `region_yandex`, `region_name`, `analysis_dir`.
-- Прочитать `analysis_dir/brief.json` -> УТП-блок: `utp_technical[]`, `utp_service[]`, `utp_social[]`, `assortment[]`, `forbidden_phrasings[]` (или `запрещённые формулировки`), `brand_name`.
+- Прочитать `structure_dir/inputs.json` -> `slug`, `domain`, `region_yandex`, `region_name`, `project_path`.
+- Прочитать контракт анализа по `project_path` (`sites/NNN-<slug>/project.json`, только чтение) -> УТП-блок (раскладка та же, что в хвосте `/seo-struktura`, шаг 11b): `utp_technical[]` / `utp_service[]` / `utp_social[]` - `claim` из `offer.reasons[]` с непустым `proof` по `kind` (`число`, `документ`, `процесс` -> technical; `гарантия` -> service; `кейс`, `отзыв` -> social); `assortment[]` <- `business.assortment[]`; `forbidden_phrasings[]` <- `constraints.forbidden[]`; `brand_name` <- `business.name`.
+- Старая структура (в `inputs.json` есть `analysis_dir`, нет `project_path`) - УТП-блок из `analysis_dir/brief.json`: `utp_*`, `assortment[]`, `forbidden_phrasings[]` <- `forbidden_wordings[]`, `brand_name` <- `company_name`. Файла нет - поля пустые, метатеги без УТП.
 - **NNN метатегов зеркалит NNN структуры.** `metatags_dir = metatags/<NNN>-<slug>/`.
 
 **Источник = таблица / сайт** (нет структуры):

@@ -11,15 +11,15 @@ model: sonnet
 ## Вход
 
 - `structure_dir` - путь к `structures/NNN-<slug>/`
-- `analysis_dir` - путь к `analyses/NNN-<slug>/`
 - `project_root` - корень проекта
 
 ## Обязательное чтение
 
 1. `<structure_dir>/master_list.json` - список страниц от `master-list-builder`.
-2. `<analysis_dir>/brief.json` - `keyso_base`, `client_target_queries[]`, `niche`, `region`.
-3. `<analysis_dir>/competitors.json` - `direct[]` (для каскада), `leaders_top3[]` (первый источник).
-4. `<analysis_dir>/A3.md` - стоп-лист (информационно, для понимания «не оттуда»).
+2. `<structure_dir>/inputs.json` - `keyso_base`, `region_yandex`, `region_name`, `project_path`.
+3. `<project_path>` (контракт анализа, только чтение) - `business.directions[]` (`name`, `parent`, `marker` - семя маркеров), `business.what`.
+4. `<structure_dir>/competitors.json` - `direct[]` (для каскада), `leaders_top3[]` (первый источник). Собрал `seo-base` на шаге 1d.
+5. `<structure_dir>/stop_list.md` - стоп-лист (информационно, для понимания «не оттуда»).
 
 ## Что делать
 
@@ -32,8 +32,8 @@ model: sonnet
 #### Главная
 
 `type == "home"` - маркер = основной запрос ниши + регион:
-- Если `brief.client_target_queries` непуст и первый запрос содержит регион (`«ремонт квартир спб»`) - бери его, проверь через `keyword_info(keyword="...", base="<keyso_base>")`.
-- Иначе сформулируй маркер из ниши + региона: `"<niche> <region-в-локативе>"`. Например `niche="ремонт квартир", region="Санкт-Петербург"` -> `"ремонт квартир спб"`.
+- Семя - `marker` корневого направления контракта (`business.directions[]` с пустым `parent`; если корневых несколько - самое широкое по смыслу, обычно первое). Маркер без региона дополни регионом: `"<marker> <region-в-локативе>"` из `inputs.region_name`, например `"ремонт квартир"` + «Санкт-Петербург» -> `"ремонт квартир спб"`. Проверь через `keyword_info(keyword="...", base="<inputs.keyso_base>")`.
+- Маркеров у направлений нет - сформулируй из имени корневого направления (или сути `business.what`) + региона тем же способом.
 - Проверь через `keyword_info` - если частотность > 0, это маркер.
 - Если 0 - попробуй варианты через `keyword_similar`.
 
@@ -45,7 +45,7 @@ model: sonnet
 2. Если в `master_list.pages[i].competitors_with_page` указан лидер - бери его URL.
 3. Получи запросы страницы:
 ```
-domain_keywords(domain="<leader.domain>", url="<leader_url>", base="<keyso_base>")
+domain_keywords(domain="<leader.domain>", url="<leader_url>", base="<inputs.keyso_base>")
 ```
 4. Отфильтруй:
    - Только с `ws_exact > 0` (точная частотность)
@@ -63,7 +63,7 @@ domain_keywords(domain="<leader.domain>", url="<leader_url>", base="<keyso_base>
 
 Если у никого нет аналога (`master_list.pages[i].source == "brief"` или клиентская новая) - проверь название страницы как запрос:
 ```
-keyword_info(keyword="<page.name в lowercase>", base="<keyso_base>")
+keyword_info(keyword="<page.name в lowercase>", base="<inputs.keyso_base>")
 ```
 Если `ws_exact > 0` и в SERP сайты нашего типа - это маркер.
 
@@ -71,7 +71,7 @@ keyword_info(keyword="<page.name в lowercase>", base="<keyso_base>")
 
 Если `keyword_info` показал 0 - ищи синоним:
 ```
-keyword_similar(keyword="<page.name>", base="<keyso_base>")
+keyword_similar(keyword="<page.name>", base="<inputs.keyso_base>")
 ```
 Из результатов выбери самый близкий по смыслу с `ws_exact > 0`.
 
@@ -150,7 +150,7 @@ arsenkin_commerce(
 
 1. Запросить кандидатов:
 ```
-keyword_similar(keyword="<маркер>", base="<keyso_base>")
+keyword_similar(keyword="<маркер>", base="<inputs.keyso_base>")
 ```
 
 2. Отобрать **до 3 кандидатов** с близкой частотностью (`ws_exact >= 30% от исходного` чтобы не сильно терять трафик).
@@ -349,7 +349,7 @@ arsenkin_top(queries=["<маркер>"], se=[{"type": 1, "region": <region_yande
 
 - НЕ запускай JM `semantic_pack` - это задача `semantic-expander` (следующий шаг).
 - НЕ редактируй `master_list.json` - только Read. (Свои решения пиши в `decisions.json`, не в master_list.)
-- НЕ редактируй файлы в `analyses/NNN/`.
+- НЕ редактируй `project.json` и ничего в `sites/NNN/` (контракт анализа), а также выход seo-base (`competitors.json`, `serp.json`, `stop_list.md`).
 - НЕ пиши «решение за клиентом» / «клиент должен решить» по SEO-вопросам. Прими решение сам (роль / синоним / блог) и запиши в `decisions.json`. Клиенту - только бизнес-вопрос «производите ли это» (в xlsx, не здесь).
 - НЕ применяй решение, если запись с таким `id` уже есть в `decisions.json` (идемпотентность).
 - НЕ дублируй маркеры (один маркер = одна страница). Если каскад дал одинаковый маркер двум разным страницам - выбери для одной альтернативу (следующий по частоте из той же `domain_keywords` выборки).

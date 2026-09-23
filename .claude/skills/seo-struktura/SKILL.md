@@ -1,51 +1,59 @@
 ---
 name: seo-struktura
-description: Полный цикл построения структуры сайта на базе существующего предпроектного анализа. Читает analyses/NNN/, собирает мастер-список страниц через конкурентов, маркерные запросы, JM semantic_pack, топ-10 + каннибализация, генерирует A6.xlsx → клиенту → A6.md. Аргументы - <NNN> [--resume] [--review | --auto] [--import <xlsx>].
+description: Полный цикл построения структуры сайта на базе контракта предпроектного анализа sites/NNN-<slug>/project.json (только tier=seo). Тир-гейт скриптом, SEO-база внутренним шагом (конкуренты с метриками Keyso, SERP-вердикт, стоп-лист), мастер-список страниц через конкурентов, маркерные запросы, JM semantic_pack, топ-10 + каннибализация, генерирует A6.xlsx → клиенту → A6.md. Аргументы - <NNN|slug> [--resume] [--review | --auto] [--import <xlsx>].
 ---
 
 # seo-struktura
 
-Скил-оркестратор построения структуры сайта (артефакт A6: список целевых посадочных + маркер + топ-10 запросов на каждую + рекомендации по расширению + миграция). Запускается **в worktree-сессии**. Проходит state machine от чтения существующего анализа до финального A6.md.
+Скил-оркестратор построения структуры сайта (артефакт A6: список целевых посадочных + маркер + топ-10 запросов на каждую + рекомендации по расширению + миграция). Запускается **в worktree-сессии**. Проходит state machine от чтения контракта анализа до финального A6.md.
 
 ## Аргументы
 
 ```
-/seo-struktura <NNN> [--resume] [--review | --auto] [--import <xlsx-path>] [--metatags deep|bulk|none]
+/seo-struktura <NNN|slug> [--resume] [--review | --auto] [--import <xlsx-path>] [--metatags deep|bulk|none]
 ```
 
-- `NNN` - обязательный позиционный. Номер существующей папки `analyses/NNN-*/` от которой строим структуру. Если папки нет - стоп с подсказкой `/seo-analiz`.
-- `--resume` - продолжить с того места, где остановились (по `meta.json` папки `structures/NNN-*/`).
-- `--review` - режим с паузами после ключевых шагов (master-list, semantic-expander). По умолчанию `--auto` (без пауз). Полезно если расходуем JM-лимиты.
+- `NNN|slug` - обязательный позиционный. Номер или слаг проекта анализа `sites/NNN-<slug>/` (можно и путь к каталогу). Структура строится на его `project.json`. Нет проекта - стоп с подсказкой `/site-analiz`.
+- **Режима доделки старых структур на `analyses/` нет:** вход только `sites/NNN-<slug>/project.json`; `--resume` продолжает лишь структуры, начатые на нем (в `meta.json` есть `project_path`).
+- `--resume` - продолжить с того места, где остановились (по `meta.json` папки `structures/NNN-<slug>/`).
+- `--review` - режим с паузами после ключевых шагов (seo-base, master-list, semantic-expander). По умолчанию `--auto` (без пауз). Полезно если расходуем JM-лимиты.
 - `--auto` - самодостаточный режим (по умолчанию).
-- `--import <path>` - короткий путь к шагу 6: пользователь вернулся с заполненным клиентом xlsx, нужно собрать A6.md. Эквивалент `/seo-struktura <NNN> --resume` при `state == "awaiting-client"` или `"shared"`, плюс явное указание пути к файлу. Может быть абсолютным или относительным.
+- `--import <path>` - короткий путь к шагу 9: пользователь вернулся с заполненным клиентом xlsx, нужно собрать A6.md. Эквивалент `/seo-struktura <NNN> --resume` при `state == "awaiting-client"` или `"shared"`, плюс явное указание пути к файлу. Может быть абсолютным или относительным.
 - `--metatags deep|bulk|none` - **хвост метатегов** после утверждения структуры (шаг 11). По умолчанию `deep` (в `--auto` запускается автоматически, в `--review` - спросит). `bulk` - быстрый прогон по PLAYBOOK без анализа выдачи. `none` - не генерировать метатеги. Метатеги пишутся в отдельную папку `metatags/<NNN>-<slug>/` тем же движком, что и скил `/seo-metategi`.
 
 **Базовый режим - `--auto`.**
 
-## Стыковка с `/seo-analiz`
+## Вход: project.json анализа
 
-Скил **обязательно** опирается на существующий анализ. Из `analyses/NNN/` читает:
+Скил **обязательно** опирается на контракт анализа v8 `sites/NNN-<slug>/project.json` (его собирает `/site-analiz`, схема - `.claude/skills/site-analiz/project.schema.json`). Структура читает контракт, но никогда в него не пишет: схема закрыта, контракт стоит за гейтом заказчика. Расхождения (например, список конкурентов) печатаются в A6.md.
 
-- `brief.json` - `slug`, `keyso_base`, `domain`, `client_pages[]`, `assortment[]`, `client_target_queries[]`, `region` для определения кода Яндекса.
-- `competitors.json` - `direct[]` (6-10 конкурентов с метриками), `leaders_top3[]`, `path`.
-- `serp.json` - `stop_list[]` (домены-агрегаторы), `verdict.type`, `summary.dominant_intent`.
-- `leader_scan.json` - `leaders[].pages[]` (для контекста рекомендаций по расширению), `summary.unique_features[]`.
-- `A3.md` - проверка, что доменный стоп-лист консистентен с serp.json.
+| Поле project.json | Кто читает | Зачем |
+|---|---|---|
+| `slug`, `tier` | `validate-project-input.mjs` | имя папки, сверка тарифа (источник тарифа - `queue.json.tier`) |
+| `business.region`, `business.site`, `business.type` | `validate-project-input.mjs` -> `inputs.json` | `keyso_base`, `region_yandex`, `domain`, 2 или 3 уровня меню |
+| `business.what`, `business.assortment[]`, `business.directions[]` | seo-base, master-list-builder, marker-finder, cannibalization-resolver, structure-writer | запросы выдачи, своя ниша, добор страниц, маркер главной, «Ниша» в шапке A6 |
+| `business.client_pages[]` | master-list-builder | старт спаривания |
+| `constraints.not_selling[]` | seo-base, master-list-builder, cannibalization-resolver | чего клиент не продает |
+| `competitors.list[]` | seo-base | семя конкурентов (метрики и добор - внутри seo-base) |
+| `business.name` | structure-writer, хвост метатегов | заголовок A6, бренд |
+| `offer.reasons[]`, `constraints.forbidden[]` | хвост метатегов (шаг 11b) | УТП и запреты Description |
 
-`brief.json.keyso_base` используется во всех вызовах Keyso. `competitors.json.direct[].domain` - источник конкурентов для сбора страниц. `serp.json.stop_list` - источник доменов для исключения при сборе маркеров.
+**SEO-слой - внутренний шаг структуры (1d, агент `seo-base`),** в контракте анализа его нет намеренно: база Keyso и регион считает скрипт шага 1a, конкуренты с метриками, SERP-вердикт и стоп-лист пишутся в папку структуры (`competitors.json`, `serp.json`, `stop_list.md`) и дальше читаются только оттуда.
 
-Если нужного файла нет (например, анализ был с `--no-share` и без полного прогона) - скил выдаёт ошибку с подсказкой `/seo-analiz --resume <NNN>`.
+**Тир-гейт:** структура строится только при купленном SEO (`queue.json.tier == seo`). Проверяет скрипт на шаге 1a до создания папки и до первого MCP-вызова; флага обхода нет. Без SEO состав страниц пишет планировщик анализа.
+
+**Номер:** `NNN` структуры зеркалит номер проекта `sites/NNN-<slug>/`; папка - `structures/<NNN>-<slug>/`.
 
 ## State machine
 
 ```
-init -> master-list-done -> markers-done -> semantic-done ->
+init -> seo-base-done -> master-list-done -> markers-done -> semantic-done ->
   top10-done -> xlsx-built -> [shared (если Drive есть)] ->
   awaiting-client -> client-imported -> structure-verified -> completed
                                                                 └─[хвост, шаг 11]→ метатеги в metatags/<NNN>/
 ```
 
-В `--review` режиме добавляются паузы после `master-list-done` (показать мастер-список, ждать OK) и `semantic-done` (показать сводку JM, ждать OK).
+В `--review` режиме добавляются паузы после `seo-base-done` (показать конкурентов и вердикт), `master-list-done` (показать мастер-список, ждать OK) и `semantic-done` (показать сводку JM, ждать OK).
 
 Структура завершается на `completed`. Если `--metatags` != `none`, при `completed` ставится `meta.metatags_pending = <deep|bulk>`, и шаг 11 запускает движок метатегов как **отдельную задачу** в `metatags/<NNN>-<slug>/` (со своей `meta.json`). Так сделано из-за порядка коммитов: структура коммитится первой под своей task-dir, потом `current-task.txt` переключается на метатеги (см. шаг 11 и [ADR-012](../../../docs/adr/012-metatags-task-type.md)).
 
@@ -54,9 +62,12 @@ init -> master-list-done -> markers-done -> semantic-done ->
 ## Артефакты
 
 ```
-structures/NNN-<domain-slug>/
-├── meta.json                  # state machine + drive_file_id + источник анализа
-├── inputs.json                # snapshot: analysis_dir + slug + region + keyso_base + ссылки на JSON
+structures/NNN-<slug>/
+├── meta.json                  # state machine + drive_file_id + ссылка на контракт анализа (project_path)
+├── inputs.json                # вывод validate-project-input.mjs: project_path + slug + domain + keyso_base + region_yandex + tier_lagging + project_gate
+├── competitors.json           # seo-base: 6-10 конкурентов с метриками Keyso + leaders_top3 + list_check (сверка со списком анализа)
+├── serp.json                  # seo-base: выдача по маркерам направлений + verdict.type + stop_list с причинами
+├── stop_list.md               # seo-base: стоп-лист доменов (формат прежнего A3.md, домен на строку)
 ├── master_list.json           # мастер-список страниц после спаривания + группировка (use_sections/sections/section/category) + competitor_url_depth + url_nesting_recommendation
 ├── markers.json               # маркер + источник + частотность на каждую страницу
 ├── semantic_pack.json         # топ-30 JM на каждый маркер
@@ -96,7 +107,7 @@ COMMON_DIR=$(git rev-parse --git-common-dir)
 ### 0b. Parse args
 
 ```
-NNN = <обязательно, 3 цифры>
+target = <обязательно: номер NNN, слаг или путь sites/NNN-<slug>>
 resume = true если --resume
 mode = "review" если --review, иначе "auto"
 import_path = <значение --import> или null
@@ -107,78 +118,80 @@ metatags_depth = значение --metatags (deep|bulk|none); если флаг
 
 ### 1. Setup
 
-#### 1a. Найти существующий анализ
-
-`analysis_dir = analyses/<NNN>-*/` - найти по NNN (glob). Если не найдено - стоп:
-> Нет папки `analyses/<NNN>-*/`. Запусти `/seo-analiz` чтобы собрать предпроектный анализ (или укажи существующий номер).
-
-**Гейт tier (анализы v7).** Если в `<analysis_dir>/meta.json` есть поле `tier` и оно равно
-`basic` - стоп: «Анализ NNN собран без SEO-ступени (tier=basic): нет SERP-вердикта, стоп-листа
-и Keyso-метрик, структура на нем не строится. Сначала дособери: `/seo-analiz <NNN> --add-seo`».
-Анализы без поля tier (до v7) идут дальше как обычно.
-
-**Валидация входа (схема, не «файл существует»).** Прогнать:
+#### 1a. Вход и тир-гейт (скрипт, до папки и до первого MCP)
 
 ```
-.claude\scripts\_node.cmd .claude\scripts\validate-analysis-inputs.mjs <analysis_dir>
+.claude\scripts\_node.cmd .claude\scripts\validate-project-input.mjs <target>
 ```
 
-- Exit 0 - канон-схема цела, продолжаем. Если в выводе строка `⚠ ВНИМАНИЕ: анализ реконструирован` - **запомнить** этот факт: surface его в стартовой сводке и передать в A6.md («структура построена на реконструированных данных»).
-- Exit 2 - не хватает файлов/полей (скрипт печатает построчно чего нет, включая дрейф схемы вроде `target_queries_client` вместо `client_target_queries`). Стоп:
-  > Анализ `<analysis_dir>` не в канон-схеме (см. список выше). Варианты: (1) `/seo-analiz --resume <NNN>`; (2) если только legacy A2.md - дособрать канон-JSON вручную по образцу `structures/001-*/`.
-- Exit 1 - ошибка запуска (нет директории / битый JSON) - показать stderr, стоп.
+Скрипт находит `sites/NNN-<slug>/` (по номеру, слагу или пути), проверяет тир-гейт по `queue.json.tier`, прогоняет `project.json` через схему анализа, проверяет непустые `business.region`, `business.type` и `business.assortment` или `business.directions`, вычисляет `keyso_base` (20 баз Keyso, вне таблицы - `msk` с `note_keyso`), `region_yandex` (зашитый список городов; федеральный или неизвестный регион - `213` с `note_region`, коды 225/0 не ставятся никогда, тип - число) и `domain` из `business.site` (хост, IDN в кириллице; соцсеть или площадка - `null`). В stdout - JSON для `inputs.json`, в stderr - отчет.
 
-`leader_scan.json` опциональный (используется только для рекомендаций) - его отсутствие не блокирует (скрипт лишь предупреждает).
+- **Exit 0** - вход годен. Из отчета **запомнить** и показать в стартовой сводке строки `!`:
+  - «tier в контракте отстал» (`tier_lagging: true`) - SEO докуплено после сборки контракта; идем по ответу оператора, пометка уйдет в A6.md;
+  - «контракт анализа не согласован» (`project_gate: false`) - предупреждение, не блок: у структуры свой гейт заказчика (A6.xlsx), но состав направлений еще может поменяться; пометка уйдет в A6.md;
+  - `site_kind=landing`, `business.site` на площадке - сверить с пользователем в `--review`, в `--auto` продолжить.
+- **Exit 2** - вход не годится, стоп с текстом скрипта. Сюда же относится тир-гейт: SEO не куплено (`queue.json.tier=basic`) или тарифа в `queue.json` нет - структура не строится, подсказка скрипта: `queue.mjs init <slug> --tier seo` после докупки. Флага обхода нет; без SEO состав страниц пишет планировщик анализа. Сломанный контракт чинится в `/site-analiz`, не руками в структуре.
+- **Exit 1** - ошибка запуска (битый JSON, нет схемы) - показать stderr, стоп.
 
-Извлечь:
-- `slug = brief.slug`
-- `domain = brief.domain` (может быть null)
-- `keyso_base = brief.keyso_base`
-- `region_yandex` - код Яндекса по `brief.region`. **Guard от country-кода:** источник `suggest` в `jm_semantic_pack` отклоняет country-level коды (`225` Россия, `0`, `null`) с ошибкой `ya_lr_err`. Поэтому:
-  - Если регион - конкретный город из стандартного списка (Москва=213, СПб=2, Екб=54, Краснодар=35, Минск=157, и т.д.) - бери его код.
-  - Если регион федеральный / «Россия» / «Россия + <страна>» / не определяется до города - **НЕ ставить 225/0**, ставить дефолт-город `213` (Москва) и записать `note_region` в inputs.json: «Регион федеральный (`<region>`); 225/0 ломают источник Sug в JM, взят 213 для оценки рынка».
-  - Если город не в стандартном списке - дерево регионов Wordstat живым инструментом не отдаётся: берём код из зашитого списка стандартных городов выше, а если города там нет - дефолт 213 (Москва) + `note_region`.
-  - **Тип:** `region_yandex` записывать в inputs.json **числом** (`213`), не строкой (`"213"`) - JM-tool ждёт integer.
+Из JSON запомнить `structure_dir` (`structures/<NNN>-<slug>/`), `nnn`, `slug`, `project_path`.
 
 #### 1b. Если `--resume` ИЛИ `--import`
 
-- Найти существующую `structures/<NNN>-*/`. Если несколько кандидатов - спросить пользователя.
-- Прочитать `meta.json`. `state = meta.state`.
-- Если `--import` передан и state `awaiting-client` / `shared` - сразу к шагу 6 (импорт).
+- Папка - `structure_dir` из 1a. Нет папки - стоп: «Структуры `<structure_dir>` нет, запусти без `--resume`».
+- Прочитать `meta.json`. **Нет `project_path` в meta** (структура начата на `analyses/NNN` до v8) - стоп: «Структура `<structure_dir>` начата на старом входе analyses/, доделка не поддерживается. Перенесите или переименуйте старую папку и запустите `/seo-struktura <NNN>` без `--resume`».
+- `state = meta.state`. `inputs.json` не переписывать (это снимок, на котором собраны прошлые шаги). Если в выводе 1a `keyso_base`, `region_yandex` или `domain` разошлись с `inputs.json` - контракт поменялся после старта: сказать пользователю и спросить, продолжать ли на старом снимке (в `--auto` - продолжить и отметить в сводке).
+- Если `--import` передан и state `awaiting-client` / `shared` - сразу к шагу 9 (импорт).
 - Если `--resume` - спросить «Найдено в state `<state>`, обновлено `<updated>`. Продолжить? [Y/n]» (в `--auto` - без вопроса, продолжать).
 - **Если state `completed` И `meta.metatags_pending` ∈ {deep, bulk}** - структура готова, но хвост метатегов не доведён. Перейти к шагу 11 (он сам проверит, есть ли уже `metatags/<NNN>-*/`, и доделает через движок; если метатеги уже `completed` - сообщить «всё готово»).
-- **Маршрутизация гейтов структуры:** state `client-imported` -> шаг 9г (гейты еще не пройдены); state `structure-verified` -> шаг 10 (оба гейта уже пройдены).
+- **Маршрутизация:** state `init` -> шаг 1d (SEO-база); state `client-imported` -> шаг 9г (гейты еще не пройдены); state `structure-verified` -> шаг 10 (оба гейта уже пройдены).
 - Перейти к ветке от следующего шага после `state`.
 
 #### 1c. Если фрэш-старт
 
-1. Создать папку `structures/<NNN>-<slug>/`.
-2. Записать `.claude/tmp/current-task.txt = structures/<NNN>-<slug>/` **(критично - без этого pre-commit hook откажет в коммите)**.
-3. Записать `<structure_dir>/inputs.json`:
+1. Если `structure_dir` уже есть - спросить пользователя (продолжить через `--resume` или переименовать старую папку); молча не перезаписывать.
+2. Записать `.claude/tmp/current-task.txt = <structure_dir>` **(критично - без этого pre-commit hook откажет в коммите)**.
+3. Записать `inputs.json` тем же скриптом (папка создается сама):
+
+```
+.claude\scripts\_node.cmd .claude\scripts\validate-project-input.mjs <target> --out <structure_dir>/inputs.json
+```
+
+Форма (руками не правится и не дописывается):
 
 ```json
 {
-  "analysis_dir": "analyses/<NNN>-<slug>/",
+  "project_path": "sites/<NNN>-<slug>/project.json",
+  "site_dir": "sites/<NNN>-<slug>/",
+  "nnn": "<NNN>",
   "slug": "<slug>",
+  "structure_dir": "structures/<NNN>-<slug>/",
   "domain": "<domain>|null",
-  "keyso_base": "<keyso_base>",
-  "region_yandex": 213,
-  "region_name": "<region>",
-  "note_region": "<пусто, либо причина guard-замены на 213 для федерального региона>",
-  "analysis_reconstructed": false,
-  "competitors_source": "analyses/<NNN>-<slug>/competitors.json",
-  "stop_list_source": "analyses/<NNN>-<slug>/A3.md"
+  "keyso_base": "spb",
+  "city_not_in_keyso": false,
+  "note_keyso": "",
+  "region_yandex": 2,
+  "region_name": "<business.region>",
+  "note_region": "",
+  "business_type": "services",
+  "site_kind": "multipage",
+  "tier": "seo",
+  "tier_lagging": false,
+  "project_gate": true,
+  "competitors_source": "structures/<NNN>-<slug>/competitors.json",
+  "serp_source": "structures/<NNN>-<slug>/serp.json",
+  "stop_list_source": "structures/<NNN>-<slug>/stop_list.md"
 }
 ```
 
-> `region_yandex` - **число** (не строка). `analysis_reconstructed` - `true` если валидатор сообщил о `_import_meta` (см. 1a); потребляется `structure-writer` для пометки в A6.md.
+> `analysis_dir` в `inputs.json` больше нет: его место занял `project_path`. Потребители (`/seo-metategi --from-structure`, хвост шага 11) берут контракт по нему.
 
 4. Создать `meta.json`:
 
 ```json
 {
   "slug": "<slug>",
-  "analysis_nnn": "<NNN>",
+  "site_nnn": "<NNN>",
+  "project_path": "sites/<NNN>-<slug>/project.json",
   "state": "init",
   "mode": "<auto|review>",
   "completed_steps": [],
@@ -187,19 +200,37 @@ metatags_depth = значение --metatags (deep|bulk|none); если флаг
 }
 ```
 
-5. `state = "init"`. Переход к шагу 2.
+5. `state = "init"`. Переход к шагу 1d.
 
-### 2. Мастер-список страниц (если state == "init")
+#### 1d. SEO-база (если state == "init")
+
+Маркер: `.claude/tmp/expected-seo-base-<run_id>.txt = <structure_dir>/competitors.json`
+
+Делегировать `seo-base`:
+```
+structure_dir: <structure_dir>
+project_root: <project root>
+
+Прочитай inputs.json структуры и контракт анализа по inputs.project_path (только чтение). Собери конкурентов: competitors.list анализа + выдача keyword_info по маркерам направлений, добор domain_competitors только если после фильтра меньше 6 доменов; отфильтруй агрегаторы, маркетплейсы, инфопорталы и чужие ниши; метрики domain_dashboard по каждому; типы, 6-10 финальных и топ-3 лидера. Сведи выдачу в вердикт (словарь: ИДЕМ / КОРРЕКТИРУЕМ ТИП САЙТА / МЕНЯЕМ СТРАТЕГИЮ - инфоконтент / ИДЕМ С ОГОВОРКАМИ) и стоп-лист. Запиши competitors.json, serp.json и stop_list.md в structure_dir. Бюджет - не больше 25 MCP-вызовов (MCP_MAP.md, раздел seo-base). project.json не меняй.
+```
+
+После завершения:
+- Проверить, что есть все три файла и `competitors.json.direct[]` непуст. Пустой `direct[]` - стоп: страниц собрать не с кого, показать сводку seo-base пользователю.
+- `bash .claude/hooks/update-meta.sh <structure_dir> seo-base-done`
+- Сводка в чат: конкурентов (сколько из списка анализа вошло, добор был или нет), топ-3 лидера, вердикт, доменов в стоп-листе. Меньше 6 конкурентов - отметить.
+- **Вердикт не `ИДЕМ`** - показать его строкой сводки seo-base. В `--review` - пауза: «Вердикт по выдаче `<тип>`: <что это меняет>. Строим структуру с этим учетом? [Y/n]». В `--auto` - продолжить, вердикт дойдет до A6.md и до проверки `structure-verifier`.
+- Переход к шагу 2.
+
+### 2. Мастер-список страниц (если state == "seo-base-done")
 
 Маркер: `.claude/tmp/expected-master-list-builder-<run_id>.txt = <structure_dir>/master_list.json`
 
 Делегировать `master-list-builder`:
 ```
 structure_dir: <structure_dir>
-analysis_dir: <analysis_dir>
 project_root: <project root>
 
-Прочитай brief.json + competitors.json из analysis_dir. Собери страницы конкурентов через domain_pages, типизируй (с web_fetch для спорных), нормализуй (объединение синонимов), дополни из brief.assortment. Если brief.domain не null и есть данные - сделай спаривание с client_pages + domain_pages клиента. Сохрани master_list.json.
+Прочитай inputs.json + competitors.json из structure_dir (конкуренты - выход seo-base) и контракт анализа по inputs.project_path (только чтение). Собери страницы конкурентов через domain_pages, типизируй (seo_fetch_page для спорных), нормализуй (объединение синонимов), дополни из business.directions и business.assortment контракта; constraints.not_selling - не кандидаты. Если inputs.domain не null и есть данные - сделай спаривание с business.client_pages + domain_pages клиента. Сохрани master_list.json.
 
 Дополнительно (всегда):
 - Проанализируй вложенность URL конкурентов из УЖЕ полученных domain_pages (счёт сегментов пути, без доп. MCP-вызовов) и запиши top-level объект `competitor_url_depth`: { "median_segments": <число>, "dominant_pattern": "flat"|"one_level"|"two_level"|"deep", "examples": ["competitor.ru/razdel/usluga", ...], "note": "<сколько из N конкурентов вкладывают по шаблону /razdel/usluga>" }.
@@ -208,7 +239,7 @@ project_root: <project root>
   - top-level `sections` (array): [{ "id": "uslugi", "name": "Услуги ремонта", "axis": "тип услуги", "note": "..." }] - определения разделов/хабов (верхний уровень меню шапки). Формат сохрани.
   - per-page `section` (string): name/id раздела (хаба) страницы. Заполняй ВСЕГДА когда use_sections=true. Существующее поле - НЕ переименовывай (его читают xlsx и import).
   - per-page `category` (string, опц.): третий уровень для ТОВАРНЫХ сайтов (подкатегория внутри раздела). Для услуг обычно "" (пусто).
-  - Уровни по типу сайта (авто по brief.business_type / типу сайта из scan): Услуги - 2 уровня раздел(hub) -> страница (category пусто); Товары - 3 уровня каталог/раздел(hub) -> категория -> товар (используется category).
+  - Уровни по типу сайта (авто по inputs.business_type): Услуги - 2 уровня раздел(hub) -> страница (category пусто); Товары - 3 уровня каталог/раздел(hub) -> категория -> товар (используется category).
 - Запиши top-level объект `url_nesting_recommendation`: { "mode": "flat"|"nested", "rationale": "...", "migration_needed": <bool> }. Политика: группировка в шапке ВСЕГДА; mode="nested" (с рекомендацией 301-миграции, migration_needed=true) ТОЛЬКО когда конкуренты явно вкладывают (competitor_url_depth.dominant_pattern two_level/deep) И сайт новый/малый/низкий риск; иначе mode="flat" (URL не трогаем, группируем только в шапке + перелинковка).
 ```
 
@@ -227,10 +258,9 @@ project_root: <project root>
 Делегировать `marker-finder`:
 ```
 structure_dir: <structure_dir>
-analysis_dir: <analysis_dir>
 project_root: <project root>
 
-Прочитай master_list.json (с полем id) + brief.json (для keyso_base) + competitors.json (для лидеров и доменов). Для каждой страницы (кроме информационных) определи маркер через каскад: domain_keywords(лидер) -> domain_keywords(остальные конкуренты) -> keyword_info -> keyword_similar -> ручное. Если Keyso не даёт данных - резерв jm_wordstat (пакетно) или wk_check_frequency (массово). Проверь коммерциализацию (arsenkin_commerce). info_dominant без синонима 1:1 - НЕ сваливай на клиента: переназначь role=umbrella, инфо-запрос в блог, коммерцию на страницу-дом, запиши всё в decisions.json (идемпотентно по id). Протяни id из master_list. Сохрани markers.json + decisions.json.
+Прочитай master_list.json (с полем id) + inputs.json (keyso_base, region_yandex, project_path) + business.directions[].marker из контракта анализа (семя маркера главной) + competitors.json структуры (для лидеров и доменов). Для каждой страницы (кроме информационных) определи маркер через каскад: domain_keywords(лидер) -> domain_keywords(остальные конкуренты) -> keyword_info -> keyword_similar -> ручное. Если Keyso не дает данных - резерв jm_wordstat (пакетно) или wk_check_frequency (массово). Проверь коммерциализацию (arsenkin_commerce). info_dominant без синонима 1:1 - НЕ сваливай на клиента: переназначь role=umbrella, инфо-запрос в блог, коммерцию на страницу-дом, запиши все в decisions.json (идемпотентно по id). Протяни id из master_list. Сохрани markers.json + decisions.json.
 ```
 
 После завершения:
@@ -245,7 +275,6 @@ project_root: <project root>
 Делегировать `semantic-expander`:
 ```
 structure_dir: <structure_dir>
-analysis_dir: <analysis_dir>
 project_root: <project root>
 
 Прочитай markers.json + inputs.json (для region_yandex). Проверь баланс JM через jm_account. Оцени стоимость. Прогони region-guard (country-код 225/0 -> 213). Запусти jm_semantic_pack ПАКЕТАМИ по 12-15 маркеров (не один монолит на 40+ - словишь MCP-таймаут; не по одному - расточительно), top_n=30, with_topics=false. При таймауте пакета - ретрай, потом деградация источников с явным degraded:true. Для запросов без частотности - резерв (jm_wordstat или wk_check_frequency). Сохрани semantic_pack.json.
@@ -270,7 +299,7 @@ project_root: <project root>
 .claude\scripts\_node.cmd .claude\scripts\select-top10.mjs <structure_dir>
 ```
 
-Скрипт читает `semantic_pack.json` + `markers.json` + `analyses/NNN/A3.md` (бренды-конкуренты для фильтра), фильтрует и отбирает топ-10 на каждую страницу, детектит дубли между страницами.
+Скрипт читает `semantic_pack.json` + `markers.json` + `master_list.json` + `stop_list.md` папки структуры (бренды-конкуренты для фильтра; пишет seo-base), фильтрует и отбирает топ-10 на каждую страницу, детектит дубли между страницами.
 
 Записывает:
 - `top10.json` - топ-10 на страницу (отфильтрованный)
@@ -285,10 +314,9 @@ Exit 0 - готово. Exit 1 - что-то критичное (например
 Делегировать `cannibalization-resolver`:
 ```
 structure_dir: <structure_dir>
-analysis_dir: <analysis_dir>
 project_root: <project root>
 
-Прочитай top10.json + cannibalization.json (с конфликтами и альтернативами) + master_list.json + leader_scan.json (если есть) + decisions.json (если есть). Разреши каждый конфликт по правилам "ближе по смыслу к маркеру". Сформулируй рекомендации по расширению. Раздели: SEO-механику (расщепление/свёртка низкочастоток/добавление под запрос конкурента) - в decisions.json (kind add_page/split_page/merge_lowfreq, confidence low) + recommendations[]; бизнес-реальность (производит ли клиент?) - флагом business_flag клиенту. master_list НЕ переписывай (журнал = решение в данных). Обнови top10.json + cannibalization.json + допиши decisions.json (идемпотентно по id).
+Прочитай top10.json + cannibalization.json (с конфликтами и альтернативами) + master_list.json + decisions.json (если есть) + из контракта анализа по inputs.project_path: business.assortment и constraints.not_selling (что клиент точно не делает). Разреши каждый конфликт по правилам "ближе по смыслу к маркеру". Сформулируй рекомендации по расширению. Раздели: SEO-механику (расщепление/свертка низкочастоток/добавление под запрос конкурента) - в decisions.json (kind add_page/split_page/merge_lowfreq, confidence low) + recommendations[]; бизнес-реальность (производит ли клиент?) - флагом business_flag клиенту. master_list НЕ переписывай (журнал = решение в данных). Обнови top10.json + cannibalization.json + допиши decisions.json (идемпотентно по id).
 ```
 
 После завершения:
@@ -303,7 +331,7 @@ project_root: <project root>
 .claude\scripts\_node.cmd .claude\scripts\build-structure-xlsx.mjs <structure_dir>
 ```
 
-Скрипт читает `inputs.json` + `master_list.json` + `top10.json` + `cannibalization.json` + `analyses/NNN/competitors.json` и собирает `A6_<slug>.xlsx` с 4 листами: «Структура», «Рекомендации», «Конкуренты», «Миграция».
+Скрипт читает `inputs.json` + `master_list.json` + `top10.json` + `cannibalization.json` + `competitors.json` папки структуры (выход seo-base) и собирает `A6_<slug>.xlsx` с 4 листами: «Структура», «Рекомендации», «Конкуренты», «Миграция».
 
 Лист «Структура» содержит колонку «Раздел» (из `page.section`, когда `use_sections`) и колонку «Категория» (из `page.category`, показывается когда хотя бы у одной страницы есть непустой `category`). Обе редактируемы клиентом. (Парс новых колонок с -1 guard, как существующий COL_SECTION.)
 
@@ -414,10 +442,9 @@ mcp__gdrive-piotr__uploadFile(
 Делегировать `structure-writer`:
 ```
 structure_dir: <structure_dir>
-analysis_dir: <analysis_dir>
 project_root: <project root>
 
-Прочитай structure_data.json + cannibalization.json + master_list.json (вкл. sections/section/category + competitor_url_depth + url_nesting_recommendation) + inputs.json + decisions.json (если есть) + semantic_pack.json (для degraded) + analyses/NNN/A3.md. Собери A6.md по фиксированному шаблону - шапка проекта + Замечания прогона (реконструкция/регион/деградация/спаривание) + Целевые + Рекомендации + Наши SEO-решения (журнал, low-confidence отдельным чек-листом) + Архитектура меню (шапка) + Блок перелинковки в шапке + Конкуренты + Миграция + Отложенные (с причинами).
+Прочитай structure_data.json + cannibalization.json + master_list.json (вкл. sections/section/category + competitor_url_depth + url_nesting_recommendation) + inputs.json + контракт анализа по inputs.project_path (business.name, business.region, корневые направления) + competitors.json, serp.json, stop_list.md структуры + decisions.json (если есть) + semantic_pack.json (для degraded). Собери A6.md по фиксированному шаблону - шапка проекта + Замечания прогона (контракт не согласован / tier отстал / регион и база Keyso / конкуренты расходятся с анализом / деградация / спаривание) + Целевые + Рекомендации + Наши SEO-решения (журнал, low-confidence отдельным чек-листом) + Архитектура меню (шапка) + Блок перелинковки в шапке + Конкуренты + Миграция + Отложенные (с причинами).
 
 Новые разделы (ВСЕГДА):
 - «Архитектура меню (шапка)» - дерево раздел -> (категория) -> страницы из sections/section/category. Если реальной группировки нет (use_sections=false) - плоский список.
@@ -449,10 +476,9 @@ URL уже готовы в structure_data.json - копируй как есть,
 Делегировать `structure-verifier`:
 ```
 structure_dir: <structure_dir>
-analysis_dir: <analysis_dir>
 project_root: <project root>
 
-Прочитай A6.md + structure_data.json + cannibalization.json + master_list.json + decisions.json (опц.) + semantic_pack.json (опц.) + analyses/NNN/serp.json + competitors.json. Сверь цифры с источниками, состав/порядок разделов по шаблону, непротиворечивость рекомендаций вердикту анализа, чистоту клиентского языка и стиль. Ничего не чини. Запиши verify_report.json.
+Прочитай A6.md + structure_data.json + cannibalization.json + master_list.json + decisions.json (опц.) + semantic_pack.json (опц.) + serp.json, competitors.json и inputs.json структуры. Сверь цифры с источниками, состав/порядок разделов по шаблону, непротиворечивость рекомендаций вердикту по выдаче (serp.verdict.type), чистоту клиентского языка и стиль. Ничего не чини. Запиши verify_report.json.
 ```
 
 После завершения - прочитать `verify_report.json` (точечно `verdict` + `counters`, не весь файл):
@@ -521,8 +547,12 @@ git commit -m "Structure <NNN> for <slug>: A6 ready (<N> target pages, <M> defer
 - Папка `metatags/<NNN>-<slug>/` (тот же NNN и slug, что у структуры). Если уже есть (resume) - читать её `meta.json`, продолжить с её состояния.
 - **Записать `.claude/tmp/current-task.txt = metatags/<NNN>-<slug>/`** (критично: дальше пишем сюда; структуру уже закоммитили, pre-commit разрешит метатеги).
 - Собрать `metatags/<NNN>-<slug>/inputs.json`:
-  - из `structures/<NNN>-*/inputs.json`: `slug`, `domain`, `region_yandex`, `region_name`.
-  - из `analyses/<NNN>-*/brief.json`: `utp_technical[]`, `utp_service[]`, `utp_social[]`, `assortment[]`, `forbidden_phrasings[]` (или поле «запрещённые формулировки»), `brand_name`.
+  - из `structures/<NNN>-<slug>/inputs.json`: `slug`, `domain`, `region_yandex`, `region_name`.
+  - из контракта анализа по `inputs.project_path` (`sites/<NNN>-<slug>/project.json`) - ключи метатегов прежние, источник новый:
+    - `utp_technical[]`, `utp_service[]`, `utp_social[]` - `claim` из `offer.reasons[]` с непустым `proof` (причина без доказательства на страницу не пишется), раскладка по `kind`: `число` / `документ` / `процесс` -> technical, `гарантия` -> service, `кейс` / `отзыв` -> social;
+    - `assortment[]` - `business.assortment[]`;
+    - `forbidden_phrasings[]` - `constraints.forbidden[]`;
+    - `brand_name` - `business.name`.
   - `source = "structure:<NNN>"`, `depth = <metatags_pending>`.
 - Создать `metatags/<NNN>-<slug>/meta.json`: `{ "slug": "<slug>", "state": "init", "depth": "<depth>", "source": "structure:<NNN>", "started": "<ISO>", "updated": "<ISO>" }`.
 
@@ -579,13 +609,13 @@ Title > 60 / Description > 160: <x> / <y> (подсвечены в A7)
 
 ## Запреты
 
-- НЕ запускай без существующего `analyses/NNN-*/` - всегда нужен предпроектный анализ.
+- НЕ запускай без контракта анализа `sites/NNN-<slug>/project.json` и без `tier=seo` в его `queue.json` - шаг 1a (скрипт) блокирует, флага обхода нет.
 - НЕ пиши в корень проекта - только в `<structure_dir>/` (а на шаге 11, после коммита структуры и переключения `current-task.txt`, - в `metatags/<NNN>-<slug>/`). Pre-commit отклонит остальное.
 - НЕ пиши метатеги в `structures/NNN/` - даже как хвост, A7 ВСЕГДА в `metatags/NNN/` (ADR-012).
 - НЕ пропускай состояния - каждое `update-meta.sh` обязательно.
 - НЕ редактируй общие файлы (`ЗАКАЗЧИК.md`, `template.html`, `topics.xlsx`) - read-only из worktree.
-- НЕ редактируй файлы в `analyses/NNN/` - они read-only для этого скила (только чтение).
+- НЕ редактируй `project.json` и ничего в `sites/NNN/` - контракт анализа read-only для этого скила; расхождения (например, список конкурентов) печатаются в A6.md.
 - НЕ запускай `metatag-writer` в deep-хвосте пачкой/параллельно - только по одной (анти-overload arsenkin + анти-cross-talk JM, см. /seo-metategi). Параллель допустима лишь в bulk (он без MCP). Expected-маркеры на них не ставь - полноту/деградацию проверяет `verify-metatags.mjs`.
 - НЕ используй длинное тире (—) и среднее (–). Только дефис (-).
 - НЕ используй букву ё - всегда пиши е. Правило для всех клиентских текстов и метатегов (как и запрет тире).
-- НЕ запускай `/seo-statya`, `/seo-strategiya`, `/seo-analiz`, `/seo-temi` из этой же сессии - отдельные worktree-задачи.
+- НЕ запускай `/seo-statya`, `/seo-strategiya`, `/site-analiz`, `/seo-temi` из этой же сессии - отдельные worktree-задачи.
