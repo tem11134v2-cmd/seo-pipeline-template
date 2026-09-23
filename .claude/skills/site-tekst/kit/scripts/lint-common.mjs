@@ -51,6 +51,7 @@ export function compileLint(rules, brief = {}, cfg = {}) {
     claimExcept: rules.claim_markers_except || [],
     claimStems: rules.claim_markers || [],
     factText: Object.fromEntries((brief.facts || []).map(f => [f.id, [f.label, f.value, f.wording].filter(Boolean).join(' ').toLowerCase()])),
+    embellish: (rules.embellish_markers || []).map(p => ({ p, re: cyr(B + '(' + p + ')', 'gi'), test: cyr(B + '(' + p + ')', 'i') })),
     word: { minLen, stop, stem, protectedStems },
   };
 }
@@ -116,6 +117,29 @@ export function scanBlock(block, R) {
             severity: 'minor', category: 'fact', rule: 'fact.claim-unsupported', element_index: idx, quote: clip(s),
             problem: `утверждение про «${[...new Set(hits)].join('», «')}» ${ids.length ? `не подтверждено: факты элемента (${ids.join(', ')}) не про это` : 'без факта'}`,
             proposal: 'подтвердить фактом из брифа (поле facts) или переформулировать вопросом к специалисту',
+          });
+        }
+      }
+    }
+    // fact.embellish: элемент ссылается на факты, а предложение усиливает их тем, чего в фактах нет
+    // («до 14% годовых уже за вычетом расходов», «гарантированный доход»). Цифру линтер подтвердил, а усиление - нет.
+    // Отрицание перед маркером («не гарантируем») - не усиление.
+    if (R.embellish.length && (el.facts || []).length) {
+      const factsText = (el.facts || []).map(id => R.factText[id] || '').join(' ');
+      for (const { field, text } of texts) {
+        if (!zoneOf(el.kind, field)) continue;
+        for (const s of splitSentences(String(text).replace(PLACEHOLDER_RE, ' '))) {
+          const hits = [];
+          for (const e of R.embellish) for (const m of s.matchAll(e.re)) {
+            if (/(^|[^а-яa-z])не\s+$/i.test(s.slice(Math.max(0, m.index - 4), m.index))) continue;
+            if (e.test.test(factsText)) continue;
+            hits.push(m[0].trim());
+          }
+          if (!hits.length) continue;
+          findings.push({
+            severity: 'major', category: 'fact', rule: 'fact.embellish', element_index: idx, quote: clip(s),
+            problem: `усиление факта (${(el.facts || []).join(', ')}): «${[...new Set(hits)].join('», «')}» - этого нет в самом факте`,
+            proposal: 'убрать усиление: цифра и условия - ровно как в wording факта',
           });
         }
       }

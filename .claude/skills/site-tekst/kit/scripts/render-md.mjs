@@ -19,8 +19,8 @@ function renderEl(el) {
     case 'badges': return (el.items || []).map(i => `\`${i}\``).join(' ');
     case 'filters': return `Фильтры: ${(el.items || []).join(' | ')}`;
     case 'table_row': return `| ${(el.items || []).join(' | ')} |`;
-    case 'card': return `**${el.title || ''}**\n${el.text || ''}${el.meta?.length ? '\n' + el.meta.map(m => `  - ${m}`).join('\n') : ''}`;
-    case 'step': return `**Шаг: ${el.title || ''}**\n${el.text || ''}`;
+    case 'card': return `${el.title ? `**${el.title}**\n` : ''}${el.text || ''}${el.meta?.length ? '\n' + el.meta.map(m => `  - ${m}`).join('\n') : ''}`;
+    case 'step': return `${el.title ? `**Шаг: ${el.title}**\n` : ''}${el.text || ''}`;
     case 'qa': return `**${el.q}**\n${el.a}`;
     case 'quote': return `> ${el.text}\n> - ${el.author || ''}`;
     case 'image': return `[картинка: ${el.alt || ''}]`;

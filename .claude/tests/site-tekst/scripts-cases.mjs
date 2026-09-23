@@ -137,8 +137,11 @@ try {
     check('build-briefs: факт из текста задания (F03) - в фактах блока', !!cta && cta.facts.includes('F03') && /F03/.test(cta.task), JSON.stringify(cta));
     check('writer-inputs: срез блока с заданием видит F03 в facts и в block.facts', sl('okna-rehau', cta.block_id).facts?.some(f => f.id === 'F03') && sl('okna-rehau', cta.block_id).block?.facts.includes('F03'));
     const hero = sl('home', 'B01-hero'), benefits = sl('home', 'B02-benefits'), proc = sl('home', 'B03-process');
+    const okBriefHome = rj(SW('pages', 'home', 'brief.json'));
     check('writer-inputs: первый экран получает формулу оффера и список возражений страницы', !!hero.offer_formula && Array.isArray(hero.segment?.objections_page));
-    check('writer-inputs: обычный блок без формулы оффера и objections_page', !benefits.offer_formula && !('objections_page' in (benefits.segment || {})));
+    // A/B 2026-09-23: рамка страницы (позиционирование, формула оффера) и смысл фактов (label, angle) нужны каждому блоку
+    check('writer-inputs: обычный блок получает формулу оффера и позиционирование, без objections_page', !!benefits.offer_formula && 'positioning' in benefits && !('objections_page' in (benefits.segment || {})));
+    check('writer-inputs: факты среза несут label и angle, если они есть в брифе', (benefits.facts || []).every(f => { const bf = okBriefHome.facts.find(x => x.id === f.id) || {}; return (!bf.label || f.label === bf.label) && (!bf.angle || f.angle === bf.angle); }));
     check('writer-inputs: ссылки карты только блокам с кнопкой, карточкой или ссылкой', Array.isArray(hero.links) && Array.isArray(benefits.links) && !('links' in proc), `hero ${!!hero.links}, benefits ${!!benefits.links}, process ${'links' in proc}`);
     check('writer-inputs: один пример конкурента на блок', (hero.block?.examples || []).length === 1);
     check('writer-inputs: page_outline - все блоки страницы', (proc.page_outline || []).length === 5);

@@ -38,7 +38,9 @@ const bestExample = ex => (ex || []).find(e => e.why_strong && (e.text || '').le
 export function sliceBrief(brief, sha = '') {
   const allObj = brief.segment?.objections || [];
   const seg = brief.segment || {};
-  const facts = (brief.facts || []).map(f => ({ id: f.id, wording: f.wording, ...(f.value && f.value !== f.wording ? { value: f.value } : {}), ...(f.kind ? { kind: f.kind } : {}) }));
+  // label и angle (угол подачи от стратега) - смысл факта: без них писатель искажал цифры («до 14% уже за вычетом
+  // расходов», второй пилот, A/B 2026-09-23). Режем объем (примеры конкурентов, ссылки), а не смысл.
+  const facts = (brief.facts || []).map(f => ({ id: f.id, ...(f.label ? { label: f.label } : {}), wording: f.wording, ...(f.value && f.value !== f.wording ? { value: f.value } : {}), ...(f.kind ? { kind: f.kind } : {}), ...(f.angle ? { angle: f.angle } : {}) }));
   const outline = (brief.blocks || []).map(b => `${b.block_id}: ${b.reader_question || b.name || ''}`);
   const links = (brief.links || []).map(l => ({ url: l.url, subject: l.subject }));
   return (brief.blocks || []).map(b => {
@@ -55,8 +57,10 @@ export function sliceBrief(brief, sha = '') {
         objections: allObj.filter(o => own.has(o.id)),
         ...(hero ? { objections_page: allObj.filter(o => !own.has(o.id)).map(o => ({ id: o.id, text: o.text })) } : {}),
       },
+      // позиционирование и формула оффера - рамка всей страницы, нужна каждому блоку, не только первому экрану
+      positioning: brief.positioning || '',
       unique_argument: brief.unique_argument || '', hook: brief.hook || '', main_promise: brief.main_promise || '',
-      ...(hero ? { offer_formula: brief.offer_formula } : {}),
+      offer_formula: brief.offer_formula,
       cta: brief.cta || { main: '' },
       facts,
       anti_promises: brief.anti_promises || [],

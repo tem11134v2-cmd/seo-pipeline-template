@@ -6,7 +6,8 @@ export const meta = {
 // args: { root, pages: [{slug, type}], sample?: [slug...], skipCross?: boolean, skipBlind?: boolean, model?, model_light?,
 //         thresholds?: { hero_questions: 4, clonability: 4, flow: 4, objections_closed: 0.9, blocks_on_question: 0.9 } }
 // Агентов на страницу: судья 1 (сам запускает lint-page) + фиксер 0-1 (blocker/major у судьи или у линтера страницы, один проход
-// по обоим файлам) + судья круга 2 0-1 (после фиксера остались blocker или оценка круга 1 ниже порога).
+// по обоим файлам) + судья круга 2 0-1 (после фиксера остались blocker или оценка круга 1 ниже порога) + фиксер 0-1
+// по находкам круга 2 (третьего судьи нет).
 // На прогон: кросс-судья 1 (сам запускает dedup, cross-digest и split-cross) + фиксеры страниц с исправимыми находками кросса,
 // каждый по своему work/audit/<slug>/cross.json (общий файл только для чтения, статусы в него собирает split-cross --merge);
 // слепой читатель 1 на страницу выборки (сам запускает blind-prep) + фиксер 0-1; render-md 1.
@@ -46,9 +47,12 @@ const judged = await pipeline(pages,
     const why = [fix.blocker_open > 0 ? 'blocker' : '', low.length ? `scores:${low.join(',')}` : ''].filter(Boolean).join(';')
     if (!why) return { ...base, fix, closed: 'fixer' }
     const r2 = await judge(p.slug, 2, `; reason=${why}`)
-    return { ...base, fix, round2: r2 && r2.summary, why2: why, open: r2 ? serious(r2).length : null, scores: r2 ? r2.scores : r1.scores, closed: r2 ? 'judge-2' : null }
+    // A/B 2026-09-23: после второго круга находки оставались открытыми (по 5 major на страницу) - один проход фиксера
+    // по находкам второго круга, третьего судьи нет: фиксер проверяет себя линтером страницы
+    const fix2 = (r2 && serious(r2).length) ? await fixer(p.slug, [`work/audit/${p.slug}/round-2.json`, `work/audit/${p.slug}/lint-page.json`], 'Judge', `fix:${p.slug}:2`) : null
+    return { ...base, fix, round2: r2 && r2.summary, why2: why, fix2, open: r2 ? (fix2 ? fix2.left_open + fix2.blocker_open : serious(r2).length) : null, scores: r2 ? r2.scores : r1.scores, closed: r2 ? (fix2 ? 'fixer-2' : 'judge-2') : null }
   })
-log(`судья: страниц ${judged.filter(Boolean).length}, закрыто судьей ${judged.filter(x => x && x.closed === 'judge').length}, фиксером ${judged.filter(x => x && x.closed === 'fixer').length}, вторым кругом ${judged.filter(x => x && x.closed === 'judge-2').length}`)
+log(`судья: страниц ${judged.filter(Boolean).length}, закрыто судьей ${judged.filter(x => x && x.closed === 'judge').length}, фиксером ${judged.filter(x => x && x.closed === 'fixer').length}, вторым кругом ${judged.filter(x => x && x.closed === 'judge-2').length}, фиксером после второго круга ${judged.filter(x => x && x.closed === 'fixer-2').length}`)
 
 let cross = null, crossFixes = []
 if (!(args && args.skipCross)) {
