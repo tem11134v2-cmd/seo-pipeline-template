@@ -1,0 +1,69 @@
+{
+  "$id": "import-report",
+  "_doc": "work/import-report.json - отчет scripts/import-project.mjs: что взято из project.json как есть, что выведено эвристикой, что пусто, состояние регулярок антиобещаний.",
+  "type": "object",
+  "required": ["generated_at", "inputs", "gate", "outputs", "counts", "id_map", "heuristic", "empty", "warnings", "anti"],
+  "properties": {
+    "generated_at": { "type": "string" },
+    "inputs": {
+      "type": "object",
+      "required": ["project"],
+      "properties": {
+        "project": { "type": "string" },
+        "facts_src": { "type": "string" },
+        "queue": { "type": "string" },
+        "structure": { "type": "string" }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "required": ["approved", "ungated_import"],
+      "properties": {
+        "approved": { "type": "boolean" },
+        "ungated_import": { "type": "boolean" },
+        "by": { "type": "string" },
+        "at": { "type": "string" },
+        "decisions": { "type": "object" }
+      }
+    },
+    "outputs": { "type": "array", "items": { "type": "string" } },
+    "counts": { "type": "object" },
+    "id_map": {
+      "type": "object",
+      "required": ["facts", "segments"],
+      "properties": { "facts": { "type": "object" }, "segments": { "type": "object" } }
+    },
+    "heuristic": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["field", "items"],
+        "properties": { "field": { "type": "string" }, "rule": { "type": "string" }, "items": { "type": "array", "items": { "type": "string" } } }
+      }
+    },
+    "empty": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["field", "effect"],
+        "properties": { "field": { "type": "string" }, "effect": { "type": "string" } }
+      }
+    },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "anti": {
+      "type": "object",
+      "required": ["pending", "ok", "failed"],
+      "properties": {
+        "pending": { "type": "array", "items": { "type": "string" } },
+        "ok": { "type": "array", "items": { "type": "string" } },
+        "auto": { "type": "array", "items": { "type": "string" } },
+        "failed": {
+          "type": "array",
+          "items": { "type": "object", "required": ["id", "errors"], "properties": { "id": { "type": "string" }, "errors": { "type": "array", "items": { "type": "string" } } } }
+        },
+        "conflicts": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "structure": { "type": "object" }
+  }
+}

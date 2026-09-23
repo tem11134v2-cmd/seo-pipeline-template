@@ -18,7 +18,7 @@ description: "Полный цикл технического SEO-аудита с
 - `<domain>` - домен клиента (например `example.ru`; кириллический IDN - в кириллице). Обязателен на фрэш-старте (если не передан - скил спросит).
 - `--resume` - продолжить с того места, где остановились (по `meta.json` существующей `audits/NNN-slug/`).
 - `--no-share` - собрать A12.md + A12.docx локально, **не** заливать в Drive и не запускать цикл правок. Финальное состояние `docx-done`. Для случаев когда нужен только локальный отчёт.
-- `--from-analysis <NNN>` - взять базу Keyso из `analyses/NNN/brief.json` (артефакт A2). Если не задан - скил сам поищет свежий `analyses/` или определит базу по региону.
+- `--from-analysis <NNN>` - взять регион и базу Keyso из анализа: `sites/NNN-*/project.json` (`/site-analiz`), а если такого нет - из старого `analyses/NNN-*/brief.json` (v7). Если не задан - скил сам поищет анализ с тем же доменом или определит базу по региону.
 - `--pages <N>` - сколько страниц охватить on-page аудитом (шаг 4; по умолчанию 24, потолок 80). Страницы шардятся на батчи по 8 и аудируются параллельными `audit-onpage`. Для крупного сайта ставь больше, для лендинга - меньше.
 
 ## State machine
@@ -105,9 +105,13 @@ domain   = первый позиционный аргумент (не флаг)
 3. Найти следующий свободный `NNN` в `audits/` (с 001, ведущий ноль).
 4. Создать папку `audits/<NNN>-<slug>/`.
 5. **Записать `.claude/tmp/current-task.txt` = `audits/<NNN>-<slug>/`** (критично - без этого pre-commit hook откажет в коммите).
-6. Определить `analysis_dir`:
-   - Если `--from-analysis <NNN>` задан -> `analyses/<NNN>-*/` (если существует). Если в `brief.json` этого анализа нет ключа `keyso_base` (анализ tier=basic) - это не ошибка: база Keyso определяется штатным fallback «по региону» в `audit-recon`, как при отсутствии анализа.
-   - Иначе - поискать свежую `analyses/*/` с тем же доменом; если есть - использовать; иначе `analysis_dir = null` (база Keyso определится по региону в `audit-recon`).
+6. Определить анализ, из которого брать регион и базу Keyso (для `audit-recon`):
+   - **`--from-analysis <NNN>`, есть `sites/<NNN>-*/project.json`** (анализ `/site-analiz`) -> `project_path` = этот файл. Прогнать
+     `.claude\scripts\_node.cmd .claude\scripts\validate-project-input.mjs <NNN>`:
+     - exit 0 (SEO куплено, `queue.json.tier = seo`) -> из JSON в stdout взять `keyso_base` и `region_yandex`; `domain` сверить с доменом аудита (расходятся - предупредить, не блокировать);
+     - exit 2 (анализ без SEO или неполный вход структуры) - не ошибка: регион взять из `project.json` напрямую (`business.region`), базу Keyso определит `audit-recon` по региону.
+   - **`--from-analysis <NNN>`, `sites/` нет, есть `analyses/<NNN>-*/`** (старый анализ v7) -> `analysis_dir`, как раньше. Нет ключа `keyso_base` в `brief.json` (анализ tier=basic) - штатный fallback «по региону» в `audit-recon`.
+   - **Без флага** - поискать `sites/*/project.json`, у которого хост `business.site` совпадает с доменом аудита (при нескольких - свежий по `updated`), и дальше как выше; нет - свежую `analyses/*/` с тем же доменом; нет и ее - анализа нет, база Keyso определится по региону в `audit-recon`.
 7. Создать `meta.json`:
    ```json
    {
@@ -134,8 +138,11 @@ echo "audits/<NNN>-<slug>/recon.json" > .claude/tmp/expected-audit-recon-<NNN>.t
 audit_dir: <audit_dir>
 project_root: <project root>
 domain: <domain>
-analysis_dir: <analysis_dir или опустить>
-Прочитай (если задан) brief.json для базы Keyso. Найди сайт в Вебмастере и Метрике, сними метрики Keyso, возраст домена (arsenkin - строго последовательно), определи CMS/шаблон/тематику/регион по главной. Собери recon.json и базовую карточку.
+project_path: <project_path или опустить>
+keyso_base: <keyso_base из validate-project-input или опустить>
+region: <business.region анализа или опустить>
+analysis_dir: <analysis_dir (старый analyses/) или опустить>
+База Keyso: переданная keyso_base; иначе brief.json из analysis_dir; иначе по региону (переданный region - первая гипотеза). Найди сайт в Вебмастере и Метрике, сними метрики Keyso, возраст домена (arsenkin - строго последовательно), определи CMS/шаблон/тематику/регион по главной. Собери recon.json и базовую карточку.
 ```
 
 После завершения:
@@ -244,7 +251,7 @@ project_root: <project root>
 
 ### 5b. Смысловой гейт факт-чека (если state == "report-done")
 
-Независимая СМЫСЛОВАЯ вычитка `audit_data.json` против 4 источников: `verify-audit.mjs` (шаг 5) ловит только механику (counts, ссылки приложений, состав/порядок карточки, schema-строка); `audit-verifier` ловит фактическую корректность - нет ли выдуманных проблем, не потеряна ли значимая проблема источника, бьются ли цифры карточки. Точная калька шага 6b `/seo-analiz` (analysis-verifier ДО docx) и 9д `/seo-struktura`: чиним ДО docx и Drive, иначе клиент увидит выдуманную/неполную проблему.
+Независимая СМЫСЛОВАЯ вычитка `audit_data.json` против 4 источников: `verify-audit.mjs` (шаг 5) ловит только механику (counts, ссылки приложений, состав/порядок карточки, schema-строка); `audit-verifier` ловит фактическую корректность - нет ли выдуманных проблем, не потеряна ли значимая проблема источника, бьются ли цифры карточки. Та же схема, что у шага 9д `/seo-struktura` (structure-verifier ДО финала): чиним ДО docx и Drive, иначе клиент увидит выдуманную/неполную проблему.
 
 Маркер ожидаемого файла:
 ```bash
@@ -471,4 +478,4 @@ git commit -m "Audit <NNN> for <slug>: completed (<N> revisions)"
 - НЕ используй букву ё - всегда пиши е. Правило для всех клиентских текстов и метатегов (как и запрет тире).
 - НЕ делай `git push` и не публикуй артефакты вне Drive-шага - это решение пользователя.
 - НЕ запускай `arsenkin_domains` в параллель - только `audit-recon` зовёт его последовательно (он ломается при параллельных вызовах).
-- НЕ запускай `/seo-statya`, `/seo-analiz`, `/seo-strategiya` из этой же сессии - отдельные worktree-задачи.
+- НЕ запускай `/seo-statya`, `/site-analiz`, `/seo-strategiya` из этой же сессии - отдельные worktree-задачи.

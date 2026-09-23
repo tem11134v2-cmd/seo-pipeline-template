@@ -19,8 +19,7 @@
     "build-audit-docx": "node .claude/scripts/build-audit-docx.mjs",
     "verify-audit": "node .claude/scripts/verify-audit.mjs",
     "select-audit-pages": "node .claude/scripts/select-audit-pages.mjs",
-    "merge-onpage": "node .claude/scripts/merge-onpage.mjs",
-    "build-handoff": "node .claude/scripts/build-handoff.mjs"
+    "merge-onpage": "node .claude/scripts/merge-onpage.mjs"
   },
   "dependencies": {
     "docx": "^9.0.0",

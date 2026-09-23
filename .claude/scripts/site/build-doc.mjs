@@ -4,6 +4,9 @@
 //   docs/understood.html - «Что мы поняли о вашем бизнесе» (полный, без единого плейсхолдера)
 //   docs/ask.html        - «Что нам от вас нужно» (одна страница, до 10 вопросов по весу)
 // Имена файлов те самые, по которым queue.mjs считает шаг закрытым.
+// Состав страниц (structure_data.json рядом с контрактом, tier basic) печатается в документе 1
+// решением d9 с дефолтом: заказчик снимает лишнее или возвращает снятое, ответ принимает
+// apply-answers.mjs, как и остальные решения.
 //
 // Прозу не генерирует НИКТО. Скрипт только подставляет значения в шаблон, поэтому раздуть
 // документ нечем: нет данных - секция не печатается вовсе. В шаблонизаторе намеренно нет
@@ -27,7 +30,7 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   arr, str, low, isCheckable, heldBack, SRC_HUMAN, DECISIONS, decisionRow,
-  BAD_TYPO, TYPO_NAME, readPages
+  BAD_TYPO, TYPO_NAME, readPages, PAGES_DEFAULT, STRUCT_DECISION
 } from "./_contract.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -48,7 +51,7 @@ const projPath = existsSync(target) && statSync(target).isDirectory() ? join(res
 const taskDir = dirname(projPath);
 const outDir = join(outArg ? resolve(outArg) : taskDir, "docs");
 const tmplDir = tmplArg ? resolve(tmplArg) : resolve(HERE, "..", "..", "skills", "site-analiz");
-const pagesPath = pagesArg ? resolve(pagesArg) : resolve(HERE, "..", "..", "skills", "site-proto", "pages.yml");
+const pagesPath = pagesArg ? resolve(pagesArg) : PAGES_DEFAULT;
 const marketCandidates = marketArg ? [resolve(marketArg)] : [join(taskDir, "parts", "market.json"), join(dirname(taskDir), "parts", "market.json")];
 
 const violations = [], warnings = [], infos = [];
@@ -144,13 +147,13 @@ const comp = (data.competitors && typeof data.competitors === "object" ? data.co
 const cons = (data.constraints && typeof data.constraints === "object" ? data.constraints : {});
 const lex = (data.lexicon && typeof data.lexicon === "object" ? data.lexicon : {});
 const forbidden = arr(cons.forbidden);
-const plural = (n, one, few, many) => {
+function plural(n, one, few, many) {
   const a = Math.abs(n) % 100, b = a % 10;
   if (a > 10 && a < 20) return `${n} ${many}`;
   if (b > 1 && b < 5) return `${n} ${few}`;
   if (b === 1) return `${n} ${one}`;
   return `${n} ${many}`;
-};
+}
 
 // Корневое имя называется company, а не name: name есть еще у направлений и у сегментов,
 // и поиск переменной вверх по стеку подставил бы название компании вместо пустого имени.
@@ -189,9 +192,27 @@ if (str(offer.positioning)) v1.positioning = str(offer.positioning);
 // тут появиться не могут.
 {
   const rows = DECISIONS.map((d) => decisionRow(data, d)).filter(Boolean);
-  if (rows.length) v1.decisions = rows;
   const missing = DECISIONS.filter((d) => !decisionRow(data, d)).map((d) => d.key);
   if (missing.length) I(`смысловых решений напечатано ${rows.length} из ${DECISIONS.length}; пусты ${missing.join(", ")} - пустое решение не печатается и дефолта у него нет`);
+  // d9 - состав сайта. Есть только у tier basic: при seo состав строит /seo-struktura.
+  const sp = join(taskDir, "structure_data.json");
+  const sd = str(data.tier) === "basic" && existsSync(sp) ? readJson(sp, "structure_data.json", false) : null;
+  const pages = arr(sd && sd.pages).filter((p) => p && str(p.url) && str(p.name));
+  if (pages.length) {
+    const WHAT = { "Главная": "главная", "Услуга": "услуга", "Товар": "шаблон карточки товара", "Инфо": "информация о компании", "Прочее": "служебная" };
+    const kind = (p) => (p.type === "Категория" ? (/навигац|обзор/.test(low(p.role)) ? "раздел со ссылками на страницы" : "раздел каталога") : WHAT[p.type] || "");
+    const on = pages.filter((p) => p.target_status !== "no");
+    const off = pages.filter((p) => p.target_status === "no");
+    v1.site_pages = on.map((p) => { const r = { n: String(p.n), name: str(p.name), url: str(p.url) }; if (kind(p)) r.what = kind(p); return r; });
+    if (off.length) v1.site_pages_off = off.map((p) => ({ name: str(p.name), url: str(p.url) }));
+    rows.push({ key: STRUCT_DECISION.key, title: STRUCT_DECISION.title,
+      value: `${plural(on.length, "страница", "страницы", "страниц")}, список ниже`,
+      alt: "уберите лишние страницы или верните снятые: номер или адрес" });
+    I(`состав сайта (d9): страниц ${on.length}${off.length ? `, снято ${off.length}` : ""} - печатается решением с дефолтом`);
+  } else if (str(data.tier) === "basic" && str(data.business && data.business.site_kind) === "multipage") {
+    W("structure_data.json", "tier basic, многостраничник, а состава нет - решение d9 не напечатано: сначала pages-planner (шаг 3b)");
+  }
+  if (rows.length) v1.decisions = rows;
 }
 
 // Причина без доказательства на страницу не идет, значит и в документе ей не место:
@@ -316,7 +337,7 @@ for (const k of Object.keys(v1)) {
   for (const it of v1[k]) if (it && typeof it === "object") flags(it);
 }
 const any = (...keys) => keys.some((k) => v1["has_" + k]);
-if (any("what", "positioning", "region", "geo_line", "since", "directions", "decisions")) v1.has_biz = true;
+if (any("what", "positioning", "region", "geo_line", "since", "directions", "decisions", "site_pages")) v1.has_biz = true;
 if (any("segments", "words_quoted", "words_plain")) v1.has_audience = true;
 if (any("scan", "must_have", "offers_seen", "seen_numbers", "market_gaps", "rivals_line")) v1.has_market = true;
 if (any("tone", "forbidden_line", "limits", "not_self", "not_selling", "must_say", "opsec", "locked_line", "canonical_line", "translate")) v1.has_tone_block = true;

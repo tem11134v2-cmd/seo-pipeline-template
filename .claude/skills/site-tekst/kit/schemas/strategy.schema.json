@@ -1,0 +1,54 @@
+{
+  "$id": "strategy",
+  "type": "object",
+  "required": ["global", "pages"],
+  "properties": {
+    "generated_at": { "type": "string" },
+    "global": {
+      "type": "object",
+      "required": ["offer_formula_by_type", "cta_by_type", "argument_bank", "objection_to_block", "disclaimer_block"],
+      "properties": {
+        "positioning": { "type": "string", "maxLength": 400 },
+        "main_promise": { "type": "string", "maxLength": 300 },
+        "offer_formula_by_type": { "type": "object" },
+        "cta_by_type": { "type": "object" },
+        "argument_bank": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["fact_id", "angles"],
+            "properties": {
+              "fact_id": { "type": "string" },
+              "angles": { "type": "array", "items": { "type": "object", "required": ["segment", "angle"], "properties": { "segment": { "type": "string" }, "angle": { "type": "string", "maxLength": 200 } } } }
+            }
+          }
+        },
+        "objection_to_block": { "type": "object" },
+        "disclaimer_block": { "type": "string" },
+        "disclaimer_text": { "type": "string", "maxLength": 400 },
+        "notes": { "type": "string" }
+      }
+    },
+    "pages": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["segment", "unique_argument", "objection_ids", "offer_formula", "cta", "facts"],
+        "properties": {
+          "segment": { "type": "string" },
+          "secondary_segment": { "type": "string" },
+          "unique_argument": { "type": "string", "minLength": 10, "maxLength": 300 },
+          "hook": { "type": "string", "maxLength": 200 },
+          "objection_ids": { "type": "array", "items": { "type": "string" } },
+          "offer_formula": { "type": "string" },
+          "cta": { "type": "object", "required": ["main"], "properties": { "main": { "type": "string" }, "secondary": { "type": "string" } } },
+          "facts": { "type": "array", "items": { "type": "string" } },
+          "hero_facts": { "type": "array", "items": { "type": "string" } },
+          "block_overrides": { "type": "object" },
+          "do_not_say": { "type": "array", "items": { "type": "string" } },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}

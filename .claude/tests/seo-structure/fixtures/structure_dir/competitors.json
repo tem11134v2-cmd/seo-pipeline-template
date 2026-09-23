@@ -1,0 +1,14 @@
+{
+  "path": "C",
+  "client_business_type": "services",
+  "client_type": null,
+  "client_snapshot": null,
+  "direct": [
+    {"domain": "leader.ru", "type": "medium", "dr": 25, "top10": 80, "top50": 450, "pages_keyso": 200, "traffic_month": 8500, "similarity": "direct", "score": 5, "is_leader": true, "via": "project", "note": ""},
+    {"domain": "comp2.ru", "type": "medium", "dr": 15, "top10": 30, "top50": 200, "pages_in_base": 80, "traffic_month": 2100, "similarity": "direct", "score": 4, "is_leader": false, "via": "keyword_info", "note": ""}
+  ],
+  "leaders_top3": ["leader.ru"],
+  "indirect": [],
+  "excluded": [{"domain": "avito.ru", "reason": "агрегатор"}],
+  "list_check": [{"item": "leader.ru", "domain": "leader.ru", "in_final": true, "reason": ""}]
+}

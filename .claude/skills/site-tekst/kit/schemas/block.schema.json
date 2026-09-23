@@ -1,0 +1,42 @@
+{
+  "$id": "block",
+  "type": "object",
+  "required": ["block_id", "type", "elements", "facts_used", "objections_closed", "summary", "handoff_note"],
+  "properties": {
+    "block_id": { "type": "string", "pattern": "^B[0-9]{2}-[a-z0-9-]+$" },
+    "type": { "type": "string" },
+    "role": { "type": "string", "enum": ["hero", "conversion", "info"] },
+    "elements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["kind"],
+        "properties": {
+          "kind": { "type": "string", "enum": ["h1", "h2", "h3", "sub", "text", "bullets", "button", "badges", "card", "step", "qa", "quote", "image", "field", "number", "note", "link", "filters", "table_row"] },
+          "text": { "type": "string" },
+          "items": { "type": "array", "items": { "type": "string" } },
+          "title": { "type": "string" },
+          "meta": { "type": "array", "items": { "type": "string" } },
+          "q": { "type": "string" },
+          "a": { "type": "string" },
+          "author": { "type": "string" },
+          "alt": { "type": "string" },
+          "label": { "type": "string" },
+          "value": { "type": "string" },
+          "href": { "type": "string" },
+          "facts": { "type": "array", "items": { "type": "string" } },
+          "layout": { "type": "string" }
+        }
+      }
+    },
+    "facts_used": { "type": "array", "items": { "type": "string" } },
+    "objections_closed": { "type": "array", "items": { "type": "string" } },
+    "client_phrases_used": { "type": "array", "items": { "type": "string" } },
+    "placeholders": { "type": "array", "items": { "type": "string" } },
+    "summary": { "type": "string", "minLength": 10, "maxLength": 300 },
+    "handoff_note": { "type": "string", "maxLength": 400 },
+    "variant_of": { "type": "string" },
+    "selection_report": { "type": "object" }
+  }
+}

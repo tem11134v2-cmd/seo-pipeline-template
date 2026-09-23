@@ -14,7 +14,7 @@
 # Область действия жестко ограничена статьями - две страховки:
 #   1. Нет current-article.txt - выходим. Fallback на первую строку
 #      current-task.txt убран: он срабатывал в ЛЮБОЙ не-статейной задаче
-#      (/seo-struktura, /seo-analiz, /seo-tehaudit, /seo-tekst, /seo-metategi,
+#      (/seo-struktura, /site-analiz, /seo-tehaudit, /site-tekst, /seo-metategi,
 #      /seo-faq, /custom-question) - останавливался любой их субагент, и в
 #      meta.json задачи прилетал state `finalized`, которого нет в их state
 #      machine. Это ломало --resume, родительский /status и оставляло грязное

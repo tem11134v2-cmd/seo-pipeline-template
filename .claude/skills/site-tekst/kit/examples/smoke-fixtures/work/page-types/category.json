@@ -1,0 +1,26 @@
+{
+  "type": "category",
+  "generated_at": "2026-09-20 12:00",
+  "sources": [ { "domain": "example-okna.ru", "url": "https://example-okna.ru/okna/", "raw": "work/competitors/raw/example-okna.ru/category-1.json", "status": "ok" } ],
+  "market_blocks": [
+    { "id": "hero", "name": "Первый экран", "role": "hero", "reader_question": "То ли это, что я искал", "pattern": "hero-center", "core": true, "cta_allowed": true, "objection_slot": false, "fact_kinds": [ "legal", "claim" ],
+      "elements": [ { "kind": "h1", "count": "1", "chars": { "min": 30, "median": 45, "max": 70 } }, { "kind": "sub", "count": "1", "chars": { "min": 60, "median": 110, "max": 160 } }, { "kind": "button", "count": "1", "chars": { "min": 10, "median": 18, "max": 30 } } ],
+      "seen_at": [ "example-okna.ru" ], "examples": [] },
+    { "id": "listing", "name": "Каталог", "role": "conversion", "reader_question": "Покажите позиции и дайте выбрать", "pattern": "listing", "core": true, "cta_allowed": false, "objection_slot": false, "fact_kinds": [],
+      "elements": [ { "kind": "h2", "count": "1", "chars": { "min": 15, "median": 30, "max": 60 } }, { "kind": "text", "count": "1", "chars": { "min": 60, "median": 120, "max": 200 } }, { "kind": "filters", "count": "3-6", "chars": { "min": 5, "median": 12, "max": 30 } } ],
+      "seen_at": [ "example-okna.ru" ], "examples": [] },
+    { "id": "benefits", "name": "Почему нам верят", "role": "conversion", "reader_question": "Почему я должен верить именно вам", "pattern": "grid-3", "core": true, "cta_allowed": false, "objection_slot": true, "fact_kinds": [ "legal", "claim" ],
+      "elements": [ { "kind": "h2", "count": "1", "chars": { "min": 20, "median": 40, "max": 80 } }, { "kind": "card", "count": "3", "chars": { "min": 60, "median": 120, "max": 220 } } ],
+      "seen_at": [ "example-okna.ru" ], "examples": [] },
+    { "id": "cta", "name": "Финальный призыв", "role": "conversion", "reader_question": "Что делать дальше", "pattern": "cta-band", "core": true, "cta_allowed": true, "objection_slot": false, "fact_kinds": [],
+      "elements": [ { "kind": "h2", "count": "1", "chars": { "min": 20, "median": 40, "max": 80 } }, { "kind": "button", "count": "1", "chars": { "min": 10, "median": 18, "max": 30 } } ],
+      "seen_at": [ "example-okna.ru" ], "examples": [] }
+  ],
+  "differentiation_blocks": [],
+  "recommended_order": [ "hero", "listing", "benefits", "cta" ],
+  "short_set": [ "hero", "listing", "cta" ],
+  "competitor_promises": [],
+  "cliches_to_avoid": [ "широкий ассортимент" ],
+  "only_we_can_say": [],
+  "notes": "фикстура"
+}

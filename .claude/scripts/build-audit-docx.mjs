@@ -2,7 +2,7 @@
 // build-audit-docx.mjs
 // Генерирует A12 (технический SEO-аудит) в .docx из audit_data.json.
 // Шаг 6 скила /seo-tehaudit. Порт Python-шаблона docx_template.py (дизайн TIMUR SEO)
-// на Node/docx - по образцу build-analysis-docx.mjs (ADR-014, повтор решения ADR-007).
+// на Node/docx - по образцу build-strategy-docx.mjs (ADR-014, повтор решения ADR-007).
 //
 // Зависимости: docx (уже в package.json).
 //

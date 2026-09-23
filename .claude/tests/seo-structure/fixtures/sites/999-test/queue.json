@@ -1,0 +1,12 @@
+{
+  "v": 2,
+  "slug": "test",
+  "dir": "sites/999-test",
+  "created": "2026-09-20",
+  "tier": "seo",
+  "type": "services",
+  "site_kind": "multipage",
+  "docs": { "understood": "https://docs.example/understood", "ask": "https://docs.example/ask" },
+  "gate": { "approved": true, "by": "тест", "at": "2026-09-22" },
+  "journal": []
+}

@@ -1,8 +1,10 @@
 # ADR-039: Прототип одним html-файлом (wireframe-only, без попапов и анимаций)
 
-**Статус:** Принято
+**Статус:** Заменено (см. [ADR-042](042-v7-and-site-proto-retirement.md))
 
 **Дата:** 2026-08-22
+
+> **Выведено 2026-09-23 (гейт 0).** `build-prototype.mjs`, `assemble-prototype.mjs`, `verify-prototype.mjs` и `/seo-tekst-fix` выведены. Прототип одним файлом собирает kit `/site-tekst` (`build-html.mjs`, `check-html.mjs`).
 
 ## Контекст
 

@@ -1,0 +1,25 @@
+{
+  "$id": "competitors-seed",
+  "_doc": "work/competitors/seed.json - затравка конкурентов из анализа (project.json -> competitors.list). Пишет scripts/import-project.mjs, читает 02-competitor-verifier вместо грепа по inputs/analysis.md.",
+  "type": "object",
+  "required": ["source", "generated_at", "domains"],
+  "properties": {
+    "source": { "type": "string" },
+    "generated_at": { "type": "string" },
+    "region": { "type": "string" },
+    "key_phrases": { "type": "array", "items": { "type": "string" } },
+    "domains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain", "source"],
+        "properties": {
+          "domain": { "type": "string", "pattern": "^[a-z0-9.-]+\\.[a-z]{2,}$" },
+          "source": { "type": "string", "enum": ["analysis"] },
+          "raw": { "type": "string" }
+        }
+      }
+    },
+    "rejected": { "type": "array", "items": { "type": "string" } }
+  }
+}

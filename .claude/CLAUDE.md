@@ -1,18 +1,19 @@
 # Проект SEO-конвейера
 
-Ты — SEO-агент клиентского проекта. Конкретный клиент описан в `ЗАКАЗЧИК.md` в корне - **читай его перед задачей, если файл существует**. Предпродажные задачи (`/seo-strategiya`, `/seo-analiz`) запускаются ДО онбординга и `ЗАКАЗЧИК.md` НЕ требуют (на свежем клоне его ещё нет, он появляется только после `/seo-shablon`) - контекст они собирают сами (скан сайта + вопросы). Работаешь с конвейером статей (и других задач — стратегий, аудитов, коммерческих текстов в будущем).
+Ты - SEO-агент клиентского проекта. Конкретный клиент описан в `ЗАКАЗЧИК.md` в корне - **читай его перед задачей, если файл существует**. Предпродажные задачи (`/seo-strategiya`, `/site-analiz`) запускаются ДО онбординга и `ЗАКАЗЧИК.md` НЕ требуют (на свежем клоне его еще нет, он появляется только после `/seo-shablon`) - контекст они собирают сами (скан сайта + вопросы). Работаешь с конвейером статей и других задач - стратегий, аудитов, анализа, структуры и текстов сайта.
 
 ## Стек
 
-- `ЗАКАЗЧИК.md` — профиль клиента (читать перед задачей, если существует; предпродажным `/seo-strategiya` и `/seo-analiz` не требуется)
+- `ЗАКАЗЧИК.md` - профиль клиента (читать перед задачей, если существует; предпродажным `/seo-strategiya` и `/site-analiz` не требуется)
 - `template.html` — шаблон вёрстки финальной статьи
 - `topics.xlsx` — список тем
 - `articles/NNN/` — рабочая папка одной статьи
 - `strategies/NNN/` — рабочая папка SEO-стратегии (если запускался /seo-strategiya)
-- `analyses/NNN/` — рабочая папка предпроектного анализа (если запускался /seo-analiz)
-- `structures/NNN/` — рабочая папка структуры сайта (если запускался /seo-struktura)
-- `audits/NNN/` — рабочая папка технического аудита (если запускался /seo-tehaudit)
-- `texts/NNN/` — рабочая папка конверсионных текстов + HTML-прототипов (если запускался /seo-tekst)
+- `sites/NNN-slug/` - предпроектный анализ `/site-analiz`: `queue.json` (tier, гейт, журнал), `project.json` (контракт для структуры и текстов), `parts/facts-src.json` (цитаты фактов), документы заказчику, при tier basic - `structure_data.json` (состав страниц)
+- `structures/NNN/` - рабочая папка структуры сайта (если запускался /seo-struktura; вход - `sites/NNN/project.json`, нужен tier seo)
+- `audits/NNN/` - рабочая папка технического аудита (если запускался /seo-tehaudit)
+- `texts/NNN-slug/` - тексты сайта. Формат v9 (`meta.json.format = "v9"`) - задачи `/site-tekst`: данные задачи в git, копия kit - кеш вне git. Старые задачи v7 (без `format`, скил `/seo-tekst` выведен) - только данные: их читает `/seo-faq --from-tekst`
+- `analyses/NNN/` - старые папки анализа v7 (скил `/seo-analiz` выведен): данные, их читает `/seo-tehaudit --from-analysis`; новые задачи анализа - `sites/`
 - `topics/NNN/` — рабочая папка батча тем (если запускался /seo-temi)
 - `faq/NNN/` — рабочая папка SEO-блоков FAQ (если запускался /seo-faq)
 - `metatags/NNN/` — рабочая папка метатегов A7 (если запускался /seo-metategi)
@@ -21,7 +22,7 @@
 
 ## Модель работы: всё в worktree, единственная main-команда — /handoff-process
 
-**Правило:** каждая задача (`/seo-shablon`, `/seo-temi`, `/seo-statya`, `/fix-article`, `/seo-strategiya`, `/seo-analiz`, `/seo-struktura`, `/seo-tehaudit`, `/seo-tekst`, `/seo-tekst-fix`, `/seo-faq`, `/seo-metategi`, `/share-topics`, `/custom-question`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
+**Правило:** каждая задача (`/seo-shablon`, `/seo-temi`, `/seo-statya`, `/fix-article`, `/seo-strategiya`, `/site-analiz`, `/seo-struktura`, `/site-tekst`, `/seo-tehaudit`, `/seo-faq`, `/seo-metategi`, `/share-topics`, `/custom-question`) запускается в **отдельной worktree-сессии**. При создании сессии в Claude Code Desktop ставь галочку «worktree».
 
 **Единственная команда в main:** `/handoff-process` — применяет накопленные handoff-запросы к общим файлам проекта.
 
@@ -38,16 +39,13 @@
 | `/fix-article <NNN> "<правка>"` | Точечная правка готовой статьи | `articles/NNN/...` (per-task) |
 | `/seo-strategiya <URL> [--resume]` | Полный цикл стратегии: скан → конкуренты → точки роста → 3 тарифа → docx + xlsx → автозагрузка в Drive (Google Doc + Google Sheet) | `strategies/NNN-slug/` (per-task) |
 | `/share-strategy <NNN> [--redo]` | Утилита-помощник для `/seo-strategiya`: перезалить после правок или догрузить если Drive был недоступен | `strategies/NNN/share.json` (per-task) |
-| `/seo-analiz [--seo\|--no-seo] [--resume] [--no-share] [--no-scan] [--no-recon]` | Ступенчатый предпроектный анализ для ВСЕХ клиентов (tier seo/basic): интейк → бриф с направлениями → анализ ЦА → конкуренты → скан лидеров → разведка направлений → SERP-вердикт (только tier=seo) → A2.md (+ A3.md при seo) + recommendations.json + .docx + автозагрузка в Drive + revising-цикл до approved. Дозакупка SEO поверх basic: `/seo-analiz <NNN> --add-seo` | `analyses/NNN-slug/` (per-task) |
-| `/share-analysis <NNN> [--redo]` | Утилита-помощник для `/seo-analiz`: перезалить .docx в Drive после правок или догрузить если Drive был недоступен | `analyses/NNN/share.json` (per-task) |
-| `/seo-struktura <NNN> [--resume] [--review \| --auto] [--import <xlsx>]` | Структура сайта на базе предпроектного анализа: мастер-список из конкурентов → маркерные запросы → JM semantic_pack → топ-10 + каннибализация → A6.xlsx → клиент → A6.md | `structures/NNN-slug/` (per-task) |
+| `/site-analiz [<слаг\|каталог>] [--tier basic\|seo] [--type services\|shop\|both] [--kind landing\|multipage] [--answers <файл>]` | Предпроектный анализ - единственный вход для структуры и текстов, для всех клиентов: три вопроса оператору (SEO куплено? услуги или магазин? лендинг или многостраничник?) -> фактура с дословными цитатами -> смыслы и разведка 3-5 лидеров -> контракт `project.json` -> при tier basic состав страниц (`pages-planner`) -> два документа заказчику -> гейт ответов (`queue.mjs gate`). Дальше: tier seo - `/seo-struktura <NNN>`, tier basic - `/site-tekst --site <NNN>` | `sites/NNN-slug/` (per-task) |
+| `/seo-struktura <NNN> [--resume] [--review \| --auto] [--import <xlsx>]` | Структура сайта по анализу `sites/NNN/project.json` (нужен tier seo, `validate-project-input.mjs`): SEO-база (`seo-base`: Keyso, конкуренты с метриками, SERP-вердикт, стоп-лист) -> мастер-список -> маркерные запросы -> JM semantic_pack -> топ-10 + каннибализация -> A6.xlsx -> клиент -> A6.md + `structure_data.json` | `structures/NNN-slug/` (per-task) |
 | `/share-structure <NNN> [--redo]` | Утилита-помощник для `/seo-struktura`: перезалить A6.xlsx в Drive после правок или догрузить если Drive был недоступен | `structures/NNN/share.json` (per-task) |
-| `/seo-tehaudit <domain> [--resume] [--no-share]` | Технический SEO-аудит сайта под Яндекс: разведка/карточка → индексация → URL/мета/Schema/JS → аналитика/ссылки → A12.md + A12.docx + автозагрузка в Drive + revising-цикл. Нужны доступы Вебмастер+Метрика | `audits/NNN-slug/` (per-task) |
+| `/seo-tehaudit <domain> [--resume] [--no-share] [--from-analysis <NNN>]` | Технический SEO-аудит сайта под Яндекс: разведка/карточка -> индексация -> URL/мета/Schema/JS -> аналитика/ссылки -> A12.md + A12.docx + автозагрузка в Drive + revising-цикл. Нужны доступы Вебмастер+Метрика; регион и база Keyso - из `sites/NNN/project.json` (или старого `analyses/NNN`) | `audits/NNN-slug/` (per-task) |
 | `/share-audit <NNN> [--redo]` | Утилита-помощник для `/seo-tehaudit`: перезалить A12.docx в Drive после правок или догрузить если Drive был недоступен | `audits/NNN/share.json` (per-task) |
-| `/seo-tekst [--from-structure NNN \| --from-analysis NNN \| --from-table <путь>] [--review \| --auto] [--resume]` | Конверсионные тексты коммерческих страниц (v7.1 - скил только пишет: ЦА, конкуренты и разведка приходят готовыми из `analyses/NNN`): мост из анализа → [быстрая структура + гейт состава - только без структуры] → оффер-слой → скелеты типов → ГЕЙТ СКЕЛЕТОВ (Skeletons_<slug>.docx в Google Doc, цикл правок с заказчиком ДО письма) → ТОН-ГЕЙТ (главная в 3 тонах одним html) → веер писателей → прототип ОДНИМ html-файлом (ДЕЛИВЕРАБЛ текстов; стартовый список страниц, ч/б wireframe; отдается файлом + заливается в Drive как файл). Texts.docx не существует; для верстки - page.json + HANDOFF.md. `--review` = пауза после сборки прототипа перед Drive-заливкой. Путь без SEO: `/seo-analiz --no-seo` → `/seo-tekst --from-analysis` | `texts/NNN-slug/` (per-task) |
-| `/seo-tekst-fix <NNN> [<slug>] "<правка>"` | Точечная правка страницы готового прототипа (разбор голосовых; manifest/page.json → пересборка общего `prototype.html` → перезаливка Drive-файла → дифф по секции) | `texts/NNN/pages/<slug>/` + `texts/NNN/prototype.html` (per-task) |
-| `/share-tekst <NNN> [--skeletons \| --tone \| --prototype] [--redo]` | Утилита-помощник для `/seo-tekst`: перезалить в Drive Skeletons.docx (Google Doc) / tone-preview.html / prototype.html (дефолт - prototype; html заливаются файлом, без конвертации) после правок, или догрузить если Drive был недоступен | `texts/NNN/share.json` (per-task) |
-| `/seo-faq [--from-tekst NNN \| --from-table <путь> \| --url <URL>] [--review \| --auto]` | SEO-нормализация готовых страниц: JM-анализ пробелов → FAQ (Schema.org FAQPage) с контекстными ссылками внутри ответов на смежные страницы, вшивающий недостающие N-граммы. Выход: единый Google Doc из 2 разделов (Текстовый FAQ + Schema.org) | `faq/NNN-slug/` (per-task) |
+| `/site-tekst --site <NNN> [--structure <MMM>] [--allow-ungated] [--pilot a,b] \| <KKK> --resume \| --wave <N> \| --fix <slug> "<правка>"` | Тексты сайта уровня лидеров ниши (алгоритм v9 целиком в `kit/`): импорт анализа после его гейта (факты, ЦА, пожелания, затравка конкурентов, карта страниц из `structure_data.json`) -> гейт 1 карты -> разбор лидеров, аудит типов, стратегия и раскладки -> гейт 2 -> пилот -> гейт 3 -> волна 1 -> гейт 4 -> остальные волны, аудит, каталог -> прототип одним html. Запасной вход без анализа - `--doc <google doc id> --slug <slug>` | `texts/KKK-slug/` (per-task) |
+| `/seo-faq [--from-tekst NNN \| --from-table <путь> \| --url <URL>] [--review \| --auto]` | SEO-нормализация готовых страниц (предлагать при tier seo; `--from-tekst` читает задачи v9 и старые v7): JM-анализ пробелов -> FAQ (Schema.org FAQPage) с контекстными ссылками внутри ответов на смежные страницы, вшивающий недостающие N-граммы. Выход: единый Google Doc из 2 разделов (Текстовый FAQ + Schema.org) | `faq/NNN-slug/` (per-task) |
 | `/share-faq <NNN> [--redo]` | Утилита-помощник для `/seo-faq`: перезалить FAQ.docx в Drive после правок или догрузить если Drive был недоступен | `faq/NNN/share.json` (per-task) |
 | `/seo-metategi [--from-structure <NNN>] [--site <домен>] [--table <путь>] [--depth deep\|bulk] [--resume]` | Генерация метатегов (H1, Title, Description) под Яндекс: один движок, две глубины - deep (анализ выдачи + Акварель, по странице последовательно) и bulk (по PLAYBOOK + батч-данные, дёшево, параллельно). Три источника страниц: структура / сканирование сайта / таблица. Выход: A7_<slug>.xlsx (3 листа) + автозагрузка в Drive (Google Sheet) | `metatags/NNN-slug/` (per-task) |
 | `/share-metatags <NNN> [--redo]` | Утилита-помощник для `/seo-metategi`: перезалить A7.xlsx в Drive после правок или догрузить если Drive был недоступен | `metatags/NNN/share.json` (per-task) |
@@ -60,7 +58,7 @@
 | Команда | Что делает |
 |---|---|
 | **`/handoff-process`** | Применяет накопленные handoff-запросы к общим файлам, переносит в `processed/` |
-| `/sync-from-template [<путь>] [--apply]` | Обновляет машинерию (`.claude/{scripts,agents,skills,hooks,git-hooks}`) из локального шаблона. Клиентские файлы не трогает. Без `--apply` - dry-run. |
+| `/sync-from-template [<путь>] [--apply]` | Обновляет машинерию (`.claude/{scripts,agents,skills,hooks,git-hooks,migrations,tests}`, `package.json`, `.gitignore`, `.claude/settings.json`) из локального шаблона. Клиентские файлы не трогает. Без `--apply` - dry-run. |
 
 ### Справочная (в любой зоне)
 
@@ -71,7 +69,7 @@
 ## Жёсткое правило: worktree трогает только свою задачу
 
 Внутри worktree-сессии разрешено менять файлы **только**:
-- Внутри своей папки задачи (`articles/NNN/`, `strategies/NNN/`, `analyses/NNN/`, `structures/NNN/`, `topics/NNN/`, и т.д. — путь объявляется через `.claude/tmp/current-task.txt`)
+- Внутри своей папки задачи (`articles/NNN/`, `strategies/NNN/`, `sites/NNN/`, `structures/NNN/`, `texts/NNN/`, `topics/NNN/`, и т.д. - путь объявляется через `.claude/tmp/current-task.txt`)
 - Внутри `.claude/tmp/` (служебные файлы)
 - Внутри `.claude/handoff-requests/` (запросы для main)
 

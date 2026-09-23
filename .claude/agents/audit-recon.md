@@ -13,11 +13,14 @@ model: sonnet
 - `audit_dir` - путь к `audits/NNN-slug/`
 - `project_root` - путь к корню проекта
 - `domain` - домен клиента (например `example.ru`; кириллический IDN - в кириллице)
-- `analysis_dir` (опционально) - путь к `analyses/NNN/`, если есть A2 (для базы Keyso)
+- `project_path` (опционально) - `sites/NNN-slug/project.json` анализа `/site-analiz`, из которого оркестратор взял регион и базу
+- `keyso_base` (опционально) - база Keyso, уже вычисленная `validate-project-input.mjs` по региону анализа (анализ с SEO)
+- `region` (опционально) - `business.region` анализа (город или «вся Россия»)
+- `analysis_dir` (опционально) - путь к старому `analyses/NNN/` (анализ v7), если есть A2 (для базы Keyso)
 
 ## Обязательное чтение
 
-1. Если задан `analysis_dir`: `<analysis_dir>/brief.json` - поле `keyso_base` (база для проекта из A2). Если файла нет - игнорировать, базу определишь по региону.
+1. Если передана `keyso_base` - файлы анализа не читай, база уже есть. Иначе, если задан `analysis_dir`: `<analysis_dir>/brief.json` - поле `keyso_base` (база для проекта из A2). Если файла нет - игнорировать, базу определишь по региону.
 
 (Схема выходного `recon.json` - в разделе «Выход» ниже; имена полей бери дословно оттуда.)
 
@@ -57,8 +60,9 @@ ym_counter_info(counter_id="<counter_id>")
 ### 1.5. Метрики домена из Keyso (определение базы)
 
 Определи базу так:
-1. Если задан `analysis_dir` и в `brief.json` есть `keyso_base` - взять её; `keyso_base_note="из A2 <analysis_dir>"`, `analysis_dir_used` = путь.
-2. Иначе - определить регион сайта по контактам с главной (город в шапке/футере). Пока главную ещё не фетчил (это 1.7) - возьми регион из A2 или, если его нет, начни с региональной гипотезы по домену/контактам; при отсутствии - сразу `msk`.
+1. Если передана `keyso_base` - взять ее; `keyso_base_note="из анализа <project_path>"`, `analysis_dir_used` = папка анализа (`sites/NNN-slug`).
+2. Иначе, если задан `analysis_dir` и в `brief.json` есть `keyso_base` - взять ее; `keyso_base_note="из A2 <analysis_dir>"`, `analysis_dir_used` = путь.
+3. Иначе - регион. Передан `region` (анализ без SEO) - это первая гипотеза: база по городу (Москва `msk`, Санкт-Петербург `spb`, Екатеринбург `ekb`, Новосибирск `nsk`, Казань `kzn`, Нижний Новгород `nnv`, Краснодар `krr`, Самара `sam`, Ростов-на-Дону `rnd` и т.д. - таблица 20 баз в `.claude/scripts/validate-project-input.mjs`; город вне таблицы или вся Россия - `msk`), `analysis_dir_used` = папка анализа. Не передан - определить регион сайта по контактам с главной (город в шапке/футере). Пока главную еще не фетчил (это 1.7) - возьми регион из A2 или, если его нет, начни с региональной гипотезы по домену/контактам; при отсутствии - сразу `msk`.
 
 Запросить:
 ```
@@ -131,7 +135,7 @@ seo_fetch_page(url="https://<domain>/", profile="raw")
   "goals_count": 0,
   "keyso_base": "ekb",
   "keyso_base_fallback": "msk|spb|null",
-  "keyso_base_note": "string (например fallback или 'из A2 analyses/003')",
+  "keyso_base_note": "string (например fallback, 'из анализа sites/003-slug/project.json' или 'из A2 analyses/003')",
   "keyso": { "top1": 0, "top3": 0, "top5": 0, "top10": 45, "top50": 320, "pages_in_base": 120, "visibility": 0.0, "traffic_est": 1200 },
   "domain_age": "4 года 2 месяца",
   "domain_registered": "2022-04-01",
@@ -144,11 +148,11 @@ seo_fetch_page(url="https://<domain>/", profile="raw")
   "contacts": { "phone": "string|null", "address": "string|null", "city": "string|null" },
   "initial_problems": [ { "priority": "critical", "title": "Цели не настроены", "block": "Аналитика", "details": "..." } ],
   "mcp_errors": [ { "tool": "ym_counters", "param": "...", "error": "..." } ],
-  "analysis_dir_used": "analyses/NNN-slug|null"
+  "analysis_dir_used": "sites/NNN-slug|analyses/NNN-slug|null"
 }
 ```
 
-Если `analysis_dir` не задан - `analysis_dir_used=null`.
+Если не заданы ни `project_path`, ни `analysis_dir` - `analysis_dir_used=null`.
 
 ## Сводка в чат (5-7 строк)
 

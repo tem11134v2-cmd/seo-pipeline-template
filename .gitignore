@@ -21,3 +21,19 @@ topics/_index.json
 metatags/_index.json
 texts/_index.json
 faq/_index.json
+
+# /site-tekst (задачи texts/NNN-<slug>/ формата v9): копия kit - кеш. Ее кладет .claude/skills/site-tekst/task.mjs
+# при каждом старте и --resume, в git она не идет. Данные задачи - в git: meta.json, config/project.json, inputs/, work/,
+# rules/decisions.md (решения проекта), overrides/ (проектные правки файлов kit). Список kit - KIT_DIRS/KIT_FILES в task.mjs.
+texts/*/.kit.json
+texts/*/CLAUDE.md
+texts/*/workflows/
+texts/*/prompts/
+texts/*/scripts/
+texts/*/schemas/
+texts/*/html/
+texts/*/config/house_style.md
+texts/*/rules/*
+!texts/*/rules/decisions.md
+# Конфиг превью панели браузера (task.mjs preview): локальные пути машины, не коммитится
+.claude/launch.json

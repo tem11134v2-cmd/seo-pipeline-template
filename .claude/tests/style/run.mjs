@@ -9,14 +9,14 @@
 // Этот набор ловит регресс, если кто-то удалит проверку или нормализацию.
 //
 // Состав:
-//   1. Функциональные: фикстура с ё -> verify-article-metatags.mjs / verify-copy.mjs
-//      / check-section.sh дают блокирующее нарушение (exit 2).
+//   1. Функциональные: фикстура с ё -> verify-article-metatags.mjs / check-section.sh
+//      дают блокирующее нарушение (exit 2).
 //   2. Контроль обратного: та же фикстура без ё и без тире -> те же проверки
 //      проходят без нарушений (exit 0), т.е. нет ложных срабатываний.
 //   3. Дрейф-гарды (дёшево): паттерн [ёЁ] присутствует в verify-скриптах,
 //      а нормализация ё->е (/ё/g) - в сборщиках. Ловит «тихое» удаление.
 //
-// Хук check-section.sh требует sh/bash. Если оболочка недоступна - шаги 5-6
+// Хук check-section.sh требует sh/bash. Если оболочка недоступна - шаги 3-4
 // помечаются SKIP и НЕ валят набор.
 //
 // Exit 0 - все тесты прошли. Exit 1 - есть провал.
@@ -115,26 +115,6 @@ const mtYoDir = join(SANDBOX, "mt-yo");
 writeJson(join(mtCleanDir, "metatags.json"), mtClean);
 writeJson(join(mtYoDir, "metatags.json"), mtYo);
 
-// -- копи страницы (verify-copy.mjs ждёт <dir>/page.json) --
-const pageClean = {
-  page: {
-    slug: "remont-kvartir",
-    description: "Ремонт квартир под ключ в Москве. Смета за день, гарантия три года.",
-  },
-  h1: "Ремонт квартир под ключ",
-  blocks: [
-    { fragment: "hero", slots: { h1: "Ремонт квартир под ключ", sub: "Смета за день, гарантия три года" } },
-    { h2: "Что входит в работы", slots: { text: "Делаем надежно и быстро, свои мастера без посредников." } },
-  ],
-};
-const pageYo = JSON.parse(JSON.stringify(pageClean));
-pageYo.blocks[1].slots.text = pageClean.blocks[1].slots.text.replace("надежно", "надёжно");
-
-const copyCleanDir = join(SANDBOX, "copy-clean");
-const copyYoDir = join(SANDBOX, "copy-yo");
-writeJson(join(copyCleanDir, "page.json"), pageClean);
-writeJson(join(copyYoDir, "page.json"), pageYo);
-
 // ──────────────────────────────────────────────────────────────────────────
 // 1-2. verify-article-metatags.mjs
 // ──────────────────────────────────────────────────────────────────────────
@@ -153,24 +133,7 @@ step("verify-article-metatags: та же фикстура без ё -> exit 0 (�
 });
 
 // ──────────────────────────────────────────────────────────────────────────
-// 3-4. verify-copy.mjs
-// ──────────────────────────────────────────────────────────────────────────
-
-step("verify-copy: ё в тексте блока -> exit 2 + сообщает про ё", () => {
-  const r = runNode("verify-copy.mjs", copyYoDir);
-  if (r.code !== 2) return `exit ${r.code} (expect 2)`;
-  if (!/буква ё/.test(r.out)) return "ё не назван в нарушениях";
-  return true;
-});
-
-step("verify-copy: та же фикстура без ё -> exit 0 (нет ложных)", () => {
-  const r = runNode("verify-copy.mjs", copyCleanDir);
-  if (r.code !== 0) return `exit ${r.code} (expect 0): ${r.out.slice(-200)}`;
-  return true;
-});
-
-// ──────────────────────────────────────────────────────────────────────────
-// 5-6. hooks/check-section.sh (нужна sh/bash; иначе SKIP)
+// 3-4. hooks/check-section.sh (нужна sh/bash; иначе SKIP)
 // Хук берёт PROJECT_ROOT = cwd, читает <root>/.claude/tmp/current-task.txt
 // (путь к статье) и последний <article>/sections/*.md. Готовим изолированный
 // «root» внутри песочницы, чтобы не задеть реальный .claude/tmp проекта.
@@ -214,13 +177,11 @@ step("check-section.sh: тот же раздел без ё -> exit 0 (нет л�
 });
 
 // ──────────────────────────────────────────────────────────────────────────
-// 7. Дрейф-гарды: проверка ё в verify-скриптах не должна «тихо» исчезнуть.
+// 5. Дрейф-гарды: проверка ё в verify-скриптах не должна «тихо» исчезнуть.
 // ──────────────────────────────────────────────────────────────────────────
 
 const VERIFY_YO = [
   "verify-article-metatags.mjs",
-  "verify-copy.mjs",
-  "verify-prototype.mjs",
   "verify-faq.mjs",
   "verify-metatags.mjs",
 ];
@@ -241,13 +202,12 @@ for (const script of VERIFY_YO) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// 8. Дрейф-гарды: нормализация ё->е в сборщиках docx/html/md.
+// 6. Дрейф-гарды: нормализация ё->е в сборщиках docx/html/md.
 // ──────────────────────────────────────────────────────────────────────────
 
 const NORMALIZE_YO = [
   "render-audit-md.mjs",
   "build-audit-docx.mjs",
-  "build-analysis-docx.mjs",
   "build-faq-docx.mjs",
   "assemble-html.mjs",
   "build-article-docx.mjs",

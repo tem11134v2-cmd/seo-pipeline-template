@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-09-20 12:00",
+  "global": {
+    "positioning": "Окна с монтажом по ГОСТ и гарантией на монтаж в договоре для семей в новостройках",
+    "main_promise": "Окна, из которых не дует, с гарантией на монтаж 5 лет по договору",
+    "offer_formula_by_type": { "home": "F3", "category": "F4" },
+    "cta_by_type": { "home": { "main": "Получить расчет окна" }, "category": { "main": "Получить расчет окна" } },
+    "argument_bank": [ { "fact_id": "F02", "angles": [ { "segment": "S1", "angle": "12 400 семей уже не заклеивают окна на зиму" } ] } ],
+    "objection_to_block": { "O1": "benefits", "O2": "process" },
+    "disclaimer_block": "not-promise",
+    "disclaimer_text": "Итоговая цена считается по замеру, а не по прайсу",
+    "notes": "фикстура"
+  },
+  "pages": {
+    "home": { "segment": "S1", "unique_argument": "Монтажный шов по ГОСТ 30971 с гарантией 5 лет в договоре, а не на словах", "hook": "чтобы зимой не дуло из-под подоконника", "objection_ids": [ "O1", "O2" ], "offer_formula": "F3", "cta": { "main": "Получить расчет окна" }, "facts": [ "F01", "F02", "F03", "F04", "F05" ], "hero_facts": [ "F04", "F05", "F03" ], "do_not_say": [ "окна под ключ" ] },
+    "okna-rehau": { "segment": "S1", "unique_argument": "Профиль Rehau с монтажом по ГОСТ и гарантией на монтаж", "hook": "теплые окна без переплаты за бренд", "objection_ids": [ "O1" ], "offer_formula": "F4", "cta": { "main": "Получить расчет окна" }, "facts": [ "F04", "F05" ], "hero_facts": [ "F04", "F05" ] }
+  }
+}

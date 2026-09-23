@@ -80,6 +80,25 @@ export function findDir(arg, root = repoRoot()) {
 export const readQueue = (dir) => JSON.parse(readFileSync(join(dir, "queue.json"), "utf8"));
 export const writeQueue = (dir, q) => writeFileSync(join(dir, "queue.json"), JSON.stringify(q, null, 2) + "\n", "utf8");
 
+// ---------------------------------------------------------------- состав страниц
+// Нужен ли анализу свой состав и есть ли он. tier seo - состав строит /seo-struktura, анализ
+// его не пишет. basic и лендинг - одна главная от build-project; basic и многостраничник -
+// pages-planner (шаг 3b). Состав лендинга при многостраничном сайте готовым не считается.
+export function structureState(dir, q) {
+  if (q.tier !== "basic") return { need: false, ok: true };
+  const p = join(dir, "structure_data.json");
+  // Тип сайта берется из контракта: ответ d7 мог его поменять после init.
+  let kind = q.site_kind;
+  try { kind = JSON.parse(readFileSync(join(dir, "project.json"), "utf8")).business.site_kind || kind; } catch { /* контракта еще нет */ }
+  if (!existsSync(p)) return { need: true, ok: false, kind };
+  let sd = null;
+  try { sd = JSON.parse(readFileSync(p, "utf8").replace(/^\uFEFF/, "")); } catch { return { need: true, ok: false, broken: true, kind }; }
+  const n = Array.isArray(sd && sd.pages) ? sd.pages.length : 0;
+  const ok = n > 0 && (kind === "landing" ? n === 1 : String(sd.source_file || "") !== "site-analiz");
+  return { need: true, ok, pages: n, kind };
+}
+const siteNum = (dir) => (basename(dir).match(/^(\d{3})-/) || [])[1] || basename(dir);
+
 // ---------------------------------------------------------------- следующий шаг
 // Ровно одна лестница проверок содержимого. Ни одно состояние нигде не хранится.
 export function nextStep(dir) {
@@ -94,14 +113,19 @@ export function nextStep(dir) {
   }
   if (!has("parts", "facts.json")) return { n: "1", name: "фактура", need: "parts/facts.json", cmd: "агент site-intake; publish при засеве всегда no, чего не хватило - в gaps" };
   if (!has("parts", "market.json")) {
-    const depth = q.site_kind === "landing" ? "минимальная (лендинг: 2-3 лидера, один тип страницы)"
-                                            : "полная (многостраничник: по каждому типу страниц 5-8 лидеров)";
     const money = q.tier === "basic" ? "tier basic - платные инструменты не вызываются вовсе" : "tier seo - платные замеры разрешены";
     return { n: "2", name: "смыслы и разведка", need: "parts/market.json",
-      cmd: `агент site-market; глубина замера ${depth}; ${money}` };
+      cmd: `агент site-market; глубина лендинга для любого сайта: 3-5 главных лидеров, обещания, цифры рынка, дыры и типы страниц в меню; ${money}` };
   }
   if (!has("project.json")) return { n: "3", name: "сборка контракта", need: "project.json",
     cmd: "node .claude/scripts/site/build-project.mjs <каталог>, затем node .claude/scripts/site/verify-data.mjs <каталог> --seed" };
+  const st = structureState(dir, q);
+  if (st.need && !st.ok) {
+    const landing = st.kind === "landing";
+    return { n: "3b", name: "состав страниц", need: "structure_data.json",
+      cmd: landing ? "node .claude/scripts/site/build-project.mjs <каталог> (после гейта с --force) - у лендинга состав из одной главной пишет сборка"
+                   : "агент pages-planner: вход project.json, выход structure_data.json; затем node .claude/scripts/site/verify-data.mjs <каталог>" };
+  }
   const d = q.docs || {};
   if (!has("docs", "understood.html") || !has("docs", "ask.html") || !String(d.understood || "").trim() || !String(d.ask || "").trim()) {
     return { n: "4", name: "два документа и Drive", need: "docs/understood.html, docs/ask.html и ссылок в queue.json",
@@ -111,7 +135,9 @@ export function nextStep(dir) {
     return { n: "5", name: "гейт: ответы заказчика", need: "отметки согласования (единственное, что не выводится из файлов)",
       cmd: "node .claude/scripts/site/apply-answers.mjs <каталог> [--apply], затем queue.mjs gate --by \"<кто>\"" };
   }
-  return { n: "-", name: "контракт согласован", need: "", cmd: "дальше /site proto: читает project.json и pages.yml" };
+  const next = q.tier === "seo" ? `/seo-struktura ${siteNum(dir)} - структура с SEO читает project.json, затем /site-tekst --site ${siteNum(dir)} --structure <MMM>`
+                                : `/site-tekst --site ${siteNum(dir)} - тексты читают project.json, parts/facts-src.json и structure_data.json`;
+  return { n: "-", name: "контракт согласован", need: "", cmd: `дальше ${next}` };
 }
 
 // ---------------------------------------------------------------- журнал исключений
@@ -204,6 +230,7 @@ function cmdState(pos, flags, root) {
     ["parts/facts.json", has("parts", "facts.json")],
     ["parts/market.json", has("parts", "market.json")],
     ["project.json", has("project.json")],
+    ...(q.tier === "basic" ? [["structure_data.json", structureState(dir, q).ok]] : []),
     ["docs/understood.html", has("docs", "understood.html")],
     ["docs/ask.html", has("docs", "ask.html")],
     ["ссылки Drive", Boolean(String((q.docs || {}).understood || "").trim() && String((q.docs || {}).ask || "").trim())],

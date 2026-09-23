@@ -11,7 +11,11 @@
 //   - заполняет facts[].q сверкой label факта с колонкой NEEDS блоков pages.yml;
 //   - проставляет directions[].serves обратной сверкой с segments[].dirs;
 //   - считает gaps[].weight = сколько блоков ждут этот факт, и этим задает ПОРЯДОК
-//     вопросов во втором клиентском документе.
+//     вопросов во втором клиентском документе;
+//   - выводит facts[].kind мостом q -> kind, если агент его не проставил;
+//   - при tier basic и лендинге пишет состав страниц structure_data.json (одна главная):
+//     планировщик для одной страницы не нужен. Многостраничный состав пишет pages-planner,
+//     при tier seo - /seo-struktura.
 // Агент приносит только фактуру и формулировки. Ничего, кроме полей контракта, в файл
 // не попадает: сборка идет по белому списку, все лишнее отбрасывается и печатается в отчет.
 // Перед записью собранный контракт проходит ТУ ЖЕ проверку схемы, что и verify-data.mjs:
@@ -21,7 +25,7 @@
 //   node build-project.mjs <root> [--pages <pages.yml>] [--schema <file>] [--out <file>]
 //                          [--date YYYY-MM-DD] [--seed] [--force] [--quiet]
 //   <root>   папка задачи: ждет <root>/parts/facts.json и <root>/parts/market.json,
-//            пишет <root>/project.json
+//            пишет <root>/project.json (и <root>/structure_data.json у лендинга при basic)
 //   --seed   принудительный засев: publish у всех фактов становится "no", даже если
 //            в прошлом project.json гейт уже поднял часть до "yes"
 //   --force  пересобрать контракт после пройденного гейта (иначе отказ: пересборка
@@ -34,7 +38,8 @@ import { join, resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   arr, str, low, today, B, NUM_UNIT, isCheckable, heldBack, FACT_SRC, SOURCE_KINDS,
-  walkBanned, walkTypo, budget, BUDGET_WARN, BUDGET_MAX, readPages, validate, THIN
+  walkBanned, walkTypo, budget, BUDGET_WARN, BUDGET_MAX, readPages, validate, THIN,
+  PAGES_DEFAULT, kindOf, landingStructure, checkStructure
 } from "./_contract.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -61,7 +66,7 @@ const factsPath = join(root, "parts", "facts.json");
 const marketPath = join(root, "parts", "market.json");
 const queuePath = join(root, "queue.json");
 const outPath = outArg ? resolve(outArg) : join(root, "project.json");
-const pagesPath = pagesArg ? resolve(pagesArg) : resolve(HERE, "..", "..", "skills", "site-proto", "pages.yml");
+const pagesPath = pagesArg ? resolve(pagesArg) : PAGES_DEFAULT;
 const schemaPath = schemaArg ? resolve(schemaArg) : resolve(HERE, "..", "..", "skills", "site-analiz", "project.schema.json");
 
 const violations = [], warnings = [], infos = [];
@@ -142,9 +147,19 @@ const slug = (str(partFacts.slug) || str(queue.slug) || basename(root)).toLowerC
 const updated = str(dateArg) || today();
 
 const bizIn = partFacts.business && typeof partFacts.business === "object" ? partFacts.business : {};
-const business = pick(bizIn, ["name", "what", "region", "geo", "since", "type", "site_kind", "sig", "directions", "legal"], "business");
+const business = pick(bizIn, ["name", "what", "region", "geo", "site", "client_pages", "assortment", "pages_hint", "profile", "since", "type", "site_kind", "sig", "directions", "legal"], "business");
 business.geo = clean(business.geo, 30, "business.geo");
 if (!business.geo.length) delete business.geo;
+// Действующий сайт, его страницы и ассортимент раньше терялись тут молча, а это вход
+// планировщика страниц и адрес сайта для текстов. null у site - законное «сайта нет».
+if (bizIn.site === null) business.site = null;
+business.client_pages = pickList(business.client_pages, ["url", "name"], "business.client_pages", 60).filter((x) => x.url);
+if (!business.client_pages.length) delete business.client_pages;
+business.assortment = clean(business.assortment, 80, "business.assortment");
+if (!business.assortment.length) delete business.assortment;
+business.pages_hint = clean(business.pages_hint, 40, "business.pages_hint");
+if (!business.pages_hint.length) delete business.pages_hint;
+I(`business: сайт ${business.site === null ? "нет (null)" : str(business.site) || "не назван"}, страниц сайта ${(business.client_pages || []).length}, позиций ассортимента ${(business.assortment || []).length}, строк перечня страниц ${(business.pages_hint || []).length}`);
 business.directions = pickList(business.directions, ["id", "parent", "name", "marker", "url", "serves"], "business.directions", 25);
 business.directions.forEach((d, i) => { if (!d.id) d.id = `dir-${i + 1}`; });
 if (bizIn.legal) business.legal = pick(bizIn.legal, ["entity", "inn", "ogrn", "address", "phone", "email", "schedule", "phone_absent"], "business.legal");
@@ -162,6 +177,17 @@ if (business.legal && !Object.keys(business.legal).length) delete business.legal
       business[k] = def;
       W(`business.${k}`, `значения не было ни в queue.json, ни в parts/facts.json, поставлен ${def} - проверь руками`);
     }
+  }
+}
+// Профиль ниши пишет site-market: он рассуждает о деньгах и сценарии покупки.
+{
+  const prIn = [partMarket.profile, partMarket.business && partMarket.business.profile, bizIn.profile]
+    .find((x) => x && typeof x === "object" && !Array.isArray(x));
+  delete business.profile;
+  if (prIn) business.profile = pick(prIn, ["audience", "warmth", "price", "cycle"], "business.profile");
+  if (!business.profile || !Object.keys(business.profile).length) {
+    delete business.profile;
+    W("business.profile", "профиля ниши нет в parts/market.json - текстам придется угадывать аудиторию, прогретость, чек и цикл");
   }
 }
 if (business.directions.length < THIN.directions) {
@@ -185,7 +211,7 @@ audience.segments.forEach((s, i) => {
   s.dirs = clean(s.dirs, 10, `audience.segments[${i}].dirs`);
   if (!s.fear.length) delete s.fear;
   if (!s.dirs.length) delete s.dirs;
-  s.objection = pickList(s.objection, ["says", "behind", "answer"], `audience.segments[${i}].objection`, 3);
+  s.objection = pickList(s.objection, ["says", "behind", "answer", "facts"], `audience.segments[${i}].objection`, 3);
 });
 const words = pickList(audIn.words, ["say", "means", "src"], "audience.words", 25).filter((w) => w.say);
 words.forEach((w) => { if (!w.src) w.src = "persona"; });
@@ -214,6 +240,9 @@ if (words.length) audience.words = words;
   }
   if (filled) I(`directions[].serves проставлены скриптом у ${filled} направлений из ${business.directions.length} - по обратной сверке с segments[].dirs`);
   else if (business.directions.length && audience.segments.length) I("directions[].serves пусты: ни один сегмент не назвал направлений в dirs - строка «Кому это нужно» в документе 1 не напечатается");
+  // Направление без сегмента уходит в тексты без покупателя: страница пишется «всем».
+  const lonely = business.directions.filter((d) => !arrOf(d.serves).length).map((d) => d.id);
+  if (lonely.length && audience.segments.length) W("business.directions", `направления без сегментов (serves пуст): ${lonely.join(", ")} - допиши их id в segments[].dirs в parts/market.json, иначе страница пишется без покупателя`);
 }
 
 const mkRoot = merge("competitors");
@@ -234,6 +263,9 @@ const competitors = {};
   if (mg.length) market.gaps = mg;
   const os = clean(m.offers_seen, 12, "competitors.market.offers_seen");
   if (os.length) market.offers_seen = os;
+  const pt = clean(m.page_types, 20, "competitors.market.page_types");
+  if (pt.length) market.page_types = pt;
+  else I("competitors.market.page_types пуст: какие страницы стоят в меню лидеров, планировщику не видно");
   if (Object.keys(market).length) competitors.market = market;
   const sn = clean(mkIn.seen_numbers, 20, "competitors.seen_numbers");
   if (sn.length) competitors.seen_numbers = sn;
@@ -264,7 +296,7 @@ for (const k of ["locked", "canonical"]) { const v = clean(lIn[k], 25, `lexicon.
 }
 if (!Object.keys(lexicon).length) I("lexicon пуст: язык заказчика не снят - три секции документа 1 про слова не напечатаются");
 
-const facts = pickList(partFacts.facts, ["id", "label", "value", "q", "artifact", "publish", "src"], "facts", 40)
+const facts = pickList(partFacts.facts, ["id", "label", "value", "kind", "q", "artifact", "publish", "src"], "facts", 40)
   .filter((f) => f.label && (f.value || f.artifact));
 // value обязателен схемой, даже когда он пуст: факт с одним artifact - законное состояние,
 // и в документе 1 такая строка печатается ссылкой на подтверждение, а не прочерком.
@@ -424,6 +456,33 @@ function matchBlocks(text, kind) {
   I(`facts[].q: заполнено скриптом ${filled}, без единого ждущего блока ${empty} - такой факт лежит в файле весом без применения`);
 }
 
+// ---------------------------------------------------------------- facts[].kind
+// Вид факта ставит site-intake. Не поставил - мост q -> kind, тот же, что у импорта текстов.
+// Чужое значение ловит схема ниже: его тут не чиним, это ошибка агента.
+{
+  const derived = [];
+  for (const f of facts) if (!str(f.kind)) { f.kind = kindOf(f); derived.push(`${f.id}=${f.kind}`); }
+  if (derived.length) W("facts", `kind не проставлен агентом у ${derived.length} фактов, выведен мостом q -> kind: ${derived.join(", ")}`);
+}
+
+// ---------------------------------------------------------------- objection[].facts
+// Ссылка ответа на факт живет, только пока факт есть в контракте. Чужой id снимается тут,
+// иначе валидатор отверг бы сборку за ссылку, которую агент поставил на догадку.
+{
+  const ids = new Set(facts.map((f) => f.id));
+  const lost = [];
+  let linked = 0;
+  audience.segments.forEach((s) => arrOf(s.objection).forEach((o) => {
+    if (o.facts === undefined) return;
+    const list = [...new Set(arrOf(o.facts).map((x) => str(x)).filter(Boolean))];
+    const ok = list.filter((x) => ids.has(x)).slice(0, 5);
+    for (const x of list) if (!ids.has(x)) lost.push(`${s.id}: ${x}`);
+    if (ok.length) { o.facts = ok; linked++; } else delete o.facts;
+  }));
+  if (lost.length) W("audience.segments.objection.facts", `ссылки на несуществующие факты сняты: ${lost.join(", ")}`);
+  if (linked) I(`ответов на возражения со ссылкой на факт: ${linked}`);
+}
+
 // ---------------------------------------------------------------- publish
 {
   const forbidden = arrOf(constraints.forbidden);
@@ -530,10 +589,34 @@ walkTypo(project, (p, kinds) => V(p, `${kinds} в клиентской стро�
   else I("схема пройдена: собранный контракт примет и verify-data.mjs");
 }
 
+// ---------------------------------------------------------------- состав страниц
+// tier seo - состав пишет /seo-struktura; basic и многостраничник - pages-planner (шаг 3b);
+// basic и лендинг - одна главная, ее пишет сборка сама.
+const structPath = join(dirname(outPath), "structure_data.json");
+let structure = null;
+{
+  const had = existsSync(structPath) ? readJson(structPath, "structure_data.json", false) : null;
+  const hadPages = had && Array.isArray(had.pages) ? had.pages.length : 0;
+  if (project.tier === "basic" && business.site_kind === "landing") {
+    structure = landingStructure(project);
+    const chk = checkStructure(structure, project);
+    for (const v of chk.V) V("structure_data.json", v);
+    if (had && str(had.source_file) === "pages-planner") W("structure_data.json", `состав от pages-planner (${hadPages} страниц) заменен одной главной: сайт - лендинг`);
+    I("состав страниц: лендинг, одна главная - structure_data.json пишет сборка");
+  } else if (project.tier === "basic") {
+    if (!had) I("состав страниц: многостраничник при tier basic - следующий шаг 3b, агент pages-planner пишет structure_data.json");
+    else if (hadPages === 1 && str(had.source_file) === "site-analiz") W("structure_data.json", "в файле состав лендинга, а сайт многостраничный - запусти pages-planner (шаг 3b)");
+    else I(`состав страниц: structure_data.json от ${str(had.source_file) || "неизвестно кого"}, страниц ${hadPages} - сборка его не трогает`);
+  } else if (had) {
+    W("structure_data.json", "tier seo: состав делает /seo-struktura, этот файл импорт текстов не возьмет");
+  } else I("состав страниц: tier seo - его строит /seo-struktura, анализ его не пишет");
+}
+
 let written = false;
 if (!violations.length) {
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, JSON.stringify(project, null, 2) + "\n", "utf8");
+  if (structure) writeFileSync(structPath, JSON.stringify(structure, null, 2) + "\n", "utf8");
   written = true;
 }
 
@@ -541,7 +624,7 @@ if (!quiet) {
   console.log(`[build-project] ${written ? outPath : "НЕ ЗАПИСАН"}  (фактов ${facts.length}, направлений ${business.directions.length}, сегментов ${audience.segments.length}, вопросов ${gapsOut.length})`);
   for (const m of infos) console.log("   i " + m);
   if (warnings.length) { console.log("  предупреждения:"); for (const w of warnings) console.log("   ~ " + w); }
-  if (violations.length) { console.log("  НАРУШЕНИЯ (project.json не записан):"); for (const v of violations) console.log("   ! " + v); }
-  if (written) console.log("  дальше: verify-data.mjs на этом файле, затем build-doc.mjs на оба документа.");
+  if (violations.length) { console.log("  НАРУШЕНИЯ (project.json не записан):"); for (const v of violations.slice(0, 30)) console.log("   ! " + v); if (violations.length > 30) console.log(`   ! и еще ${violations.length - 30}`); }
+  if (written) console.log(`  дальше: verify-data.mjs на этом файле${project.tier === "basic" && business.site_kind === "multipage" ? ", pages-planner (шаг 3b)" : ""}, затем build-doc.mjs на оба документа.`);
 }
 process.exit(violations.length ? 2 : warnings.length ? 1 : 0);

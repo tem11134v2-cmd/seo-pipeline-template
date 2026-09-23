@@ -12,7 +12,7 @@
 //   <structure_dir>/markers.json          - маркеры (для случаев без top10)
 //   <structure_dir>/top10.json            - топ-10 на страницу
 //   <structure_dir>/cannibalization.json  - рекомендации по расширению
-//   <analysis_dir>/competitors.json       - для листа «Конкуренты»
+//   <structure_dir>/competitors.json      - для листа «Конкуренты» (пишет seo-base, шаг 1d)
 // Выход:
 //   <structure_dir>/A6_<slug>.xlsx        - 4 листа: Структура, Рекомендации, Конкуренты, Миграция
 
@@ -51,11 +51,8 @@ const cannibalization = readJsonOptional(join(structureDir, "cannibalization.jso
 const markers = readJsonOptional(join(structureDir, "markers.json")) || { pages: [] };
 const markersByNum = new Map((markers.pages || []).map((p) => [p.n, p]));
 
-// inputs.analysis_dir хранится как путь от project root. Скрипт запускается из project root.
-const analysisDir = inputs.analysis_dir ? resolve(inputs.analysis_dir) : null;
-const competitors = analysisDir
-  ? readJsonOptional(join(analysisDir, "competitors.json")) || { direct: [], leaders_top3: [] }
-  : { direct: [], leaders_top3: [] };
+// Конкуренты с метриками живут в папке структуры (пишет seo-base, шаг 1d), не в анализе.
+const competitors = readJsonOptional(join(structureDir, "competitors.json")) || { direct: [], leaders_top3: [] };
 
 const slug = (inputs.slug || "structure").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
 const outputPath = join(structureDir, `A6_${slug}.xlsx`);

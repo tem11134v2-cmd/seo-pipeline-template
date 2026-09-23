@@ -1,0 +1,7 @@
+# Стоп-лист доменов
+
+avito.ru
+evil-competitor.ru
+ozon.ru
+wildberries.ru
+zoon.ru

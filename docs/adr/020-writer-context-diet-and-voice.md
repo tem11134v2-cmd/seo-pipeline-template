@@ -1,8 +1,10 @@
 # ADR-020: Диета контекста писателя (block-planner + VOICE.md + распил COPY.md) и анти-ИИ слой
 
-**Статус:** Принято (анти-ИИ-слой ОТМЕНЁН в [ADR-022](022-commercial-copy-not-anti-ai.md) - был категориальной ошибкой для коммерции; диета контекста и block-planner/blueprint остаются в силе)
+**Статус:** Заменено (см. [ADR-042](042-v7-and-site-proto-retirement.md))
 
 **Дата:** 2026-06-10
+
+> **Выведено 2026-09-23 (гейт 0).** `block-planner`, blueprint и `page-writer` выведены; `VOICE.md` живет ассетом `/seo-faq`. Диета писателя в `/site-tekst` - срез брифа `brief/<block_id>.json` и `state.writer.json`.
 
 ## Контекст
 

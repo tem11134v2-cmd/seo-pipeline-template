@@ -1,0 +1,73 @@
+{
+  "$id": "facts",
+  "type": "object",
+  "required": ["source", "facts", "anti_promises", "terminology", "company", "gaps"],
+  "properties": {
+    "generated_at": { "type": "string" },
+    "source": { "type": "string" },
+    "facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "value", "wording", "publish", "source_quote", "kind"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^F[0-9]{2,3}$" },
+          "label": { "type": "string", "minLength": 3 },
+          "value": { "type": "string", "minLength": 1 },
+          "wording": { "type": "string", "minLength": 3, "maxLength": 160 },
+          "publish": { "type": "string", "enum": ["yes", "no"] },
+          "source_quote": { "type": "string", "minLength": 10 },
+          "kind": { "type": "string", "enum": ["number", "claim", "process", "contact", "legal", "product", "geo"] },
+          "geo": { "type": "string" },
+          "note": { "type": "string", "maxLength": 200 }
+        }
+      }
+    },
+    "anti_promises": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "lint_pattern"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^A[0-9]{2}$" },
+          "text": { "type": "string" },
+          "lint_pattern": { "type": "string" },
+          "allowed_context": { "type": "string" }
+        }
+      }
+    },
+    "terminology": {
+      "type": "object",
+      "required": ["use", "jargon", "untranslatable"],
+      "properties": {
+        "use": { "type": "array", "items": { "type": "object", "required": ["say"], "properties": { "say": { "type": "string" }, "not": { "type": "string" } } } },
+        "jargon": { "type": "array", "items": { "type": "object", "required": ["internal", "public"], "properties": { "internal": { "type": "string" }, "public": { "type": "string" } } } },
+        "untranslatable": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "company": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "legal_name": { "type": "string" },
+        "brand": { "type": "string" },
+        "address": { "type": "string" },
+        "phones": { "type": "array", "items": { "type": "string" } },
+        "email": { "type": "string" },
+        "hours": { "type": "string" },
+        "channels": { "type": "object" },
+        "status": { "type": "string", "enum": ["confirmed", "from_site_unconfirmed", "missing"] },
+        "source": { "type": "string" }
+      }
+    },
+    "tone": {
+      "type": "object",
+      "properties": {
+        "register": { "type": "string" },
+        "idea": { "type": "string" },
+        "forbidden_words": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "gaps": { "type": "array", "items": { "type": "string" } }
+  }
+}

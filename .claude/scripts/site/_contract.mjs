@@ -7,7 +7,13 @@
 // Модуль ничего не печатает и никуда не пишет: он отдает функции, а отчет остается делом
 // вызывающего скрипта.
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Словарь блоков живет в самом скиле анализа: /site-analiz - единственный его владелец
+// и единственный читатель. Путь по умолчанию один на три скрипта.
+export const PAGES_DEFAULT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "skills", "site-analiz", "pages.yml");
 
 // ---------------------------------------------------------------- мелочи
 export const arr = (x) => (Array.isArray(x) ? x : []);
@@ -44,6 +50,81 @@ export function heldBack(f, forbidden) {
   }
   return "";
 }
+
+// ---------------------------------------------------------------- вид факта
+// Тот же словарь, что у фактов текстов (schemas/facts: kind). Ставит site-intake; забыл -
+// сборщик выводит его мостом q -> kind, тем же, что держит импорт текстов, и печатает строку.
+export const FACT_KINDS = ["number", "claim", "process", "contact", "legal", "product", "geo"];
+const Q_KIND = {
+  price: "number", price_factors: "number", compare: "number", numbers: "number", cat_intro: "number",
+  docs: "legal", steps: "process", cta_form: "process", cta_mid: "process", geo: "geo", delivery: "geo",
+  specs: "product", gallery: "product", product_desc: "product", listing: "product", subcats: "product"
+};
+const CONTACT_RE = /телефон|e-?mail|почт[аыу]|(^|[^а-я])адрес|whatsapp|telegram|телеграм|вотсап|youtube|ютуб|(^|[^a-z])vk([^a-z]|$)|вконтакте|instagram|инстаграм|мессенджер|часы работы|график работы/i;
+const LEGAL_RE_F = /лиценз|(^|[^а-я])сро([^а-я]|$)|допуск|сертификат|свидетельств|аккредитац|(^|[^а-я])инн([^а-я]|$)|огрн/i;
+export function kindOf(f) {
+  const label = str(f && f.label), value = str(f && f.value);
+  const ks = new Set(arr(f && f.q).map((x) => Q_KIND[x]).filter(Boolean));
+  const t = `${label} ${value}`;
+  const digit = /\d/.test(value);
+  if (CONTACT_RE.test(t)) return "contact";
+  if (ks.has("legal") || LEGAL_RE_F.test(t)) return "legal";
+  if (digit && (ks.has("number") || NUM_UNIT.test(value))) return "number";
+  if (ks.has("geo")) return "geo";
+  if (ks.has("process")) return "process";
+  if (ks.has("product")) return "product";
+  return "claim";
+}
+
+// Служебная пометка вместо факта: «не разворачиваем в этой версии», «уточним позже».
+// Реальный случай IBG: ответ оператора ушел в value и чуть не доехал до страницы.
+export const SERVICE_NOTE = /в этой версии|не разворачива|уточн[а-я]* (у заказчика|у клиента|позже|потом)|запрос[а-я]* (ответ|позже)|ответ позже|нет данных|данных нет|(^|[^a-z])(todo|tbd|tba)([^a-z]|$)|\?\?|\[(заполнить|уточнить|нужно)|см\. выше/i;
+
+// ---------------------------------------------------------------- цитаты фактов
+// parts/facts-src.json живет весь срок задачи: из него импорт текстов берет source_quote.
+// Цитата сверяется дословно с входом (input/** и лист ответов) после нормализации букв е,
+// тире, кавычек и пробелов; регистр не различается, как и в импорте текстов.
+export const normQuote = (s) => String(s == null ? "" : s)
+  .replace(/\r/g, "")
+  .replace(/^[ \t]*>[ \t]?/gm, "")
+  .replace(/ё/g, "е").replace(/Ё/g, "Е")
+  .replace(/[‐-―−]/g, "-")
+  .replace(/[«»“”„‟"″‘’‚‛`']/g, "\"")
+  .replace(/…/g, "...")
+  .replace(/[  -​  　]/g, " ")
+  .replace(/\s+/g, " ")
+  .trim()
+  .toLowerCase();
+const BINARY_EXT = /\.(pdf|docx?|xlsx?|pptx?|odt|ods|png|jpe?g|gif|webp|bmp|tiff?|heic|zip|rar|7z|gz|mp3|wav|ogg|m4a|mp4|mov|avi|webm)$/i;
+// Весь текстовый вход задачи одной строкой плюс список нетекстовых файлов (скан, pdf):
+// цитату из них скрипт сверить не может и честно говорит об этом.
+export function inputCorpus(taskDir) {
+  const out = { text: "", files: [], binary: [] };
+  const add = (p, rel) => {
+    try {
+      if (statSync(p).size > 5 * 1024 * 1024) { out.binary.push(rel); return; }
+      const raw = readFileSync(p);
+      if (BINARY_EXT.test(p) || raw.subarray(0, 8192).includes(0)) { out.binary.push(rel); return; }
+      out.text += "\n" + normQuote(raw.toString("utf8").replace(/^﻿/, ""));
+      out.files.push(rel);
+    } catch { /* нечитаемый файл - не источник */ }
+  };
+  const walk = (dir, rel) => {
+    let names = [];
+    try { names = readdirSync(dir); } catch { return; }
+    for (const n of names) {
+      const p = join(dir, n), r = `${rel}/${n}`;
+      let st;
+      try { st = statSync(p); } catch { continue; }
+      if (st.isDirectory()) walk(p, r); else add(p, r);
+    }
+  };
+  walk(join(taskDir, "input"), "input");
+  for (const n of ["answers.txt", "answers.md"]) if (existsSync(join(taskDir, n))) add(join(taskDir, n), n);
+  return out;
+}
+// Файл из поля where: первый токен до двоеточия или пробела («input/call.txt:214»).
+export const whereFile = (w) => str(w).split(/[:\s]/)[0].replace(/\\/g, "/");
 
 // ---------------------------------------------------------------- источники факта
 // Пятое значение «ответ» появилось вместе с гейтом: фразу, сказанную заказчиком в листе
@@ -89,8 +170,16 @@ export function walkTypo(node, hit, path = "", tech = false) {
 }
 
 // ---------------------------------------------------------------- бюджет знаков
-export const BUDGET_WARN = 15000;
-export const BUDGET_MAX = 26000;
+// Пороги подняты осознанно. IBG (15 направлений, 4 сегмента, 23 факта) весил 23900 знаков
+// еще без business.site, client_pages и assortment, которые сборка раньше молча выбрасывала.
+// Вернув их и добавив kind фактов, профиль ниши, pages_hint, page_types и ссылки ответов на
+// факты, тот же проект встает около 25500. Старый потолок 26000 отказывал бы первому же
+// каталожному клиенту. 32000 знаков - около 11 тысяч токенов: файл целиком читают
+// планировщик страниц и импорт текстов, это все еще один дешевый вход вместо брифа, ЦА
+// и разведки v7 (150 тысяч токенов). Предупреждение 22000 - середина между средним
+// услуговым проектом (12-16 тысяч) и каталожным IBG.
+export const BUDGET_WARN = 22000;
+export const BUDGET_MAX = 32000;
 export function budget(data) {
   const size = Array.from(JSON.stringify(data)).length;
   let fat = { path: "-", size: 0, n: 0 };
@@ -144,18 +233,13 @@ export const pageName = (page, taken) => {
   return n;
 };
 
-// Агенты конвейера v8, объявленные списком. Считать их глобом по каталогу нельзя: в
-// .claude/agents лежат site-reviewer и site-scanner из v7, они делят префикс и к слою
-// письма отношения не имеют. Восьмое место занял режим магазина, и список закрыт:
-// девятого агента не будет, новый приходит только вместо старого.
-// catalog-architect назван БЕЗ префикса site- намеренно: файлов site-*.md в каталоге уже
-// восемь, и глоб набора site посчитал бы девятый как перебор бюджета.
-export const AGENTS_V8 = [
-  "site-intake", "site-market",
-  "leader-mapper", "site-author", "site-strengthener", "site-judge", "site-editor",
-  "catalog-architect"
-];
-export const AGENTS_V8_CAP = 8;
+// Агенты анализа, объявленные списком. Считать их глобом по каталогу нельзя: в
+// .claude/agents лежит site-scanner (/seo-metategi), он делит префикс и к анализу
+// отношения не имеет. Слой письма и прототип ушли в /site-tekst, у анализа три агента:
+// фактура, смыслы и состав страниц без SEO. Список закрыт: новый агент приходит только
+// вместо старого.
+export const AGENTS_V8 = ["site-intake", "site-market", "pages-planner"];
+export const AGENTS_V8_CAP = 3;
 
 // ---------------------------------------------------------------- обход схемы
 // Тот же обход на два скрипта: собранный контракт обязан проходить ровно ту проверку,
@@ -314,4 +398,201 @@ export function writeDecision(data, d, answer) {
   if (!v) return null;
   setPath(data, d.path, v);
   return v;
+}
+
+// ---------------------------------------------------------------- состав страниц без SEO
+// sites/NNN/structure_data.json пишет pages-planner (basic, multipage) либо build-project
+// (basic, landing - одна главная). Формат ровно тот, что пишет /seo-struktura и принимает
+// import-structure.mjs текстов без правок. Правила ниже списаны с кода импорта: он ищет
+// родителя без хвостового слеша, тип - по подстроке, инфо-страницу - по словам адреса и имени.
+export const STRUCT_TYPES = ["Главная", "Услуга", "Категория", "Товар", "Инфо", "Прочее"];
+export const STRUCT_MAX = 40;
+export const STRUCT_FIELDS = ["n", "url", "type", "name", "section", "target_status", "marker", "queries", "role", "client_notes"];
+export const INFO_CANON = {
+  info_about: "О компании", info_contacts: "Контакты", info_team: "Команда",
+  info_reviews: "Отзывы", info_cases: "Кейсы", info_faq: "Вопросы"
+};
+// Копия infoType и mapType из import-structure.mjs: проверяем то, что увидит импорт.
+export function importInfoType(url, name) {
+  const u = `${url} ${name}`.toLowerCase();
+  if (/about|o-kompanii|о компании|о нас/.test(u)) return "info_about";
+  if (/contact|kontakt|контакт/.test(u)) return "info_contacts";
+  if (/team|komanda|команда/.test(u)) return "info_team";
+  if (/review|otzyv|отзыв/.test(u)) return "info_reviews";
+  if (/case|kejs|кейс/.test(u)) return "info_cases";
+  if (/faq|vopros|вопрос/.test(u)) return "info_faq";
+  return "info_other";
+}
+const TEMPLATE_RE = /шаблон|-slug\b|\{[a-z_]+\}/;
+const HUB_ROLE = /навигац|обзор/;
+const HUB_NAME = /\(хаб\)|(^|\s)хаб(\s|$)/i;
+export const LEGAL_URL = /privacy|policy|terms|agreement|oferta|soglashenie|politika|favorites|izbrannoe|cookie/i;
+export function importType(p) {
+  const t = low(p.type), role = low(p.role), name = low(p.name), url = str(p.url);
+  if (t.includes("главн") || url === "/" || /^\/[a-z]{2}\/?$/.test(url)) return "home";
+  if (t.includes("статья") || t.includes("блог")) return null;
+  if (TEMPLATE_RE.test(`${name} ${url}`)) return "product";
+  if (HUB_NAME.test(name)) return "hub";
+  if (t.includes("услуг")) return "service";
+  if (t.includes("товар")) return "product";
+  if (t.includes("инфо")) return importInfoType(url, str(p.name));
+  if (t.includes("прочее")) return "info_other";
+  if (t.includes("категор")) return HUB_ROLE.test(role) ? "hub" : "category";
+  return "category";
+}
+const WANT_TYPE = { "Главная": "home", "Услуга": "service", "Товар": "product", "Прочее": "info_other" };
+const URL_HINT = [
+  ["info_about", /o-kompanii|o-nas|about/], ["info_contacts", /kontakt|contact/], ["info_team", /komand|team/],
+  ["info_reviews", /otzyv|review/], ["info_cases", /keis|kejs|keys|case|portfolio/], ["info_faq", /faq|vopros/]
+];
+
+// Нарушения (V) и предупреждения (W) состава против контракта импорта и правил планировщика.
+export function checkStructure(sd, project) {
+  const V = [], W = [];
+  const stat = { pages: 0, yes: 0, no: 0, byType: {} };
+  if (!sd || typeof sd !== "object" || !Array.isArray(sd.pages)) { V.push("нет pages[] - формат не structure_data.json"); return { V, W, stat }; }
+  if (!str(sd.source_file)) W.push("source_file пуст - непонятно, кто писал состав");
+  const pages = sd.pages;
+  stat.pages = pages.length;
+  if (!pages.length) V.push("pages[] пуст: главная обязательна");
+  if (pages.length > STRUCT_MAX) V.push(`страниц ${pages.length}, потолок ${STRUCT_MAX} - режь до разумного минимума`);
+  const b = (project && project.business) || {};
+  const dirs = arr(b.directions);
+  const dirIds = new Set(dirs.map((d) => d && d.id).filter(Boolean));
+  const seenN = new Set(), seenUrl = new Set(), used = new Set();
+  pages.forEach((p, i) => {
+    if (!p || typeof p !== "object" || Array.isArray(p)) { V.push(`pages[${i}]: не объект`); return; }
+    const url = typeof p.url === "string" ? p.url : "";
+    const at = `pages[${i}]${url ? " " + url : ""}`;
+    const miss = STRUCT_FIELDS.filter((k) => !(k in p));
+    if (miss.length) V.push(`${at}: нет полей ${miss.join(", ")}`);
+    if (!Number.isInteger(p.n) || p.n < 1) V.push(`${at}: n - целое от 1`);
+    else if (seenN.has(p.n)) V.push(`${at}: n ${p.n} повторяется`);
+    seenN.add(p.n);
+    if (url.length > 1 && url.endsWith("/")) V.push(`${at}: слеш на конце - import-structure не найдет родителя, пиши без него`);
+    else if (!/^\/([a-z0-9{}_-]+(\/[a-z0-9{}_-]+)*)?$/.test(url)) V.push(`${at}: адрес «${url}» - ведущий слеш, латиница в нижнем регистре, цифры и дефис`);
+    if (seenUrl.has(url)) V.push(`${at}: адрес повторяется`);
+    seenUrl.add(url);
+    const type = str(p.type);
+    stat.byType[type || "-"] = (stat.byType[type || "-"] || 0) + 1;
+    if (!STRUCT_TYPES.includes(type)) V.push(`${at}: тип «${type}» вне словаря ${STRUCT_TYPES.join(", ")} - статьи и блог в состав не входят`);
+    const name = typeof p.name === "string" ? p.name.trim() : "";
+    if (Array.from(name).length < 2 || !/[а-яА-Я]/.test(name)) V.push(`${at}: name по-русски, от 2 знаков - импорт берет его в H1 и предмет страницы`);
+    if (!["yes", "no"].includes(p.target_status)) V.push(`${at}: target_status «${p.target_status}» - только yes или no`);
+    else stat[p.target_status]++;
+    if (!Array.isArray(p.queries)) V.push(`${at}: queries - массив`);
+    else if (p.queries.length) V.push(`${at}: queries только [] - семантики у состава без SEO нет, запросы были бы выдумкой`);
+    for (const k of ["role", "client_notes", "section", "marker"]) if (k in p && typeof p[k] !== "string") V.push(`${at}: ${k} - строка`);
+    const section = str(p.section);
+    const dm = section.match(/^dir:([a-z0-9][a-z0-9-]*)$/);
+    if (section && !dm) V.push(`${at}: section «${section}» - пусто либо dir:<id направления>`);
+    if (dm) { if (!dirIds.has(dm[1])) V.push(`${at}: направления «${dm[1]}» нет в business.directions`); else used.add(dm[1]); }
+    const role = low(p.role);
+    const seen = importType(p);
+    const tmpl = TEMPLATE_RE.test(`${low(name)} ${url}`);
+    if (type === "Главная" && url !== "/") V.push(`${at}: главная живет по адресу /`);
+    if (url === "/" && type !== "Главная") V.push(`${at}: адрес / у страницы типа «${type}» - это главная`);
+    if (tmpl && type !== "Товар") V.push(`${at}: «шаблон» или {slug} у типа «${type}» - импорт сделает из нее шаблон карточки`);
+    if (type === "Товар" && !tmpl) V.push(`${at}: карточка без слова «шаблон» в name и без {slug} в url - каждый товар станет отдельной страницей`);
+    if (type === "Услуга" && HUB_ROLE.test(role)) V.push(`${at}: хаб с типом «Услуга» импорт прочтет как услугу - хаб это «Категория» и role «навигация»`);
+    if (HUB_NAME.test(name)) V.push(`${at}: слово «хаб» в name уедет в H1 - хаб задается типом «Категория» и role «навигация»`);
+    if (type === "Инфо") {
+      // Импорт узнает инфо-страницу по словам адреса и имени. Транслит «/keisy» он не узнает,
+      // поэтому каноничное слово обязано стоять в name.
+      const byName = importInfoType("", name), byImport = importInfoType(url, name);
+      const hint = (URL_HINT.find(([, re]) => re.test(url)) || [])[0];
+      if (byName !== "info_other" && byImport !== byName) V.push(`${at}: импорт прочтет страницу как «${INFO_CANON[byImport] || "прочее"}» - адрес перебивает имя «${name}»`);
+      else if (hint && byImport !== hint) V.push(`${at}: адрес похож на «${INFO_CANON[hint]}», а в name нет этого слова - импорт прочтет «${INFO_CANON[byImport] || "прочее"}»`);
+    }
+    if ((type === "Услуга" || (type === "Категория" && !HUB_ROLE.test(role))) && !dm) {
+      V.push(`${at}: страница направления без section «dir:<id>» - текстам не с чем связать сегмент и факты`);
+    }
+    if (type !== "Главная" && seen === "home") V.push(`${at}: двухбуквенный адрес импорт примет за языковую главную - удлини слаг`);
+    else if (WANT_TYPE[type] && seen && seen !== WANT_TYPE[type]) V.push(`${at}: тип «${type}», а импорт прочтет «${seen}»`);
+    if (LEGAL_URL.test(url)) W.push(`${at}: служебная страница - импорт пометит ее skip, в составе без SEO она лишняя`);
+    if (p.target_status === "yes" && !str(p.marker) && !tmpl) W.push(`${at}: marker пуст - писателю нечем держать H1`);
+  });
+  const homes = pages.filter((p) => p && p.type === "Главная");
+  if (homes.length !== 1) V.push(`главных ${homes.length} - нужна ровно одна`);
+  else if (pages[0] !== homes[0] || homes[0].n !== 1) V.push("главная идет первой, n 1");
+  // хаб оправдан группой от трех страниц
+  for (const h of pages.filter((p) => p && p.type === "Категория" && HUB_ROLE.test(low(p.role)))) {
+    const kids = pages.filter((p) => p && p !== h && typeof p.url === "string" && p.url.startsWith(`${h.url}/`)).length;
+    if (kids < 3) W.push(`хаб ${h.url}: внутри ${kids} страниц - хаб ставится на группу от трех`);
+  }
+  const lost = dirs.filter((d) => d && d.id && !used.has(d.id)).map((d) => d.id);
+  if (lost.length && pages.length > 1) W.push(`направления без страницы: ${lost.join(", ")}`);
+  if (b.site_kind === "landing" && pages.length > 1) W.push(`сайт - лендинг, а страниц в составе ${pages.length}`);
+  if (b.site_kind === "multipage" && pages.length === 1) W.push("сайт многостраничный, а в составе одна главная - нужен pages-planner");
+  return { V, W, stat };
+}
+
+// Лендинг: состав - одна главная, планировщик не нужен. Пишет build-project.
+export function landingStructure(project) {
+  const b = (project && project.business) || {};
+  const roots = arr(b.directions).filter((d) => d && !str(d.parent));
+  const region = str(b.region);
+  let marker = str(roots[0] && roots[0].marker) || str(b.name);
+  if (marker && region && region.length <= 30 && !/[()]/.test(region) && !low(marker).includes(low(region).slice(0, 5))) marker = `${marker} ${low(region)}`;
+  const segs = arr(project && project.audience && project.audience.segments).map((s) => s && s.id).filter(Boolean);
+  return {
+    source_file: "site-analiz",
+    pages: [{
+      n: 1, url: "/", type: "Главная", name: "Главная",
+      section: roots.length === 1 ? `dir:${roots[0].id}` : "",
+      target_status: "yes", marker: marker.slice(0, 120), queries: [], role: "",
+      client_notes: segs.length ? `сегменты ${segs.join(",")}` : ""
+    }]
+  };
+}
+
+// ---------------------------------------------------------------- решение d9: состав сайта
+// Состав печатается в документе 1 как принятое решение с дефолтом. Ответ заказчика меняет
+// только target_status: снять страницу или вернуть снятую. Новой страницы ответ не рождает -
+// это новый проход планировщика, иначе адрес и тип придумал бы разбор ответа.
+export const STRUCT_DECISION = { key: "d9", name: "состав страниц", title: "Состав сайта" };
+const D9_OFF = /^(убрать|уберите|убираем|снять|снимите|снимаем|удалить|удалите|без|минус|не нужн[аоы]?|не делаем|не надо)(?=[\s:]|$)\s*:?\s*/i;
+const D9_ON = /^(вернуть|верните|возвращаем|оставить|оставьте|добавить|добавьте|плюс|нужн[аоы]?|делаем)(?=[\s:]|$)\s*:?\s*/i;
+const D9_OK = /^(да|ок|ok|принимаем|согласны|согласен|верно|все верно|так и делаем)[.!]?$/i;
+// Ответ -> {ops:[{page, status, token}], dropped:[{token, ground}], accept}
+export function parseStructureAnswer(sd, answer) {
+  const res = { ops: [], dropped: [], accept: false };
+  const a = str(answer);
+  if (!a || a === "-" || D9_OK.test(a)) { res.accept = true; return res; }
+  const pages = arr(sd && sd.pages);
+  const find = (tok) => {
+    const t = str(tok).replace(/^№/, "");
+    if (/^\/\S*$/.test(t)) { const u = t.length > 1 ? t.replace(/\/+$/, "") : t; return pages.filter((p) => p.url === u); }
+    if (/^\d+$/.test(t)) return pages.filter((p) => p.n === Number(t));
+    const q = low(t);
+    const exact = pages.filter((p) => low(p.name) === q);
+    if (exact.length) return exact;
+    // «без отзывов» против страницы «Отзывы»: сравниваем основы слов, а не строки целиком
+    const stem = (w) => (w.length > 5 ? w.slice(0, 5) : w.slice(0, Math.max(3, w.length - 1)));
+    const want = q.split(/[^а-яa-z0-9]+/).filter((w) => w.length >= 3).map(stem);
+    if (!want.length) return [];
+    return pages.filter((p) => {
+      const words = low(p.name).split(/[^а-яa-z0-9]+/).filter(Boolean);
+      return want.every((s) => words.some((w) => w.startsWith(s)));
+    });
+  };
+  for (const clause of a.split(/\s*;\s*/).filter(Boolean)) {
+    let status = null, rest = clause;
+    const off = clause.match(D9_OFF), on = clause.match(D9_ON);
+    if (off) { status = "no"; rest = clause.slice(off[0].length); }
+    else if (on) { status = "yes"; rest = clause.slice(on[0].length); }
+    if (!status) { res.dropped.push({ token: clause, ground: "нет глагола: убрать либо вернуть" }); continue; }
+    const toks = [];
+    for (const part of rest.split(/\s*,\s*|\s+и\s+/).map((x) => str(x)).filter(Boolean)) {
+      if (/^(\/\S*|№?\d+)(\s+(\/\S*|№?\d+))+$/.test(part)) toks.push(...part.split(/\s+/)); else toks.push(part);
+    }
+    if (!toks.length) res.dropped.push({ token: clause, ground: "не названо, какие страницы" });
+    for (const tok of toks) {
+      const hit = find(tok);
+      if (hit.length !== 1) { res.dropped.push({ token: tok, ground: hit.length ? "под это подходит несколько страниц - назови адрес" : "такой страницы в составе нет; новая страница - новый проход pages-planner" }); continue; }
+      if (hit[0].url === "/" && status === "no") { res.dropped.push({ token: tok, ground: "главная обязательна" }); continue; }
+      res.ops.push({ page: hit[0], status, token: tok });
+    }
+  }
+  return res;
 }

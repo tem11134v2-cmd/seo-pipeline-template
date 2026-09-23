@@ -97,7 +97,7 @@ mcp__gdrive-piotr__uploadFile(
 
 ### 6. Обновить meta.json
 
-Аналогично `/share-analysis`:
+Правило одно: заливка двигает state вперед только из `xlsx-built`, более поздние состояния не откатывает.
 
 - `state == "xlsx-built"` -> `shared`
 - `state == "shared"` -> не трогать

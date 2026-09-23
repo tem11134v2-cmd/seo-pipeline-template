@@ -1,0 +1,41 @@
+{
+  "$id": "project-config",
+  "_doc": "config/project.json - проверка полей, которые пишет scripts/import-project.mjs и читают фазы 0-5. Поля с префиксом _ валидатор пропускает.",
+  "type": "object",
+  "required": ["slug", "company", "niche", "sources"],
+  "properties": {
+    "slug": { "type": "string" },
+    "company": { "type": "string" },
+    "site_url": { "type": "string" },
+    "language": { "type": "string" },
+    "niche": {
+      "type": "object",
+      "required": ["description", "business_type", "audience_type", "demand_warmth", "price_level", "purchase_cycle"],
+      "properties": {
+        "description": { "type": "string" },
+        "business_type": { "type": "string", "enum": ["services", "catalog", "both"] },
+        "audience_type": { "type": "string", "enum": ["b2c", "b2b", "mixed"] },
+        "demand_warmth": { "type": "string", "enum": ["hot", "warm", "cold"] },
+        "price_level": { "type": "string", "enum": ["low", "mid", "high", "premium"] },
+        "purchase_cycle": { "type": "string", "enum": ["impulse", "days", "weeks", "months"] },
+        "geo": { "type": "string" }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["doc", "project"], "default": "doc", "description": "Необязательно: без поля режим doc (старые проекты до режима project)." },
+        "analysis_doc_id": { "type": "string" },
+        "analysis_dump": { "type": "string" },
+        "project_json": { "type": "string" },
+        "facts_src": { "type": "string" },
+        "queue": { "type": "string" },
+        "structure_input": { "type": "string" },
+        "structure_mode": { "type": "string", "enum": ["import", "fallback"] },
+        "structure_source": { "type": "string" },
+        "client_preferences": { "type": "string" },
+        "key_phrases": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}
