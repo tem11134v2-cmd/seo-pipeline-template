@@ -160,6 +160,30 @@ try {
     check('build-briefs: F06 не попал ни в факты страницы, ни в факты блоков', !okBrief2.facts.some(f => f.id === 'F06') && !okBrief2.blocks.some(b => b.facts.includes('F06')));
     const noBrief = run(S, ['scripts/build-briefs.mjs', 'okna-rehau']);
     check('build-briefs: без --force бриф не пересобирается, срезы обновляются', noBrief.code === 0 && /собрано: 0, пропущено \(уже есть\): 1, срезов для писателей: 3/.test(noBrief.out), noBrief.out);
+    // редакционный стандарт (правки заказчика 2026-09-29): необязательные слоты, лимит карточки, дом возражения и факта
+    {
+      const hb = rj(SW('pages', 'home', 'brief.json'));
+      const blk = t => hb.blocks.find(b => b.type === t) || { elements: [] };
+      const cnt = (t, k) => (blk(t).elements.find(e => e.kind === k) || {}).count;
+      check('build-briefs: sub первого экрана обязателен (1)', cnt('hero', 'sub') === '1', JSON.stringify(blk('hero').elements));
+      check('build-briefs: h2 сетки карточек (grid-3) - 0-1, h2 шагов - 1', cnt('benefits', 'h2') === '0-1' && cnt('process', 'h2') === '1', `${cnt('benefits', 'h2')} ${cnt('process', 'h2')}`);
+      const card = blk('benefits').elements.find(e => e.kind === 'card');
+      check('build-briefs: лимит текста карточки - не больше card_max * 1.2', !!card && card.chars.max <= 180, JSON.stringify(card));
+      check('build-briefs: сетка без фактов первого экрана (соседний блок)', !blk('benefits').facts.some(f => ['F04', 'F05', 'F03'].includes(f)), JSON.stringify(blk('benefits').facts));
+      const st2 = rj(SW('strategy.json'));
+      const saved = JSON.stringify(st2);
+      st2.global.objection_to_block = { O1: 'not-promise', O2: 'process' };
+      st2.pages.home.block_overrides = { process: { facts: ['F01', 'F03'] } };
+      wj(SW('strategy.json'), st2);
+      const r = run(S, ['scripts/build-briefs.mjs', '--force', 'home']);
+      const hb2 = rj(SW('pages', 'home', 'brief.json'));
+      const blk2 = t => hb2.blocks.find(b => b.type === t) || { objection_ids: [], facts: [] };
+      check('build-briefs: возражение - в блок из objection_to_block, не по кругу', r.code === 0 && blk2('not-promise').objection_ids.includes('O1') && !blk2('benefits').objection_ids.includes('O1') && blk2('process').objection_ids.includes('O2'), r.out + JSON.stringify(hb2.blocks.map(b => [b.type, b.objection_ids])));
+      check('build-briefs: факт с домом (block_overrides.process) не раздается другим блокам по fact_kinds', blk2('process').facts.includes('F01') && !blk2('benefits').facts.includes('F01'), JSON.stringify(hb2.blocks.map(b => [b.type, b.facts])));
+      fs.writeFileSync(SW('strategy.json'), JSON.stringify(JSON.parse(saved), null, 2) + '\n');
+      const back = run(S, ['scripts/build-briefs.mjs', '--force', 'home']);
+      check('build-briefs: пересборка после возврата стратегии - код 0', back.code === 0, back.out);
+    }
   }
 
   // ================================================================== 2. blind-prep

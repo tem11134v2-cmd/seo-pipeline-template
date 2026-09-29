@@ -66,6 +66,12 @@ kit в шаблоне доходят и до задач, начатых рань
 правка алгоритма -> в `.claude/skills/site-tekst/kit/` шаблона (main-копия шаблона, не этот проект);
 выбросить -> `place --force`.
 
+Файл в `overrides/` заменяет файл kit целиком, поэтому новые разделы этого файла из шаблона после синка задача не видит.
+Исключения и добавки линтера - в `config/project.json` -> `lint_extra` (данные задачи, дописываются к `rules/lint.json`
+kit), а не копией `overrides/rules/lint.json`. После синка, который меняет `rules/*.md` kit, сверь `overrides/rules/*.md`
+задачи с новым kit: у задач, где переопределены `hero.md`, `conversion.md` или `info.md`, раздел «Редакционный стандарт»
+(2026-09-29) переносится в переопределение вручную.
+
 ## Скрипт задачи
 
 `task.mjs` (без LLM, запуск из корня проекта, `.claude\scripts\_node.cmd .claude\skills\site-tekst\task.mjs ...`):
@@ -187,7 +193,8 @@ args audit --slugs <pilot>        -> wf-06-audit.js
 cd <task> && node scripts/render-md.mjs && node scripts/build-html.mjs && node scripts/check-html.mjs
 ```
 -> `pilot-done`. Гейт 3: превью (шаг 8, пункт «Превью») + итог судей из результата wf-06. Человек правит правила
-(`overrides/rules/*.md`, `overrides/rules/lint.json`), `work/page-types/*.json`, `work/layouts/*.html`, лимиты; после
+(`overrides/rules/*.md`; исключения и добавки линтера - `config/project.json` -> `lint_extra`, копия
+`overrides/rules/lint.json` - крайний случай: она замораживает весь линтер kit), `work/page-types/*.json`, `work/layouts/*.html`, лимиты; после
 правок типов или стратегии - `build-briefs.mjs --force <slug...>`. Второй пилот (одна категория) -
 `update-meta.sh <task> strategy-approved pilot=<slug>` и шаг 6 заново. Первый экран переписать на готовой странице -
 `args hero --slug <slug>` -> `wf-05b-hero-tournament.js` (топ-3 с оценками - в итоге, выбор за человеком).
@@ -233,7 +240,7 @@ cd <task> && node scripts/render-md.mjs && node scripts/build-html.mjs && node s
 3. Записать `work/audit/<slug>/human-<YYYYMMDD-HHMM>.json` по `schemas/findings.schema.json`: `scope` slug,
    `producer: "human"`, `verdict: "fix"`, `summary`; на каждый пункт находка `severity: "major"`, `rule: "human.fix"`,
    `category` (weak, fact, logic, style, structure), `block_id`, `quote` из page.md, `problem` - правка дословно,
-   `proposal` - формулировка человека, если дана, `status: "open"`. Проверка:
+   `proposal` - формулировка человека, если дана (фиксер вносит ее дословно, меняя только типографику), `status: "open"`. Проверка:
    `node scripts/validate.mjs findings work/audit/<slug>/human-...json` в папке задачи.
 4. Новая цифра или факт в правке - сначала факт в `work/facts.json` (`publish: "yes"`, источник - правка заказчика
    с датой) и `node scripts/build-briefs.mjs --force <slug>`: без факта фиксер цифру не поставит (отказ «нет факта»).
@@ -244,6 +251,37 @@ cd <task> && node scripts/render-md.mjs && node scripts/build-html.mjs && node s
 7. Правка меняет состав блоков (добавить, убрать, переставить) - это не точечная правка: стратегия типа
    (`work/strategy.pages/<type>.json`) -> `merge-strategy.mjs` -> `build-briefs.mjs --force <slug>` ->
    `args write --slugs <slug>` -> wf-05 -> `args audit --slugs <slug> --all` -> wf-06.
+
+#### Пакет правок заказчика с готовыми текстами («Было» -> «Стало»)
+
+Заказчик прислал правки по многим блокам и страницам с готовыми формулировками. Текст заказчика - решение, а не находка
+для правки. Для пакета правок фиксер (`--fix`, wf-06b, фиксер wf-06) не нужен: прямая запись быстрее и без риска правок
+вокруг. Одиночные `human.fix` фиксер вносит дословно по правилу 8 `prompts/06-fixer.md` (только типографика).
+1. Разбор в `.claude/tmp/`: по странице список «блок - Было - Стало - действие» (заменить элемент, удалить h2/sub/карточку,
+   удалить блок, новый блок). Неясное - вопрос человеку до записи. Общие правила пакета: проектные - исключения и добавки
+   линтера в `config/project.json` -> `lint_extra` (копия `overrides/rules/lint.json` - крайний случай, она замораживает
+   весь линтер kit), правила писателя - в `overrides/rules/*.md`; алгоритмические - в kit шаблона (урок в `kit/docs/LESSONS.md`).
+2. Новые цифры и факты из «Стало» - в `work/facts.json` (`publish: "yes"`, источник «правка заказчика <дата>»); без факта
+   линтер держит цифру blocker-ом (`fact.number-without-source`).
+3. Спецификации: «Стало» убирает заголовок, подзаголовок, карточки или блок, а тип требует их (count «1», блок в
+   `recommended_order`) - ослабить `work/page-types/<type>.json` (count «0-1», блок из порядка), при смене состава - стратегию
+   типа и `merge-strategy.mjs`; затем `node scripts/build-briefs.mjs --force <slug...>` и, если блоки выпали или добавились,
+   `node scripts/renumber-blocks.mjs <slug>`.
+4. Прямая запись: «Стало» вносится в `work/pages/<slug>/blocks/<block_id>.json` дословно (оркестратор или один агент на
+   страницу, без переписывания); меняется только типографика (длинное и среднее тире - дефис, буква е-с-точками - е,
+   кавычки - «елочки»), `facts` элементов - id фактов, `summary` и `handoff_note` - по новому тексту. Журнал правки -
+   `work/audit/<slug>/human-<YYYYMMDD-HHMM>.json` по `schemas/findings.schema.json`: на каждый пункт `rule: "human.fix"`,
+   `quote` - «Было», `proposal` - «Стало», `status: "fixed"`, `resolution` «внесено дословно»;
+   `node scripts/validate.mjs findings <файл>`.
+5. Проверка скриптами (в папке задачи): `lint.mjs` по каждому правленому блоку, `page-state.mjs <slug>`, `lint-page.mjs <slug>`.
+   Находки на тексте заказчика не чинятся молча: blocker (цифра без факта, типографика) - закрыть фактом или типографикой,
+   остальное - списком человеку.
+6. Независимая проверка: судья страницы отдельным агентом без фиксера («Папка проекта: <root>. Сначала прочитай
+   <root>/CLAUDE.md, затем <root>/prompts/06-page-judge.md и выполни роль», параметры `slug`, следующий `round`, `scope=full`)
+   по правленым страницам. Находки судьи на тексте заказчика - человеку (оставить как у заказчика или согласовать правку);
+   на остальных блоках - `args fix --slug <slug> --findings work/audit/<slug>/round-<n>.json`.
+7. Сборка и сдача: `render-md.mjs`, `build-html.mjs`, `check-html.mjs`, `report.mjs`, превью; state задачи не меняется.
+   Коммит `Tekst <KKK> client edits: <N> страниц`.
 
 ## Запреты
 

@@ -36,6 +36,11 @@
         "client_preferences": { "type": "string" },
         "key_phrases": { "type": "array", "items": { "type": "string" } }
       }
+    },
+    "lint_extra": {
+      "type": "object",
+      "description": "Необязательно: проектные добавки к rules/lint.json (editorial - по подсекциям, см. mergeEditorial в scripts/lint-common.mjs).",
+      "properties": { "editorial": { "type": "object" } }
     }
   }
 }

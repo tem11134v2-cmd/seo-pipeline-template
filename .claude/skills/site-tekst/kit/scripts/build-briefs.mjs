@@ -2,6 +2,9 @@
 // node scripts/build-briefs.mjs [slug...] [--force]
 // Кроме brief.json пишет срезы для писателей work/pages/<slug>/brief/<block_id>.json (scripts/writer-inputs.mjs) -
 // и для новых брифов, и для уже существующих (они не пересобираются без --force, срезы обновляются всегда).
+// Редакционный стандарт (config/house_style.md): sub вне первого экрана и h2/text сеток с карточками - необязательные
+// (count 0-N), лимит карточки limits.card_max, возражение - в блок из global.objection_to_block, факт с явным домом
+// (block_overrides) не раздается другим блокам, соседние блоки по fact_kinds не получают одни и те же факты.
 import path from 'node:path';
 import { argv, P, readJson, writeJson, exists, loadConfig, loadSitemap, saveSitemap, pageDir, validate, loadSchema } from './lib.mjs';
 import { writeSlices } from './writer-inputs.mjs';
@@ -15,7 +18,22 @@ const strategy = readJson(P('work', 'strategy.json'));
 const formulas = exists(P('rules', 'offer-formulas.json')) ? readJson(P('rules', 'offer-formulas.json')) : { formulas: [] };
 const prefs = exists(P('work', 'client-preferences.json')) ? readJson(P('work', 'client-preferences.json')) : { items: [] };
 const limits = cfg.limits || {};
-const kindCap = { h1: limits.h1_max, sub: limits.sub_max, text: limits.text_max, bullets: limits.bullet_max, button: limits.button_max };
+// карточка и шаг - заголовок + 1-2 коротких предложения (редакционный стандарт, config/house_style.md): лимит текста
+// limits.card_max (по умолчанию 150 символов без пробелов), даже если у конкурентов карточки длиннее
+const kindCap = { h1: limits.h1_max, sub: limits.sub_max, text: limits.text_max, bullets: limits.bullet_max, button: limits.button_max, card: limits.card_max ?? 150, step: limits.card_max ?? 150 };
+// Необязательные слоты (редакционный стандарт: заголовок и подзаголовок - только если добавляют смысл). Вне первого экрана
+// sub всегда 0-N; у сеток и плиток, где карточки, шаги или ссылки сами называют разделы, h2 и поясняющий text тоже 0-N.
+// Писатель решает по 5 вопросам стандарта, линтер structure.element-missing на count «0-...» не срабатывает.
+const SELF_NAMED_PATTERNS = new Set(limits.self_named_patterns || ['tiles', 'grid-2', 'grid-3', 'grid-4', 'cards-slider']);
+function optionalCount(b, e) {
+  const m = String(e.count).match(/^(\d+)(?:-(\d+))?$/);
+  if (!m || m[1] === '0') return e.count;
+  // первый экран: одно главное доказательство - в sub или одном пункте; пункты-доказательства необязательны, верх из замеров
+  if (b.role === 'hero') return ['bullets', 'badges'].includes(e.kind) ? `0-${m[2] || m[1]}` : e.count;
+  const selfNamed = SELF_NAMED_PATTERNS.has(b.pattern) && b.elements.some(x => ['card', 'step', 'link'].includes(x.kind));
+  if (e.kind === 'sub' || (selfNamed && ['h2', 'text'].includes(e.kind))) return `0-${m[2] || m[1]}`;
+  return e.count;
+}
 
 let slugs = a._;
 const pages = sm.pages.filter(p => p.status !== 'skip' && (!slugs.length || slugs.includes(p.slug)));
@@ -50,37 +68,62 @@ for (const page of pages) {
   const refIds = order.flatMap(id => taskRefs(id));
   for (const id of new Set(refIds)) if (!publishable(id)) problems.push(`${page.slug}: задание блока ссылается на ${id}, которого нет среди публикуемых фактов`);
   const pageFacts = [...new Set([...(ps.facts || []), ...refIds])].map(id => factsById[id]).filter(f => f && f.publish === 'yes');
-  const heroFacts = (ps.hero_facts && ps.hero_facts.length ? ps.hero_facts : pageFacts.slice(0, 4).map(f => f.id)).filter(id => factsById[id]);
+  // первый экран: одно главное доказательство (редакционный стандарт) - без решения стратега берутся 2 первых факта, не 4
+  const heroFacts = (ps.hero_facts && ps.hero_facts.length ? ps.hero_facts : pageFacts.slice(0, 2).map(f => f.id)).filter(id => factsById[id]);
   // возражения страницы: свои по сегменту плюс те, что стратег назначил блокам явно (могут быть из других сегментов)
   const allObjections = audience.segments.flatMap(s => s.objections.map(o => ({ ...o, segment: s.id })));
   const overrideObjIds = Object.values(ps.block_overrides || {}).flatMap(o => o.objection_ids || []);
   const objIds = [...new Set([...(ps.objection_ids || []), ...overrideObjIds])];
   const objections = objIds.map(id => allObjections.find(o => o.id === id)).filter(Boolean);
+  // возражение идет в блок, который его закрывает по смыслу: global.objection_to_block стратега (id возражения -> id блока),
+  // если этот блок есть в порядке страницы; по кругу по слотам - только возражения без такого назначения
   const slots = order.filter(id => byId[id].objection_slot);
+  const objHome = strategy.global.objection_to_block || {};
   const objByBlock = {};
-  objections.forEach((o, i) => { const id = slots.length ? slots[i % slots.length] : null; if (id) (objByBlock[id] ??= []).push(o.id); });
+  let rr = 0;
+  objections.forEach(o => {
+    const home = objHome[o.id];
+    const id = home && order.includes(home) ? home : (slots.length ? slots[rr++ % slots.length] : null);
+    if (id) (objByBlock[id] ??= []).push(o.id);
+  });
+  // факт с явным домом (стратег назвал его в block_overrides.<блок>.facts или в тексте задания блока) не раздается
+  // другим блокам по fact_kinds: полная формулировка факта звучит в своем блоке, остальные ссылаются одним словом
+  const factHome = {};
+  for (const id of order) {
+    if (byId[id].role === 'hero') continue;
+    const ov = (ps.block_overrides || {})[id] || {};
+    for (const fid of [...(ov.facts || []), ...taskRefs(id)]) factHome[fid] ??= id;
+  }
   const cta = ps.cta && ps.cta.main ? ps.cta : (strategy.global.cta_by_type[page.type] || { main: '' });
   const formulaId = ps.offer_formula || strategy.global.offer_formula_by_type[page.type] || '';
   const formula = formulas.formulas.find(f => f.id === formulaId) || { id: formulaId, name: formulaId, recipe: '' };
   const bank = Object.fromEntries((strategy.global.argument_bank || []).map(b => [b.fact_id, b.angles]));
 
+  let prevFacts = [];
   const blocks = order.map((id, i) => {
     const b = byId[id];
     const ov = (ps.block_overrides || {})[id] || {};
     let bfacts = ov.facts;
     if (!bfacts) {
       if (b.role === 'hero') bfacts = heroFacts;
-      else if (b.fact_kinds && b.fact_kinds.length) bfacts = pageFacts.filter(f => b.fact_kinds.includes(f.kind)).map(f => f.id).slice(0, 6);
+      else if (b.fact_kinds && b.fact_kinds.length) {
+        // по fact_kinds: без фактов с домом в другом блоке и, если останется хоть один, без фактов соседа сверху
+        // (два соседних блока с одним аргументом - находка редакционного стандарта)
+        const kindFacts = pageFacts.filter(f => b.fact_kinds.includes(f.kind) && (!factHome[f.id] || factHome[f.id] === id)).map(f => f.id);
+        const fresh = kindFacts.filter(fid => !prevFacts.includes(fid));
+        bfacts = (fresh.length ? fresh : kindFacts).slice(0, 6);
+      }
       else bfacts = [];
     }
     bfacts = [...new Set([...bfacts, ...taskRefs(id).filter(publishable)])];
+    prevFacts = bfacts;
     // витрина каталога: писатель дает только вступление и подписи фильтров, карточки приходят из спецификации каталога
     const isListing = id === 'listing' || b.pattern === 'listing';
     const LISTING_KINDS = new Set(['h2', 'h3', 'sub', 'text', 'filters', 'link', 'button', 'note']);
     const elements = b.elements.filter(e => !isListing || LISTING_KINDS.has(e.kind)).map(e => {
       const cap = kindCap[e.kind];
       const max = Math.min(e.chars.max || cap || 350, cap ? cap * 1.2 : 900);
-      return { kind: e.kind, count: e.count, chars: { min: e.chars.min || 0, median: e.chars.median || 0, max: Math.round(max) }, note: e.note || '' };
+      return { kind: e.kind, count: optionalCount(b, e), chars: { min: e.chars.min || 0, median: e.chars.median || 0, max: Math.round(max) }, note: e.note || '' };
     });
     if (isListing && !elements.some(e => e.kind === 'filters')) elements.push({ kind: 'filters', count: '3-7', chars: { min: 5, median: 12, max: 30 }, note: 'подписи фильтров каталога' });
     return {

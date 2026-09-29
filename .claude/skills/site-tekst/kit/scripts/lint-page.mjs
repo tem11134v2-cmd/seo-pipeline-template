@@ -71,5 +71,5 @@ for (const f of report.findings) {
   else if (showMinor(f.rule)) minorByRule[f.rule] = (minorByRule[f.rule] || 0) + 1;
 }
 console.log('  по правилам:', JSON.stringify(byRule));
-console.log('  minor ai.*, style.*, fact.claim-unsupported:', JSON.stringify(minorByRule));
+console.log('  minor ai.*, style.*, editorial.*, fact.claim-unsupported:', JSON.stringify(minorByRule));
 process.exit(report.verdict === 'pass' ? 0 : 1);

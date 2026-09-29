@@ -33,6 +33,12 @@
 11. Клише: список `cliches_to_avoid` не длиннее 25 позиций и не содержит терминов ниши и обязательной терминологии проекта -
     иначе линтер будет блокировать нормальные тексты (= major, укажи, что убрать).
 
+12. Редакционный стандарт (`config/house_style.md`): у сеток, плиток, навигации и слайдеров с карточками или ссылками
+    `h2` и поясняющий `text` с count «1» (а не «0-1») = major; `sub` вне первого экрана с count «1» = major; `card`/`step`
+    с `chars.max` выше `limits.card_max` из `config/project.json` (по умолчанию 150) = major; первый экран с `bullets`/`badges`
+    count «3-4» и больше = major (одно главное доказательство, «0-2»); `objection_slot: true` у навигации или витрины и
+    `fact_kinds` «все виды» у блока, который их не доказывает, = minor. В `proposal` - точный новый count или лимит.
+
 ## Формат результата
 По каждому типу: JSON по `schemas/findings.schema.json`, producer `type-auditor`, scope `page-types/<type>`, round из параметров.
 В `block_id` - id блока, в `quote` - цитата из файла или снимка, в `proposal` - конкретная правка.

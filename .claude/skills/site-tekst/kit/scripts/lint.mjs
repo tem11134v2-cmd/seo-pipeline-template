@@ -1,11 +1,11 @@
 // Линтер блока. node scripts/lint.mjs work/pages/<slug>/blocks/<block_id>.json [--fix] [--quiet]
 // Проверяет house style, стоп-слова, цифры без фактов, антиобещания, жаргон, CTA, длины, плейсхолдеры,
-// формы ai.* и style.*, утверждения без факта (fact.claim-unsupported) и бюджеты страницы
+// формы ai.* и style.*, редакционный стандарт editorial.*, утверждения без факта (fact.claim-unsupported) и бюджеты страницы
 // (ai.contrast, ai.neg-pitch, word.overuse, placeholder.count): бюджет расходуется в порядке блоков брифа -
 // блоки выше этого плюс сам блок, так же, как считает lint-page.mjs по всей странице. word.overuse здесь - minor
 // (major ставит только lint-page.mjs), поэтому вердикт блока и plan-run от повторов слов не зависят.
 // Пишет work/audit/<slug>/lint-<block_id>.json (findings). Код выхода 1, если есть blocker или major.
-// Печатает blocker, major и minor по правилам ai.*, style.*, fact.claim-unsupported, word.overuse.
+// Печатает blocker, major и minor по правилам ai.*, style.*, editorial.*, fact.claim-unsupported, word.overuse.
 import path from 'node:path';
 import fs from 'node:fs';
 import { argv, P, readJson, writeJson, exists, loadConfig, elementTexts, blockPlainText, normalizeDeep, splitSentences, words, charsNoSpaces, PLACEHOLDER_RE, makeFindings, addFinding, finalizeVerdict, validate, loadSchema, B, cyr, esc, stemRe } from './lib.mjs';
@@ -205,7 +205,8 @@ if (spec) {
 // Бюджет расходуется в порядке блоков брифа: блоки выше этого + сам блок (lint-page.mjs считает так же по всей странице).
 {
   const R = compileLint(rules, brief, cfg);
-  const mine = scanBlock(block, R);
+  // роль блока - из брифа (editorial.internal-detail смотрит на роль), без брифа - из файла блока
+  const mine = scanBlock(spec ? { ...block, role: spec.role || block.role } : block, R);
   const order = (brief.blocks || []).map(b => b.block_id);
   const pos = order.indexOf(block.block_id);
   const seq = [];

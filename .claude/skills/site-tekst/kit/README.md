@@ -98,7 +98,7 @@ SEO-слой в текстах не делается: за него отвеча
 | `merge-strategy.mjs [--check <file...>] [--split]` | сборка `strategy.json` из `strategy.pages/<type>.json`; `--check` - проверка файла типа; `--split` - перевод старого проекта |
 | `build-briefs.mjs [slug...] [--force]` | сборка брифов страниц и срезов для писателей |
 | `writer-inputs.mjs [slug...]` | срезы брифа на блок; модуль `build-briefs`, `page-state`, `plan-run`, CLI - ручная пересборка |
-| `lint.mjs <block.json> [--fix]` | линтер блока: house style, стоп-слова, цифры без фактов, CTA, длины, антиобещания, жаргон, формы `ai.*` и `style.*`, бюджеты страницы по блокам выше |
+| `lint.mjs <block.json> [--fix]` | линтер блока: house style, стоп-слова, цифры без фактов, CTA, длины, антиобещания, жаргон, формы `ai.*` и `style.*`, редакционный стандарт `editorial.*`, бюджеты страницы по блокам выше |
 | `lint-page.mjs <slug> [--fix]` | линтер страницы: все блоки, бюджеты страницы (`ai.contrast`, `ai.neg-pitch`, `word.overuse`, плейсхолдеры) в порядке блоков |
 | `lint-common.mjs` | модуль: общие проверки `lint` и `lint-page`, правила - `rules/lint.json` |
 | `page-state.mjs <slug>` | `state.json` и `state.writer.json` после блока, обновление устаревших срезов брифа |

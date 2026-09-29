@@ -29,8 +29,12 @@
    терминология проекта в список не попадают.
 7. Evidence и примеры: `heading_quote` и `examples[].text` - точные подстроки из снимков (`sections[].heading` / `text`);
    что не находится grep -F, замени на найденную цитату или удали запись.
-8. После правки: `node scripts/validate.mjs page-type work/page-types/<type>.json`, `node scripts/normalize.mjs work/page-types/<type>.json`.
-9. Обнови статусы находок в файле находок типа.
+8. Редакционный стандарт (`config/house_style.md`): находки п. 12 аудитора правь count и лимитами - `h2` и `text` сеток с
+   карточками «0-1», `sub` вне первого экрана «0-1», `chars.max` карточки и шага не выше `limits.card_max`, пункты-
+   доказательства первого экрана «0-2», `objection_slot` и `fact_kinds` только там, где блок это закрывает по смыслу.
+   Эти находки не отклоняются ссылкой на замеры конкурентов: объем рынка - эталон формы, а не требование писать больше.
+9. После правки: `node scripts/validate.mjs page-type work/page-types/<type>.json`, `node scripts/normalize.mjs work/page-types/<type>.json`.
+10. Обнови статусы находок в файле находок типа.
 
 ## Формат результата
 По записи на каждый тип из `types`:
