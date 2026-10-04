@@ -289,12 +289,14 @@ export function escapeHtml(s) {
 // ---------- лимиты элементов: одна таблица для build-briefs и линтера ----------
 // KIND_CAP - верхняя граница по виду элемента в символах без пробелов, если у типа страницы нет замеров. Списки
 // (bullets, badges, filters, table_row) - лимит на пункт. config/project.json -> limits.*_max переопределяет свои виды.
+// Карточка и шаг - заголовок + 1-2 коротких предложения (редакционный стандарт, config/house_style.md): граница
+// limits.card_max (по умолчанию 150), действует и при более длинных замерах конкурентов.
 // Замер у типа страницы (chars.max из разборов лидеров) может превышать границу не больше чем на CAP_TOLERANCE.
 // Поля с фиксированным лимитом (заголовок карточки и шага, вопрос FAQ, подпись цитаты, значение числа) - FIELD_CAP.
-export const KIND_CAP = { h1: 70, h2: 80, h3: 60, sub: 160, text: 350, button: 30, note: 300, link: 60, bullets: 120, badges: 40, filters: 45, table_row: 120, card: 220, step: 220, qa: 550, quote: 300, number: 40, field: 40, image: 120 };
+export const KIND_CAP = { h1: 70, h2: 80, h3: 60, sub: 160, text: 350, button: 30, note: 300, link: 60, bullets: 120, badges: 40, filters: 45, table_row: 120, card: 150, step: 150, qa: 550, quote: 300, number: 40, field: 40, image: 120 };
 export const FIELD_CAP = { 'card.title': 80, 'step.title': 80, 'qa.title': 80, 'qa.q': 90, 'quote.author': 60, 'number.value': 20 };
 export const CAP_TOLERANCE = 1.2;
-const LIMIT_KEYS = { h1: 'h1_max', sub: 'sub_max', text: 'text_max', bullets: 'bullet_max', button: 'button_max' };
+const LIMIT_KEYS = { h1: 'h1_max', sub: 'sub_max', text: 'text_max', bullets: 'bullet_max', button: 'button_max', card: 'card_max', step: 'card_max' };
 export function kindCap(kind, limits = {}) {
   const k = LIMIT_KEYS[kind];
   const v = k && Number(limits && limits[k]);

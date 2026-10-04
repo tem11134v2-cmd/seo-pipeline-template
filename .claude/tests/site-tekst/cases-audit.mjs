@@ -160,6 +160,23 @@ try {
     writeBlock(A, 'p2', 'B03-more', [B3[0], B3cut]);
     const j6 = lastJson(run(A, ['scripts/fix-diff.mjs', 'p2', '--snap-id', s6.id]).out, 'FIX_DIFF');
     check('fix-diff: нетронутый блок сломан бюджетом страницы - откат только блока выше (B01), правка ниже (B03) остается', base6 === 'pass,pass,pass' && j6 && canon(j6.restored) === canon(['B01-about']) && /ломал блок B02-text/.test(JSON.stringify(rj(path.join(A, 'work', 'audit', 'p2', 'fix-diff.json')).runs.at(-1).restored)) && blockText(A, 'p2', 'B03-more') === B3cut && ['B01-about', 'B02-text', 'B03-more'].every(id => lintVerdict(A, 'p2', id) === 'pass'), `${base6} ${JSON.stringify(j6)}`);
+    // слияние с редакционным стандартом (рецензия): готовый текст заказчика (human.fix с proposal) ради линтера не
+    // переписывается (06-fixer п.8), блок без lint pass в прототипе - скелет, поэтому откат; находка open с причиной для человека
+    const s7 = lastJson(run(A, ['scripts/fix-diff.mjs', 'p1', '--snap']).out, 'FIX_SNAP');
+    const H2c = 'Что входит в заказ: замер и подбор материалов';
+    writeBlock(A, 'p1', 'B02-text', [H2c, B2[1]]);
+    const hf = path.join(A, 'work', 'audit', 'p1', 'human-t.json');
+    wj(hf, { scope: 'p1', producer: 'human', verdict: 'fix', summary: 'правка заказчика', findings: [
+      { id: 'H1', block_id: 'B02-text', severity: 'major', category: 'style', rule: 'human.fix', problem: 'заменить заголовок', quote: B2[0], proposal: H2c, status: 'fixed', resolution: 'внесено дословно' },
+      { id: 'H2', block_id: 'B03-more', severity: 'major', category: 'style', rule: 'human.fix', problem: 'не трогать', status: 'fixed', resolution: 'внесено дословно' },
+    ] });
+    const j7 = lastJson(run(A, ['scripts/fix-diff.mjs', 'p1', '--findings', 'work/audit/p1/human-t.json,work/audit/p1/lint-page.json', '--snap-id', s7.id]).out, 'FIX_DIFF');
+    const h7 = rj(hf).findings;
+    const head7 = rj(path.join(A, 'work', 'pages', 'p1', 'blocks', 'B02-text.json')).elements[0].text;
+    check('fix-diff: текст заказчика (human.fix) не прошел линтер - откат, находка open: решение человека (lint_extra или пакетная запись), чужой блок не тронут',
+      j7 && canon(j7.restored) === canon(['B02-text']) && head7 === B2[0] && h7[0].status === 'open' && /^откат: текст заказчика не прошел линтер \(editorial\.heading-colon/.test(h7[0].resolution)
+      && /lint_extra/.test(h7[0].resolution) && /пакетная запись/.test(h7[0].resolution) && h7[1].status === 'fixed' && j7.reopened === 1, JSON.stringify({ j7, h7, head7 }));
+    checkSchemaFile('fix-diff: human-t.json после отката', hf);
     check('fix-diff: без slug - код 2, неизвестная страница - код 2', run(A, ['scripts/fix-diff.mjs']).code === 2 && run(A, ['scripts/fix-diff.mjs', 'nope']).code === 2);
 
     // retro-stats: журнал сравнений и снимки не отчеты с находками

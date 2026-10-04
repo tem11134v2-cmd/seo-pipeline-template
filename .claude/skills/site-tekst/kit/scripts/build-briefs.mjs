@@ -11,6 +11,11 @@
 // Проблемы (код 1) печатаются целиком, предупреждения (код 0) - сводкой по видам с примерами; содержательные заметки
 // для рецензии стратегии (первый экран без фактов, подпись CTA без действия global) - строками « ~ » (wf-04 доносит их
 // до рецензии отдельно от проблем).
+// Редакционный стандарт (config/house_style.md): sub вне первого экрана и h2/text сеток с карточками - необязательные
+// (count 0-N), у первого экрана bullets/badges - 0-N; лимит текста карточки и шага limits.card_max; возражение - в блок
+// из global.objection_to_block; факт с явным домом (block_overrides.<блок>.facts или task) другим блокам по fact_kinds
+// не раздается; добор фактов до опор - без фактов соседа сверху (они - только если других нет); без решения стратега
+// первый экран - 2 факта.
 // Страховки фактов: «не публикуем» без разрешенной формулировки при «все» снимает факт (lib.mjs parseDecisions);
 // факт с конфликтом «против» антиобещания или запрета в gaps facts.json без строки §1 decisions.md в брифы не идет
 // (причина conflict); разрешенная формулировка §1 с числами, которых нет в фактах ее строки, в бриф не кладется.
@@ -44,6 +49,20 @@ const prefs = exists(P('work', 'client-preferences.json')) ? readJson(P('work', 
 const lintRules = exists(P('rules', 'lint.json')) ? readJson(P('rules', 'lint.json')) : {};
 const limits = cfg.limits || {};
 const REPORT = P('work', 'briefs-report.json');
+// Необязательные слоты (редакционный стандарт: заголовок и подзаголовок - только если добавляют смысл). Вне первого экрана
+// sub всегда 0-N; у сеток и плиток, где карточки, шаги или ссылки сами называют разделы, h2 и поясняющий text тоже 0-N.
+// Писатель решает по 5 вопросам стандарта, линтер structure.element-missing на count «0-...» не срабатывает.
+const SELF_NAMED_PATTERNS = new Set(limits.self_named_patterns || ['tiles', 'grid-2', 'grid-3', 'grid-4', 'cards-slider']);
+function optionalCount(b, e) {
+  const count = String(e.count ?? '1');
+  const m = count.match(/^(\d+)(?:-(\d+))?$/);
+  if (!m || m[1] === '0') return count;
+  // первый экран: одно главное доказательство - в sub или одном пункте; пункты-доказательства необязательны, верх из замеров
+  if (b.role === 'hero') return ['bullets', 'badges'].includes(e.kind) ? `0-${m[2] || m[1]}` : count;
+  const selfNamed = SELF_NAMED_PATTERNS.has(b.pattern) && (b.elements || []).some(x => ['card', 'step', 'link'].includes(x.kind));
+  if (e.kind === 'sub' || (selfNamed && ['h2', 'text'].includes(e.kind))) return `0-${m[2] || m[1]}`;
+  return count;
+}
 
 const slugs = a._;
 const live = sm.pages.filter(p => p.status !== 'skip');
@@ -310,30 +329,54 @@ for (const page of pages) {
 
   // d. факты блоков (hero_facts; явный ov.facts окончательный; иначе fact_kinds с дедупликацией, срез 6) + id из task;
   // все - в пределах фактов страницы. Два прохода: второй - после выпадения блоков без фактов.
+  // Дом факта (редакционный стандарт): факт, который стратег назвал в block_overrides.<блок>.facts или утвердительно в task
+  // блока, другим блокам по fact_kinds не раздается - полная формулировка звучит в своем блоке. Без hero_facts первый
+  // экран берет 2 первых факта страницы (одно главное доказательство), не 4.
+  // дом факта: первый по порядку блок (кроме первого экрана), где стратег назвал факт в block_overrides.<блок>.facts или
+  // утвердительно в task; он же owner_block факта в брифе
+  function homeOf(ids) {
+    const home = {};
+    for (const id of ids) {
+      if (byId[id].role === 'hero') continue;
+      for (const fid of [...(Array.isArray((ov[id] || {}).facts) ? ov[id].facts : []), ...taskOf(id).pos]) home[fid] ??= id;
+    }
+    return home;
+  }
   function assignFacts(ids) {
     const used = new Set();
+    const home = homeOf(ids);
+    let prev = [];
     return ids.map(id => {
       const b = byId[id];
       const o = ov[id] || {};
       let base;
+      let homed = [];
       if (Array.isArray(o.facts)) base = o.facts;
-      else if (b.role === 'hero') base = ps.hero_facts && ps.hero_facts.length ? ps.hero_facts : pageFactIds.slice(0, 4);
+      else if (b.role === 'hero') base = ps.hero_facts && ps.hero_facts.length ? ps.hero_facts : pageFactIds.slice(0, 2);
       else if (b.fact_kinds && b.fact_kinds.length) {
-        const cand = pageFactIds.filter(fid => b.fact_kinds.includes(factsById[fid].kind));
+        const kindAll = pageFactIds.filter(fid => b.fact_kinds.includes(factsById[fid].kind));
+        homed = kindAll.filter(fid => home[fid] && home[fid] !== id);
+        const cand = kindAll.filter(fid => !homed.includes(fid));
         const fresh = cand.filter(fid => !used.has(fid));
         const need = contentLo(b);
-        base = (fresh.length >= need ? fresh : [...fresh, ...cand.filter(fid => used.has(fid)).slice(0, need - fresh.length)]).slice(0, 6);
+        // добор до опор - фактами блоков выше, кроме соседа сверху (два соседних блока с одним аргументом - находка
+        // редакционного стандарта); факты соседа - только если других нет совсем (иначе блок выпал бы с вопросом заказчику)
+        const reuse = cand.filter(fid => used.has(fid) && !prev.includes(fid));
+        let pick = fresh.length >= need ? fresh : [...fresh, ...reuse.slice(0, need - fresh.length)];
+        if (!pick.length) pick = cand.filter(fid => prev.includes(fid)).slice(0, need);
+        base = pick.slice(0, 6);
         // правило выпадения по виду (cases:number) считается по кандидатам до дедупликации: если дедупликация сняла
         // последний факт нужного вида (его взял блок выше), один такой факт возвращается
         const dk = dropRules[id];
         if (dk && !base.some(fid => factsById[fid].kind === dk)) {
-          const one = cand.find(fid => factsById[fid].kind === dk);
+          const one = cand.find(fid => factsById[fid].kind === dk && !prev.includes(fid)) || cand.find(fid => factsById[fid].kind === dk);
           if (one) { const keep = base.slice(0, 5); base = cand.filter(fid => keep.includes(fid) || fid === one); }
         }
       } else base = [];
       const bf = [...new Set([...base, ...taskOf(id).pos])].filter(fid => pageSet.has(fid));
       bf.forEach(fid => used.add(fid));
-      return { id, facts: bf, explicit: Array.isArray(o.facts) };
+      prev = bf;
+      return { id, facts: bf, explicit: Array.isArray(o.facts), homed };
     });
   }
   // причина выпадения блока или '': блок цифр без числового факта или без свежего (все его числовые факты взяли блоки
@@ -341,18 +384,19 @@ for (const page of pages) {
   // Явные facts стратега по свежести не выпадают: повтор цифр первого экрана в полосе цифр - его решение (граница
   // number - от 1, ниже). above - факты оставшихся блоков выше (как usedAbove границы count ниже)
   const STALE = 'нет свежих числовых фактов (все у блоков выше)';
+  const HOMED = 'факты блока звучат в своих блоках (дом факта: block_overrides и task стратега)';
   const mustDrop = (x, above) => {
     const b = byId[x.id];
     if (b.role === 'hero') return '';
     if (isNumbersBlock(b)) {
       const nums = x.facts.filter(fid => factsById[fid].kind === 'number');
-      if (!nums.length) return 'нет числовых фактов';
+      if (!nums.length) return x.homed.some(fid => factsById[fid].kind === 'number') ? HOMED : 'нет числовых фактов';
       if (!x.explicit && !nums.some(fid => !above.has(fid))) return STALE;
     }
     if (!(x.id in dropRules)) return '';
     const kind = dropRules[x.id];
-    if (x.explicit || !kind) return x.facts.length ? '' : 'нет фактов';
-    return x.facts.some(fid => factsById[fid].kind === kind) ? '' : 'нет фактов';
+    if (x.explicit || !kind) return x.facts.length ? '' : (x.homed.length ? HOMED : 'нет фактов');
+    return x.facts.some(fid => factsById[fid].kind === kind) ? '' : (x.homed.some(fid => factsById[fid].kind === kind) ? HOMED : 'нет фактов');
   };
   // проход раздачи, выпадение, повторная раздача без выпавших; повторяется, пока выпадают блоки (раздача без выпавших
   // блоков выше может отдать свежий числовой факт блоку выше блока цифр). Вопрос заказчику - только при нехватке фактов:
@@ -367,7 +411,7 @@ for (const page of pages) {
       const why = mustDrop(x, above);
       if (!why) { x.facts.forEach(fid => above.add(fid)); continue; }
       now.push(x.id);
-      if (why === STALE) { staleIds.push(x.id); rec.dropped_repeat.push({ block: x.id, reason: why }); continue; }
+      if (why === STALE || why === HOMED) { staleIds.push(x.id); rec.dropped_repeat.push({ block: x.id, reason: why }); continue; }
       rec.dropped.push({ block: x.id, reason: why });
       rec.questions.push({ text: `Нужны факты для блока «${byId[x.id].name}»: ${byId[x.id].reader_question}`, blocks: [x.id] });
     }
@@ -378,7 +422,10 @@ for (const page of pages) {
   }
   const noFacts = droppedIds.filter(id => !staleIds.includes(id));
   if (noFacts.length) pw('dropped', `${slug}: без фактов выпали блоки ${noFacts.join(', ')}`);
-  if (staleIds.length) pw('dropped', `${slug}: выпали блоки цифр ${staleIds.join(', ')}: все их числовые факты у блоков выше (вопроса заказчику нет)`);
+  const homedIds = rec.dropped_repeat.filter(x => x.reason === HOMED).map(x => x.block);
+  const staleNum = staleIds.filter(id => !homedIds.includes(id));
+  if (staleNum.length) pw('dropped', `${slug}: выпали блоки цифр ${staleNum.join(', ')}: все их числовые факты у блоков выше (вопроса заказчику нет)`);
+  if (homedIds.length) pw('dropped', `${slug}: выпали блоки ${homedIds.join(', ')}: их факты звучат в своих блоках (вопроса заказчику нет)`);
   const assigned = Object.fromEntries(dealt.map(x => [x.id, x.facts]));
   // первый экран без фактов при фактах у страницы (все hero_facts сняты) - заметка для рецензии стратегии
   {
@@ -390,20 +437,23 @@ for (const page of pages) {
   }
 
   // c. возражения по слотам: явные списки окончательны; остальные (не названные явно ни в одном оставшемся блоке) -
-  // сначала objection_to_block, затем по кругу в слот с наименьшей загрузкой; только слоты без явного списка
+  // сначала objection_to_block, затем по кругу в слот с наименьшей загрузкой; только блоки без явного списка
   const explicitKept = new Set(order.flatMap(id => explicitObj[id] || []));
   const pool = [...new Set([...pageObj, ...droppedIds.flatMap(id => explicitObj[id] || []), ...excludedObj])].filter(x => !explicitKept.has(x));
   const slots = order.filter(id => byId[id].objection_slot && !(id in explicitObj));
+  const homeable = order.filter(id => byId[id].role !== 'hero' && !(id in explicitObj));
   const load = Object.fromEntries(slots.map(s => [s, 0]));
   const autoObj = {};
   const o2b = (strategy.global || {}).objection_to_block || {};
   for (const oid of pool) {
-    // финальный призыв: cta-final и cta старых данных - синонимы
-    const pref = [].concat(o2b[oid] || []).map(t => resolveBlockId(t, slots)).find(Boolean);
+    // блок стратега закрывает возражение по смыслу: слот, иначе любой блок страницы без явного списка, кроме первого
+    // экрана (там одно доказательство) - не по кругу в чужой слот; финальный призыв: cta-final и cta старых данных - синонимы
+    const wanted = [].concat(o2b[oid] || []);
+    const pref = wanted.map(t => resolveBlockId(t, slots)).find(Boolean) || wanted.map(t => resolveBlockId(t, homeable)).find(Boolean);
     const target = pref || slots.reduce((best, s) => (best === null || load[s] < load[best] ? s : best), null);
     if (!target) { rec.objections_unassigned.push(oid); continue; }
     (autoObj[target] ??= []).push(oid);
-    load[target]++;
+    load[target] = (load[target] || 0) + 1;
   }
   if (rec.objections_unassigned.length) pw('objections', `${slug}: возражения без блока (нет слота): ${rec.objections_unassigned.join(', ')}`);
   const pageObjections = [...new Set([...pageObj, ...Object.values(explicitObj).flat(), ...excludedObj])].map(id => objById[id]);
@@ -422,7 +472,7 @@ for (const page of pages) {
     let elements = (b.elements || []).filter(e => !listing || LISTING_KINDS.has(e.kind)).map(e => {
       const max = effectiveMax(e.kind, e.chars && e.chars.max, '', limits);
       const ch = e.chars || {};
-      return { kind: e.kind, count: String(e.count ?? '1'), chars: { min: Math.min(ch.min || 0, max), median: Math.min(ch.median || 0, max), max }, note: e.kind === 'filters' ? FILTERS_NOTE : (e.note || '') };
+      return { kind: e.kind, count: optionalCount(b, e), chars: { min: Math.min(ch.min || 0, max), median: Math.min(ch.median || 0, max), max }, note: e.kind === 'filters' ? FILTERS_NOTE : (e.note || '') };
     });
     if (listing && isListingPage && !elements.some(e => e.kind === 'filters')) elements.push({ kind: 'filters', count: '3-7', chars: { min: 5, median: 12, max: kindCap('filters', limits) }, note: FILTERS_NOTE });
     if (!elements.length) elements.push({ kind: 'h2', count: '1', chars: { min: 0, median: 0, max: kindCap('h2', limits) }, note: '' });
@@ -541,7 +591,12 @@ for (const page of pages) {
   const formula = (formulas.formulas || []).find(f => f.id === formulaId) || { id: formulaId, name: formulaId, recipe: '' };
   const bank = Object.fromEntries(((strategy.global || {}).argument_bank || []).map(x => [x.fact_id, x.angles || []]));
   const angleOf = fid => { for (const sid of segIds) { const hit = (bank[fid] || []).find(x => x.segment === sid); if (hit && hit.angle) return hit.angle; } return ''; };
+  // owner_block - домашний блок факта (дом из block_overrides и task стратега, если блок на странице и факт в нем есть),
+  // иначе первый по порядку блок, получивший факт (у hero_facts без дома - первый экран). Писатель раскрывает факт полностью
+  // только в его owner_block (05-block-writer п.3): дом важнее первого экрана, который назвал факт коротко
   const owner = {};
+  const homeIds = homeOf(order);
+  blocks.forEach((b, i) => { for (const fid of b.facts) if (homeIds[fid] === order[i]) owner[fid] ??= b.block_id; });
   for (const b of blocks) for (const fid of b.facts) owner[fid] ??= b.block_id;
 
   // ключевая фраза страницы (K5): маркер из карты (pages[].key_phrase), иначе первый запрос source_queries

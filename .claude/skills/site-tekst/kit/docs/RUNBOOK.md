@@ -409,8 +409,9 @@ Workflow wf-06b-fix-repeats.js args={<base>,"slug":"<slug>","findings":["work/au
 
 `fix-diff.mjs <slug> --snap | [--findings f1,f2] [--mode full|narrow] [--snap-id <id>]` (зовут wf-06 и wf-06b): снимок -
 `lint-page` и копия блоков в `work/audit/<slug>/pre-fix/`, строка `FIX_SNAP`; сравнение - откат блоков, не прошедших линтер
-после правки (и измененных блоков выше нетронутого, который перестал проходить), признак `claims_changed`, запись прохода
-в `fix-diff.json`, строка `FIX_DIFF`.
+после правки (и измененных блоков выше нетронутого, который перестал проходить; их находки `fixed` снова `open`, у
+`human.fix` - «текст заказчика не прошел линтер», решение человека), признак `claims_changed`, запись прохода в
+`fix-diff.json`, строка `FIX_DIFF`.
 
 ### Фаза 7. Каталог (если есть)
 ```

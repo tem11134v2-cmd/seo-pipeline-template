@@ -1,6 +1,7 @@
 // Тесты линтера kit /site-tekst. Запуск: node .claude/tests/site-tekst/lint-cases.mjs (или через run.mjs рядом). Код выхода 0 - все прошли.
 // Корень алгоритма (TPL) - .claude/skills/site-tekst/kit; до переноса в шаблон набор жил в tests/ test-text-template.
 // 1. Табличные случаи: текст + вид элемента -> какие правила есть / каких нет (scripts/lint-common.mjs напрямую).
+//    Среди них editorial.* - редакционный стандарт (config/house_style.md); у случая может быть role блока (internal-detail, card-long).
 // 2. Бюджеты страницы на синтетической странице во временной папке: lint.mjs и lint-page.mjs как CLI.
 // 3. Регрессия старых правил: смоук по examples/smoke-fixtures (B02-benefits blocked с 8 ошибками, остальные блоки pass).
 import fs from 'node:fs';
@@ -27,11 +28,12 @@ const BRIEF = {
     { id: 'F1', label: 'Налоги при покупке', value: 'налог на покупку платит продавец', wording: 'Налог на покупку платит продавец' },
     { id: 'F2', label: 'Цена в каталоге', value: 'цена застройщика', wording: 'Цена в каталоге - цена застройщика, наценки агентства нет' },
     { id: 'F3', label: 'Доходность на аренде', value: 'до 14% годовых от стоимости объекта', wording: 'Доходность на аренде до 14% годовых от стоимости объекта' },
+    { id: 'F4', label: 'Повторные заказы', value: 'треть заказов', wording: 'Треть заказов - повторные' },
   ],
 };
 const R = compileLint(RULES, BRIEF, { limits: { placeholders_per_page_max: 3 } });
-function lintElements(elements) {
-  const block = { block_id: 'B01-t', elements };
+function lintElements(elements, role) {
+  const block = { block_id: 'B01-t', elements, ...(role ? { role } : {}) };
   const scan = scanBlock(block, R);
   const paged = applyPageBudgets([{ block_id: block.block_id, scan }], R).get(block.block_id);
   return [...scan.findings, ...paged];
@@ -135,18 +137,100 @@ const CASES = [
   { el: [T('text', 'Есть ли налог на покупку?')], not: ['fact.claim-unsupported'] },
   { el: [T('text', 'Стройку закончат к сроку сдачи.')], not: ['fact.claim-unsupported'] },
   { el: [{ kind: 'qa', q: 'Какие налоги платит покупатель?', a: 'Ответ дает специалист на встрече.', facts: [] }], not: ['fact.claim-unsupported'] },
+  // editorial.* - редакционный стандарт (правки заказчика 2026-09-29: «объяснение: смысл», обороты, пересказ, длинные карточки)
+  // editorial.heading-colon
+  { el: [T('h2', 'Кто делает украшение: более 10 мастеров в штате')], has: ['editorial.heading-colon'], sev: { 'editorial.heading-colon': 'major' } },
+  { el: [T('h1', 'Золотой браслет: готовый или на заказ')], has: ['editorial.heading-colon'] },
+  { el: [T('h2', 'Точно золото? Проверьте пробу по QR-коду')], has: ['editorial.heading-colon'] },
+  { el: [T('h3', 'Зачем: расчет до встречи')], has: ['editorial.heading-colon'] },
+  { el: [T('h2', 'Более 10 мастеров в штате')], not: ['editorial.heading-colon'] },
+  { el: [T('h2', 'Доплата: цена минус ваше золото')], not: ['editorial.heading-colon'] },
+  { el: [T('h2', 'Есть идея или фото?')], not: ['editorial.heading-colon'] },
+  { el: [T('h2', 'Браслеты - готовые и на заказ')], not: ['editorial.heading-colon'] },
+  { el: [T('h2', 'Прием с 10:00 до 20:00')], not: ['editorial.heading-colon'] },
+  { el: [T('h2', 'ГОСТ 30971: монтажный шов в договоре')], not: ['editorial.heading-colon'] },
+  { el: [T('text', 'Кто делает украшение: более 10 мастеров в штате.')], not: ['editorial.heading-colon'] },
+  // editorial.stock-phrase
+  { el: [T('h2', 'Где последнее слово за вами')], has: ['editorial.stock-phrase'], sev: { 'editorial.stock-phrase': 'major' } },
+  { el: [T('h2', 'Золото ждет вашего решения')], has: ['editorial.stock-phrase'] },
+  { el: [T('text', 'Без подвоха: цену называют до работы.')], has: ['editorial.stock-phrase'] },
+  { el: [T('text', 'Что выйдет, знаете заранее.')], has: ['editorial.stock-phrase'] },
+  { el: [T('h2', 'Цепи, кольца, серьги - откройте свой раздел')], has: ['editorial.stock-phrase'] },
+  { el: [T('h2', 'Где границы работы мастерской')], has: ['editorial.stock-phrase'] },
+  { el: [T('text', 'Пустой поиск - не тупик.')], has: ['editorial.stock-phrase'] },
+  { el: [T('h2', 'Сначала согласуем модель')], not: ['editorial.stock-phrase'] },
+  { el: [T('text', 'Цену вы узнаете до начала работы.')], not: ['editorial.stock-phrase'] },
+  { el: [T('text', 'Граница участка отмечена на плане.')], not: ['editorial.stock-phrase'] },
+  // editorial.sub-repeats-heading
+  { el: [T('h2', 'Пробу цепи проверите сами по QR-коду'), T('text', 'Пробу цепи вы проверяете сами по QR-коду на сайте палаты. Гарантия записана в чеке.')], has: ['editorial.sub-repeats-heading'], sev: { 'editorial.sub-repeats-heading': 'major' } },
+  { el: [T('h2', 'Сначала увидите результат'), T('sub', 'Результат увидите до начала работы')], has: ['editorial.sub-repeats-heading'] },
+  { el: [T('h1', 'Обручальные кольца на заказ'), T('sub', 'Сделаем пару по фото или эскизу за 3 недели', ['F1'])], not: ['editorial.sub-repeats-heading'] },
+  { el: [T('h2', 'Кольца'), T('sub', 'Готовые модели и кольца на заказ')], not: ['editorial.sub-repeats-heading'] },
+  { el: [T('h2', 'Пробу цепи проверите сами по QR-коду'), T('note', 'Пробу цепи вы проверяете сами по QR-коду.')], not: ['editorial.sub-repeats-heading'] },
+  // editorial.card-long (роли hero и conversion; сокращение перед цифрой - не конец предложения)
+  { role: 'conversion', el: [{ kind: 'card', title: 'Есть только идея', text: 'Нет ни фото, ни рисунка. Опишите идею своими словами. Мастер уточнит детали.', facts: [] }], has: ['editorial.card-long'], sev: { 'editorial.card-long': 'major' } },
+  { role: 'conversion', el: [{ kind: 'step', title: 'Модель', text: 'Модельер готовит 3D. Металл идет в работу после согласия. Срок зависит от сложности.', facts: [] }], has: ['editorial.card-long'] },
+  { role: 'conversion', el: [{ kind: 'card', title: 'Есть только идея', text: 'Опишите ее своими словами. Этого достаточно, чтобы начать.', facts: [] }], not: ['editorial.card-long'] },
+  { role: 'conversion', el: [{ kind: 'card', title: 'Самовывоз', text: 'Садовая ул., д. 12, стр. 1. Вход со двора.', facts: [] }], not: ['editorial.card-long'] },
+  // сокращение с точкой перед именем с заглавной («ул. Ленина», «г. Москва») - тоже не конец предложения
+  { role: 'conversion', el: [{ kind: 'card', title: 'Самовывоз', text: 'ул. Ленина, д. 5. Вход со двора.', facts: [] }], not: ['editorial.card-long'] },
+  { role: 'conversion', el: [{ kind: 'card', title: 'Самовывоз', text: 'г. Москва, ул. Ленина, д. 5.', facts: [] }], not: ['editorial.card-long'] },
+  { role: 'conversion', el: [{ kind: 'card', title: 'Самовывоз', text: 'ул. Ленина, д. 5. Вход со двора. Звоните заранее. Пропуск закажем.', facts: [] }], has: ['editorial.card-long'] },
+  // единица или деньги с точкой перед заглавной - обычный конец предложения
+  { role: 'conversion', el: [{ kind: 'card', title: 'Ремонт цепи', text: 'Цепь порвалась? Ремонт стоит от 500 руб. Пришлите фото разрыва.', facts: [] }], has: ['editorial.card-long'] },
+  { role: 'conversion', el: [{ kind: 'card', title: 'Ремонт цепи', text: 'Ремонт стоит от 5 тыс. 500 руб. Пришлите фото разрыва.', facts: [] }], not: ['editorial.card-long'] },
+  { role: 'info', el: [{ kind: 'card', title: 'Реквизиты', text: 'ООО «Тест». ИНН указан в договоре. Счет выставляют по запросу.', facts: [] }], not: ['editorial.card-long'] },
+  // editorial.social-proof
+  { el: [T('text', 'Многие клиенты приходят по рекомендации.')], has: ['editorial.social-proof'], sev: { 'editorial.social-proof': 'major' } },
+  { el: [T('h2', 'Мастерскую советуют знакомым')], has: ['editorial.social-proof'], sev: { 'editorial.social-proof': 'major' } },
+  { el: [T('text', 'Клиенты возвращаются снова.')], has: ['editorial.social-proof'] },
+  { el: [T('text', 'Треть заказов повторные: клиенты возвращаются снова.', ['F4'])], not: ['editorial.social-proof'] },
+  { el: [T('text', 'Клиенты возвращаются снова.', ['F4'])], not: ['editorial.social-proof'] },
+  { el: [T('text', 'Отзывы клиентов - на Яндекс Картах.')], not: ['editorial.social-proof'] },
+  // editorial.internal-detail (только роли hero и conversion; minor)
+  { role: 'conversion', el: [T('text', 'Отливку делает сторонняя компания.')], has: ['editorial.internal-detail'], sev: { 'editorial.internal-detail': 'minor' } },
+  { role: 'hero', el: [T('sub', 'Часть работ ведет подрядчик')], has: ['editorial.internal-detail'] },
+  { role: 'info', el: [T('text', 'Отливку делает сторонняя компания.')], not: ['editorial.internal-detail'] },
+  { role: 'conversion', el: [T('text', 'Выбор модели на стороне клиента.')], not: ['editorial.internal-detail'] },
+  { role: 'conversion', el: [T('text', 'Мы передаем литье подрядчику.')], has: ['editorial.internal-detail'] },
+  { role: 'conversion', el: [T('text', 'Подрядчик отливает изделие за 3 дня.')], has: ['editorial.internal-detail'] },
+  { role: 'conversion', el: [T('text', 'Часть работ отдаем на аутсорс.')], has: ['editorial.internal-detail'] },
+  // собственная услуга компании в других нишах - не производственная кухня
+  { role: 'hero', el: [T('h1', 'Генеральный подрядчик по строительству домов')], not: ['editorial.internal-detail'] },
+  { role: 'hero', el: [T('text', 'Генеральный подрядчик выполняет весь цикл работ. Ведем объект как генеральный подрядчик.')], not: ['editorial.internal-detail'] },
+  { role: 'hero', el: [T('h1', 'Бухгалтерия на аутсорсе для малого бизнеса')], not: ['editorial.internal-detail'] },
+  // editorial.stock-phrase «границы работ»: в заголовке и в форме «где границы» - оборот, в тексте - условие договора
+  { el: [T('text', 'Состав и границы работ фиксируем в смете.')], not: ['editorial.stock-phrase'] },
+  { el: [T('h2', 'Границы нашей работы')], has: ['editorial.stock-phrase'] },
+  { el: [T('text', 'Где границы заказа, расскажем на встрече.')], has: ['editorial.stock-phrase'] },
+  // editorial.sub-repeats-heading для text: новая информация (способ, срок) - не пересказ; начало с пересказа заголовка - пересказ
+  { el: [T('h2', 'Доставка по Москве и России'), T('text', 'Доставка по Москве курьером за 1 день, по России СДЭК за 3-5 дней.')], not: ['editorial.sub-repeats-heading'] },
+  { el: [T('h2', 'Гарантия на ремонт 6 месяцев'), T('text', 'Гарантия на ремонт 6 месяцев записана в квитанции и действует в любом филиале.')], has: ['editorial.sub-repeats-heading'] },
+  // пересказ во второй части предложения после «, а» - тоже пересказ
+  { el: [T('h2', 'Качество проверите сами по QR-коду'), T('text', 'Изделие проходит контроль до выдачи, а качество вы проверяете сами по QR-коду.')], has: ['editorial.sub-repeats-heading'] },
+  // пересекающиеся обороты - одна находка
+  { el: [T('h2', 'Где границы работы мастерской')], custom: f => f.filter(x => x.rule === 'editorial.stock-phrase').length === 1 },
 ];
 const SEV = { minor: 1, major: 2, blocker: 3 };
 CASES.forEach((c, i) => {
-  const found = lintElements(c.el);
+  const found = lintElements(c.el, c.role);
   const label = `#${i + 1} ${c.el.map(e => e.text || e.title || e.q || (e.items || []).join(' / ')).join(' + ').slice(0, 70)}`;
   for (const r of c.has || []) check(`${label} -> есть ${r}`, found.some(f => f.rule === r), `найдено: ${[...new Set(found.map(f => f.rule))].join(', ') || 'ничего'}`);
   for (const r of c.not || []) check(`${label} -> нет ${r}`, !found.some(f => f.rule === r), found.filter(f => f.rule === r).map(f => f.problem).join('; '));
+  if (c.custom) check(`${label} -> проверка случая`, c.custom(found), found.map(f => `${f.rule}: ${f.problem}`).join('; '));
   for (const [r, s] of Object.entries(c.sev || {})) {
     const top = found.filter(f => f.rule === r).reduce((m, f) => Math.max(m, SEV[f.severity]), 0);
     check(`${label} -> ${r} = ${s}`, top === SEV[s], `получено ${Object.keys(SEV).find(k => SEV[k] === top) || 'нет находки'}`);
   }
 });
+// проектные добавки editorial.* - config/project.json -> lint_extra.editorial (массив дописывается, null выключает подсекцию)
+{
+  const RX = compileLint(RULES, BRIEF, { lint_extra: { editorial: { heading_colon: { exceptions: ['^проба\\b'] }, internal_detail: null } } });
+  const f = scanBlock({ block_id: 'B01-t', role: 'conversion', elements: [T('h2', 'Проба 585: что значит клеймо'), T('h2', 'Кто делает: мастера в штате'), T('text', 'Литье делает подрядчик.')] }, RX).findings.map(x => x.rule);
+  check('lint_extra: исключение проекта снимает heading-colon, исключения kit и остальные заголовки работают', f.filter(r => r === 'editorial.heading-colon').length === 1, f.join(', '));
+  check('lint_extra: internal_detail null - правило выключено', !f.includes('editorial.internal-detail'), f.join(', '));
+  check('lint_extra: без добавок kit не меняется', RULES.editorial.internal_detail && lintElements([T('text', 'Литье делает подрядчик.')], 'conversion').some(x => x.rule === 'editorial.internal-detail'));
+}
 // граница слова для кириллицы: паттерны lint.json с границей слова идут через cyr() (баг старого lint-page: ASCII-граница перед «не»)
 check('cyr: we_start_pattern ловит «Мы - ...»', cyr(RULES.we_start_pattern).test('Мы - надежная компания'));
 check('cyr: we_start_pattern не ловит «Мыло»', !cyr(RULES.we_start_pattern).test('Мыло в подарок'));
@@ -235,6 +319,7 @@ try {
       { block_id: 'B01-hero', role: 'hero', cta_allowed: true, elements: [{ kind: 'h1', count: '1' }, { kind: 'button', count: '1', chars: { min: 8, median: 12, max: 14 } }] },
       { block_id: 'B02-filters', role: 'conversion', cta_allowed: false, elements: [{ kind: 'h2', count: '1' }, { kind: 'button', count: '2', chars: { min: 6, median: 10, max: 16 } }] },
       { block_id: 'B03-text', role: 'conversion', cta_allowed: false, elements: [{ kind: 'h2', count: '1' }, { kind: 'text', count: '1' }] },
+      { block_id: 'B04-terms', role: 'info', cta_allowed: false, elements: [{ kind: 'h2', count: '0-1' }, { kind: 'text', count: '1' }] },
     ] };
     const qdir = path.join(Q, 'work', 'pages', 'q');
     fs.mkdirSync(path.join(qdir, 'blocks'), { recursive: true });
@@ -254,6 +339,19 @@ try {
     qblk('B03-text', [T('h2', 'Как считают доход'), T('text', 'Доход считают по договору аренды и графику платежей.'), T('button', 'Получить расчет по объекту')]);
     const c = qlint('B03-text');
     check('button: кнопка в обычном блоке без CTA - blocker cta.not-allowed', c.findings.some(f => f.rule === 'cta.not-allowed' && f.severity === 'blocker'), JSON.stringify(c.findings));
+    // editorial.* через CLI: заголовок «объяснение: смысл» - major, вердикт fix и код 1; роль блока для internal-detail - из брифа
+    qblk('B03-text', [T('h2', 'Кто считает доход: специалист по объекту'), T('text', 'Доход считают по договору аренды и графику платежей. Отливку делает сторонняя компания.')]);
+    const e1 = node(Q, ['scripts/lint.mjs', 'work/pages/q/blocks/B03-text.json']);
+    const e1r = JSON.parse(fs.readFileSync(path.join(Q, 'work', 'audit', 'q', 'lint-B03-text.json'), 'utf8'));
+    check('editorial CLI: heading-colon major -> fix, код 1', e1r.verdict === 'fix' && e1.code === 1 && e1r.findings.some(f => f.rule === 'editorial.heading-colon' && f.severity === 'major'), e1.out);
+    check('editorial CLI: internal-detail в conversion - minor и печатается', e1r.findings.some(f => f.rule === 'editorial.internal-detail' && f.severity === 'minor') && /\[minor\] editorial\.internal-detail/.test(e1.out), e1.out);
+    qblk('B03-text', [T('h2', 'Специалист считает доход по объекту'), T('text', 'Доход считают по договору аренды и графику платежей.')]);
+    const e2 = node(Q, ['scripts/lint.mjs', 'work/pages/q/blocks/B03-text.json']);
+    check('editorial CLI: исправленный блок - pass, код 0', e2.code === 0 && !/editorial\./.test(e2.out), e2.out);
+    // B04: в файле блока роль conversion, в брифе info - берется роль брифа; h2 count 0-1 - блок без h2 проходит
+    fs.writeFileSync(path.join(qdir, 'blocks', 'B04-terms.json'), JSON.stringify({ block_id: 'B04-terms', type: 'test', role: 'conversion', elements: [T('text', 'Отливку делает сторонняя компания, сроки те же.')], facts_used: [], objections_closed: [], summary: 'синтетический блок теста', handoff_note: '' }, null, 2));
+    const e3 = qlint('B04-terms');
+    check('editorial CLI: роль info из брифа - без internal-detail; h2 0-1 - без structure.element-missing', !rules(e3).includes('editorial.internal-detail') && !rules(e3).includes('structure.element-missing'), JSON.stringify(e3.findings));
   }
 
   // ---------- 3. регрессия: смоук по фикстурам ----------

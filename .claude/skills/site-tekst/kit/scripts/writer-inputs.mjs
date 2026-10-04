@@ -89,7 +89,7 @@ export function sliceBrief(brief, sha = '') {
   const seg = brief.segment || {};
   // label и angle (угол подачи от стратега) - смысл факта: без них писатель искажал цифры («до 14% уже за вычетом
   // расходов», второй пилот, A/B 2026-09-23). Режем объем (примеры конкурентов, ссылки), а не смысл.
-  // rule - разрешенная формулировка из decisions.md, note - условие факта, owner_block - блок, за которым факт закреплен.
+  // rule - разрешенная формулировка из decisions.md, note - условие факта, owner_block - домашний блок факта (дом из стратегии, иначе первый блок с фактом).
   const facts = (brief.facts || []).map(f => ({ id: f.id, ...(f.label ? { label: f.label } : {}), wording: f.wording, ...(f.value && f.value !== f.wording ? { value: f.value } : {}), ...(f.kind ? { kind: f.kind } : {}), ...(f.angle ? { angle: f.angle } : {}), ...(f.note ? { note: f.note } : {}), ...(f.rule ? { rule: f.rule } : {}), ...(f.owner_block ? { owner_block: f.owner_block } : {}) }));
   const outline = (brief.blocks || []).map(b => `${b.block_id}: ${b.reader_question || b.name || ''}`);
   const links = (brief.links || []).map(l => ({ url: l.url, subject: l.subject }));

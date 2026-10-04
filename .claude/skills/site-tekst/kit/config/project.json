@@ -35,17 +35,22 @@
     "aggregators_stoplist": []
   },
   "limits": {
-    "_doc": "Верхние границы по элементам, если файл типа страницы не дает замеров. В символах без пробелов.",
+    "_doc": "Верхние границы по элементам, если файл типа страницы не дает замеров. В символах без пробелов. card_max - текст карточки и шага (заголовок + 1-2 коротких предложения), действует и при более длинных замерах конкурентов. self_named_patterns - раскладки блоков, где карточки, шаги или ссылки сами называют разделы: h2 и поясняющий text у них необязательны (build-briefs ставит count 0-N; по умолчанию tiles, grid-2, grid-3, grid-4, cards-slider).",
     "h1_max": 70,
     "sub_max": 160,
     "text_max": 350,
     "bullet_max": 120,
     "button_max": 30,
+    "card_max": 150,
     "placeholders_per_page_max": 3,
     "drop_blocks_without_facts": ["reviews", "team", "cases:number", "media", "gallery", "founder"]
   },
   "house_style_overrides": {
     "_doc": "Переопределения config/house_style.md для проекта: например, quotes: straight, address: ty.",
     "currency_note": ""
+  },
+  "lint_extra": {
+    "_doc": "Проектные добавки к rules/lint.json без копии всего файла в overrides/ (копия замораживает правила kit и отрезает их исправления после синка). editorial - по подсекции rules/lint.json -> editorial: массив дописывается к массиву kit (heading_colon.exceptions, stock_phrases.patterns, internal_detail.patterns, sub_repeats_heading.stop, card_long.abbreviations), скаляр (severity, порог) заменяет значение kit, null выключает правило. Пример: {\"heading_colon\": {\"exceptions\": [\"^проба\\\\b\"]}, \"internal_detail\": null}.",
+    "editorial": {}
   }
 }

@@ -664,7 +664,7 @@ try {
       facts: [{ id: 'F01', label: 'срок', value: '3 недели', wording: 'Изделие готово за 3 недели', rule: 'Стандартный срок изготовления три недели после согласования модели' }],
       blocks: [
         { block_id: 'B01-hero', role: 'hero', cta_allowed: true, elements: [{ kind: 'h1', count: '1', chars: { min: 0, max: 70 } }, { kind: 'button', count: '1', chars: { min: 0, max: 30 } }] },
-        { block_id: 'B02-a', role: 'conversion', cta_allowed: true, elements: [{ kind: 'h2', count: '1', chars: { min: 0, max: 80 } }, { kind: 'text', count: '1', chars: { min: 0, max: 100 } }, { kind: 'text', count: '0-1', chars: { min: 0, max: 200 } }, { kind: 'card', count: '0-2', chars: { min: 0, max: 250 } }, { kind: 'button', count: '0-1', chars: { min: 0, max: 30 } }] },
+        { block_id: 'B02-a', role: 'conversion', cta_allowed: true, elements: [{ kind: 'h2', count: '1', chars: { min: 0, max: 80 } }, { kind: 'text', count: '1', chars: { min: 0, max: 100 } }, { kind: 'text', count: '0-1', chars: { min: 0, max: 200 } }, { kind: 'card', count: '0-2', chars: { min: 0, max: 170 } }, { kind: 'button', count: '0-1', chars: { min: 0, max: 30 } }] },
         { block_id: 'B03-b', role: 'conversion', cta_allowed: false, elements: [{ kind: 'h2', count: '1', chars: { min: 0, max: 80 } }, { kind: 'text', count: '1', chars: { min: 0, max: 300 } }] },
       ] };
     wj(path.join(pdir, 'brief.json'), lb);
@@ -683,14 +683,14 @@ try {
     wb('B02-a', [{ kind: 'h2', text: 'Сроки работы', facts: [] }, { kind: 'text', text: 'Срок считаем после согласования.', facts: [] }, { kind: 'button', text: 'Оставить заявку' }]);
     const l2b = lint('B02-a');
     check('кнопка без href с чужим текстом - cta.text; cta.weak больше нет', rules(l2b).includes('cta.text') && !rules(l2b).includes('cta.weak'), JSON.stringify(l2b.rep.findings));
-    // лимиты: max брифа (250 у card) не режется второй раз до границы вида (220)
+    // лимиты: max брифа (170 у card) не режется второй раз до границы вида (150 = limits.card_max)
     const card = n => ({ kind: 'card', title: 'Карточка', text: 'а'.repeat(n), facts: [] });
-    wb('B02-a', [{ kind: 'h2', text: 'Сроки работы', facts: [] }, { kind: 'text', text: 'Срок считаем после согласования.', facts: [] }, card(290)]);
+    wb('B02-a', [{ kind: 'h2', text: 'Сроки работы', facts: [] }, { kind: 'text', text: 'Срок считаем после согласования.', facts: [] }, card(200)]);
     const lc1 = lint('B02-a');
-    wb('B02-a', [{ kind: 'h2', text: 'Сроки работы', facts: [] }, { kind: 'text', text: 'Срок считаем после согласования.', facts: [] }, card(310)]);
+    wb('B02-a', [{ kind: 'h2', text: 'Сроки работы', facts: [] }, { kind: 'text', text: 'Срок считаем после согласования.', facts: [] }, card(210)]);
     const lc2 = lint('B02-a');
-    check('лимит: card 290 при max брифа 250 - без length.* (второго среза до 220 нет)', !rules(lc1).some(r => /^length\./.test(r)), JSON.stringify(lc1.rep.findings));
-    check('лимит: card 310 при max брифа 250 - length.over', rules(lc2).includes('length.over'), JSON.stringify(lc2.rep.findings));
+    check('лимит: card 200 при max брифа 170 - без length.* (второго среза до 150 нет)', !rules(lc1).some(r => /^length\./.test(r)), JSON.stringify(lc1.rep.findings));
+    check('лимит: card 210 при max брифа 170 - length.over', rules(lc2).includes('length.over'), JSON.stringify(lc2.rep.findings));
     wb('B02-a', [{ kind: 'h2', text: 'Сроки работы', facts: [] }, { kind: 'text', text: 'а'.repeat(220), facts: [] }]);
     check('лимит: два text в шаблоне (100 и 200) - берется наибольший', !rules(lint('B02-a')).some(r => /^length\.over/.test(r)));
     // число из запрета в rule не подтверждено: «18 лет» при rule «Не пересчитывать в «18 лет»» - fact.number-without-source

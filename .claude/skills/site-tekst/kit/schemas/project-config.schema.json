@@ -53,6 +53,11 @@
         },
         "tagline": { "type": "string", "description": "Подпись под логотипом (только из конфига, сборщик ее не придумывает)." }
       }
+    },
+    "lint_extra": {
+      "type": "object",
+      "description": "Необязательно: проектные добавки к rules/lint.json (editorial - по подсекциям, см. mergeEditorial в scripts/lint-common.mjs).",
+      "properties": { "editorial": { "type": "object" } }
     }
   }
 }
