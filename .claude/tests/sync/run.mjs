@@ -8,11 +8,15 @@
 // и проверяет: dry-run ничего не пишет и верно считает +/~/-; apply зеркалит файлы,
 // пишет .machinery-version, применяет миграцию и журналирует её, коммитит; повторный
 // apply = up-to-date (идемпотентность); --no-delete не удаляет лишнее.
+// Р8 (раздел 7): CLAUDE.md клиента на прежней версии шаблона обновляется и входит в коммит синка, клиентская правка
+// (и незакоммиченная) и незакоммиченный CLAUDE.md шаблона - нет, предупреждение проходит фильтр /sync-all.
+// Р9 (раздел 8): синк, который удаляет скил с незавершенной задачей (main и живые worktree), - отказ целиком.
 //
 // Exit 0 - всё ок. Exit 1 - хоть один тест упал.
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync, mkdtempSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -262,6 +266,199 @@ await step("apply: кириллические пути - файл машинер
   const st = sh("git", ["-c", "core.quotepath=false", "status", "--porcelain"], client3).out;
   if (!/ВВОДНЫЕ\.md/.test(st) || !/ОТВЕТЫ\.md/.test(st)) return `грязные файлы клиента пропали из status: ${st}`;
   return true;
+});
+
+// === 6. признак worktree: настоящие пути, а не строки ===
+// Клиент во временной папке ОС (на Windows путь с коротким именем вида ADMINI~1): git отдает длинный путь, а
+// resolve(dir, ".git") - короткий; движок ложно отказывал «target - это worktree» (раздел 7 набора site-tekst).
+const tmpClient = mkdtempSync(join(tmpdir(), "sync-tmp-client-"));
+await step("клиент во временной папке ОС (короткий путь): синк проходит, не «worktree»", () => {
+  buildClient(tmpClient);
+  const r = runEngine(["--template", tpl, "--target", tmpClient, "--apply", "--no-migrations", "--json"]);
+  if (!r.json) return `нет JSON: ${r.stdout.slice(0, 200)} | ${r.stderr.slice(0, 200)}`;
+  if (r.json.status !== "applied") return `status=${r.json.status}: ${r.json.error || ""}`;
+  return existsSync(join(tmpClient, ".claude/scripts/new.mjs")) || "new.mjs не скопирован";
+});
+rmSync(tmpClient, { recursive: true, force: true });
+
+await step("настоящая worktree (git worktree add) как target - отказ «target - это worktree»", () => {
+  const wt = join(sandbox, "client-wt");
+  const add = sh("git", ["worktree", "add", "-q", "-b", "sync-wt-test", wt], client);
+  if (add.code !== 0) return `git worktree add: ${add.out}`;
+  try {
+    const r = runEngine(["--template", tpl, "--target", wt, "--json"]);
+    if (!r.json) return `нет JSON: ${r.stdout.slice(0, 200)}`;
+    if (r.json.status !== "error" || !/worktree/.test(r.json.error || "")) return `status=${r.json.status}: ${r.json.error || ""}`;
+    return true;
+  } finally {
+    sh("git", ["worktree", "remove", "--force", wt], client);
+    sh("git", ["branch", "-D", "sync-wt-test"], client);
+  }
+});
+
+// === 7. CLAUDE.md клиента (Р8): обновляется, только если он равен одной из версий шаблона ===
+// Шаблон с двумя закоммиченными версиями CLAUDE.md; клиенты: старая версия, своя правка, незакоммиченная правка.
+// Фильтр предупреждений родительского /sync-all (его не трогаем): строка видна, только если проходит эту регулярку.
+const SYNC_ALL_WARN = /origin|не закоммичена|кастом/i;
+const tplC = join(sandbox, "template-cm");
+const CM1 = "# CLAUDE v1 шаблона\n/seo-tekst - тексты\n", CM2 = "# CLAUDE v2 шаблона\n/site-tekst - тексты\n";
+function buildTemplateCm() {
+  w(tplC, ".claude/scripts/keep.mjs", "// keep v1\n");
+  w(tplC, ".claude/skills/s/SKILL.md", "skill s\n");
+  w(tplC, ".claude/CLAUDE.md", CM1);
+  w(tplC, ".gitignore", "node_modules/\n");
+  gitInit(tplC);
+  w(tplC, ".claude/CLAUDE.md", CM2);
+  sh("git", ["commit", "-q", "-am", "CLAUDE v2"], tplC);
+}
+function buildClientCm(dir, claudeMd) {
+  w(dir, ".claude/scripts/keep.mjs", "// keep v1\n");
+  w(dir, ".claude/skills/s/SKILL.md", "skill s\n");
+  if (claudeMd !== null) w(dir, ".claude/CLAUDE.md", claudeMd);
+  w(dir, ".gitignore", "node_modules/\n");
+  gitInit(dir);
+}
+const readCm = (dir) => readFileSync(join(dir, ".claude/CLAUDE.md"), "utf8");
+buildTemplateCm();
+
+await step("Р8 dry-run: клиент на прежней версии шаблона - claudemd updated, в summary.modified и files, файл не тронут", () => {
+  const c = join(sandbox, "cm-old");
+  buildClientCm(c, CM1);
+  const r = runEngine(["--template", tplC, "--target", c, "--json"]);
+  if (!r.json) return `нет JSON: ${r.stdout.slice(0, 200)} ${r.stderr.slice(0, 200)}`;
+  if (r.json.claudemd !== "updated") return `claudemd=${r.json.claudemd}`;
+  if (!r.json.files[".claude/CLAUDE.md"] || !r.json.files[".claude/CLAUDE.md"].changed) return `files: ${JSON.stringify(r.json.files)}`;
+  if (r.json.summary.modified < 1) return `summary: ${JSON.stringify(r.json.summary)}`;
+  return readCm(c) === CM1 || "dry-run изменил CLAUDE.md";
+});
+
+await step("Р8 apply: CLAUDE.md = HEAD шаблона и вошел в коммит синка, дерево чистое; повтор - up-to-date, same", () => {
+  const c = join(sandbox, "cm-old");
+  const r = runEngine(["--template", tplC, "--target", c, "--apply", "--no-migrations", "--json"]);
+  if (!r.json || r.json.status !== "applied" || !r.json.committed) return `status ${r.json && r.json.status}: ${r.stdout.slice(0, 300)}`;
+  if (readCm(c) !== CM2) return `CLAUDE.md не обновлен: ${JSON.stringify(readCm(c))}`;
+  const files = sh("git", ["show", "--name-only", "--format=", "HEAD"], c).out;
+  if (!files.includes(".claude/CLAUDE.md")) return `CLAUDE.md не в коммите синка: ${files}`;
+  const st = sh("git", ["status", "--porcelain"], c).out.trim();
+  if (st) return `дерево не чистое: ${st}`;
+  const again = runEngine(["--template", tplC, "--target", c, "--apply", "--json"]);
+  return (again.json && again.json.status === "up-to-date" && again.json.claudemd === "same") || `повтор: ${again.json && again.json.status}/${again.json && again.json.claudemd}`;
+});
+
+await step("Р8: машинерия актуальна, CLAUDE.md старый - синку есть что делать (не up-to-date)", () => {
+  const c = join(sandbox, "cm-old");
+  w(c, ".claude/CLAUDE.md", CM1);
+  sh("git", ["commit", "-q", "-am", "вернули старую версию"], c);
+  const r = runEngine(["--template", tplC, "--target", c, "--json"]);
+  return (r.json && r.json.status === "pending" && r.json.claudemd === "updated" && r.json.summary.added === 0) || `status ${r.json && r.json.status}/${r.json && r.json.claudemd}`;
+});
+
+await step("Р8: клиентская правка CLAUDE.md не тронута, предупреждение проходит фильтр /sync-all", () => {
+  const c = join(sandbox, "cm-custom");
+  buildClientCm(c, CM1 + "\n## Пометка клиента\n");
+  const r = runEngine(["--template", tplC, "--target", c, "--apply", "--no-migrations", "--json"]);
+  if (!r.json || r.json.status !== "applied") return `status ${r.json && r.json.status}: ${(r.json && r.json.error) || r.stdout.slice(0, 200)}`;
+  if (r.json.claudemd !== "customized") return `claudemd=${r.json.claudemd}`;
+  if (readCm(c) !== CM1 + "\n## Пометка клиента\n") return "CLAUDE.md с правкой клиента перезаписан";
+  const wline = (r.json.warnings || []).find((x) => /CLAUDE\.md/.test(x));
+  return (!!wline && SYNC_ALL_WARN.test(wline) && /вручную/.test(wline)) || `warnings: ${JSON.stringify(r.json.warnings)}`;
+});
+
+await step("Р8: незакоммиченная правка клиента на старой версии - кастомная, файл не тронут", () => {
+  const c = join(sandbox, "cm-dirty");
+  buildClientCm(c, CM1);
+  w(c, ".claude/CLAUDE.md", CM1 + "правка в работе\n");
+  const r = runEngine(["--template", tplC, "--target", c, "--apply", "--no-migrations", "--json"]);
+  if (!r.json || r.json.claudemd !== "customized") return `claudemd=${r.json && r.json.claudemd}`;
+  return readCm(c) === CM1 + "правка в работе\n" || "незакоммиченная правка затерта";
+});
+
+await step("Р8: CLAUDE.md шаблона не закоммичен - клиентский не обновляется, предупреждение «не закоммичена»", () => {
+  const c = join(sandbox, "cm-stale");
+  buildClientCm(c, CM1);
+  w(tplC, ".claude/CLAUDE.md", CM2 + "черновик шаблона\n");
+  try {
+    const r = runEngine(["--template", tplC, "--target", c, "--apply", "--no-migrations", "--json"]);
+    if (!r.json || r.json.claudemd !== "stale") return `claudemd=${r.json && r.json.claudemd}`;
+    if (readCm(c) !== CM1) return "раскатана незакоммиченная версия шаблона";
+    const wline = (r.json.warnings || []).find((x) => /CLAUDE\.md/.test(x));
+    return (!!wline && SYNC_ALL_WARN.test(wline)) || `warnings: ${JSON.stringify(r.json.warnings)}`;
+  } finally {
+    w(tplC, ".claude/CLAUDE.md", CM2);
+  }
+});
+
+// === 8. Р9: синк не удаляет скил, у которого есть незавершенная задача ===
+// Шаблон без выведенных скилов seo-tekst и seo-analiz; у клиента они есть вместе с задачами v7.
+const tplR = join(sandbox, "template-r9");
+w(tplR, ".claude/scripts/keep.mjs", "// keep v1\n");
+w(tplR, ".claude/skills/site-tekst/SKILL.md", "site-tekst\n");
+w(tplR, ".gitignore", "node_modules/\n");
+gitInit(tplR);
+function buildClientR9(dir, tasks) {
+  w(dir, ".claude/scripts/keep.mjs", "// keep v1\n");
+  w(dir, ".claude/skills/site-tekst/SKILL.md", "site-tekst\n");
+  w(dir, ".claude/skills/seo-tekst/SKILL.md", "seo-tekst v7\n");
+  w(dir, ".claude/skills/seo-analiz/SKILL.md", "seo-analiz v7\n");
+  w(dir, ".gitignore", "node_modules/\n");
+  for (const [rel, meta] of Object.entries(tasks)) w(dir, `${rel}/meta.json`, JSON.stringify(meta) + "\n");
+  gitInit(dir);
+}
+
+await step("Р9 dry-run: незавершенная задача v7 - status error с перечнем, ничего не записано", () => {
+  const c = join(sandbox, "r9-open");
+  buildClientR9(c, { "texts/001-a": { state: "tone-shared", format: "v7" }, "texts/002-b": { state: "completed" }, "texts/003-v9": { format: "v9", state: "init" },
+    "analyses/001-x": { state: "approved" }, "analyses/002-y": { state: "client-review" }, "analyses/003-z": { state: "cancelled - заменен /site-analiz" } });
+  const r = runEngine(["--template", tplR, "--target", c, "--json"]);
+  if (!r.json || r.json.status !== "error") return `status ${r.json && r.json.status}`;
+  const e = r.json.error || "";
+  if (!/незавершенная задача texts\/001-a скила seo-tekst/.test(e) || !/незавершенная задача analyses\/002-y скила seo-analiz/.test(e)) return `error: ${e}`;
+  if (/texts\/002-b|texts\/003-v9|analyses\/001-x|analyses\/003-z/.test(e)) return `в перечне завершенные или v9: ${e}`;
+  if (!existsSync(join(c, ".claude/skills/seo-tekst/SKILL.md")) || existsSync(join(c, ".claude/.machinery-version"))) return "dry-run что-то записал";
+  return true;
+});
+
+await step("Р9 --apply и --apply --force: тот же отказ до копирования; --no-delete - синк без удалений и без отказа", () => {
+  const c = join(sandbox, "r9-open");
+  for (const extra of [[], ["--force"]]) {
+    const r = runEngine(["--template", tplR, "--target", c, "--apply", ...extra, "--json"]);
+    if (!r.json || r.json.status !== "error" || !/незавершенная задача/.test(r.json.error || "")) return `${extra.join(" ") || "--apply"}: ${r.json && r.json.status}`;
+    if (!existsSync(join(c, ".claude/skills/seo-tekst/SKILL.md")) || existsSync(join(c, ".claude/.machinery-version"))) return `${extra.join(" ") || "--apply"}: синк успел что-то сделать`;
+  }
+  const nd = runEngine(["--template", tplR, "--target", c, "--apply", "--no-delete", "--no-migrations", "--json"]);
+  if (!nd.json || nd.json.status !== "applied") return `--no-delete: ${nd.json && nd.json.status} ${nd.json && nd.json.error}`;
+  return existsSync(join(c, ".claude/skills/seo-tekst/SKILL.md")) || "--no-delete удалил seo-tekst";
+});
+
+await step("Р9: все задачи завершены (completed, cancelled*, analyses approved) - синк удаляет скилы v7", () => {
+  const c = join(sandbox, "r9-done");
+  buildClientR9(c, { "texts/001-a": { state: "completed" }, "texts/002-b": { state: "cancelled" }, "analyses/001-x": { state: "approved" }, "analyses/002-y": { state: "finalized" } });
+  const r = runEngine(["--template", tplR, "--target", c, "--apply", "--no-migrations", "--json"]);
+  if (!r.json || r.json.status !== "applied") return `status ${r.json && r.json.status}: ${r.json && r.json.error}`;
+  return (!existsSync(join(c, ".claude/skills/seo-tekst/SKILL.md")) && !existsSync(join(c, ".claude/skills/seo-analiz/SKILL.md"))) || "скилы v7 не удалены";
+});
+
+await step("Р9: meta без state и texts v7 approved - незавершенные; задача в живой worktree - в перечне", () => {
+  const c = join(sandbox, "r9-wt");
+  buildClientR9(c, { "texts/001-a": { format: "v7" }, "texts/002-b": { state: "approved" } });
+  const e1 = (runEngine(["--template", tplR, "--target", c, "--json"]).json || {}).error || "";
+  if (!/texts\/001-a скила seo-tekst \(state без state\)/.test(e1) || !/texts\/002-b скила seo-tekst/.test(e1)) return `без state / approved v7: ${e1}`;
+  // main чистый: задачи закрыты; незавершенная задача живет только в ветке живой worktree
+  w(c, "texts/001-a/meta.json", JSON.stringify({ state: "completed" }) + "\n");
+  w(c, "texts/002-b/meta.json", JSON.stringify({ state: "completed" }) + "\n");
+  sh("git", ["commit", "-q", "-am", "закрыты"], c);
+  const wt = join(sandbox, "r9-wt-branch");
+  const add = sh("git", ["worktree", "add", "-q", "-b", "r9-task", wt], c);
+  if (add.code !== 0) return `git worktree add: ${add.out}`;
+  try {
+    w(wt, "texts/004-d/meta.json", JSON.stringify({ state: "init", format: "v7" }) + "\n");
+    const r = runEngine(["--template", tplR, "--target", c, "--json"]);
+    const e = (r.json && r.json.error) || "";
+    return (r.json && r.json.status === "error" && /texts\/004-d скила seo-tekst/.test(e) && !/texts\/001-a/.test(e)) || `status ${r.json && r.json.status}: ${e}`;
+  } finally {
+    sh("git", ["worktree", "remove", "--force", wt], c);
+    sh("git", ["branch", "-D", "r9-task"], c);
+  }
 });
 
 // === Финал ===

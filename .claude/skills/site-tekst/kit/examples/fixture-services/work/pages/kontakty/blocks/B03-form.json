@@ -1,0 +1,33 @@
+{
+  "block_id": "B03-form",
+  "type": "form",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Напишите нам"
+    },
+    {
+      "kind": "field",
+      "label": "Имя"
+    },
+    {
+      "kind": "field",
+      "label": "Телефон",
+      "layout": "tel"
+    },
+    {
+      "kind": "field",
+      "label": "Ваш вопрос",
+      "layout": "textarea"
+    },
+    {
+      "kind": "button",
+      "text": "Отправить вопрос"
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок form",
+  "handoff_note": ""
+}

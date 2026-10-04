@@ -1,0 +1,45 @@
+{
+  "slug": "kabinet",
+  "url": "/kabinet",
+  "type": "info_other",
+  "subject": "Личный кабинет",
+  "geo": "",
+  "block_set": "short",
+  "company": "Дом Дерева",
+  "positioning": "",
+  "main_promise": "",
+  "segment": {
+    "id": "S1",
+    "name": "Семья с новой квартирой",
+    "portrait": "Пара 30-40 лет",
+    "pains": [
+      "не понимают итоговую цену"
+    ],
+    "fears": [],
+    "objections": []
+  },
+  "unique_argument": "",
+  "hook": "",
+  "cta": {
+    "main": "Подобрать мебель"
+  },
+  "facts": [],
+  "anti_promises": [],
+  "disclaimer_text": "",
+  "links": [],
+  "blocks": [
+    {
+      "block_id": "B01-hero",
+      "type": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "",
+      "pattern": "hero-center",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    }
+  ]
+}

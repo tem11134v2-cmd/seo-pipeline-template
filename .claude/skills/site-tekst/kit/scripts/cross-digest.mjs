@@ -1,5 +1,8 @@
 // Выжимка для кросс-судьи только по страницам из пар-кандидатов (без LLM).
-// node scripts/cross-digest.mjs [--max-pairs 60]
+// node scripts/cross-digest.mjs [--max-pairs 60] [--empty-report]
+// Последняя строка - CROSS_DIGEST {nothing_to_judge, pairs_to_judge, geo_pages_written, geo_leaks, pending_pairs}: ее разбирает
+// wf-06 (к суду нечего - кросс-судья не зовется). --empty-report при «к суду нечего» пишет пустой work/audit/cross.json и
+// запускает split-cross.mjs. Пары parent (родитель и дочерняя страница) и прочие не только по шинглам не режутся --max-pairs.
 // Вход: work/audit/dedup.json (pairs, geo_groups - сначала node scripts/dedup.mjs), work/sitemap.json, брифы и блоки страниц,
 //       work/facts.json (поле geo фактов). Выход: work/audit/cross-digest.json и сводка в консоль.
 //   pairs      - пары, где обе страницы написаны (shingles, h1, hero-sub, geo-twin); пары только по шинглам режутся до --max-pairs
@@ -7,12 +10,14 @@
 //   geo_groups - группы гео-близнецов: у написанных страниц тест подмены делается даже без написанного соседа;
 //   geo_leaks  - факт, привязанный к чужому гео, на странице с geo (все написанные страницы, не только из пар);
 //   pending    - пары, где хотя бы одна страница еще не написана (судить нечего);
-//   pages      - выжимка по каждой странице из pairs и geo_groups: H1, подзаголовок, CTA, факты, возражения, блоки
-//                (заголовок, первая фраза, summary, местная привязка), для гео-страниц - свои и общие гео-факты.
+//   pages      - выжимка по каждой странице из pairs и geo_groups: H1, подзаголовок, CTA, факты (и fact_rules - разрешенные
+//                формулировки из decisions.md), возражения, блоки (заголовок, первая фраза, summary, местная привязка),
+//                для гео-страниц - свои и общие гео-факты.
 import path from 'node:path';
-import { argv, P, exists, readJson, writeText, loadSitemap, pageDir, loadBrief, loadBlocks, elementTexts, B, esc, nowIso } from './lib.mjs';
+import { spawnSync } from 'node:child_process';
+import { argv, P, exists, readJson, writeJson, writeText, loadSitemap, pageDir, loadBrief, loadBlocks, elementTexts, B, esc, nowIso, makeFindings, finalizeVerdict } from './lib.mjs';
 
-const a = argv({});
+const a = argv({ 'empty-report': 'bool' });
 const MAX_PAIRS = Number(a['max-pairs'] || 60);
 const DEDUP = P('work', 'audit', 'dedup.json');
 if (!exists(DEDUP)) { console.error('нет work/audit/dedup.json - сначала node scripts/dedup.mjs'); process.exit(2); }
@@ -67,12 +72,16 @@ function digest(slug, neighbors = []) {
   const geos = geoNames(p.geo);
   const g = geos[0] || '';
   const factsUsed = [...new Set(blocks.flatMap(({ block }) => block.facts_used || []))];
+  const factRules = Object.fromEntries((brief.facts || []).filter(f => f.rule && factsUsed.includes(f.id)).map(f => [f.id, clip(f.rule, 160)]));
   const out = {
     url: p.url, type: p.type, parent: p.parent || '', geo: p.geo || '',
     segment: [brief.segment?.id, brief.segment?.name].filter(Boolean).join(' '),
     unique_argument: clip(brief.unique_argument, 300),
     h1: firstText(hero, ['h1']), sub: firstText(hero, ['sub']), cta_main: brief.cta?.main || '',
     facts_used: factsUsed,
+    // разрешенные формулировки (rule из decisions.md) использованных фактов: одинаковая обязательная формулировка на разных
+    // страницах - не повтор
+    ...(Object.keys(factRules).length ? { fact_rules: factRules } : {}),
     objections_covered: [...new Set(blocks.flatMap(({ block }) => block.objections_closed || []))],
     blocks: blocks.map(({ spec, block }) => {
       const row = { id: block.block_id, head: firstText(block, ['h1', 'h2']), lead: clip(firstText(block, ['sub', 'text', 'card', 'step', 'qa', 'bullets']), 120), summary: clip(block.summary, 160) };
@@ -167,3 +176,18 @@ for (const pr of dd.pairs) for (const r of pr.reasons) byReason[r] = (byReason[r
 console.log(`cross-digest: пар-кандидатов ${counts.pairs_total} (${Object.entries(byReason).map(([k, v]) => `${k} ${v}`).join(', ') || '-'}), к суду ${counts.pairs_to_judge}, срезано ${cut}, ждут текстов ${counts.pending_pairs}`);
 console.log(`  гео-близнецы: групп ${counts.geo_groups}, страниц ${counts.geo_pages}, написано ${counts.geo_pages_written}; утечек гео-фактов ${counts.geo_leaks}; страниц в выжимке ${counts.pages_in_digest}`);
 console.log('  файл: work/audit/cross-digest.json');
+// к суду нечего: ни пар с обеими написанными страницами, ни написанных гео-страниц, ни утечек (как «отчет без находок»
+// в 06-cross-judge). --empty-report: wf-06 тогда не зовет кросс-судью - скрипт пишет пустой work/audit/cross.json (прежний
+// dedup уже положил в архив) и раскладывает его split-cross (постраничные копии прежнего отчета уходят в архивы)
+const nothing = counts.pairs_to_judge === 0 && counts.geo_pages_written === 0 && counts.geo_leaks === 0;
+if (nothing && a['empty-report']) {
+  const rep = makeFindings('cross', 'cross-judge', 1);
+  rep.created_at = new Date().toISOString();
+  rep.scores = { pairs_judged: 0, geo_pages_judged: 0, geo_clones: 0, geo_gaps: 0, geo_leaks_confirmed: 0, pending_pairs: counts.pending_pairs };
+  finalizeVerdict(rep);
+  rep.summary = `к суду нечего: пар 0, гео-страниц 0, утечек 0, ждут текстов ${counts.pending_pairs} (отчет cross-digest --empty-report, кросс-судья не вызывался)`;
+  writeJson(P('work', 'audit', 'cross.json'), rep);
+  const sc = spawnSync(process.execPath, [P('scripts', 'split-cross.mjs')], { encoding: 'utf8' });
+  console.log(`  к суду нечего: пустой work/audit/cross.json, split-cross код ${sc.status}`);
+}
+console.log(`CROSS_DIGEST ${JSON.stringify({ nothing_to_judge: nothing, pairs_to_judge: counts.pairs_to_judge, geo_pages_written: counts.geo_pages_written, geo_leaks: counts.geo_leaks, pending_pairs: counts.pending_pairs, empty_report: !!(nothing && a['empty-report']) })}`);

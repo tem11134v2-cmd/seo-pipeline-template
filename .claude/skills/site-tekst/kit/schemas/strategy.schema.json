@@ -11,7 +11,7 @@
         "positioning": { "type": "string", "maxLength": 400 },
         "main_promise": { "type": "string", "maxLength": 300 },
         "offer_formula_by_type": { "type": "object" },
-        "cta_by_type": { "type": "object" },
+        "cta_by_type": { "type": "object", "description": "Тип страницы -> CTA: объект #/definitions/cta; в старых данных - строка (текст кнопки), читатели принимают оба вида." },
         "argument_bank": {
           "type": "array",
           "items": {
@@ -33,22 +33,40 @@
       "type": "object",
       "additionalProperties": {
         "type": "object",
-        "required": ["segment", "unique_argument", "objection_ids", "offer_formula", "cta", "facts"],
+        "required": ["segment", "unique_argument", "objection_ids", "offer_formula", "facts"],
         "properties": {
-          "segment": { "type": "string" },
+          "segment": { "type": "string", "description": "id сегмента audience.json или all (страница для нескольких сегментов: список - pages[].segments карты)" },
           "secondary_segment": { "type": "string" },
           "unique_argument": { "type": "string", "minLength": 10, "maxLength": 300 },
           "hook": { "type": "string", "maxLength": 200 },
           "objection_ids": { "type": "array", "items": { "type": "string" } },
           "offer_formula": { "type": "string" },
-          "cta": { "type": "object", "required": ["main"], "properties": { "main": { "type": "string" }, "secondary": { "type": "string" } } },
+          "cta": { "$ref": "#/definitions/cta", "description": "Необязателен: только при переопределении global.cta_by_type[type]. Поля, которых нет, наследуются из global; action и short - при той же подписи main, secondary_action - при той же подписи secondary (lib.mjs mergeCta)." },
           "facts": { "type": "array", "items": { "type": "string" } },
           "hero_facts": { "type": "array", "items": { "type": "string" } },
-          "block_overrides": { "type": "object" },
+          "exclude_blocks": { "type": "array", "description": "id блоков типа страницы (work/page-types/<type>.json), не нужных этой странице; первый экран исключать нельзя", "items": { "type": "string" } },
+          "block_overrides": {
+            "type": "object",
+            "description": "Ключ - id блока типа страницы (не B-номер брифа). Явный список facts или objection_ids (в том числе пустой) окончательный для блока в пределах фактов страницы; пустой facts у блока из limits.drop_blocks_without_facts - блок выпадает. В task id фактов только утвердительно.",
+            "additionalProperties": { "type": "object", "properties": { "facts": { "type": "array", "items": { "type": "string" } }, "objection_ids": { "type": "array", "items": { "type": "string" } }, "task": { "type": "string" } } }
+          },
           "do_not_say": { "type": "array", "items": { "type": "string" } },
           "notes": { "type": "string" }
         }
       }
+    }
+  },
+  "definitions": {
+    "cta": {
+      "type": "object",
+      "description": "CTA (C3). main - текст главной кнопки (у страницы может быть пустым: берется из global); secondary - второе действие (рисует сборщик); action и secondary_action - lead (окно заявки), page:<slug>, anchor:<id блока типа>, messenger, call; нет action - правило сборщика по умолчанию (форма на странице или окно заявки); short - подпись кнопки в шапке, до 20 знаков.",
+      "properties": { "main": { "type": "string" }, "secondary": { "type": "string" }, "action": { "type": "string" }, "secondary_action": { "type": "string" }, "short": { "type": "string", "maxLength": 20 } }
+    },
+    "dispute": {
+      "type": "object",
+      "description": "Спорное решение стратега типа: поле disputes[] файла work/strategy.pages/<type>.json (стратеги типов идут параллельно и в decisions.md не пишут); отчет выводит их рядом с decisions.md §8.",
+      "required": ["question", "decision", "why"],
+      "properties": { "question": { "type": "string", "minLength": 3 }, "decision": { "type": "string", "minLength": 2 }, "why": { "type": "string", "minLength": 2 }, "pages": { "type": "array", "items": { "type": "string" } } }
     }
   }
 }

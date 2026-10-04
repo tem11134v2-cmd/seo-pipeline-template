@@ -1,0 +1,43 @@
+{
+  "block_id": "B02-benefits",
+  "type": "benefits",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Почему с нами спокойно"
+    },
+    {
+      "kind": "card",
+      "title": "Смета в договоре",
+      "text": "Цена не меняется после начала работ",
+      "facts": [
+        "F03"
+      ]
+    },
+    {
+      "kind": "card",
+      "title": "Гарантия 3 года",
+      "text": "На все работы по договору",
+      "facts": [
+        "F02"
+      ]
+    },
+    {
+      "kind": "card",
+      "title": "С 2014 года",
+      "text": "Ремонтируем квартиры в Самаре",
+      "facts": [
+        "F01"
+      ]
+    }
+  ],
+  "facts_used": [
+    "F03",
+    "F02",
+    "F01"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок benefits",
+  "handoff_note": ""
+}

@@ -1,5 +1,6 @@
 // Вход для слепого читателя без агента подготовки (без LLM). node scripts/blind-prep.mjs <slug>
-// Печатает портрет сегмента (name + portrait + comes_with, до 600 символов по границе фразы) и до 3 дословных первых экранов
+// Печатает портрет сегмента (name + portrait + comes_with, до 600 символов по границе фразы; у страницы для всех сегментов -
+// еще строка «Сценарии:» с именем и поводом каждого сегмента из segment.segments) и до 3 дословных первых экранов
 // конкурентов из примеров блока первого экрана в брифе (без разбора аналитика why_strong и без доменов).
 // Пишет work/audit/<slug>/blind-view.md - тексты страницы без служебных строк page.md (тип, сегмент, уникальный аргумент,
 // вопросы читателя): слепой читатель не должен видеть бриф. Код выхода 2 - нет брифа, 1 - нет ни одного написанного блока.
@@ -19,7 +20,9 @@ function cut(s, n) {
   return end > n * 0.5 ? head.slice(0, end + 1) : head.slice(0, head.lastIndexOf(' ')) + '...';
 }
 const seg = brief.segment || {};
-const persona = cut([seg.name ? `${flat(seg.name)}.` : '', seg.portrait, seg.comes_with].filter(Boolean).join(' '), 600);
+// страница для всех сегментов (segment all): имена сценариев идут сразу после имени, чтобы срез до 600 знаков их не съел
+const scen = (Array.isArray(seg.segments) ? seg.segments : []).map(s => [flat(s.name), flat(s.comes_with)].filter(Boolean).join(' - ')).filter(Boolean);
+const persona = cut([seg.name ? `${flat(seg.name)}.` : '', scen.length ? `Сценарии: ${scen.join('; ')}.` : '', seg.portrait, seg.comes_with].filter(Boolean).join(' '), 600);
 const heroSpec = (brief.blocks || []).find(b => b.role === 'hero') || (brief.blocks || [])[0] || {};
 const examples = (heroSpec.examples || []).map(e => flat(typeof e === 'string' ? e : e.text)).filter(Boolean).slice(0, 3);
 

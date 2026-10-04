@@ -1,0 +1,78 @@
+{
+  "slug": "o-kompanii",
+  "url": "/o-kompanii/",
+  "type": "info_about",
+  "subject": "О компании",
+  "geo": "",
+  "block_set": "full",
+  "company": "Кварта Ремонт",
+  "positioning": "",
+  "main_promise": "",
+  "segment": {
+    "id": "S1",
+    "name": "Семья с новой квартирой",
+    "portrait": "Пара 30-40 лет",
+    "pains": [
+      "не понимают итоговую цену"
+    ],
+    "fears": [],
+    "objections": []
+  },
+  "unique_argument": "",
+  "hook": "",
+  "cta": {
+    "main": "Рассчитать стоимость ремонта"
+  },
+  "facts": [],
+  "anti_promises": [],
+  "disclaimer_text": "",
+  "links": [],
+  "blocks": [
+    {
+      "block_id": "B01-hero",
+      "type": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "",
+      "pattern": "hero-center",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [
+        "F01"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B02-numbers",
+      "type": "numbers",
+      "name": "Цифры",
+      "role": "info",
+      "reader_question": "",
+      "pattern": "numbers",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [
+        "F01",
+        "F02"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B03-story",
+      "type": "story",
+      "name": "История",
+      "role": "info",
+      "reader_question": "",
+      "pattern": "text",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [
+        "F03"
+      ],
+      "elements": [],
+      "notes": ""
+    }
+  ]
+}

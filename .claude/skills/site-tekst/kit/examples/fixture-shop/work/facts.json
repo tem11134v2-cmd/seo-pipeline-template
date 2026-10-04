@@ -1,0 +1,46 @@
+{
+  "generated_at": "2026-09-27 12:00",
+  "source": "fixture",
+  "facts": [
+    {
+      "id": "F01",
+      "label": "доставка",
+      "value": "по Самаре за 2 дня",
+      "wording": "доставка по Самаре за 2 дня",
+      "publish": "yes",
+      "source_quote": "доставим за два дня",
+      "kind": "process"
+    },
+    {
+      "id": "F02",
+      "label": "материал",
+      "value": "массив дуба и бука",
+      "wording": "мебель из массива дуба и бука",
+      "publish": "yes",
+      "source_quote": "массив",
+      "kind": "claim"
+    }
+  ],
+  "anti_promises": [],
+  "terminology": {
+    "use": [],
+    "jargon": []
+  },
+  "company": {
+    "brand": "Дом Дерева",
+    "legal_name": "ООО «Дом Дерева»",
+    "address": "Самара, ул. Мебельная, 3",
+    "phones": [
+      "+7 (846) 400-00-00"
+    ],
+    "email": "shop@derevo.example",
+    "hours": "ежедневно 10:00-21:00",
+    "channels": {
+      "telegram": "https://t.me/derevo_example"
+    },
+    "status": "confirmed",
+    "source": "fixture"
+  },
+  "tone": {},
+  "gaps": []
+}

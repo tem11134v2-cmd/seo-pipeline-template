@@ -1,0 +1,25 @@
+{
+  "block_id": "B05-reviews",
+  "type": "reviews",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Что говорят заказчики"
+    },
+    {
+      "kind": "quote",
+      "text": "Смета не выросла ни на рубль, сроки выдержали.",
+      "author": "Ирина, Самара"
+    },
+    {
+      "kind": "quote",
+      "text": "Удобно, что замер сделали в тот же день.",
+      "author": "Олег"
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок reviews",
+  "handoff_note": ""
+}

@@ -7,6 +7,7 @@
     "url": { "type": "string" },
     "type": { "type": "string" },
     "subject": { "type": "string" },
+    "key_phrase": { "type": "string", "description": "Ключевая фраза страницы (K5): маркер из карты (pages[].key_phrase или первый source_queries). Писатель первого экрана держит ее в H1 или подзаголовке своими словами; линтер ее не штрафует за повтор и стоп-слова." },
     "geo": { "type": "string" },
     "block_set": { "type": "string", "enum": ["full", "short"] },
     "company": { "type": "string" },
@@ -23,16 +24,18 @@
         "pains": { "type": "array", "items": { "type": "string" } },
         "fears": { "type": "array", "items": { "type": "string" } },
         "criteria": { "type": "array", "items": { "type": "string" } },
-        "objections": { "type": "array", "items": { "type": "object", "required": ["id", "text", "answer"], "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "answer": { "type": "string" }, "facts": { "type": "array", "items": { "type": "string" } } } } }
+        "objections": { "type": "array", "items": { "type": "object", "required": ["id", "text", "answer"], "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "answer": { "type": "string" }, "facts": { "type": "array", "items": { "type": "string" } } } } },
+        "segments": { "type": "array", "description": "Только у сегмента all (страница для нескольких сегментов): сценарии сегментов из карты или audience.", "items": { "type": "object", "required": ["id", "name"], "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "comes_with": { "type": "string" } } } }
       }
     },
     "unique_argument": { "type": "string" },
     "hook": { "type": "string" },
     "offer_formula": { "type": "object", "required": ["id", "name", "recipe"], "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "recipe": { "type": "string" } } },
-    "cta": { "type": "object", "required": ["main"], "properties": { "main": { "type": "string" }, "secondary": { "type": "string" } } },
-    "facts": { "type": "array", "items": { "type": "object", "required": ["id", "label", "value", "wording"], "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "value": { "type": "string" }, "wording": { "type": "string" }, "kind": { "type": "string" }, "angle": { "type": "string" } } } },
+    "cta": { "$ref": "#/definitions/cta" },
+    "facts": { "type": "array", "items": { "type": "object", "required": ["id", "label", "value", "wording"], "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "value": { "type": "string" }, "wording": { "type": "string" }, "kind": { "type": "string" }, "angle": { "type": "string" }, "note": { "type": "string", "description": "условие факта из facts.json" }, "rule": { "type": "string", "description": "разрешенная формулировка из rules/decisions.md §1 (формат v2)" }, "where": { "type": "string", "description": "«Где можно» из decisions.md §1 как есть" }, "owner_block": { "type": "string", "description": "домашний блок факта: где стратег назвал его в block_overrides.<блок>.facts или в task (кроме первого экрана), иначе первый блок, получивший факт; полностью факт звучит только в нем" } } } },
+    "unknowns": { "type": "array", "description": "Открытые вопросы: gaps фактов, неподтвержденные факты, строка пробелов decisions.md §1. По ним тексты ничего не утверждают.", "items": { "type": "string" } },
     "anti_promises": { "type": "array", "items": { "type": "object", "required": ["id", "text"], "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "allowed_context": { "type": "string" } } } },
-    "disclaimer_text": { "type": "string" },
+    "disclaimer_text": { "type": "string", "description": "Оговорка страницы (для судьи). Писателю она приходит только в срез блока, за которым закреплена (blocks[].disclaimer_text)." },
     "terminology": { "type": "object" },
     "client_phrases": { "type": "array", "items": { "type": "object", "required": ["phrase", "meaning"], "properties": { "phrase": { "type": "string" }, "meaning": { "type": "string" }, "src": { "type": "string", "description": "forum | client - дословная речь, можно в кавычках; persona - только смысл своими словами" } } } },
     "do_not_say": { "type": "array", "items": { "type": "string" } },
@@ -58,9 +61,14 @@
           "elements": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["kind", "count", "chars"], "properties": { "kind": { "type": "string" }, "count": { "type": "string" }, "chars": { "type": "object", "required": ["min", "max"], "properties": { "min": { "type": "number" }, "median": { "type": "number" }, "max": { "type": "number" } } }, "note": { "type": "string" } } } },
           "examples": { "type": "array", "items": { "type": "object", "required": ["domain", "text"], "properties": { "domain": { "type": "string" }, "text": { "type": "string" }, "why_strong": { "type": "string" } } } },
           "task": { "type": "string" },
-          "notes": { "type": "string" }
+          "notes": { "type": "string" },
+          "custom_name": { "type": "string", "description": "pattern custom: название нового для kit вида блока из типа страницы" },
+          "disclaimer_text": { "type": "string", "description": "оговорка-дисклеймер закреплена за этим блоком" }
         }
       }
     }
+  },
+  "definitions": {
+    "cta": { "type": "object", "required": ["main"], "description": "CTA (C3): main - текст главной кнопки; secondary - второе действие; action / secondary_action - lead | page:<slug> | anchor:<id блока типа> | messenger | call (нет - правило сборщика по умолчанию); short - подпись для шапки до 20 знаков.", "properties": { "main": { "type": "string" }, "secondary": { "type": "string" }, "action": { "type": "string" }, "secondary_action": { "type": "string" }, "short": { "type": "string", "maxLength": 20 } } }
   }
 }

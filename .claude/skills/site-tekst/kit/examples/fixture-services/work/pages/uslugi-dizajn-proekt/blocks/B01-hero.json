@@ -1,0 +1,23 @@
+{
+  "block_id": "B01-hero",
+  "type": "hero",
+  "role": "hero",
+  "elements": [
+    {
+      "kind": "h1",
+      "text": "Дизайн-проект квартиры"
+    },
+    {
+      "kind": "sub",
+      "text": "Планировка и чертежи до начала ремонта"
+    },
+    {
+      "kind": "button",
+      "text": "Рассчитать стоимость"
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок hero",
+  "handoff_note": ""
+}

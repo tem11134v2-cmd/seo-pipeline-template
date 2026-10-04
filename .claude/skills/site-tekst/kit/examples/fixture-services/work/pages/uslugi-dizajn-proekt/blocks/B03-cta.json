@@ -1,0 +1,19 @@
+{
+  "block_id": "B03-cta",
+  "type": "cta",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Начните с проекта"
+    },
+    {
+      "kind": "button",
+      "text": "Рассчитать стоимость"
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок cta",
+  "handoff_note": ""
+}

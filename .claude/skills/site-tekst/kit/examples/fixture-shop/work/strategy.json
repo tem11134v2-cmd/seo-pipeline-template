@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-09-27 12:00",
+  "global": {
+    "cta_by_type": {
+      "home": {
+        "main": "Подобрать мебель",
+        "secondary": "Смотреть каталог",
+        "secondary_action": "page:katalog"
+      },
+      "hub": {
+        "main": "Выбрать в каталоге",
+        "action": "anchor:listing"
+      },
+      "category": {
+        "main": "Выбрать модель",
+        "action": "anchor:listing",
+        "secondary": "Оставить заявку",
+        "secondary_action": "lead"
+      },
+      "product": {
+        "main": "Узнать цену",
+        "action": "lead"
+      },
+      "info_other": {
+        "main": "Подобрать мебель"
+      }
+    }
+  },
+  "pages": {}
+}

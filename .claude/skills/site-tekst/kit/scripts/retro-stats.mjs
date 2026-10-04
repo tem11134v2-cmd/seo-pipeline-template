@@ -1,7 +1,9 @@
 // Статистика находок аудита для ретро проекта (шаг T2). Без LLM. Запуск из корня проекта:
 //   node scripts/retro-stats.mjs
 // Вход: work/audit/**/*.json - любые отчеты с массивом findings (формы у производителей разные: лишнее пропускается,
-//       отсутствующие поля считаются пустыми); work/facts.json -> gaps (если есть); наличие
+//       отсутствующие поля считаются пустыми), кроме архивов кросса cross-archive-*.json (прежние отчеты: их находки уже
+//       посчитаны или исправлены, читает их только report.mjs), журнала сравнений fix-diff.json и снимков pre-fix/
+//       (fix-diff.mjs); work/facts.json -> gaps (если есть); наличие
 //       work/pages/<slug>/blocks/<id>.json (только чтобы найти устаревшие отчеты линтера).
 // Выход: work/audit/retro-stats.json и сводка в консоль (не больше 30 строк). Код выхода 0, даже если данных нет.
 import fs from 'node:fs';
@@ -10,7 +12,11 @@ import { P, walk, exists, nowIso } from './lib.mjs';
 
 const AUDIT = P('work', 'audit');
 const OUT = path.join(AUDIT, 'retro-stats.json');
-const IGNORE = new Set(['retro-stats.json', 'cross-digest.json']);
+// не отчеты с находками: сводки скриптов и журнал сравнений фиксера (fix-diff.json); снимки блоков до фиксера
+// (work/audit/<slug>/pre-fix/) - копии блоков
+const IGNORE = new Set(['retro-stats.json', 'cross-digest.json', 'fix-diff.json']);
+const IGNORE_DIR = /(^|[\\/])pre-fix([\\/]|$)/;
+const ARCHIVE_RE = /^cross-archive-.*\.json$/;
 const MACHINE = new Set(['lint', 'dedup', 'html-check', 'layout-validator']);
 const JUDGES = new Set(['page-judge', 'blind-reader', 'cross-judge']);
 const SEV = ['blocker', 'major', 'minor'];
@@ -31,8 +37,8 @@ const isOpen = f => OPEN.has(f.status);
 const blockKey = id => String(id || '').replace(/^B\d+[a-z]?[-_]/i, '').toLowerCase();
 
 function normQuote(q) {
-  return String(q || '').toLowerCase().replace(/ё/g, 'е').replace(/[*_#`>]+/g, ' ').replace(/[«»"„“”]/g, '')
-    .replace(/[—–]/g, '-').replace(/\s+/g, ' ').trim().replace(/[\s.,;:!?-]+$/, '');
+  return String(q || '').toLowerCase().replace(/\u0451/g, 'е').replace(/[*_#`>]+/g, ' ').replace(/[«»"„“”]/g, '')
+    .replace(/[\u2014\u2013]/g, '-').replace(/\s+/g, ' ').trim().replace(/[\s.,;:!?-]+$/, '');
 }
 // «цитаты», которые не текст страницы: перечень id фактов, JSON-фрагменты
 const isPseudo = (raw, q) => !q || /^(факты|facts)\s*:/.test(q) || /^\s*[{[]/.test(raw) || /^\s*"[\w.-]+"\s*:/.test(raw);
@@ -44,7 +50,7 @@ function ruleInfo(rule, producer) {
   if (m) return { key: `${producer} п.${m[1]}`, family: `п.${m[1]}`, naming: 'number' };
   if (/^[a-z][a-z0-9_.-]*$/i.test(raw)) return { key: raw.toLowerCase(), family: raw.toLowerCase(), naming: 'id' };
   m = raw.match(/^([a-z][a-z0-9_.-]*)(?=\s*[:/(,]|\s)/i);
-  const text = raw.toLowerCase().replace(/ё/g, 'е').replace(/\s*-\s*(blocker|major|minor)$/, '').slice(0, 90);
+  const text = raw.toLowerCase().replace(/\u0451/g, 'е').replace(/\s*-\s*(blocker|major|minor)$/, '').slice(0, 90);
   if (m) return { key: text, family: m[1].toLowerCase(), naming: 'id+text' };
   return { key: text, family: text.split(' ').slice(0, 3).join(' '), naming: 'text' };
 }
@@ -153,7 +159,8 @@ const HINTS = [
 const hintOf = f => (HINTS.find(([, re]) => re.test(`${f.problem} ${f.rule}`)) || ['semantic'])[0];
 
 // ---------- чтение ----------
-const files = exists(AUDIT) ? walk(AUDIT, '.json').filter(f => !IGNORE.has(path.basename(f))).sort() : [];
+// архивы кросса (cross-archive-*.json: прежние отчеты, split-cross и dedup) - не новые находки, их читает только отчет
+const files = exists(AUDIT) ? walk(AUDIT, '.json').filter(f => !IGNORE.has(path.basename(f)) && !ARCHIVE_RE.test(path.basename(f)) && !IGNORE_DIR.test(path.relative(AUDIT, f))).sort() : [];
 const reports = [], skipped = [];
 for (const file of files) {
   const rel = path.relative(AUDIT, file).split(path.sep).join('/');

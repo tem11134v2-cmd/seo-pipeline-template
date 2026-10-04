@@ -21,8 +21,8 @@
   2. /seo-struktura NNN -> A6.xlsx -> клиент -> A6.md + structure_data.json (только tier=seo)
        └─ с --metatags в конце автоматически -> A7.xlsx (метатеги)
   3. /seo-metategi      -> A7.xlsx (H1/Title/Description; или хвостом из шага 2)
-  4. /site-tekst --site NNN [--structure MMM] -> texts/KKK: тексты страниц + prototype.html
-       (алгоритм v9 в kit; гейты: карта, стратегия, пилот, волна 1)
+  4. /site-tekst --site NNN [--structure MMM] -> texts/KKK: тексты страниц + prototype.html (сайт) + отчет
+       (алгоритм v9 в kit; без гейтов: пауза --stop map|strategy|pilot, автостоп по аномалии)
   5. /seo-faq --from-tekst KKK -> FAQ.docx (Schema.org FAQPage; только tier=seo)
 
 ТРЕК «Информационное SEO» (блог/статьи) - ПОЛНОСТЬЮ независим от трека «Сайт»
@@ -339,7 +339,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │       ├── 040-two-layer-intake.md
 │       ├── 041-v9-site-analiz-single-entry-and-site-tekst.md
 │       ├── 042-v7-and-site-proto-retirement.md
-│       └── 043-anti-ai-formulas-as-lint.md
+│       ├── 043-anti-ai-formulas-as-lint.md
+│       └── 044-site-tekst-no-gates-and-site-prototype.md
 │
 ├── ЗАКАЗЧИК.md                              ← создаётся через /seo-shablon + /handoff-process
 ├── template.html                            ← аналогично
@@ -418,9 +419,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   └── share.json                           (ссылка Drive)
 │
 ├── texts/KKK-slug/                          ← тексты сайта /site-tekst (формат v9)
-│   ├── meta.json                            (state, format "v9", ссылки на sites/NNN и structures/MMM, пилот, волна)
+│   ├── meta.json                            (state, format "v9", ссылки на sites/NNN и structures/MMM, пауза stop, autostop, пилот)
 │   ├── config/project.json                  (профиль проекта; sources.* от ссылок meta)
-│   ├── rules/decisions.md                   (решения проекта: гейт 1, стратегия)
+│   ├── rules/decisions.md                   (решения проекта v2: составитель фазы 0, спорное - §8)
 │   ├── overrides/<путь kit>                 (проектные правки файлов kit, ложатся поверх копии)
 │   ├── inputs/                              (structure_data.json, analysis.md - рендер импорта)
 │   ├── work/                                (facts, audience, sitemap, конкуренты, типы, стратегия,
@@ -490,7 +491,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/share-metatags NNN [--redo]` | worktree | Утилита: перезалить A7.xlsx в Drive после правок, или догрузить если Drive был недоступен |
 | `/seo-tehaudit <domain> [--resume] [--no-share] [--from-analysis NNN]` | worktree | Технический SEO-аудит сайта под Яндекс: разведка/карточка → индексация → URL/мета/Schema/JS → аналитика/ссылки → A12.md + A12.docx (проблемы по приоритетам, чеклист разработчику, динамические приложения) → автозагрузка в Drive + цикл правок |
 | `/share-audit NNN [--redo]` | worktree | Утилита: перезалить A12.docx в Drive после правок, или догрузить если Drive был недоступен |
-| `/site-tekst --site NNN [--structure MMM] \| KKK --resume \| --wave N \| --fix <slug> "..."` | worktree | Тексты сайта v9 (алгоритм целиком в `kit/`, копия kit в папке задачи как кеш): импорт анализа после гейта -> карта -> разбор лидеров, типы, стратегия, раскладки -> пилот -> волны -> аудит -> прототип одним html. Гейты человека: карта, стратегия, пилот, волна 1 |
+| `/site-tekst --site NNN [--structure MMM] [--stop map\|strategy\|pilot] [--pilot a,b] [--allow-ungated] \| KKK --resume \| --wave N \| --fix <slug> "..."` | worktree | Тексты сайта v9 (алгоритм целиком в `kit/`, копия kit в папке задачи как кеш), прогон без остановок: импорт анализа после гейта -> карта и решения проекта агентом -> разбор лидеров, типы, стратегия с рецензией, раскладки -> волны записи и аудита подряд -> каталог -> прототип-сайт одним html и отчет с вопросами заказчику. Пауза только по `--stop` (пилот - только при `--stop pilot` или `--pilot a,b`), автостоп по аномалии |
 | `/seo-faq [--from-tekst NNN\|--from-table\|--url] [--review\|--auto]` | worktree | SEO-нормализация (tier seo; `--from-tekst` читает задачи v9 и старые v7): JM-анализ пробелов текста → FAQ (Schema.org FAQPage) + плитка тегов + перелинковка с недостающими N-граммами. Выход: faq.html (вставляемый сниппет) на страницу + FAQ.docx (Google Doc) |
 | `/share-faq NNN [--redo]` | worktree | Утилита: перезалить FAQ.docx в Drive после правок, или догрузить если Drive был недоступен |
 | `/custom-question [<вопрос>\|<файл>] [--resume] [--format auto\|answer\|recommendation\|doc]` | worktree | Разбор нестандартного вопроса заказчика: контекст по файлам проекта → обязательный гейт трактовки (AskUserQuestion, опция «передать заказчику») → решение (ответ/рекомендация/документ) без SEO-жаргона → запись в общий QA-ЖУРНАЛ.md |

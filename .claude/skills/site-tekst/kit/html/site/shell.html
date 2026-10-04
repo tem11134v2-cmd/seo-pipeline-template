@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="proto-data-sha" content="{{proto_sha}}">
+<meta name="generator" content="site-tekst build-html {{built_at}}">
+<title>{{title}}</title>
+<link rel="icon" href="{{favicon}}">
+<!--
+{{contract}}
+-->
+<style>
+{{css}}
+</style>
+</head>
+<body class="{{body_class}}">
+{{sprite}}
+{{header}}
+<main id="app">
+{{pages}}
+</main>
+{{footer}}
+{{overlays}}
+<script>window.__SITE = {{data}};</script>
+<script>
+(function () {
+  'use strict';
+  /* Скрипт прототипа: маршруты по hash (запасной memHash), меню и мега-панели, мобильное меню, окна, формы,
+     тосты, служебный слой (клавиша D или ?debug) и поведения блоков из реестра site-parts.mjs (объект B ниже).
+     Подписи - только из словаря (D.ui), своих текстов в скрипте нет. */
+  var D = window.__SITE || {};
+  var UI = D.ui || {};
+  var doc = document;
+  function t(k) { return UI[k] != null ? String(UI[k]) : String(k); }
+  function $(s, r) { return (r || doc).querySelector(s); }
+  function $$(s, r) { return Array.prototype.slice.call((r || doc).querySelectorAll(s)); }
+  function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function fmtN(n) { return String(Math.round(+n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+  function icon(n) { return '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-' + n + '"></use></svg>'; }
+  function report(e) { if (window.console && console.error) console.error(e && e.stack ? e.stack : e); }
+  var store = {
+    get: function (k) { try { var v = window.localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
+    set: function (k, v) { try { window.localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* хранилище недоступно - работаем без него */ } }
+  };
+  var hdr = $('#hdr');
+  var pages = $$('.page');
+  /* списки узлов считаются один раз: запросы по всему документу дороги на больших прототипах */
+  var notFound = $('.page[data-route="404"]');
+  var modals = $$('.modal');
+  var sides = $$('.cat-side');
+  var cartEls = $$('[data-cart-count]');
+  function anyOn(list, cls) { for (var i = 0; i < list.length; i++) if (list[i].classList.contains(cls)) return list[i]; return null; }
+  var current = null;
+  var desk = window.matchMedia ? window.matchMedia('(min-width: 900px)') : { matches: true };
+
+  /* ---------- уведомление ---------- */
+  var toastEl = $('#toast'), toastT;
+  function toast(msg) {
+    if (!toastEl || !msg) return;
+    toastEl.textContent = msg;
+    toastEl.classList.add('on');
+    clearTimeout(toastT);
+    toastT = setTimeout(function () { toastEl.classList.remove('on'); }, 2800);
+  }
+
+  /* ---------- маршруты по hash; если окружение не дает менять hash - маршрут держим в памяти ---------- */
+  var memHash = '';
+  function curHash() { return memHash || location.hash; }
+  function go(h) {
+    if (h === curHash()) { show(); return; }
+    var before = location.hash;
+    try { location.hash = h; } catch (e) { /* hash недоступен */ }
+    if (location.hash !== before) { memHash = ''; return; }
+    memHash = h;
+    show();
+  }
+  function parseHash() {
+    var h = String(curHash() || '').replace(/^#/, '');
+    var qi = h.indexOf('?');
+    var path = qi >= 0 ? h.slice(0, qi) : h;
+    var q = {};
+    if (qi >= 0) h.slice(qi + 1).split('&').forEach(function (kv) {
+      if (!kv) return;
+      var i = kv.indexOf('=');
+      var k = i >= 0 ? kv.slice(0, i) : kv, v = i >= 0 ? kv.slice(i + 1) : '';
+      try { q[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e) { q[k] = v; }
+    });
+    try { path = decodeURIComponent(path); } catch (e) { /* оставляем как есть */ }
+    if (!path || path.charAt(0) !== '/') path = '/' + path;
+    path = path.replace(/\/+$/, '') || '/';
+    return { path: path, q: q };
+  }
+  function show() {
+    var r = parseHash();
+    var page = null;
+    for (var i = 0; i < pages.length; i++) if (pages[i].getAttribute('data-route') === r.path) { page = pages[i]; break; }
+    if (!page) page = notFound;
+    if (!page) return;
+    pages.forEach(function (p) { p.hidden = p !== page; });
+    current = page;
+    doc.body.setAttribute('data-rt', page.getAttribute('data-type') || '');
+    var title = page.getAttribute('data-title') || '';
+    doc.title = page.getAttribute('data-route') === '/' ? (D.homeTitle || D.brand || title) : title + (D.brand ? ' | ' + D.brand : '');
+    setActive(page.getAttribute('data-nav') || r.path);
+    closeMega(); closeMnav(); closeModal();
+    try { window.scrollTo(0, 0); } catch (e) { /* нет прокрутки */ }
+    syncMbar(page);
+    badge();
+    initPage(page, r.q);
+    if (debugOn) debugTitles(page);
+  }
+  window.addEventListener('hashchange', function () { memHash = ''; show(); });
+
+  /* ---------- меню первого уровня и мега-панели ---------- */
+  var navItems = $$('.nav-item');
+  var dim = $('[data-mega-dim]');
+  var megaTimer;
+  function setActive(path) {
+    var best = null, len = -1;
+    navItems.forEach(function (n) {
+      n.classList.remove('active');
+      var m = n.getAttribute('data-match');
+      if (!m) return;
+      if ((path === m || path.indexOf(m + '/') === 0) && m.length > len) { best = n; len = m.length; }
+    });
+    if (best) best.classList.add('active');
+  }
+  function closeMega() { navItems.forEach(function (n) { n.classList.remove('open'); }); if (dim) dim.classList.remove('on'); }
+  /* высота панели по факту: от низа строки меню до низа окна (панель прокручивается внутри залипшей шапки) */
+  function fitMega(n) {
+    var m = $('.mega', n), nav = n.closest ? n.closest('.nav') : null;
+    if (!m) return;
+    var top = 0;
+    try { top = nav ? nav.getBoundingClientRect().bottom : 0; } catch (e) { top = 0; }
+    var h = (window.innerHeight || 0) - Math.max(0, top || 0);
+    if (h > 160) m.style.maxHeight = h + 'px';
+  }
+  function openMega(n) {
+    navItems.forEach(function (x) { if (x !== n) x.classList.remove('open'); });
+    fitMega(n);
+    n.classList.add('open');
+    if (dim) dim.classList.add('on');
+  }
+  navItems.forEach(function (n) {
+    var hasMega = n.classList.contains('has-mega');
+    n.addEventListener('mouseenter', function () {
+      if (!desk.matches) return;
+      clearTimeout(megaTimer);
+      megaTimer = setTimeout(function () { if (hasMega) openMega(n); else closeMega(); }, hasMega ? 90 : 60);
+    });
+    n.addEventListener('mouseleave', function () {
+      if (!desk.matches) return;
+      clearTimeout(megaTimer);
+      megaTimer = setTimeout(closeMega, 180);
+    });
+    if (hasMega) n.addEventListener('focusin', function () { if (desk.matches) openMega(n); });
+  });
+  /* компактная шапка с гистерезисом: разрыв порогов больше перепада высоты шапки - без дребезга */
+  function syncCompact() {
+    if (!hdr) return;
+    var y = window.scrollY || window.pageYOffset || 0, c = hdr.classList.contains('compact');
+    if (!c && y > 96) hdr.classList.add('compact');
+    else if (c && y < 24) hdr.classList.remove('compact');
+  }
+  window.addEventListener('scroll', syncCompact, { passive: true });
+  syncCompact();
+
+  /* ---------- мобильное меню и блокировка прокрутки ---------- */
+  var mnav = $('#mnav');
+  function lock() {
+    if (doc.body.classList.contains('lock')) return;
+    var sbw = window.innerWidth - doc.documentElement.clientWidth;
+    if (sbw > 0) doc.body.style.paddingRight = sbw + 'px';
+    doc.body.classList.add('lock');
+  }
+  function unlock() {
+    if (anyOn(modals, 'on') || (mnav && mnav.classList.contains('open')) || anyOn(sides, 'open')) return;
+    doc.body.classList.remove('lock');
+    doc.body.style.paddingRight = '';
+  }
+  function openMnav() { if (!mnav) return; mnav.classList.add('open'); mnav.setAttribute('aria-hidden', 'false'); lock(); }
+  function closeMnav() {
+    if (!mnav || !mnav.classList.contains('open')) return;
+    if (mnav.contains(doc.activeElement) && doc.activeElement.blur) doc.activeElement.blur();
+    mnav.classList.remove('open'); mnav.setAttribute('aria-hidden', 'true'); unlock();
+  }
+
+  /* ---------- нижняя панель на телефоне: CTA текущей страницы ---------- */
+  var mbarBtn = $('[data-mbar-cta]');
+  function syncMbar(page) {
+    if (!mbarBtn) return;
+    var c = null;
+    try { c = JSON.parse(page.getAttribute('data-cta') || 'null'); } catch (e) { c = null; }
+    if (!c || !c.label) c = D.homeCta || null;
+    if (!c || !c.label) { mbarBtn.hidden = true; return; }
+    mbarBtn.hidden = false;
+    ['href', 'role', 'data-act', 'data-target', 'data-title', 'target', 'rel'].forEach(function (a) { mbarBtn.removeAttribute(a); });
+    var at = c.attrs || {};
+    Object.keys(at).forEach(function (a) { mbarBtn.setAttribute(a, at[a]); });
+    /* кнопка без своего адреса - фокусируемая ссылка-кнопка (переход по # гасит обработчик клика) */
+    if (!at.href) { mbarBtn.setAttribute('href', '#'); mbarBtn.setAttribute('role', 'button'); }
+    mbarBtn.textContent = c.label;
+  }
+  function badge() {
+    var C = D.cart || {};
+    if (!C.key) return;
+    var st = store.get(C.key), n = 0;
+    if (st && st.items) Object.keys(st.items).forEach(function (k) { if (D.items && D.items[k]) n += +st.items[k] || 0; });
+    else if (C.demo) n = 1;
+    cartEls.forEach(function (el) { el.textContent = n; el.hidden = n <= 0; });
+  }
+
+  /* ---------- окна: заявка (поля - из блока-формы текущей страницы), мессенджеры ---------- */
+  var leadFields = $('#modal-lead [data-fields]');
+  var leadDefault = leadFields ? leadFields.innerHTML : '';
+  function fillLead() {
+    if (!leadFields) return;
+    var src = current ? $$('section[data-behavior~="form"]', current)[0] : null;
+    var fields = src ? $$('.field', src) : [];
+    if (!fields.length) { leadFields.innerHTML = leadDefault; return; }
+    leadFields.innerHTML = '';
+    fields.forEach(function (f) {
+      var c = f.cloneNode(true);
+      c.classList.remove('err');
+      c.removeAttribute('data-f');
+      $$('.field-err', c).forEach(function (x) { x.parentNode.removeChild(x); });
+      $$('input, textarea', c).forEach(function (i) { if (i.type !== 'file') i.value = ''; });
+      leadFields.appendChild(c);
+    });
+  }
+  function openModal(kind, src) {
+    var m = $(kind === 'msg' ? '#modal-msg' : '#modal-lead');
+    if (!m) return;
+    if (kind !== 'msg') {
+      var h = $('.modal-h', m);
+      var title = src && src.getAttribute('data-title');
+      if (h) h.textContent = title || t('lead_default');
+      var ref = $('[data-ref]', m), rv = src && src.getAttribute('data-ref');
+      if (ref) { ref.hidden = !rv; ref.textContent = rv ? t('lead_ref') + ' ' + rv : ''; }
+      fillLead();
+    }
+    closeMega(); closeMnav();
+    modals.forEach(function (x) { if (x !== m && x.classList.contains('on')) { x.classList.remove('on'); x.setAttribute('aria-hidden', 'true'); } });
+    m.classList.add('on'); m.setAttribute('aria-hidden', 'false');
+    lock();
+  }
+  function closeModal() {
+    modals.forEach(function (m) {
+      if (!m.classList.contains('on')) return;
+      if (m.contains(doc.activeElement) && doc.activeElement.blur) doc.activeElement.blur();
+      m.classList.remove('on'); m.setAttribute('aria-hidden', 'true');
+    });
+    unlock();
+  }
+
+  /* ---------- формы: обязательные - видимые tel и email и первое видимое текстовое поле ---------- */
+  function validate(scope) {
+    var inputs = $$('input, textarea', scope).filter(function (i) {
+      return ['hidden', 'checkbox', 'radio', 'range', 'file', 'search'].indexOf(i.type) < 0 && !i.closest('[hidden]');
+    });
+    var req = inputs.filter(function (i) { return i.type === 'tel' || i.type === 'email'; });
+    var firstText = inputs.filter(function (i) { return i.type === 'text'; })[0];
+    if (firstText) req.push(firstText);
+    var ok = true;
+    req.forEach(function (i) {
+      var f = i.closest('.field');
+      var bad = !String(i.value || '').trim();
+      if (f) {
+        f.classList.toggle('err', bad);
+        var lab = $('.field-l', f), er = $('.field-err', f);
+        if (bad && lab && !er) { er = doc.createElement('span'); er.className = 'field-err'; er.textContent = t('required'); lab.appendChild(er); }
+        if (!bad && er) er.parentNode.removeChild(er);
+      }
+      if (bad && ok) { ok = false; try { i.focus(); } catch (e) { /* фокус недоступен */ } }
+    });
+    return ok;
+  }
+  function done(scope) {
+    $$('input, textarea', scope).forEach(function (i) { if (['checkbox', 'radio', 'file'].indexOf(i.type) < 0) i.value = ''; });
+    $$('[data-file-name]', scope).forEach(function (s) { s.textContent = t('file_attach'); });
+    closeModal();
+    toast(t('toast_submit'));
+  }
+  doc.addEventListener('input', function (e) {
+    var f = e.target && e.target.closest ? e.target.closest('.field.err') : null;
+    if (f && String(e.target.value || '').trim()) { f.classList.remove('err'); var er = $('.field-err', f); if (er) er.parentNode.removeChild(er); }
+  });
+  doc.addEventListener('submit', function (e) {
+    var f = e.target;
+    e.preventDefault();
+    if (f && f.hasAttribute && f.hasAttribute('data-search')) {
+      var v = String(($('input', f) || {}).value || '').trim();
+      if (hdr) hdr.classList.remove('search-open');
+      if (D.searchRoute) go('#' + D.searchRoute + (v ? '?q=' + encodeURIComponent(v) : ''));
+    }
+  });
+
+  function scrollToAnchor(name) {
+    var el = current && $('[data-anchor="' + name + '"]', current);
+    if (!el) return;
+    var y = el.getBoundingClientRect().top + (window.pageYOffset || 0) - (hdr ? hdr.offsetHeight : 0) - 8;
+    try { window.scrollTo({ top: y, behavior: 'smooth' }); } catch (e) { /* нет прокрутки */ }
+  }
+
+  /* ---------- поведения блоков (реестр site-parts.mjs) ---------- */
+  var S = {
+    $: $, $$: $$, t: t, esc: escHtml, fmt: fmtN, icon: icon, toast: toast, go: go, store: store, data: D,
+    lock: lock, unlock: unlock, badge: badge, openModal: openModal,
+    desk: function () { return !!desk.matches; },
+    current: function () { return current; }
+  };
+  var B = {{behaviors}};
+  function initPage(page, q) {
+    $$('[data-behavior]', page).forEach(function (el) {
+      (el.getAttribute('data-behavior') || '').split(/\s+/).forEach(function (name) {
+        var fn = B[name];
+        if (!fn) return;
+        var key = '_b_' + name;
+        if (!el[key]) { var r = null; try { r = fn(el, S); } catch (e) { report(e); } el[key] = r || {}; }
+        if (el[key].show) { try { el[key].show(q || {}); } catch (e) { report(e); } }
+      });
+    });
+    if (q && q.to) setTimeout(function () { scrollToAnchor(q.to); }, 60);
+  }
+
+  /* ---------- служебный слой: клавиша D (вне полей ввода, без модификаторов) или ?debug ---------- */
+  var debugOn = false;
+  function debugTitles(scope) {
+    var F = D.facts || {};
+    $$('[data-f]', scope || doc).forEach(function (el) {
+      if (el.hasAttribute('title') && el.getAttribute('data-ft')) return;
+      var ids = (el.getAttribute('data-f') || '').split(/\s+/).filter(Boolean);
+      el.setAttribute('title', ids.map(function (id) { return id + ': ' + (F[id] || ''); }).join('\n'));
+      el.setAttribute('data-ft', '1');
+    });
+  }
+  function setDebug(on) {
+    debugOn = !!on;
+    doc.body.classList.toggle('dbg', debugOn);
+    if (debugOn) debugTitles(current);
+  }
+  if (/[?&]debug\b/.test(location.search) || /[?&]debug\b/.test(location.hash)) setDebug(true);
+  /* Enter в поле формы (кроме textarea, файла, галочек и поиска) - отправка, как кнопка отправки этой формы: поля форм
+     писателя не лежат внутри form, и браузер сам их не отправляет */
+  function enterSubmit(e) {
+    var i = e.target;
+    if (!i || i.tagName !== 'INPUT' || i.closest('form') || i.closest('.cat-side')) return false;
+    if (['file', 'checkbox', 'radio', 'range', 'search', 'hidden', 'button', 'submit'].indexOf(i.type) >= 0) return false;
+    var sc = i.closest('[data-form-scope]') || i.closest('section') || i.parentNode;
+    var b = sc ? $('[data-act="submit"]', sc) : null;
+    if (!b) return false;
+    e.preventDefault();
+    b.click();
+    return true;
+  }
+  doc.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { closeModal(); closeMega(); closeMnav(); if (hdr) hdr.classList.remove('search-open'); return; }
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && enterSubmit(e)) return;
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.code !== 'KeyD' && e.key !== 'd' && e.key !== 'D') return;
+    var tg = e.target, tag = tg && tg.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (tg && tg.isContentEditable)) return;
+    setDebug(!debugOn);
+  });
+
+  /* ---------- клики ---------- */
+  doc.addEventListener('click', function (e) {
+    var tg = e.target;
+    var a = tg && tg.closest ? tg.closest('a, button, [data-act]') : null;
+    if (!a) return;
+    var act = a.getAttribute('data-act');
+    if (act) {
+      if (act === 'lead' || act === 'msg') { e.preventDefault(); openModal(act, a); return; }
+      if (act === 'submit') {
+        e.preventDefault();
+        var sc = a.closest('[data-form-scope]') || a.closest('section') || a.parentNode;
+        if (validate(sc)) done(sc);
+        return;
+      }
+      if (act === 'scroll') { e.preventDefault(); closeMnav(); scrollToAnchor(a.getAttribute('data-target')); return; }
+      if (act === 'toast') { e.preventDefault(); toast(a.getAttribute('data-toast') || ''); return; }
+      if (act === 'mnav-open') { openMnav(); return; }
+      if (act === 'mnav-close') { closeMnav(); return; }
+      if (act === 'macc') { a.parentNode.classList.toggle('open'); return; }
+      if (act === 'mega') { e.preventDefault(); var n = a.closest('.nav-item'); if (n.classList.contains('open')) closeMega(); else openMega(n); return; }
+      if (act === 'mega-close') { closeMega(); return; }
+      if (act === 'modal-close') { e.preventDefault(); closeModal(); return; }
+      if (act === 'search-toggle') { if (hdr) { hdr.classList.toggle('search-open'); var si = $('.search input', hdr); if (si && hdr.classList.contains('search-open')) si.focus(); } return; }
+      if (act === 'debug') { setDebug(!debugOn); return; }
+      return;
+    }
+    if (a.tagName === 'A') {
+      var href = a.getAttribute('href') || '';
+      if (!href || href === '#') { e.preventDefault(); return; }
+      if (href.charAt(0) === '#' && href.charAt(1) === '/') { e.preventDefault(); closeMnav(); go(href); }
+    }
+  });
+
+  /* точка входа для проверок (check-site-js): список маршрутов и открытие маршрута без события hashchange */
+  window.__PROTO = {
+    routes: function () { return pages.map(function (p) { return p.getAttribute('data-route'); }); },
+    open: function (h) { memHash = h; show(); },
+    current: function () { return current; }
+  };
+  show();
+})();
+</script>
+</body>
+</html>

@@ -3,8 +3,9 @@
 // Каждый воркфлоу исполняется как тело async-функции с подставными agent, parallel, pipeline, phase, log, workflow:
 // агенты не запускаются, agent() записывает label и model и возвращает заглушку по schema вызова. Заглушки подобраны
 // так, чтобы сработали все ветки с агентами: находки major (фиксеры и вторые круги), validator не pass (второй круг
-// раскладок), реквизитов нет (снимок сайта), страница в находке кросса (фиксер кросса). Вложенный wf-05b идет через
-// подставной workflow() из того же kit. Проверки:
+// раскладок), реквизитов нет (снимок сайта и --company-facts), страница в находке кросса (фиксер кросса), нет строки
+// FIX_DIFF (снимок перед каждым фиксером), режим обновления wf-04 с обогатителем карты (update + enrich). Вложенный wf-05b
+// идет через подставной workflow() из того же kit. Проверки:
 //   - синтаксис: каждый файл workflows/*.js компилируется и покрыт прогоном ниже;
 //   - таблица ROLES каждого воркфлоу совпадает с решением оркестратора (LIGHT/STRONG ниже) и с таблицей RUNBOOK;
 //   - label каждого вызова дает роль из таблицы этого воркфлоу, каждая роль таблицы вызвана хотя бы раз;
@@ -22,9 +23,9 @@ const WF = path.join(KIT, 'workflows');
 const RUNBOOK = path.join(KIT, 'docs', 'RUNBOOK.md');
 
 // ---------- решение оркестратора: умолчания ролей ----------
-const LIGHT = ['dump', 'snapshot', 'import', 'verify', 'inventory', 'catalog-analyst', 'layout', 'tz-publish', 'prep-args', 'briefs', 'build', 'run'];
-const STRONG = ['facts-extract', 'facts-check', 'facts-fix', 'structure-fallback', 'sitemap-enrich', 'extract', 'aggregate', 'type-audit', 'type-fix',
-  'strategist-global', 'strategist-type', 'writer', 'hero-writer', 'hero-select', 'hero-judge', 'judge', 'fixer', 'cross-judge', 'blind',
+const LIGHT = ['dump', 'snapshot', 'import', 'verify', 'inventory', 'catalog-analyst', 'layout', 'tz-publish', 'sample-items', 'prep-args', 'briefs', 'build', 'run'];
+const STRONG = ['facts-extract', 'facts-check', 'facts-fix', 'structure-fallback', 'sitemap-enrich', 'decisions', 'extract', 'aggregate', 'type-audit', 'type-fix',
+  'strategist-global', 'strategist-type', 'strategy-review', 'writer', 'hero-writer', 'hero-select', 'hero-judge', 'judge', 'fixer', 'cross-judge', 'blind',
   'catalog-spec', 'tz-write', 'tz-audit', 'distill', 'distill-check', 'retro'];
 const TIER = Object.fromEntries([...LIGHT.map(r => [r, 'light']), ...STRONG.map(r => [r, 'strong'])]);
 // роли, умолчание которых меняется одной строкой таблицы: воркфлоу -> роль
@@ -34,17 +35,20 @@ const ONE_LINE = { 'wf-02-competitors': 'extract', 'wf-05-write': 'writer' };
 const LABELS = {
   'wf-00-facts': [[/^dump$/, 'dump'], [/^facts-extract$/, 'facts-extract'], [/^facts-check-[12]$/, 'facts-check'], [/^facts-fix$/, 'facts-fix'],
     [/^site-snapshot$/, 'snapshot'], [/^structure-fallback$/, 'structure-fallback'], [/^sitemap-enrich$/, 'sitemap-enrich'],
-    [/^project-import$/, 'import'], [/^import-structure$/, 'run']],
+    [/^decisions$/, 'decisions'], [/^project-import$/, 'import'], [/^(import-structure|company-facts)$/, 'run']],
   'wf-02-competitors': [[/^prep-args$/, 'prep-args'], [/^verify$/, 'verify'], [/^inventory:/, 'inventory'], [/^extract:/, 'extract'],
     [/^aggregate:/, 'aggregate'], [/^catalog-analyst$/, 'catalog-analyst']],
   'wf-03-audit-types': [[/^prep-args$/, 'prep-args'], [/^audit:.+:[12]$/, 'type-audit'], [/^fix:/, 'type-fix']],
   'wf-04-strategy-layouts': [[/^prep-args$/, 'prep-args'], [/^strategist-global$/, 'strategist-global'], [/^strategist:/, 'strategist-type'],
-    [/^merge\+build-briefs$/, 'briefs'], [/^layout:/, 'layout']],
+    [/^strategy-review$/, 'strategy-review'], [/^merge\+build-briefs(:review)?$/, 'briefs'], [/^layout:/, 'layout'],
+    [/^sitemap-enrich$/, 'sitemap-enrich'], [/^(update-check|enrich-check:(before|after))$/, 'run']],
   'wf-05-write': [[/^hero:/, 'hero-writer'], [/^select:/, 'hero-select'], [/^block:/, 'writer']],
   'wf-05b-hero-tournament': [[/^hero-writer:/, 'hero-writer'], [/^judge:(checklist|blind):/, 'hero-judge'], [/^select:/, 'hero-select']],
-  'wf-06-audit': [[/^judge:/, 'judge'], [/^fix:/, 'fixer'], [/^cross-judge$/, 'cross-judge'], [/^blind:/, 'blind'], [/^render-md$/, 'run']],
-  'wf-06b-fix-repeats': [[/^fix:/, 'fixer'], [/^judge:/, 'judge'], [/^build$/, 'build']],
-  'wf-07-catalog': [[/^catalog-spec$/, 'catalog-spec'], [/^tz-write(-2)?$/, 'tz-write'], [/^tz-audit-[12]$/, 'tz-audit'], [/^tz-publish$/, 'tz-publish']],
+  'wf-06-audit': [[/^judge:/, 'judge'], [/^fix:/, 'fixer'], [/^cross-judge$/, 'cross-judge'], [/^blind:/, 'blind'],
+    [/^(render-md|cross-pre)$/, 'run'], [/^(snap|diff):/, 'run']],
+  'wf-06b-fix-repeats': [[/^fix:/, 'fixer'], [/^judge:/, 'judge'], [/^build$/, 'build'], [/^(snap|diff):/, 'run']],
+  'wf-07-catalog': [[/^catalog-spec$/, 'catalog-spec'], [/^tz-write(-2)?$/, 'tz-write'], [/^tz-audit-[12]$/, 'tz-audit'], [/^tz-publish$/, 'tz-publish'], [/^sample-items$/, 'sample-items'],
+    [/^check:(spec|tz|tz-2)$/, 'run']],
   'wf-T1-distill-rules': [[/^distill(-fix)?$/, 'distill'], [/^check-[12]$/, 'distill-check'], [/^normalize$/, 'run']],
   'wf-T2-retro': [[/^retro$/, 'retro']],
 };
@@ -56,7 +60,8 @@ const RUNS = {
   'wf-00-facts': [{ source: 'doc', structureMode: 'import' }, { source: 'project', structureMode: 'fallback' }],
   'wf-02-competitors': [{ types: ['home', 'category'], catalog: true }],
   'wf-03-audit-types': [{ types: ['home', 'category'] }],
-  'wf-04-strategy-layouts': [{ types: ['home', 'category'] }],
+  // второй прогон - режим обновления после ответов заказчика (K4): чтение facts_diff, сверка карты и обогатитель mode=facts
+  'wf-04-strategy-layouts': [{ types: ['home', 'category'] }, { types: ['home', 'category'], update: true, enrich: true }],
   'wf-05-write': [{ concurrency: 2, pages: [
     { slug: 'home', type: 'home', hero_mode: 'tournament', hero_block_id: 'B01-hero', pending_blocks: ['B01-hero', 'B02-benefits'] },
     { slug: 'okna', type: 'category', hero_mode: 'single', hero_block_id: 'B01-hero', pending_blocks: ['B01-hero', 'B02-listing'] }] }],

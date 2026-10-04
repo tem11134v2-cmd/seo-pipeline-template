@@ -5,6 +5,7 @@
   "properties": {
     "verified_at": { "type": "string" },
     "method": { "type": "string" },
+    "degraded": { "type": "string", "enum": ["no_competitors"], "description": "Все кандидаты ответили, но недоступны (HTTP-код, страница проверки, пустая страница в браузере): типы собираются по анализу без конкурентов, отчет задает заказчику вопрос о 2-3 сайтах-ориентирах. Сбой среды (сеть, инструмент выдачи или браузера) - не деградация: поле не ставится." },
     "competitors": {
       "type": "array",
       "items": {
@@ -27,7 +28,9 @@
                 "raw": { "type": "string" },
                 "status": { "type": "string", "enum": ["ok", "js_only", "antibot", "closed", "browser"] },
                 "chars": { "type": "number" },
-                "headings": { "type": "number" }
+                "headings": { "type": "number" },
+                "flat": { "type": "boolean" },
+                "verbatim": { "type": "boolean" }
               }
             }
           }

@@ -1,0 +1,33 @@
+{
+  "block_id": "B04-cta",
+  "type": "cta",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Узнайте стоимость вашего ремонта"
+    },
+    {
+      "kind": "field",
+      "label": "Имя"
+    },
+    {
+      "kind": "field",
+      "label": "Телефон",
+      "layout": "tel"
+    },
+    {
+      "kind": "field",
+      "label": "Почта",
+      "layout": "email"
+    },
+    {
+      "kind": "button",
+      "text": "Рассчитать стоимость"
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок cta",
+  "handoff_note": ""
+}

@@ -5,13 +5,17 @@
 //   «Конкуренты», «Чем отличаемся», «Чего нет у конкурентов / дыры рынка», «Обязательные блоки у рынка»,
 //   «Вопросы читателя», «Чего не обещаем», «Позиции и карточки», «Обещания рынка», «Цифры рынка», «Факты».
 // Строка факта «- F01 [src] label: value» и строка «основание: ...» содержат source_quote из work/facts.json
-// дословно: проверка grep -F по этому файлу находит каждую цитату.
+// дословно: проверка grep -F по этому файлу находит каждую цитату. Разделы «Факты» и «Пробелы» перерисовывают
+// режимы импорта --apply-patterns, --company-facts и --facts-only (replaceSection ниже).
+// Строка d3 - «Текст главной кнопки: что получит клиент (d3)»; в рендерах до 27.09.2026 - «Главное действие на сайте (d3)».
 // Все строки уже нормализованы вызывающим скриптом (без буквы е с точками, тире только «-»).
+import { domainToUnicode } from 'node:url';
 
-// Мост словаря блоков анализа (pages.yml) к id блоков текстов (page-type): синонимы из гейта 0, п. 2.3.
+// Мост словаря блоков анализа (pages.yml) к id блоков текстов (page-type): синонимы из гейта 0, п. 2.3. Финальный
+// призыв - `cta-final` (программа 28.09; у старых типов страниц id `cta` - его читают как синоним).
 export const BLOCK_SYNONYMS = {
   edge: 'benefits', steps: 'process', price: 'pricing', qa: 'faq', docs: 'documents', compare: 'comparison',
-  geo: 'geo-list', about: 'about-short', cta_form: 'cta', cta_mid: 'cta', listing: 'listing', hero: 'hero',
+  geo: 'geo-list', about: 'about-short', cta_form: 'cta-final', cta_mid: 'cta-final', listing: 'listing', hero: 'hero',
   cases: 'cases', reviews: 'reviews', not_fit: 'not-fit', price_factors: 'price-factors', cat_intro: 'category-intro',
   cat_text: 'category-text', product_desc: 'product-description',
 };
@@ -19,6 +23,34 @@ export const blockId = id => BLOCK_SYNONYMS[id] || String(id).replace(/_/g, '-')
 
 const list = (arr, f = x => x) => (arr || []).map(x => `- ${f(x)}`).join('\n');
 const para = s => (s ? `${s}\n` : '');
+const clean = s => s.replace(/\n{3,}/g, '\n\n').replace(/[\u0451]/g, 'е').replace(/[\u0401]/g, 'Е').replace(/[\u2012-\u2015\u2212]/g, '-').replace(/\u00a0/g, ' ');
+
+// Источник факта для строки «- F01 [источник] ...»: из карты вызывающего, иначе из начала source_quote «[src] ...»,
+// иначе поле source (факты оператора F8xx: «оператор: <дата> <основание>»).
+const srcOf = (f, factSrc) => (factSrc || {})[f.id] || (String(f.source_quote || '').match(/^\[([^\]]+)\]/) || [])[1] || f.source || 'источник не указан';
+const FACTS_NOTE = 'Строка факта: «- F01 [источник] название: значение», ниже основание - цитата из входа анализа (или та же строка, если цитаты нет). Публикация: да - подтверждено на гейте, нет - не подтверждено или снято. F801-F899 - факты оператора, F901-F907 - контакты и реквизиты (их заводит импорт).';
+export function factsSection(facts, factSrc) {
+  const out = ['## Факты', '', FACTS_NOTE, ''];
+  for (const f of facts.facts || []) {
+    out.push(`- ${f.id} [${srcOf(f, factSrc)}] ${f.label}: ${f.value} | kind: ${f.kind}${f.geo ? `, гео: ${f.geo}` : ''} | публикация: ${f.publish === 'yes' ? 'да' : 'нет'}`);
+    out.push(`  - основание: ${f.source_quote}`);
+  }
+  return clean(out.join('\n') + '\n');
+}
+export function gapsSection(gaps) {
+  return clean(`## Пробелы\n\n${(gaps || []).length ? list(gaps) : 'Пробелов нет.'}\n`);
+}
+// Заменить раздел «## <заголовок>» (до следующего «## » или до конца файла) готовым текстом раздела.
+export function replaceSection(md, heading, section) {
+  const re = new RegExp(`## ${heading}\\n[\\s\\S]*?(?=\\n## |$)`);
+  return re.test(md) ? md.replace(re, () => section.replace(/\n+$/, '\n')) : md;
+}
+// Домен затравки хранится в ASCII (punycode), читателю - еще и в юникоде, рядом с именем из строки анализа.
+const domainLine = d => {
+  let uni = d.domain;
+  try { uni = domainToUnicode(d.domain) || d.domain; } catch { /* как есть */ }
+  return `${d.domain}${uni !== d.domain ? ` (${uni})` : ''}${d.name ? ` - ${d.name}` : ''}`;
+};
 
 export function renderAnalysis(ctx) {
   const { p, facts, audience, prefs, gate, projectRel, seed } = ctx;
@@ -45,8 +77,12 @@ export function renderAnalysis(ctx) {
     `Сайт: ${ctx.siteUrl || '-'}`,
   ]) + '\n');
   const lg = b.legal || {};
-  const legalRows = [['юрлицо', lg.entity], ['ИНН', lg.inn], ['ОГРН', lg.ogrn], ['адрес', lg.address], ['телефон', lg.phone], ['почта', lg.email], ['часы', lg.schedule]].filter(([, v]) => v);
-  L(`Реквизиты: ${legalRows.length ? legalRows.map(([k, v]) => `${k} - ${v}`).join('; ') : 'в контракте нет'}.\n`);
+  const LEGAL = [['entity', 'юрлицо'], ['inn', 'ИНН'], ['ogrn', 'ОГРН'], ['address', 'адрес'], ['phone', 'телефон'], ['email', 'почта'], ['schedule', 'часы']];
+  // absent_fields - поля, которые заказчик велел убрать ответом на d10 (phone_absent - старая отметка «без телефона»)
+  const absent = new Set([...(Array.isArray(lg.absent_fields) ? lg.absent_fields.map(x => String(x).toLowerCase()) : []), ...(lg.phone_absent === true ? ['phone'] : [])]);
+  const legalRows = LEGAL.filter(([k]) => lg[k] && !absent.has(k)).map(([k, n]) => [n, lg[k]]);
+  const offRows = LEGAL.filter(([k]) => absent.has(k)).map(([, n]) => n);
+  L(`Реквизиты: ${legalRows.length ? legalRows.map(([k, v]) => `${k} - ${v}`).join('; ') : 'в контракте нет'}.${offRows.length ? ` Не указываем на сайте по решению заказчика (d10): ${offRows.join(', ')}.` : ''}\n`);
 
   H(2, 'Направления и страницы');
   const dirs = b.directions || [];
@@ -65,15 +101,33 @@ export function renderAnalysis(ctx) {
     `Обещание, что получит клиент (d2): ${pr.result || '-'}`,
     `Как: ${pr.how || '-'}`,
     `Доказательство обещания: ${pr.proof_id ? (ctx.factIdMap[pr.proof_id] || pr.proof_id) : '-'}`,
-    `Главное действие на сайте (d3): ${pr.cta || '-'}`,
+    `Текст главной кнопки: что получит клиент (d3): ${pr.cta || '-'}`,
   ]) + '\n');
 
   H(2, 'Чем отличаемся');
+  // Опора причины - факты: reason.facts контракта (id, как у возражений) с отметкой публикации. Причина без
+  // опубликованного факта опоры - в «Без доказательства» (на страницу не идет). Старый контракт без поля facts - по
+  // строке proof (факт с тем же значением, если он есть).
   const reasons = o.reasons || [];
-  const withProof = reasons.filter(r => r.proof), noProof = reasons.filter(r => !r.proof);
+  const byId = Object.fromEntries((facts.facts || []).map(f => [f.id, f]));
+  const toId = x => (ctx.factIdMap || {})[x] || String(x).replace(/^f/, 'F');
   const factOf = proof => (facts.facts.find(f => f.value.toLowerCase() === String(proof).toLowerCase()) || {}).id;
-  L(withProof.length ? list(withProof, r => `${r.claim} - доказательство (${r.kind}): ${r.proof}${factOf(r.proof) ? ` (${factOf(r.proof)})` : ''}`) + '\n' : 'Причин с доказательством в контракте нет.\n');
-  if (noProof.length) { L('Без доказательства (на страницу не идут, пока нет подтверждения):'); L(list(noProof, r => `${r.claim} (${r.kind})`) + '\n'); }
+  const shown = [], held = [];
+  for (const r of reasons) {
+    if (Array.isArray(r.facts)) {
+      const ids = [...new Set(r.facts.map(toId))];
+      const pub = ids.filter(id => byId[id] && byId[id].publish === 'yes');
+      const off = ids.filter(id => !pub.includes(id));
+      if (pub.length) shown.push(`${r.claim} - доказательство (${r.kind}): ${r.proof || '-'} (опора: ${pub.join(', ')}, публикация: да${off.length ? `; ${off.join(', ')} не публикуются - эту часть не используем` : ''})`);
+      else held.push(`${r.claim} (${r.kind}) - ${ids.length ? `факты опоры не публикуются: ${ids.join(', ')}` : 'фактов опоры в контракте нет'}`);
+    } else if (r.proof) {
+      const id = factOf(r.proof);
+      if (id && byId[id].publish !== 'yes') held.push(`${r.claim} (${r.kind}) - факт опоры не публикуется: ${id}`);
+      else shown.push(`${r.claim} - доказательство (${r.kind}): ${r.proof}${id ? ` (${id}, публикация: да)` : ''}`);
+    } else held.push(`${r.claim} (${r.kind})`);
+  }
+  L(shown.length ? list(shown) + '\n' : 'Причин с доказательством в контракте нет.\n');
+  if (held.length) { L('Без доказательства (на страницу не идут, пока нет подтверждения):'); L(list(held) + '\n'); }
 
   H(2, 'Чего не обещаем');
   L(para('Границы работы и антиобещания. Регулярки для линтера - в work/facts.json -> anti_promises.'));
@@ -110,7 +164,7 @@ export function renderAnalysis(ctx) {
 
   H(2, 'Конкуренты');
   L(para('Стартовый список анализа (затравка work/competitors/seed.json).'));
-  L((seed.domains.length ? list(seed.domains, d => d.domain) : 'Список конкурентов в контракте пуст.') + '\n');
+  L((seed.domains.length ? list(seed.domains, domainLine) : 'Список конкурентов в контракте пуст.') + '\n');
   if (seed.rejected && seed.rejected.length) L(`Строки списка, которые не удалось привести к домену: ${seed.rejected.join('; ')}.\n`);
 
   H(2, 'Чего нет у конкурентов / дыры рынка');
@@ -133,13 +187,7 @@ export function renderAnalysis(ctx) {
   else L('Ассортимента (business.assortment) в контракте нет.\n');
   if (products.length) { L('Факты о позициях:'); L(list(products, f => `${f.id}: ${f.label} - ${f.value}`) + '\n'); }
 
-  H(2, 'Факты');
-  L(para('Строка факта: «- F01 [источник] название: значение», ниже основание - цитата из входа анализа (или та же строка, если цитаты нет). Публикация: да - подтверждено на гейте, нет - не подтверждено или снято.'));
-  for (const f of facts.facts) {
-    L(`- ${f.id} [${(ctx.factSrc || {})[f.id] || 'источник не указан'}] ${f.label}: ${f.value} | kind: ${f.kind}${f.geo ? `, гео: ${f.geo}` : ''} | публикация: ${f.publish === 'yes' ? 'да' : 'нет'}`);
-    L(`  - основание: ${f.source_quote}`);
-  }
-  L('');
+  L(factsSection(facts, ctx.factSrc));
 
   H(2, 'Терминология');
   const t = facts.terminology;
@@ -147,8 +195,7 @@ export function renderAnalysis(ctx) {
   L(`Жаргон и замена: ${t.jargon.map(x => `${x.internal} -> ${x.public}`).join('; ') || '-'}.`);
   L(`Не переводим: ${t.untranslatable.join('; ') || '-'}.\n`);
 
-  H(2, 'Пробелы');
-  L((facts.gaps.length ? list(facts.gaps) : 'Пробелов нет.') + '\n');
+  L(gapsSection(facts.gaps));
 
   H(2, 'Решения гейта');
   const rows = Object.entries(gate.decisions || {});
@@ -159,5 +206,5 @@ export function renderAnalysis(ctx) {
   } else L('Журнала гейта нет.\n');
   if ((prefs.items || []).length) { L('Пожелания заказчика для текстов (work/client-preferences.json):'); L(list(prefs.items, x => `[${x.status}${x.where ? ', ' + x.where : ''}] ${x.text}`) + '\n'); }
 
-  return out.join('\n').replace(/\n{3,}/g, '\n\n').replace(/[\u0451]/g, 'е').replace(/[\u0401]/g, 'Е').replace(/[\u2012-\u2015\u2212]/g, '-').replace(/\u00a0/g, ' ');
+  return clean(out.join('\n'));
 }

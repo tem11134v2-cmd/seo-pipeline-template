@@ -18,7 +18,11 @@
 //
 // Цитаты: у каждого факта запись {id, quote, where} в <каталог>/parts/facts-src.json, и quote
 // дословно (после нормализации е, тире, кавычек и пробелов) есть в <каталог>/input/** или в
-// листе ответов answers.txt. Факт, добавленный позже (ответ заказчика, снимок сайта), - тоже.
+// листах ответов всех кругов (answers.txt, answers-2.txt ...): второй круг не роняет цитаты
+// первого. Факт, добавленный позже (ответ заказчика, снимок сайта), - тоже.
+//
+// Предупреждения разведки: строка competitors.list без домена (импорт текстов не возьмет
+// лидера) и число в ответе на возражение, которого нет в фактах этого ответа.
 //
 // Exit: 0 чисто | 1 предупреждения | 2 нарушения (или файл не читается).
 
@@ -28,7 +32,8 @@ import { fileURLToPath } from "node:url";
 import {
   arr, str, isCheckable, hasNumber, walkBanned, walkTypo, budget, BUDGET_WARN, BUDGET_MAX,
   readPages, PAGES_CHARS_MAX, PAGE_TYPES, NEEDS_KINDS, BLOCK_FN, validate, THIN,
-  PAGES_DEFAULT, SERVICE_NOTE, NUM_UNIT, normQuote, inputCorpus, whereFile, checkStructure
+  PAGES_DEFAULT, SERVICE_NOTE, normQuote, inputCorpus, whereFile, checkStructure, hasDomain,
+  ANSWER_RESERVE, FACTS_SEED_MAX
 } from "./_contract.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -104,13 +109,19 @@ walkBanned(data, (p, k) => V(p, `поле-обоснование «${k}» зап
 walkTypo(data, (p, kinds) => V(p, `${kinds} в клиентской строке - только дефис и е`));
 
 // ---------------------------------------------------------------- бюджет знаков
-// Меряем компактный JSON: отступы форматирования к содержанию отношения не имеют.
+// Меряем компактный JSON: отступы форматирования к содержанию отношения не имеют. Ответам
+// заказчика (факты с src «ответ») - резерв ANSWER_RESERVE сверх потолка засева (решение Р3):
+// засев может занять весь бюджет, и ответу иначе некуда встать.
 {
   const { size, fat } = budget(data);
-  I(`бюджет: ${size} знаков (предупреждение ${BUDGET_WARN}, ошибка ${BUDGET_MAX}); самый толстый массив ${fat.path} - ${fat.size} знаков, элементов ${fat.n}`);
-  if (size >= BUDGET_MAX) V("", `бюджет файла ${size} знаков, потолок ${BUDGET_MAX} - режь массив ${fat.path} (${fat.size} знаков, элементов ${fat.n})`);
+  const answers = arr(data.facts).some((f) => f && f.src === "ответ");
+  const max = BUDGET_MAX + (!seedMode && answers ? ANSWER_RESERVE : 0);
+  I(`бюджет: ${size} знаков (предупреждение ${BUDGET_WARN}, ошибка ${max}${max !== BUDGET_MAX ? ` - с резервом ответов ${ANSWER_RESERVE}` : ""}); самый толстый массив ${fat.path} - ${fat.size} знаков, элементов ${fat.n}`);
+  if (size >= max) V("", `бюджет файла ${size} знаков, потолок ${max} - режь массив ${fat.path} (${fat.size} знаков, элементов ${fat.n})`);
   else if (size >= BUDGET_WARN) W("", `бюджет файла ${size} знаков, порог ${BUDGET_WARN} - самый толстый массив ${fat.path} (${fat.size} знаков, элементов ${fat.n})`);
 }
+// Засев - до 40 фактов; до 50 дорастают только ответы заказчика.
+if (seedMode && arr(data.facts).length > FACTS_SEED_MAX) V("facts", `при засеве фактов ${arr(data.facts).length}, потолок ${FACTS_SEED_MAX} - резерв до 50 принадлежит ответам заказчика`);
 
 // ---------------------------------------------------------------- ссылки на pages.yml
 const facts = arr(data.facts);
@@ -177,12 +188,38 @@ const gaps = arr(data.gaps);
   segs.forEach((s, i) => arr(s && s.objection).forEach((o, j) => arr(o && o.facts).forEach((id, k) => {
     if (!factIds.has(id)) V(`audience.segments[${i}].objection[${j}].facts[${k}]`, `нет факта «${id}» - ответ опирается на то, чего в контракте нет`);
   })));
+  arr(data.offer && data.offer.reasons).forEach((r, i) => arr(r && r.facts).forEach((id, k) => {
+    if (!factIds.has(id)) V(`offer.reasons[${i}].facts[${k}]`, `нет факта «${id}» - причина опирается на то, чего в контракте нет`);
+  }));
   const gapIds = new Set();
   gaps.forEach((g, i) => {
     if (!g || !g.id) return;
     if (gapIds.has(g.id)) V(`gaps[${i}].id`, `id «${g.id}» повторяется`);
     gapIds.add(g.id);
   });
+}
+
+// ---------------------------------------------------------------- строки лидеров
+// Импорт текстов берет лидера в разбор по домену из строки «домен - имя (пометки)».
+// Строка без домена - лидер, которого тексты не увидят.
+arr(data.competitors && data.competitors.list).forEach((s, i) => {
+  if (!hasDomain(s)) W(`competitors.list[${i}]`, `в строке «${str(s).slice(0, 60)}» нет домена - импорт текстов не возьмет лидера в разбор; строка «домен - имя (пометки)»`);
+});
+
+// ---------------------------------------------------------------- подробности в ответах
+// Ответ на возражение уходит на страницу как есть. Число в нем - утверждение о компании:
+// его опора - факты из objection.facts (или граница из offer.limits), а не слова разведки.
+{
+  const nums = (s) => (String(s == null ? "" : s).match(/\d{1,3}(?:[  ]\d{3})+|\d+(?:[.,]\d+)?/g) || [])
+    .map((n) => n.replace(/[  ]/g, "").replace(",", "."));
+  const valueOf = new Map(facts.map((f) => [str(f && f.id), str(f && f.value)]));
+  const limits = new Set(nums(arr(data.offer && data.offer.limits).join(" ")));
+  arr(data.audience && data.audience.segments).forEach((s, i) => arr(s && s.objection).forEach((o, j) => {
+    const ids = arr(o && o.facts).filter((id) => valueOf.has(str(id)));
+    const own = new Set([...limits, ...ids.flatMap((id) => nums(valueOf.get(str(id))))]);
+    const miss = [...new Set(nums(o && o.answer))].filter((n) => !own.has(n));
+    if (miss.length) W(`audience.segments[${i}].objection[${j}].answer`, `числа ${miss.join(", ")} нет в фактах ответа (${ids.length ? `facts: ${ids.join(", ")}` : "facts нет"}) - подробность без опоры уйдет на страницу; дай ссылку на факт с этим числом или убери число`);
+  }));
 }
 
 // ---------------------------------------------------------------- служебная пометка вместо факта
@@ -219,9 +256,10 @@ if (facts.length) {
       if (!q) { bad.push(`facts[${i}] ${id} «${str(f && f.label)}» (${str(f && f.src) || "src нет"}): нет цитаты в parts/facts-src.json`); return; }
       if (normQuote(q) && corpus.text.includes(normQuote(q))) {
         ok++;
-        // Число из значения, которого нет в цитате, - вывод агента, а не слова источника.
+        // Число из значения, которого нет в цитате, - вывод агента, а не слова источника. Любое
+        // число, не только с единицей: «25 ювелиров» при словах «11 человек» - тоже вывод.
         const v = str(f.value);
-        if (NUM_UNIT.test(v)) {
+        if (hasNumber(v)) {
           const nums = (v.match(/\d[\d\s.,]*\d|\d/g) || []).map((n) => n.replace(/[\s.,]/g, ""));
           const qn = normQuote(q).replace(/[\s.,]/g, "");
           const miss = nums.filter((n) => !qn.includes(n));

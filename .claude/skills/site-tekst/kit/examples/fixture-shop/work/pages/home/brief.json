@@ -1,0 +1,63 @@
+{
+  "slug": "home",
+  "url": "/",
+  "type": "home",
+  "subject": "Мебель из массива в Самаре",
+  "geo": "",
+  "block_set": "full",
+  "company": "Дом Дерева",
+  "positioning": "",
+  "main_promise": "",
+  "segment": {
+    "id": "S1",
+    "name": "Семья с новой квартирой",
+    "portrait": "Пара 30-40 лет",
+    "pains": [
+      "не понимают итоговую цену"
+    ],
+    "fears": [],
+    "objections": []
+  },
+  "unique_argument": "",
+  "hook": "",
+  "cta": {
+    "main": "Подобрать мебель",
+    "secondary": "Смотреть каталог",
+    "secondary_action": "page:katalog"
+  },
+  "facts": [],
+  "anti_promises": [],
+  "disclaimer_text": "",
+  "links": [],
+  "blocks": [
+    {
+      "block_id": "B01-hero",
+      "type": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "",
+      "pattern": "hero-split",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [
+        "F02",
+        "F01"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B02-cats",
+      "type": "cats",
+      "name": "Разделы",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "tiles",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    }
+  ]
+}

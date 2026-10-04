@@ -1,4 +1,4 @@
-// node scripts/normalize.mjs <file...>   - ё -> е, длинные тире -> «-», неразрывные пробелы -> пробел
+// node scripts/normalize.mjs <file...>   - е с точками -> е, длинные тире -> «-», неразрывные пробелы -> пробел
 // JSON нормализуется по всем строковым значениям, md/txt/html - по содержимому.
 import fs from 'node:fs';
 import { normalizeDeep, normalizeText, readJson, writeJson } from './lib.mjs';
@@ -16,8 +16,8 @@ for (const f of files) {
     total += stats.changed;
   } else {
     const src = fs.readFileSync(f, 'utf8');
-    const out = src.replace(/ё/g, 'е').replace(/Ё/g, 'Е').replace(/[—–]/g, '-').replace(/ /g, ' ');
-    const changed = (src.match(/[ёЁ—– ]/g) || []).length;
+    const out = src.replace(/\u0451/g, 'е').replace(/\u0401/g, 'Е').replace(/[\u2014\u2013]/g, '-').replace(/\u00a0/g, ' ');
+    const changed = (src.match(/[\u0451\u0401\u2014\u2013\u00a0]/g) || []).length;
     if (changed) fs.writeFileSync(f, out, 'utf8');
     console.log(`${f}: заменено символов ${changed}`);
     total += changed;

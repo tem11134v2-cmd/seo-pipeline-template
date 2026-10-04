@@ -1,0 +1,38 @@
+{
+  "block_id": "B03-price",
+  "type": "price",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Цены"
+    },
+    {
+      "kind": "table_row",
+      "items": [
+        "Косметический ремонт",
+        "от 9 500 руб. за кв. м"
+      ],
+      "facts": [
+        "F06"
+      ]
+    },
+    {
+      "kind": "table_row",
+      "items": [
+        "Срок для однокомнатной квартиры",
+        "от 45 дней"
+      ],
+      "facts": [
+        "F05"
+      ]
+    }
+  ],
+  "facts_used": [
+    "F06",
+    "F05"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок price",
+  "handoff_note": ""
+}

@@ -1,0 +1,38 @@
+{
+  "block_id": "B02-services",
+  "type": "services",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Что делаем"
+    },
+    {
+      "kind": "card",
+      "title": "Ремонт квартир",
+      "text": "Черновые и чистовые работы по одной смете",
+      "href": "/uslugi/remont-kvartir/",
+      "facts": [
+        "F03"
+      ]
+    },
+    {
+      "kind": "card",
+      "title": "Дизайн-проект",
+      "text": "Планировка и чертежи до начала ремонта",
+      "href": "/uslugi/dizajn-proekt/"
+    },
+    {
+      "kind": "card",
+      "title": "Электрика",
+      "text": "Разводка и щит по проекту",
+      "href": "/uslugi/elektrika/"
+    }
+  ],
+  "facts_used": [
+    "F03"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок services",
+  "handoff_note": ""
+}

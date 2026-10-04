@@ -28,14 +28,35 @@
         }
       }
     },
-    "filters": { "type": "array", "items": { "type": "object", "required": ["name", "type", "source"], "properties": { "name": { "type": "string" }, "type": { "type": "string", "enum": ["select", "multiselect", "range", "toggle", "search"] }, "values": { "type": "array", "items": { "type": "string" } }, "source": { "type": "string" } } } },
+    "filters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "source"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["select", "multiselect", "range", "toggle", "search"] },
+          "values": { "type": "array", "items": { "type": "string" } },
+          "values_source": { "type": "string", "enum": ["analysis", "fact", "competitor", "market_gap"], "description": "откуда значения: analysis - анализ и материалы заказчика (в том числе его сайт), fact - work/facts.json, competitor - каталоги лидеров, market_gap - предложение по дыре рынка. Смешанные источники - самый слабый (competitor, market_gap), чтобы пометка «пример» в прототипе не терялась" },
+          "categories": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9-]+$" }, "description": "K6: slug страниц-листингов карты (listing: true), где фильтр выводится; подкатегории наследуют фильтр родителя, хаб с listing - такая же страница. Нет поля или пусто - все выдачи. Одно имя фильтра можно повторить с другими categories" },
+          "values_by_category": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } }, "description": "K6: ключ - slug страницы-листинга, значение - значения фильтра на ней и ее подкатегориях; нет ключа - ближайшего родителя, затем values" },
+          "labels": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "K6: подписи чипов писателя (элементы filters блоков листинга) дословно, которые означают этот фильтр другими словами; имя фильтра не меняется" },
+          "field": { "type": "string", "enum": ["price"], "description": "K6: range по цене карточки (поле price примеров), имя фильтра может не совпадать с полем money; нет - прежнее правило: имя фильтра = имя поля money" },
+          "min": { "type": "number", "description": "range: нижняя граница; нет - сборщик берет границы по карточкам страницы (цена - у field: price)" },
+          "max": { "type": "number", "description": "range: верхняя граница" },
+          "step": { "type": "number", "description": "range: шаг" },
+          "source": { "type": "string" },
+          "note": { "type": "string" }
+        }
+      }
+    },
     "sorting": { "type": "array", "items": { "type": "string" } },
     "states": { "type": "array", "items": { "type": "object", "required": ["state", "behavior"], "properties": { "state": { "type": "string" }, "behavior": { "type": "string" } } } },
-    "card_cta": { "type": "object", "required": ["main"], "properties": { "main": { "type": "string" }, "secondary": { "type": "string" } } },
+    "card_cta": { "type": "object", "required": ["main"], "properties": { "main": { "type": "string", "description": "подпись кнопки карточки (строка; из объекта CTA стратегии берется .main): заказ позиции, кнопка открывает заявку с названием позиции (K7)" }, "secondary": { "type": "string", "description": "подпись ссылки карточки на страницу позиции" } } },
     "detail_page_blocks": { "type": "array", "items": { "type": "string" } },
     "similar_items": { "type": "string" },
     "roles": { "type": "array", "items": { "type": "object", "required": ["role", "does"], "properties": { "role": { "type": "string" }, "does": { "type": "string" } } } },
-    "data_gate": { "type": "object", "properties": { "file": { "type": "string" }, "required_columns": { "type": "array", "items": { "type": "string" } }, "status": { "type": "string" } } },
+    "data_gate": { "type": "object", "description": "справочно для ТЗ: файл данных позиций от заказчика; скрипты и примеры карточек его не читают", "properties": { "file": { "type": "string" }, "required_columns": { "type": "array", "items": { "type": "string" } }, "status": { "type": "string" } } },
     "sources": { "type": "array", "items": { "type": "object", "required": ["domain", "url"], "properties": { "domain": { "type": "string" }, "url": { "type": "string" }, "raw": { "type": "string" }, "observed": { "type": "string" } } } },
     "notes": { "type": "string" }
   }

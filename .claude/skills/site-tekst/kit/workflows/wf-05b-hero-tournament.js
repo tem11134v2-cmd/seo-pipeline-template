@@ -7,6 +7,8 @@ export const meta = {
 // last - селектор после page-state собирает page.md (render-md). По умолчанию true: отдельный перезапуск турнира на готовой странице
 // обновляет page.md; wf-05-write передает last=true, только если первый экран - последний блок прогона страницы.
 // Конструкции писателей (w1, w2, w3), режим оценки и финальный выбор описаны в prompts/05-hero-writer.md и prompts/05-hero-selector.md.
+// Вложенный воркфлоу: зовется из wf-05-write (верхний уровень) или отдельно; сам других воркфлоу не зовет. Слепой судья при
+// segment.id all читает сценарии segment.segments и ставит варианту наименьшую оценку среди них.
 const ROOT = (args && args.root) || ''
 if (!ROOT) throw new Error('args.root обязателен: абсолютный путь к папке проекта')
 // Модели по ролям (docs/RUNBOOK.md, «Модели по ролям»): light -> args.model_light, strong -> args.model;
@@ -27,7 +29,7 @@ if (!slug) throw new Error('args.slug обязателен')
 const bid = (args && args.block_id) || 'B01-hero'
 const last = !(args && args.last === false)
 const pre = p => `Папка проекта: ${ROOT}. Все относительные пути в промтах считаются от нее; команды запускай из нее (cd "${ROOT}" && ...). Сначала прочитай ${ROOT}/CLAUDE.md, затем ${ROOT}/${p}, и выполни роль строго по нему.`
-const HERO = { type: 'object', properties: { slug: { type: 'string' }, block_id: { type: 'string' }, variants: { type: 'number' }, lint: { type: 'object' }, facts_used: { type: 'array', items: { type: 'string' } }, notes: { type: 'string' } }, required: ['slug', 'block_id', 'variants'] }
+const HERO = { type: 'object', properties: { slug: { type: 'string' }, block_id: { type: 'string' }, variants: { type: 'number' }, attempts: { type: 'number' }, lint: { type: 'object' }, facts_used: { type: 'array', items: { type: 'string' } }, notes: { type: 'string' } }, required: ['slug', 'block_id', 'variants'] }
 const SCORES = { type: 'object', properties: { scores: { type: 'object' }, top3: { type: 'array', items: { type: 'string' } }, notes: { type: 'string' } }, required: ['scores', 'top3', 'notes'] }
 const SELECT = { type: 'object', properties: { slug: { type: 'string' }, block_id: { type: 'string' }, chosen: { type: 'string' }, scores: { type: 'object' }, lint: { type: 'string' }, reason: { type: 'string' }, top3: { type: 'array', items: { type: 'object', properties: { variant: { type: 'string' }, h1: { type: 'string' }, sub: { type: 'string' }, score: { type: 'number' } }, required: ['variant', 'h1'] } } }, required: ['slug', 'block_id', 'chosen', 'lint'] }
 
@@ -46,9 +48,9 @@ phase('Judge')
 const [j1, j2] = await parallel([
   () => agent(`${pre('prompts/05-hero-selector.md')}
 Параметры: slug=${slug}; block_id=${bid}; mode=score; variants=${files}.`, { label: `judge:checklist:${slug}`, phase: 'Judge', effort: 'high', model: modelFor('hero-judge'), schema: SCORES }),
-  () => agent(`Папка проекта: ${ROOT}. Ты - слепой читатель. Прочитай в work/pages/${slug}/brief/${bid}.json только поле segment (portrait, comes_with, pains, fears) и стань этим человеком. Затем открой файлы вариантов ${files.split(',').join(', ')} (формат {"variants":[...]}) и для каждого варианта прочитай только h1, sub и текст кнопки. Правила копирайтинга не читай.
+  () => agent(`Папка проекта: ${ROOT}. Ты - слепой читатель. Прочитай в work/pages/${slug}/brief/${bid}.json только поле segment (portrait, comes_with, pains, fears; у segment.id all - и segments: сценарии разных людей) и стань этим человеком (при segments - по очереди каждым из них). Затем открой файлы вариантов ${files.split(',').join(', ')} (формат {"variants":[...]}) и для каждого варианта прочитай только h1, sub и текст кнопки. Правила копирайтинга не читай.
 Для каждого варианта ответь как этот человек: что мне обещают (одной фразой своими словами), верю ли я этому (да/нет и почему), хочу ли я это получить (0-5), нажал бы кнопку (да/нет). Отдельно: какой заголовок ты бы пересказал знакомому, а какой забыл бы через минуту.
-Верни scores: {"<variant>": хочу-получить 0-5 плюс 1 если нажал бы кнопку}, top3 - три лучших variant с фразой «что обещают» своими словами, notes - чего не хватает всем.`, { label: `judge:blind:${slug}`, phase: 'Judge', effort: 'high', model: modelFor('hero-judge'), schema: SCORES }),
+Верни scores: {"<variant>": хочу-получить 0-5 плюс 1 если нажал бы кнопку; при segments - наименьшая оценка среди сценариев}, top3 - три лучших variant с фразой «что обещают» своими словами, notes - чего не хватает всем (при segments - какой сценарий проигрывает).`, { label: `judge:blind:${slug}`, phase: 'Judge', effort: 'high', model: modelFor('hero-judge'), schema: SCORES }),
 ])
 
 phase('Select')

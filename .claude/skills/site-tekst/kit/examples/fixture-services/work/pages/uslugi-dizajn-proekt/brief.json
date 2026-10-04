@@ -1,0 +1,73 @@
+{
+  "slug": "uslugi-dizajn-proekt",
+  "url": "/uslugi/dizajn-proekt/",
+  "type": "service",
+  "subject": "Дизайн-проект квартиры",
+  "geo": "",
+  "block_set": "full",
+  "company": "Кварта Ремонт",
+  "positioning": "",
+  "main_promise": "",
+  "segment": {
+    "id": "S1",
+    "name": "Семья с новой квартирой",
+    "portrait": "Пара 30-40 лет",
+    "pains": [
+      "не понимают итоговую цену"
+    ],
+    "fears": [],
+    "objections": []
+  },
+  "unique_argument": "",
+  "hook": "",
+  "cta": {
+    "main": "Рассчитать стоимость",
+    "secondary": "Написать в мессенджер",
+    "secondary_action": "messenger"
+  },
+  "facts": [],
+  "anti_promises": [],
+  "disclaimer_text": "",
+  "links": [],
+  "blocks": [
+    {
+      "block_id": "B01-hero",
+      "type": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "",
+      "pattern": "hero-split",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B02-gallery",
+      "type": "gallery",
+      "name": "Примеры",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "gallery",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B03-cta",
+      "type": "cta",
+      "name": "Призыв",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "cta-band",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    }
+  ]
+}

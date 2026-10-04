@@ -1,0 +1,32 @@
+{
+  "block_id": "B02-checkout",
+  "type": "checkout",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Оформление заказа"
+    },
+    {
+      "kind": "field",
+      "label": "Имя"
+    },
+    {
+      "kind": "field",
+      "label": "Телефон",
+      "layout": "tel"
+    },
+    {
+      "kind": "field",
+      "label": "Адрес доставки"
+    },
+    {
+      "kind": "button",
+      "text": "Оформить заказ"
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок checkout",
+  "handoff_note": ""
+}

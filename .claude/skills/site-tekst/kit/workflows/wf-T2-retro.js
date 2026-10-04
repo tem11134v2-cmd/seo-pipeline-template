@@ -30,6 +30,8 @@ const stats = (args && args.skipStats)
   ? 'Файл work/audit/retro-stats.json уже посчитан - скрипт не запускай.'
   : `Первым шагом выполни cd "${ROOT}" && node scripts/retro-stats.mjs. Код выхода не 0 - остановись и верни ok=false, в top3 - последние строки вывода.`
 const tpl = TEMPLATE ? `\nПараметры: template=${TEMPLATE}.` : ''
-const retro = await agent(`${pre('prompts/T2-retro.md')}${tpl}\n${stats}`, { label: 'retro', phase: 'Retro', effort: 'high', model: modelFor('retro'), schema: RETRO })
+// прогон без гейтов: decisions.md формата v2 пишут агенты (составитель решений, стратеги) - это не решения человека
+const dec = 'rules/decisions.md с маркером <!-- decisions:v2 --> заполняют агенты (01-decisions-drafter, стратеги - §8): это решения агента, а не человека на гейтах (человек правит файл только при паузе --stop map).'
+const retro = await agent(`${pre('prompts/T2-retro.md')}${tpl}\n${stats}\n${dec}`, { label: 'retro', phase: 'Retro', effort: 'high', model: modelFor('retro'), schema: RETRO })
 log(`ретро: ${retro ? `предложений ${retro.proposals}; ${retro.top3}` : 'нет ответа'}`)
 return { ok: !!(retro && retro.ok), retro }

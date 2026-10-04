@@ -1,0 +1,108 @@
+{
+  "slug": "home",
+  "url": "/",
+  "type": "home",
+  "subject": "Укладка плитки во дворе",
+  "geo": "",
+  "block_set": "full",
+  "company": "Чистый Двор",
+  "positioning": "",
+  "main_promise": "",
+  "segment": {
+    "id": "S1",
+    "name": "Семья с новой квартирой",
+    "portrait": "Пара 30-40 лет",
+    "pains": [
+      "не понимают итоговую цену"
+    ],
+    "fears": [],
+    "objections": []
+  },
+  "unique_argument": "",
+  "hook": "",
+  "cta": {
+    "main": "Рассчитать укладку"
+  },
+  "facts": [],
+  "anti_promises": [],
+  "disclaimer_text": "",
+  "links": [],
+  "blocks": [
+    {
+      "block_id": "B01-hero",
+      "type": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "",
+      "pattern": "hero-split",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [
+        "F01",
+        "F02"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B02-benefits",
+      "type": "benefits",
+      "name": "Преимущества",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "grid-3",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [
+        "F01",
+        "F02"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B03-process",
+      "type": "process",
+      "name": "Как работаем",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "steps",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [
+        "F01"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B04-faq",
+      "type": "faq",
+      "name": "Вопросы",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "accordion",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [
+        "F02",
+        "F01"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B05-form",
+      "type": "form",
+      "name": "Заявка",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "form",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    }
+  ]
+}

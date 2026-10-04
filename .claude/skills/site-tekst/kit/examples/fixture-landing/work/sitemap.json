@@ -1,0 +1,38 @@
+{
+  "source": "fixture",
+  "generated_at": "2026-09-27 12:00",
+  "page_types": [
+    "home",
+    "hub",
+    "category",
+    "service",
+    "product",
+    "info_about",
+    "info_contacts",
+    "info_team",
+    "info_reviews",
+    "info_cases",
+    "info_faq",
+    "info_other"
+  ],
+  "pages": [
+    {
+      "slug": "home",
+      "url": "/",
+      "type": "home",
+      "subject": "Укладка плитки во дворе",
+      "parent": "",
+      "level": 0,
+      "geo": "",
+      "segment": "S1",
+      "facts_available": [],
+      "fact_coverage": 1,
+      "block_set": "full",
+      "listing": false,
+      "status": "planned",
+      "source_h1": "Укладка плитки во дворе",
+      "source_queries": [],
+      "notes": ""
+    }
+  ]
+}

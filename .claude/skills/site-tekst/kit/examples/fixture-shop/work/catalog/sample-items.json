@@ -1,0 +1,88 @@
+{
+  "generated_at": "2026-09-27 12:00",
+  "items": [
+    {
+      "key": "stul-oslo",
+      "category_slug": "katalog-stulya",
+      "source": "site",
+      "name": "Стул Осло",
+      "price": 7900,
+      "attributes": [
+        {
+          "label": "Материал",
+          "value": "Бук"
+        },
+        {
+          "label": "Высота",
+          "value": "82 см"
+        }
+      ],
+      "facets": {
+        "Материал": [
+          "Бук"
+        ],
+        "Цвет": [
+          "Натуральный"
+        ],
+        "Стиль": [
+          "Сканди"
+        ],
+        "Цена": [
+          "7900"
+        ],
+        "В наличии": [
+          "да"
+        ]
+      },
+      "images": [
+        "work/catalog/samples/stul-oslo.png",
+        "work/catalog/samples/stul-oslo-2.png"
+      ]
+    },
+    {
+      "key": "stol-berg",
+      "category_slug": "katalog-stoly",
+      "source": "site",
+      "name": "Стол Берг",
+      "price": 24500,
+      "attributes": [
+        {
+          "label": "Материал",
+          "value": "Дуб"
+        }
+      ],
+      "facets": {
+        "Материал": [
+          "Дуб"
+        ],
+        "Цвет": [
+          "Графит"
+        ],
+        "Цена": [
+          "24500"
+        ]
+      },
+      "images": [
+        "work/catalog/samples/stol-berg.png"
+      ]
+    },
+    {
+      "key": "primer",
+      "category_slug": "*",
+      "source": "illustrative",
+      "name": "Табурет из массива",
+      "attributes": [
+        {
+          "label": "Материал",
+          "value": "Сосна"
+        }
+      ],
+      "facets": {
+        "Материал": [
+          "Сосна"
+        ]
+      },
+      "images": []
+    }
+  ]
+}

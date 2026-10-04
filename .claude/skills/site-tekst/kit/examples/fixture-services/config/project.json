@@ -1,0 +1,44 @@
+{
+  "slug": "fixture-services",
+  "company": "Кварта Ремонт",
+  "site_url": "",
+  "language": "ru",
+  "niche": {
+    "description": "фикстура прототипа",
+    "business_type": "services",
+    "audience_type": "b2c",
+    "demand_warmth": "warm",
+    "price_level": "mid",
+    "purchase_cycle": "weeks",
+    "geo": "Самара"
+  },
+  "sources": {
+    "mode": "doc",
+    "analysis_doc_id": "",
+    "analysis_dump": "inputs/analysis.md",
+    "structure_source": "inputs/structure_data.json",
+    "structure_mode": "import"
+  },
+  "competitors": {
+    "max_domains": 8,
+    "pages_per_type": 2,
+    "aggregators_stoplist": []
+  },
+  "limits": {
+    "h1_max": 70,
+    "sub_max": 160,
+    "text_max": 350,
+    "bullet_max": 120,
+    "button_max": 30,
+    "placeholders_per_page_max": 3,
+    "drop_blocks_without_facts": [
+      "reviews",
+      "team",
+      "media",
+      "gallery"
+    ]
+  },
+  "site": {
+    "tagline": "ремонт квартир"
+  }
+}

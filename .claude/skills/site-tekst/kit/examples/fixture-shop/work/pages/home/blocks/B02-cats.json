@@ -1,0 +1,27 @@
+{
+  "block_id": "B02-cats",
+  "type": "cats",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Разделы каталога"
+    },
+    {
+      "kind": "card",
+      "title": "Стулья",
+      "text": "Для кухни и столовой",
+      "href": "/katalog/stulya"
+    },
+    {
+      "kind": "card",
+      "title": "Столы",
+      "text": "Обеденные и раскладные",
+      "href": "/katalog/stoly"
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок cats",
+  "handoff_note": ""
+}

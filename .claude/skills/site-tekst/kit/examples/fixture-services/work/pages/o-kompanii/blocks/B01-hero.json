@@ -1,0 +1,24 @@
+{
+  "block_id": "B01-hero",
+  "type": "hero",
+  "role": "hero",
+  "elements": [
+    {
+      "kind": "h1",
+      "text": "О компании Кварта Ремонт"
+    },
+    {
+      "kind": "sub",
+      "text": "Ремонтируем квартиры с 2014 года",
+      "facts": [
+        "F01"
+      ]
+    }
+  ],
+  "facts_used": [
+    "F01"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок hero",
+  "handoff_note": ""
+}

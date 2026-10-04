@@ -1,0 +1,35 @@
+{
+  "block_id": "B03-process",
+  "type": "process",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Как проходит работа"
+    },
+    {
+      "kind": "step",
+      "title": "Выезд",
+      "text": "Бригада выезжает на следующий день",
+      "facts": [
+        "F01"
+      ]
+    },
+    {
+      "kind": "step",
+      "title": "Укладка",
+      "text": "Готовим основание и укладываем плитку"
+    },
+    {
+      "kind": "link",
+      "text": "Подробнее о материалах",
+      "href": "/materialy/"
+    }
+  ],
+  "facts_used": [
+    "F01"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок process",
+  "handoff_note": ""
+}

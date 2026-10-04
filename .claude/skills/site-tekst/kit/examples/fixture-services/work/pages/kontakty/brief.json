@@ -1,0 +1,72 @@
+{
+  "slug": "kontakty",
+  "url": "/kontakty/",
+  "type": "info_contacts",
+  "subject": "Контакты",
+  "geo": "",
+  "block_set": "full",
+  "company": "Кварта Ремонт",
+  "positioning": "",
+  "main_promise": "",
+  "segment": {
+    "id": "S1",
+    "name": "Семья с новой квартирой",
+    "portrait": "Пара 30-40 лет",
+    "pains": [
+      "не понимают итоговую цену"
+    ],
+    "fears": [],
+    "objections": []
+  },
+  "unique_argument": "",
+  "hook": "",
+  "cta": {
+    "main": "Написать в мессенджер",
+    "action": "messenger"
+  },
+  "facts": [],
+  "anti_promises": [],
+  "disclaimer_text": "",
+  "links": [],
+  "blocks": [
+    {
+      "block_id": "B01-hero",
+      "type": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "",
+      "pattern": "hero-center",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B02-route",
+      "type": "route",
+      "name": "Как нас найти",
+      "role": "info",
+      "reader_question": "",
+      "pattern": "map",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B03-form",
+      "type": "form",
+      "name": "Написать нам",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "form",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    }
+  ]
+}

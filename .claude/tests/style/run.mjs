@@ -81,11 +81,17 @@ function toUnix(p) {
 }
 
 // Поиск рабочей sh/bash (для хука check-section.sh). null - недоступна.
+// PATH, затем рядом с git (Git for Windows: <git --exec-path>/../../../bin/bash.exe,
+// каталог git var GIT_SHELL_PATH): из PowerShell bash в PATH нет. Тот же поиск, что в machinery/run.mjs.
 function findSh() {
-  for (const bin of ["bash", "sh"]) {
-    const r = spawnSync(bin, ["-c", "exit 0"], { encoding: "utf8" });
-    if (!r.error && r.status === 0) return bin;
-  }
+  const ok = (b) => { const r = spawnSync(b, ["-c", "exit 0"], { encoding: "utf8" }); return !r.error && r.status === 0; };
+  for (const bin of ["bash", "sh"]) if (ok(bin)) return bin;
+  const cands = [];
+  const ex = spawnSync("git", ["--exec-path"], { encoding: "utf8" });
+  if (!ex.error && ex.status === 0 && ex.stdout.trim()) cands.push(resolve(ex.stdout.trim(), "..", "..", "..", "bin", "bash.exe"), resolve(ex.stdout.trim(), "..", "..", "..", "usr", "bin", "bash.exe"));
+  const gs = spawnSync("git", ["var", "GIT_SHELL_PATH"], { encoding: "utf8" });
+  if (!gs.error && gs.status === 0 && gs.stdout.trim()) cands.push(join(dirname(gs.stdout.trim()), "bash.exe"), resolve(dirname(gs.stdout.trim()), "..", "..", "bin", "bash.exe"), gs.stdout.trim());
+  for (const c of cands) if (existsSync(c) && ok(c)) return c;
   return null;
 }
 

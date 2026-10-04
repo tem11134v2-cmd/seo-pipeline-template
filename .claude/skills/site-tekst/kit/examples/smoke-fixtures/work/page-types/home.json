@@ -12,7 +12,7 @@
     { "id": "process", "name": "Как проходит заказ", "role": "conversion", "reader_question": "Что будет после заявки", "pattern": "steps", "core": false, "cta_allowed": false, "objection_slot": true, "fact_kinds": [ "process" ],
       "elements": [ { "kind": "h2", "count": "1", "chars": { "min": 20, "median": 40, "max": 80 } }, { "kind": "step", "count": "3-5", "chars": { "min": 40, "median": 90, "max": 200 } } ],
       "seen_at": [ "example-okna.ru", "okna-primer.ru" ], "examples": [] },
-    { "id": "cta", "name": "Финальный призыв", "role": "conversion", "reader_question": "Что делать дальше", "pattern": "cta-band", "core": true, "cta_allowed": true, "objection_slot": false, "fact_kinds": [ "process" ],
+    { "id": "cta-final", "name": "Финальный призыв", "role": "conversion", "reader_question": "Что делать дальше", "pattern": "cta-band", "core": true, "cta_allowed": true, "objection_slot": false, "fact_kinds": [ "process" ],
       "elements": [ { "kind": "h2", "count": "1", "chars": { "min": 20, "median": 40, "max": 80 } }, { "kind": "text", "count": "1", "chars": { "min": 60, "median": 120, "max": 200 } }, { "kind": "button", "count": "1", "chars": { "min": 10, "median": 18, "max": 30 } } ],
       "seen_at": [ "example-okna.ru", "okna-primer.ru" ], "examples": [] }
   ],
@@ -21,8 +21,8 @@
       "elements": [ { "kind": "h2", "count": "1", "chars": { "min": 20, "median": 40, "max": 80 } }, { "kind": "bullets", "count": "3-5", "chars": { "min": 30, "median": 70, "max": 120 } } ],
       "seen_at": [], "source": "анализ: чего не обещаем", "examples": [] }
   ],
-  "recommended_order": [ "hero", "benefits", "process", "not-promise", "cta" ],
-  "short_set": [ "hero", "benefits", "cta" ],
+  "recommended_order": [ "hero", "benefits", "process", "not-promise", "cta-final" ],
+  "short_set": [ "hero", "benefits", "cta-final" ],
   "competitor_promises": [ "example-okna.ru: монтаж за 1 день" ],
   "cliches_to_avoid": [ "индивидуальный подход", "окна под ключ" ],
   "only_we_can_say": [ "гарантия 5 лет на монтаж в договоре" ],

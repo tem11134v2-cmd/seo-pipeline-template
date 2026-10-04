@@ -1,0 +1,19 @@
+{
+  "block_id": "B01-hero",
+  "type": "hero",
+  "role": "hero",
+  "elements": [
+    {
+      "kind": "h1",
+      "text": "Контакты"
+    },
+    {
+      "kind": "sub",
+      "text": "Приезжайте в офис или напишите в мессенджер"
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок hero",
+  "handoff_note": ""
+}

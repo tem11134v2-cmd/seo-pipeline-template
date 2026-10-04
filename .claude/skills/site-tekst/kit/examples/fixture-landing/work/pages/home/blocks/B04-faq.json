@@ -1,0 +1,34 @@
+{
+  "block_id": "B04-faq",
+  "type": "faq",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Вопросы"
+    },
+    {
+      "kind": "qa",
+      "q": "Есть ли гарантия?",
+      "a": "Гарантия 1 год на укладку.",
+      "facts": [
+        "F02"
+      ]
+    },
+    {
+      "kind": "qa",
+      "q": "Когда приедете?",
+      "a": "На следующий день после заявки.",
+      "facts": [
+        "F01"
+      ]
+    }
+  ],
+  "facts_used": [
+    "F02",
+    "F01"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок faq",
+  "handoff_note": ""
+}

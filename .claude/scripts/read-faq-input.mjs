@@ -10,7 +10,8 @@
 //
 // Выход: <faq_dir>/pages.json = { source, pages:[{ n, slug, url, marker, queries[], text }] }
 //        + создаёт <faq_dir>/pages/<slug>/ под каждую страницу.
-// Задача v9 (texts/NNN/meta.json -> format "v9", скил /site-tekst): страницы - work/sitemap.json (кроме status skip),
+// Задача v9 (texts/NNN/meta.json -> format "v9", скил /site-tekst): страницы - work/sitemap.json (кроме status skip и
+//   страниц интерфейса с ui_role search, cart, account, legal - поиск, корзина, кабинет, юридические; их число печатается),
 //   текст - work/pages/<slug>/page.md без служебных строк (шапка, заголовки блоков, «_факты: ..._»), только написанные;
 //   url - url карты от config/project.json -> site_url; маркер и запросы - source_queries (иначе source_h1).
 //   В pages.json добавляется поле tekst: путь к фактам (work/facts.json), бренд (facts.company.brand | config.company),
@@ -66,9 +67,10 @@ function readTekstV9(tdir) {
   const facts = readJsonSafe(join(tdir, "work", "facts.json")) || {};
   let origin = "", domain = "";
   try { const u = new URL(cfg.site_url); origin = u.origin; domain = u.hostname; } catch { /* site_url пуст - url остаются путями */ }
-  const out = []; let unwritten = 0;
+  const out = []; let unwritten = 0, uiPages = 0;
   for (const p of sm.pages || []) {
     if (p.status === "skip") continue;
+    if (UI_ROLES.has(p.ui_role)) { uiPages++; continue; }
     const md = join(tdir, "work", "pages", p.slug, "page.md");
     if (!existsSync(md)) { unwritten++; continue; }
     const u = String(p.url || "");
@@ -88,9 +90,11 @@ function readTekstV9(tdir) {
     anti_promises: uniq((facts.anti_promises || []).map((x) => x.text)),
     stop_domains: uniq((cfg.competitors && cfg.competitors.aggregators_stoplist) || []),
   };
-  return { pages: out, tekst, unwritten };
+  return { pages: out, tekst, unwritten, uiPages };
 }
-let tekstInfo = null, unwrittenV9 = 0;
+// страницы интерфейса (карта /site-tekst, pages[].ui_role): FAQ и перелинковка им не нужны
+const UI_ROLES = new Set(["search", "cart", "account", "legal"]);
+let tekstInfo = null, unwrittenV9 = 0, uiPagesV9 = 0;
 const TRANSLIT = { а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"e",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"c",ч:"ch",ш:"sh",щ:"sch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya" };
 const translit = (s) => String(s || "").toLowerCase().replace(/[а-яё]/g, (c) => (c in TRANSLIT ? TRANSLIT[c] : c));
 // slug -> ТОЛЬКО латиница (см. CLAUDE.md: кириллица в путях ломает git/скрипты)
@@ -113,7 +117,7 @@ try {
     const tmeta = readJsonSafe(join(tdir, "meta.json")) || {};
     if (tmeta.format === "v9") {
       const v9 = readTekstV9(tdir);
-      pages = v9.pages; tekstInfo = v9.tekst; unwrittenV9 = v9.unwritten;
+      pages = v9.pages; tekstInfo = v9.tekst; unwrittenV9 = v9.unwritten; uiPagesV9 = v9.uiPages;
     } else {
     const pj = join(tdir, "pages.json");
     const queriesBySlug = {};
@@ -176,6 +180,7 @@ if (tekstInfo) {
   writeFileSync(ip, JSON.stringify(inputs, null, 2), "utf8");
   console.log(`[read-faq-input] тексты v9: ${tekstInfo.dir}; inputs.json дополнен: ${add.join(", ") || "нечем"}`);
   if (unwrittenV9) console.log(`  ! ${unwrittenV9} страниц карты без page.md (не написаны) - пропущены`);
+  if (uiPagesV9) console.log(`  ${uiPagesV9} страниц интерфейса (ui_role: поиск, корзина, кабинет, юридические) - пропущены`);
 }
 const noText = out.filter((p) => !p.text && !p.url).length;
 console.log(`[read-faq-input] pages.json: ${out.length} страниц (источник ${source})`);

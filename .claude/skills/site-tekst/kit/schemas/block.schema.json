@@ -37,6 +37,9 @@
     "summary": { "type": "string", "minLength": 10, "maxLength": 300 },
     "handoff_note": { "type": "string", "maxLength": 400 },
     "variant_of": { "type": "string" },
-    "selection_report": { "type": "object" }
+    "selection_report": { "type": "object" },
+    "attempts": { "type": "number", "description": "Сколько неудачных запусков писателя или селектора (блок не прошел линтер) по текущему срезу брифа: при смене brief_sha счет заново, успешный запуск попытку не добавляет; 2 - блок исчерпан (progress.mjs). Скрипты поле не трогают." },
+    "brief_sha": { "type": "string", "description": "_brief_sha1 среза brief/<block_id>.json, по которому писали блок." },
+    "needs_fact": { "type": "array", "items": { "type": "string" }, "description": "Каких фактов не хватило: утверждение без опоры не написано. Отчет выводит их вопросами заказчику." }
   }
 }

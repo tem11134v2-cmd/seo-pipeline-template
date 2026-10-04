@@ -7,7 +7,7 @@
     "generated_at": { "type": "string" },
     "sources": {
       "type": "array",
-      "minItems": 1,
+      "description": "Снимки лидеров, по которым собран тип. Пусто - только у типа без конкурентов (wf-02 degraded: no_competitors): тогда notes начинается с «без конкурентов», у блоков нет evidence, examples и seen_at.",
       "items": {
         "type": "object",
         "required": ["domain", "url", "raw", "status"],
@@ -38,7 +38,8 @@
         "name": { "type": "string" },
         "role": { "type": "string", "enum": ["hero", "conversion", "info"] },
         "reader_question": { "type": "string", "minLength": 5 },
-        "pattern": { "type": "string", "enum": ["hero-split", "hero-center", "grid-2", "grid-3", "grid-4", "steps", "accordion", "list", "table", "listing", "cards-slider", "form", "text", "badges", "map", "numbers", "quote", "cta-band", "gallery", "tiles"] },
+        "pattern": { "type": "string", "enum": ["hero-split", "hero-center", "grid-2", "grid-3", "grid-4", "steps", "accordion", "list", "table", "listing", "cards-slider", "form", "text", "badges", "map", "numbers", "quote", "cta-band", "gallery", "tiles", "custom"] },
+        "custom_name": { "type": "string", "minLength": 2, "description": "pattern custom: название нового для kit вида блока (калькулятор, квиз, до/после и т.п.); элементы - из общего списка видов" },
         "core": { "type": "boolean" },
         "cta_allowed": { "type": "boolean" },
         "objection_slot": { "type": "boolean" },

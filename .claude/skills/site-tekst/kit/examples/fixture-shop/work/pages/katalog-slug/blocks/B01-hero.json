@@ -1,0 +1,30 @@
+{
+  "block_id": "B01-hero",
+  "type": "hero",
+  "role": "hero",
+  "elements": [
+    {
+      "kind": "h1",
+      "text": "Карточка модели"
+    },
+    {
+      "kind": "sub",
+      "text": "Мебель из массива дуба и бука, доставка по Самаре за 2 дня",
+      "facts": [
+        "F02",
+        "F01"
+      ]
+    },
+    {
+      "kind": "button",
+      "text": "Узнать цену"
+    }
+  ],
+  "facts_used": [
+    "F02",
+    "F01"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок hero",
+  "handoff_note": ""
+}

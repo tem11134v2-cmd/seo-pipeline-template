@@ -26,6 +26,8 @@
 4. Проверь: `node scripts/validate.mjs facts work/facts.json` и `node scripts/validate.mjs audience work/audience.json`.
 
 ## Формат результата
-`{"ok":true,"facts":0,"publish_yes":0,"quotes_fallback":0,"anti_promises":0,"anti_pending":0,"anti_failed":[""],"conflicts":[""],"segments":0,"objections":0,"company_status":"confirmed|missing","site_url":"","structure_pages":0,"d9":"","warnings":[""]}`
+`{"ok":true,"facts":0,"publish_yes":0,"quotes_fallback":0,"anti_promises":0,"anti_pending":0,"anti_failed":[""],"conflicts":[""],"segments":0,"objections":0,"company_status":"confirmed|from_site_unconfirmed|missing","company_missing":[""],"site_url":"","structure_pages":0,"d9":"","warnings":[""]}`
 Числа - из `work/import-report.json` после всех шагов, `structure_pages` - из вывода `import-structure.mjs`,
-`d9` - строка `gate.decisions.d9` отчета: «<value>; <how>» (состав страниц и как он принят).
+`d9` - строка `gate.decisions.d9` отчета: «<value>; <how>» (состав страниц и как он принят). `company_status` -
+`work/facts.json` -> `company.status`, `company_missing` - `work/import-report.json` -> `company_missing` как есть
+(пустые телефон, адрес, часы, кроме снятых заказчиком в d10; по ним оркестратор запускает снимок сайта).

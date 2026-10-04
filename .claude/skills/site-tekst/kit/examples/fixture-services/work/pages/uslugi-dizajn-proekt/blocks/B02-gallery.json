@@ -1,0 +1,27 @@
+{
+  "block_id": "B02-gallery",
+  "type": "gallery",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Как выглядит проект"
+    },
+    {
+      "kind": "image",
+      "alt": "План расстановки мебели"
+    },
+    {
+      "kind": "image",
+      "alt": "Развертка стены кухни"
+    },
+    {
+      "kind": "image",
+      "alt": "Визуализация гостиной"
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок gallery",
+  "handoff_note": ""
+}

@@ -5,7 +5,8 @@
   "required": ["scope", "producer", "findings", "verdict"],
   "properties": {
     "scope": { "type": "string" },
-    "producer": { "type": "string", "enum": ["lint", "dedup", "page-judge", "cross-judge", "blind-reader", "type-auditor", "layout-validator", "html-check", "catalog-auditor", "facts-checker", "hero-selector", "human"] },
+    "producer": { "type": "string", "enum": ["lint", "dedup", "page-judge", "cross-judge", "blind-reader", "type-auditor", "layout-validator", "html-check", "catalog-auditor", "facts-checker", "hero-selector", "human", "strategy-review"] },
+    "page_sha": { "type": "string", "description": "lint-page.mjs: sha1 page.md страницы на момент линта (аудит свежий, пока page.md не изменился)." },
     "round": { "type": "number" },
     "created_at": { "type": "string" },
     "findings": {
@@ -52,7 +53,7 @@
     },
     "split_from": { "type": "string", "description": "split-cross.mjs: постраничная копия находок кросс-судьи, значение - путь общего файла (work/audit/cross.json)." },
     "source_created_at": { "type": "string", "description": "split-cross.mjs: created_at общего отчета, из которого сделана копия (сохранение статусов при повторной раскладке)." },
-    "pairs": { "type": "array", "items": { "type": "object" }, "description": "dedup.mjs: пары страниц-кандидатов для кросс-судьи (shingles, h1, hero-sub, geo-twin)." },
+    "pairs": { "type": "array", "items": { "type": "object" }, "description": "dedup.mjs: пары страниц-кандидатов для кросс-судьи (shingles, h1, hero-sub, geo-twin, parent - родитель и дочерняя страница карты, поле parent_page; судятся всегда)." },
     "geo_groups": { "type": "array", "items": { "type": "object" }, "description": "dedup.mjs: группы гео-близнецов (один тип, один родитель, разный geo)." },
     "pairs_summary": { "type": "string", "description": "dedup.mjs: счет пар по причинам." }
   }

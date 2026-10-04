@@ -1,0 +1,19 @@
+{
+  "block_id": "B02-route",
+  "type": "route",
+  "role": "info",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Офис в Самаре"
+    },
+    {
+      "kind": "text",
+      "text": "Самара, ул. Примерная, 10. Звоните: 8 (846) 200-00-00 или пишите на info@kvarta.example."
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок route",
+  "handoff_note": ""
+}
