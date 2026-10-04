@@ -7,7 +7,7 @@
 # плейсхолдер запрещен, вопрос в gaps. Типа страницы article не существует.
 
 sig:
-  price_open:  "цена видна у лидеров | must_have, seen_numbers | price обязателен"
+  price_open:  "свои цены заказчика или магазин | facts[] с ценой и цифрой, type shop либо both | price обязателен"
   visit:       "нужен выезд или замер | business.what, directions | steps и geo обязательны, в hero срок"
   long_cycle:  "решают дольше недели | segments[].choose | усиливает cases и docs"
   licensed:    "работа лицензируемая | legal, facts[].artifact | docs обязателен"

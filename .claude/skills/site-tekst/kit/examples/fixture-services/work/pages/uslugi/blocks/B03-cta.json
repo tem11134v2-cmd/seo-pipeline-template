@@ -1,0 +1,28 @@
+{
+  "block_id": "B03-cta",
+  "type": "cta",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Не знаете, с чего начать?"
+    },
+    {
+      "kind": "text",
+      "text": "Замерщик приезжает в день заявки и поможет выбрать.",
+      "facts": [
+        "F04"
+      ]
+    },
+    {
+      "kind": "button",
+      "text": "Подобрать услугу"
+    }
+  ],
+  "facts_used": [
+    "F04"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок cta",
+  "handoff_note": ""
+}

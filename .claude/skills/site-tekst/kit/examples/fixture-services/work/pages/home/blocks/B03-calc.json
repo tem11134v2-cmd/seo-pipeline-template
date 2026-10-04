@@ -1,0 +1,46 @@
+{
+  "block_id": "B03-calc",
+  "type": "calc",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Сколько стоит ремонт"
+    },
+    {
+      "kind": "text",
+      "text": "Цена считается по площади и составу работ, итог фиксируется в договоре.",
+      "facts": [
+        "F03"
+      ]
+    },
+    {
+      "kind": "number",
+      "value": "от 9 500 руб.",
+      "label": "за квадратный метр",
+      "facts": [
+        "F06"
+      ]
+    },
+    {
+      "kind": "number",
+      "value": "от 45 дней",
+      "label": "однокомнатная квартира",
+      "facts": [
+        "F05"
+      ]
+    },
+    {
+      "kind": "button",
+      "text": "Рассчитать стоимость ремонта"
+    }
+  ],
+  "facts_used": [
+    "F03",
+    "F06",
+    "F05"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок calc",
+  "handoff_note": ""
+}

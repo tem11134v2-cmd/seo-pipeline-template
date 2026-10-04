@@ -1,0 +1,34 @@
+{
+  "block_id": "B01-hero",
+  "type": "hero",
+  "role": "hero",
+  "elements": [
+    {
+      "kind": "h1",
+      "text": "Мебель из массива для кухни и столовой"
+    },
+    {
+      "kind": "sub",
+      "text": "Мебель из массива дуба и бука, доставка по Самаре за 2 дня",
+      "facts": [
+        "F02",
+        "F01"
+      ]
+    },
+    {
+      "kind": "button",
+      "text": "Подобрать мебель"
+    },
+    {
+      "kind": "image",
+      "alt": "Стол и стулья в столовой"
+    }
+  ],
+  "facts_used": [
+    "F02",
+    "F01"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок hero",
+  "handoff_note": ""
+}

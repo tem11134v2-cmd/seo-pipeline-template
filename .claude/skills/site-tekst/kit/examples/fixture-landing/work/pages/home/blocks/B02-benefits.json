@@ -1,0 +1,40 @@
+{
+  "block_id": "B02-benefits",
+  "type": "benefits",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Почему выбирают нас"
+    },
+    {
+      "kind": "card",
+      "title": "Быстрый выезд",
+      "text": "На следующий день после заявки",
+      "facts": [
+        "F01"
+      ]
+    },
+    {
+      "kind": "card",
+      "title": "Гарантия",
+      "text": "1 год на укладку",
+      "facts": [
+        "F02"
+      ]
+    },
+    {
+      "kind": "card",
+      "title": "Все работы",
+      "text": "От подготовки основания до бордюра",
+      "href": "/uslugi/"
+    }
+  ],
+  "facts_used": [
+    "F01",
+    "F02"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок benefits",
+  "handoff_note": ""
+}

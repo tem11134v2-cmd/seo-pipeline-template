@@ -1,0 +1,46 @@
+{
+  "block_id": "B07-form",
+  "type": "form",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Рассчитаем стоимость вашего ремонта"
+    },
+    {
+      "kind": "text",
+      "text": "Оставьте контакты и опишите квартиру - пришлем предварительный расчет."
+    },
+    {
+      "kind": "field",
+      "label": "Имя"
+    },
+    {
+      "kind": "field",
+      "label": "Телефон",
+      "layout": "tel"
+    },
+    {
+      "kind": "field",
+      "label": "Опишите квартиру и задачу",
+      "layout": "textarea"
+    },
+    {
+      "kind": "field",
+      "label": "Фото или план квартиры",
+      "layout": "file"
+    },
+    {
+      "kind": "button",
+      "text": "Рассчитать стоимость ремонта"
+    },
+    {
+      "kind": "note",
+      "text": "Договор заключает [[нужно: юрлицо и ИНН для договора]]"
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок form",
+  "handoff_note": ""
+}

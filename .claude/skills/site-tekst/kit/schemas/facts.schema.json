@@ -1,5 +1,6 @@
 {
   "$id": "facts",
+  "_doc": "work/facts.json. Факты анализа F01-F799; F801-F899 - факты оператора (правка заказчика при --fix, source «оператор: <дата> <основание>», импорт их сохраняет); F901-F907 - контакты и реквизиты по полям (F901-F903 телефоны, F904 почта, F905 часы, F906 адрес, F907 юрлицо, ИНН, ОГРН), их заводит scripts/import-project.mjs. company.phones - в формате «+7 (XXX) XXX-XX-XX» (иные номера - как в источнике); company.channels - { ключ: { label, value, href, fact? } }, в старых данных значение - строка-URL; канал со старого сайта без факта в company.channels не пишется, он - строкой gaps «канал со старого сайта: ... - публиковать?». company.absent - поля, снятые заказчиком (d10).",
   "type": "object",
   "required": ["source", "facts", "anti_promises", "terminology", "company", "gaps"],
   "properties": {
@@ -19,7 +20,8 @@
           "source_quote": { "type": "string", "minLength": 10 },
           "kind": { "type": "string", "enum": ["number", "claim", "process", "contact", "legal", "product", "geo"] },
           "geo": { "type": "string" },
-          "note": { "type": "string", "maxLength": 200 }
+          "note": { "type": "string", "maxLength": 400 },
+          "source": { "type": "string", "_doc": "только у фактов оператора F801-F899: «оператор: <дата> <основание>»" }
         }
       }
     },
@@ -51,11 +53,16 @@
       "properties": {
         "legal_name": { "type": "string" },
         "brand": { "type": "string" },
+        "inn": { "type": "string", "_doc": "10 или 12 цифр; неверную длину импорт не публикует" },
+        "ogrn": { "type": "string", "_doc": "13 или 15 цифр; неверную длину импорт не публикует" },
         "address": { "type": "string" },
         "phones": { "type": "array", "items": { "type": "string" } },
+        "no_phone": { "type": "boolean", "_doc": "в анализе записано, что телефона для сайта нет (business.legal.phone_absent): телефон не берется ни из анализа, ни со старого сайта и не выводится" },
+        "phone_absent": { "type": "boolean", "_doc": "устаревшее имя no_phone: читается, импорт переводит в no_phone" },
+        "absent": { "type": "array", "uniqueItems": true, "items": { "type": "string", "enum": ["email", "hours", "address", "legal_name", "inn", "ogrn"] }, "_doc": "поля, которые заказчик велел убрать ответом на d10 (business.legal.absent_fields анализа в именах kit; телефон - no_phone): их нет ни из анализа, ни со старого сайта, снимок их не заполняет, служебного факта F9xx нет" },
         "email": { "type": "string" },
         "hours": { "type": "string" },
-        "channels": { "type": "object" },
+        "channels": { "type": "object", "additionalProperties": { "_doc": "строка-URL (старые данные) или { label, value, href, fact? }" } },
         "status": { "type": "string", "enum": ["confirmed", "from_site_unconfirmed", "missing"] },
         "source": { "type": "string" }
       }

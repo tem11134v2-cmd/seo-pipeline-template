@@ -1,0 +1,43 @@
+{
+  "generated_at": "2026-09-27 12:00",
+  "source": "fixture",
+  "facts": [
+    {
+      "id": "F01",
+      "label": "выезд",
+      "value": "на следующий день",
+      "wording": "бригада выезжает на следующий день после заявки",
+      "publish": "yes",
+      "source_quote": "выезжаем назавтра",
+      "kind": "process"
+    },
+    {
+      "id": "F02",
+      "label": "гарантия",
+      "value": "1 год",
+      "wording": "гарантия 1 год на укладку",
+      "publish": "yes",
+      "source_quote": "гарантия год",
+      "kind": "legal"
+    }
+  ],
+  "anti_promises": [],
+  "terminology": {
+    "use": [],
+    "jargon": []
+  },
+  "company": {
+    "brand": "Чистый Двор",
+    "address": "Самара, ул. Садовая, 5",
+    "phones": [
+      "+7 846 300-00-00"
+    ],
+    "email": "hello@dvor.example",
+    "hours": "пн-пт 9:00-18:00",
+    "channels": {},
+    "status": "confirmed",
+    "source": "fixture"
+  },
+  "tone": {},
+  "gaps": []
+}

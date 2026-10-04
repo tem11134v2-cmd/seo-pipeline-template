@@ -1,19 +1,29 @@
-// Линтер блока. node scripts/lint.mjs work/pages/<slug>/blocks/<block_id>.json [--fix] [--quiet]
-// Проверяет house style, стоп-слова, цифры без фактов, антиобещания, жаргон, CTA, длины, плейсхолдеры,
-// формы ai.* и style.*, утверждения без факта (fact.claim-unsupported) и бюджеты страницы
+// Линтер блока. node scripts/lint.mjs work/pages/<slug>/blocks/<block_id>.json [--fix] [--quiet] [--page]
+// Проверяет house style, стоп-слова, цифры без фактов, условия у чисел фактов (fact.hedge-lost), антиобещания, жаргон,
+// CTA, длины, плейсхолдеры, формы ai.* и style.*, утверждения без факта (fact.claim-unsupported) и бюджеты страницы
 // (ai.contrast, ai.neg-pitch, word.overuse, placeholder.count): бюджет расходуется в порядке блоков брифа -
 // блоки выше этого плюс сам блок, так же, как считает lint-page.mjs по всей странице. word.overuse здесь - minor
 // (major ставит только lint-page.mjs), поэтому вердикт блока и plan-run от повторов слов не зависят.
+// Маска имен (lint-common.mjs nameMask): предмет страницы, ключевая фраза, компания, предметы страниц из ссылок и
+// непереводимые термины не дают «Мы»-начала, стоп-слова и цифры без факта; стоп-фраза внутри имени, в том числе
+// склоненного («ремонта квартир под ключ»), - лексика страницы, то же слово вне имени - находка. Антиобещания и
+// запреты проверяются по исходному тексту.
+// Повтор фраз (phrase.repeat) - с другими блоками страницы, чей отчет линтера pass или еще не создан: отдельный запуск
+// (писатель, селектор, фиксер) - в обе стороны; --page (перепроверка страницы lint-page.mjs) - только с блоками выше по
+// брифу, одна находка на пару, у нижнего блока (решение Р5). Предмет страницы и ключевая фраза повтором не считаются.
+// Лимиты длины - effectiveMax из lib.mjs (та же таблица, что у build-briefs; max брифа второй раз не режется).
+// Слабый глагол кнопки проверяет build-briefs по CTA стратегии; кнопка-переход на страницу из brief.links с CTA не сверяется.
 // Пишет work/audit/<slug>/lint-<block_id>.json (findings). Код выхода 1, если есть blocker или major.
 // Печатает blocker, major и minor по правилам ai.*, style.*, fact.claim-unsupported, word.overuse.
 import path from 'node:path';
 import fs from 'node:fs';
-import { argv, P, readJson, writeJson, exists, loadConfig, elementTexts, blockPlainText, normalizeDeep, splitSentences, words, charsNoSpaces, PLACEHOLDER_RE, makeFindings, addFinding, finalizeVerdict, validate, loadSchema, B, cyr, esc, stemRe } from './lib.mjs';
-import { compileLint, scanBlock, applyPageBudgets, showMinor } from './lint-common.mjs';
+import crypto from 'node:crypto';
+import { argv, P, readJson, writeJson, exists, loadConfig, elementTexts, blockPlainText, normalizeDeep, splitSentences, words, charsNoSpaces, PLACEHOLDER_RE, makeFindings, addFinding, finalizeVerdict, validate, loadSchema, B, cyr, esc, stemRe, effectiveMax, protectedFactTexts, allowedRuleText, digitsOf } from './lib.mjs';
+import { compileLint, scanBlock, applyPageBudgets, showMinor, hedgeLostFindings, stopWordsRe, nameMask, briefNames } from './lint-common.mjs';
 
-const a = argv({ fix: 'bool', quiet: 'bool' });
+const a = argv({ fix: 'bool', quiet: 'bool', page: 'bool' });
 const file = a._[0];
-if (!file) { console.error('usage: lint.mjs <block.json> [--fix]'); process.exit(2); }
+if (!file) { console.error('usage: lint.mjs <block.json> [--fix] [--page]'); process.exit(2); }
 const cfg = loadConfig();
 const rules = readJson(P('rules', 'lint.json'));
 const pageDirPath = path.dirname(path.dirname(path.resolve(file)));
@@ -26,7 +36,6 @@ let block = readJson(file);
 if (a.fix) {
   const stats = { changed: 0 };
   block = normalizeDeep(block, stats);
-  block = JSON.parse(JSON.stringify(block).replace(/"([^"]*)"/g, m => m));
   writeJson(file, block);
 }
 const report = makeFindings(`${slug}/${block.block_id}`, 'lint');
@@ -37,9 +46,12 @@ for (const e of schemaErrors) addFinding(report, { page: slug, block_id: block.b
 
 const factsById = Object.fromEntries((brief.facts || []).map(f => [f.id, f]));
 const limits = cfg.limits || {};
-const kindCap = { h1: limits.h1_max, sub: limits.sub_max, text: limits.text_max, bullets: limits.bullet_max, badges: 40, button: limits.button_max, note: 300, card: 220, step: 220, qa: 550, quote: 300, number: 40, h2: 80, h3: 60, link: 60, field: 40, image: 120, filters: 30, table_row: 200 };
-// граница слова для кириллицы (B, cyr, esc, stemRe) - в lib.mjs
-const stopRe = cyr(B + '(' + rules.stop_words.map(esc).join('|') + ')');
+const RL = compileLint(rules, brief, cfg);
+// кнопки-переходы: href на страницу из brief.links - навигация, а не CTA брифа
+const linkUrls = new Set((brief.links || []).map(l => String(l.url).replace(/\/$/, '')));
+// граница слова для кириллицы (B, cyr, esc, stemRe) - в lib.mjs; стоп-слова с правой границей - lint-common.mjs
+const stopRe = stopWordsRe(rules);
+const NM = nameMask(briefNames(brief));
 const introRe = cyr(`(${rules.intro_stop_phrases.map(esc).join('|')})`);
 const weRe = cyr(rules.we_start_pattern);
 const allRe = cyr(rules.address_all_pattern);
@@ -70,27 +82,33 @@ block.elements.forEach((el, idx) => {
   if (el.kind === 'number' && !(el.value && String(el.value).trim())) F('blocker', 'format', 'number.empty', 'элемент number без значения', el.label || '', 'указать значение из факта или убрать элемент');
   if (el.kind === 'link' && !(el.href && String(el.href).trim())) F('major', 'format', 'link.no-href', 'ссылка без адреса', el.text || '', 'указать URL из brief.links или убрать ссылку');
   const refFacts = (el.facts || []).map(f => factsById[f]).filter(Boolean);
-  const factDigits = refFacts.flatMap(f => digitsOf(f.value + ' ' + f.wording));
+  // из rule - только разрешенная формулировка: число из запрета («не пересчитывать в «18 лет»») не подтверждено
+  const factDigits = refFacts.flatMap(f => digitsOf([f.value, f.wording, f.note, allowedRuleText(f.rule)].filter(Boolean).join(' ')));
+  const navButton = el.kind === 'button' && el.href && linkUrls.has(String(el.href).replace(/\/$/, ''));
   for (const { field, text } of texts) {
     const t = stripPh(text);
+    // tm - текст с маской имен (предмет, ключевая фраза, компания, предметы ссылок, непереводимые термины)
+    const tm = NM.mask(t);
     if (/[\u0451\u0401]/.test(text)) F('blocker', 'style', 'house.yo', 'буква е с точками', text, 'заменить на е', true);
-    if (/[—–]/.test(text)) F('blocker', 'style', 'house.dash', 'длинное тире', text, 'заменить на короткое «-»', true);
+    if (/[\u2014\u2013]/.test(text)) F('blocker', 'style', 'house.dash', 'длинное тире', text, 'заменить на короткое «-»', true);
     if (/["]/.test(text)) F('minor', 'style', 'house.quotes', 'прямые кавычки', text, 'заменить на «елочки»');
     if (/[\u{1F300}-\u{1FAFF}☀-➿✓★→]/u.test(text)) F('major', 'style', 'house.emoji', 'эмодзи или спецсимвол', text);
     if (/\[(примечание|note|todo|уточнить у заказчика|для оркестратора)/i.test(text)) F('blocker', 'format', 'note.leak', 'служебная пометка в тексте', text);
-    if (['h1', 'h2', 'h3', 'sub', 'text', 'card', 'step', 'qa', 'note'].includes(el.kind) && weRe.test(t.trim())) F('major', 'rule', 'copy.we-start', 'предложение начинается с «Мы / Наша компания»', text, 'начать с результата для читателя');
+    if (['h1', 'h2', 'h3', 'sub', 'text', 'card', 'step', 'qa', 'note'].includes(el.kind) && weRe.test(tm.trim())) F('major', 'rule', 'copy.we-start', 'предложение начинается с «Мы / Наша компания»', text, 'начать с результата для читателя');
     if (introRe.test(t)) F('major', 'rule', 'copy.intro', 'вступление вместо выгоды', text);
-    if (allRe.test(t)) F('major', 'rule', 'copy.address-all', 'обращение ко всем сразу', text, 'говорить с одним сегментом брифа');
-    // стоп-слова без цифры в том же предложении
+    if (allRe.test(t)) F('major', 'rule', 'copy.address-all', 'обращение ко всем сразу', text, 'называть сценарии сегментов страницы');
+    // стоп-слова без цифры в том же предложении (имена замаскированы: цифра бренда не «цифра рядом»; стоп-слово внутри
+    // имени, в том числе склоненного, - не находка, вне имени - находка, даже если то же слово есть в имени)
     for (const s of splitSentences(t)) {
-      const m = s.match(stopRe);
+      const sm = NM.mask(s);
+      const m = NM.maskLoose(s).match(stopRe);
       // «лучшая цена» допустима только через гарантию возврата разницы (формула F6)
       const guaranteed = m && /^лучш/i.test(m[1]) && /гарант|верн[е\u0451]м разниц/i.test(s);
-      if (m && !guaranteed && !/\d/.test(s) && !(el.facts || []).length) F('major', 'rule', 'copy.stop-word', `пустое слово «${m[1]}» без цифры или факта рядом`, s, 'заменить на факт: за счет чего, сколько, за какой срок');
+      if (m && !guaranteed && !/\d/.test(sm) && !(el.facts || []).length) F('major', 'rule', 'copy.stop-word', `пустое слово «${m[1]}» без цифры или факта рядом`, s, 'заменить на факт: за счет чего, сколько, за какой срок');
       const w = words(s).length;
       if (w > rules.sentence_words_max) F('major', 'rule', 'copy.sentence-long', `предложение из ${w} слов`, s, 'разбить на два');
     }
-    for (const v of rules.vague_patterns) if (cyr(v.pattern).test(t)) F(v.severity, 'rule', v.id, v.message, t);
+    for (const v of rules.vague_patterns) if (cyr(v.pattern).test(tm)) F(v.severity, 'rule', v.id, v.message, t);
     for (const ap of antiRes) if (ap.re.test(t)) F('blocker', 'fact', `anti.${ap.id}`, `формулировка из антиобещаний (${ap.id})`, t, ap.ctx ? `допустимо только: ${ap.ctx}` : 'убрать');
     for (const j of jargonRes) if (j.re.test(t)) F('major', 'rule', 'term.jargon', `внутренний жаргон «${j.internal}»`, t, `писать «${j.public}»`);
     for (const c of clicheRes) if (c.re.test(t)) F('major', 'weak', 'copy.cliche', `клише конкурентов «${c.c}»`, t, 'сказать то, что не может сказать конкурент');
@@ -101,8 +119,8 @@ block.elements.forEach((el, idx) => {
     // точки в коротких элементах
     if (['h1', 'h2', 'h3', 'button'].includes(el.kind) && /[.]$/.test(t.trim())) F('minor', 'style', 'house.dot', 'точка в конце заголовка или кнопки', t, 'убрать точку', true);
     if (['bullets', 'badges'].includes(el.kind) && /[.]$/.test(t.trim()) && !/[.].*[.]/.test(t)) F('minor', 'style', 'house.dot', 'точка в конце буллета', t, 'убрать точку', true);
-    // цифры без факта
-    const nums = digitsOf(t);
+    // цифры без факта (цифры имен замаскированы: «Окна 24», «Шины 205/55 R16» в предмете страницы)
+    const nums = digitsOf(tm);
     for (const n of nums) {
       if (!factDigits.includes(n)) F('blocker', 'fact', 'fact.number-without-source', `число «${n}» не подтверждено фактом из брифа`, t, 'убрать число или сослаться на факт в поле facts');
     }
@@ -118,13 +136,14 @@ block.elements.forEach((el, idx) => {
       else if (c > cap.max * (1 + rules.chars_tolerance)) F('major', 'style', 'length.over', `${el.kind}: ${c} символов, лимит ${cap.max}`, t, 'сократить');
       else if (cap.min && c < cap.min * (1 - rules.chars_tolerance) && ['text', 'sub', 'qa', 'card'].includes(el.kind)) F('minor', 'style', 'length.under', `${el.kind}: ${c} символов, ожидалось от ${cap.min}`, t);
     }
-    if (el.kind === 'button' && !uiButtons) {
+    if (el.kind === 'button' && !uiButtons && !navButton) {
       const low = t.toLowerCase();
-      for (const bad of rules.cta_verbs_bad) if (low.includes(bad)) F('major', 'weak', 'cta.weak', `кнопка «${t}» не называет, что получит читатель`, t, `использовать CTA из брифа: «${brief.cta?.main}»`);
       const allowed = [brief.cta?.main, brief.cta?.secondary].filter(Boolean).map(x => x.toLowerCase());
       if (allowed.length && !allowed.includes(low)) F('major', 'rule', 'cta.text', `текст кнопки не совпадает с CTA брифа`, t, `один из: ${allowed.join(' / ')}`);
     }
   }
+  // условие у числа факта («стандартно», «от», «в среднем») потеряно в тексте элемента
+  for (const f of hedgeLostFindings(el, idx, RL)) addFinding(report, { page: slug, block_id: block.block_id, ...f, auto_fixable: false });
   // средняя длина предложений в абзацах
   if (['text', 'qa', 'card'].includes(el.kind)) {
     const ss = splitSentences(texts.map(x => x.text).join(' '));
@@ -132,36 +151,41 @@ block.elements.forEach((el, idx) => {
     if (avg > rules.sentence_words_avg_max) F('minor', 'rule', 'copy.sentence-avg', `средняя длина предложения ${avg.toFixed(0)} слов`, '', 'короче');
   }
 });
-function digitsOf(s) {
-  // «12 400», «1,5», «2012», «10-35» -> отдельные токены; пробел допустим только как разделитель тысяч
-  return (String(s).match(/\d{1,3}(?:[  ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?/g) || []).map(x => x.replace(/[  ]/g, '').replace(',', '.')).filter(Boolean);
+// Лимит поля: effectiveMax по max брифа (несколько элементов одного вида - наибольший), min - наименьший из них.
+// Поле с фиксированным лимитом (title, q, author, value) - свой лимит, без min.
+function capFor(kind, field) {
+  const specs = specElems.filter(e => e.kind === kind && e.chars);
+  const main = !['title', 'q', 'author'].includes(field) && !(kind === 'number' && field === 'value');
+  if (!specs.length) return { min: 0, max: effectiveMax(kind, 0, field, limits) };
+  const specMax = Math.max(...specs.map(e => Number(e.chars.max) || 0));
+  return { min: main ? Math.min(...specs.map(e => Number(e.chars.min) || 0)) : 0, max: effectiveMax(kind, specMax, field, limits) };
 }
-function capFor(kind, field, idx) {
-  const specEl = specElems.find(e => e.kind === kind);
-  const capMax = kindCap[kind] || 350;
-  if (specEl && specEl.chars) {
-    let max = specEl.chars.max || capMax;
-    if (['card', 'step', 'qa'].includes(kind) && field === 'title') max = 80;
-    if (kind === 'qa' && field === 'q') max = 90;
-    if (kind === 'quote' && field === 'author') max = 60;
-    if (kind === 'number' && field === 'value') max = 20;
-    return { min: specEl.chars.min || 0, max: Math.min(max, ['card', 'step', 'qa', 'quote'].includes(kind) ? 900 : capMax * 1.5) };
-  }
-  return { min: 0, max: capMax };
-}
-// повторы фраз с другими блоками страницы: 3-граммы содержательных слов
+// повторы фраз с другими блоками страницы: 3-граммы содержательных слов. Участвуют блоки, чей отчет линтера pass или
+// еще не создан (не прошедший линтер блок в прототипе - скелет, его фразы никому не запрещены). Отдельный запуск - в обе
+// стороны (автор правки отвечает за повтор и с блоками ниже); --page - только блоки выше по брифу (Р5: вердикт готового
+// блока не зависит от фразы, вставленной ниже; одна находка на пару - у нижнего блока).
 {
   const norm = s => s.toLowerCase().replace(/\[\[[^\]]+\]\]/g, ' ').replace(/[^a-zа-я0-9 ]+/gi, ' ').split(/\s+/).filter(w => w.length >= 3);
   const grams = words => { const set = new Set(); for (let i = 0; i + 3 <= words.length; i++) set.add(words.slice(i, i + 3).join(' ')); return set; };
-  const protectedText = [...(brief.terminology?.use || []).map(t => t.say), brief.cta?.main || '', brief.cta?.secondary || '', ...(brief.facts || []).map(f => f.wording)].join(' \n ');
+  // защищены: терминология, CTA, формулировки фактов, предмет страницы и ключевая фраза (маркер звучит на странице не раз)
+  const protectedText = [...(brief.terminology?.use || []).map(t => t.say), brief.cta?.main || '', brief.cta?.secondary || '', ...protectedFactTexts(brief), brief.subject || '', brief.key_phrase || ''].join(' \n ');
   const protectedGrams = grams(norm(protectedText));
   const mine = grams(norm(blockPlainText(block)));
   const others = [];
   const blocksDir = path.join(pageDirPath, 'blocks');
+  const order = (brief.blocks || []).map(b => b.block_id);
+  const myPos = order.indexOf(block.block_id);
+  const lintOk = id => { const f = P('work', 'audit', slug, `lint-${id}.json`); try { return !exists(f) || readJson(f).verdict === 'pass'; } catch { return true; } };
   if (exists(blocksDir)) for (const f of fs.readdirSync(blocksDir)) {
     if (!/^B\d{2}-[a-z0-9-]+\.json$/.test(f) || f === path.basename(file)) continue;
     // блок с тем же block_id (временный вариант первого экрана против текущего первого экрана) - не сосед, а предшественник
-    try { const ob = readJson(path.join(blocksDir, f)); if (ob.block_id !== block.block_id) others.push({ id: ob.block_id, grams: grams(norm(blockPlainText(ob))) }); } catch {}
+    try {
+      const ob = readJson(path.join(blocksDir, f));
+      if (ob.block_id === block.block_id) continue;
+      if (a.page) { const pos = order.indexOf(ob.block_id); if (myPos < 0 || pos < 0 || pos >= myPos) continue; }
+      if (!lintOk(ob.block_id)) continue;
+      others.push({ id: ob.block_id, grams: grams(norm(blockPlainText(ob))) });
+    } catch {}
   }
   const hits = [];
   for (const g of mine) {
@@ -176,7 +200,7 @@ function capFor(kind, field, idx) {
     if (seen.has(key)) continue;
     seen.add(key);
     if (seen.size > 6) break;
-    addFinding(report, { page: slug, block_id: block.block_id, severity: 'major', category: 'repeat', rule: 'phrase.repeat', quote: h.g, problem: `фраза «${h.g}» уже звучит в ${[...new Set(h.where)].join(', ')}`, proposal: 'сказать это другим углом или сослаться одним словом; формулировка целиком звучит на странице один раз' });
+    addFinding(report, { page: slug, block_id: block.block_id, severity: 'major', category: 'repeat', rule: 'phrase.repeat', quote: h.g, problem: `фраза «${h.g}» уже звучит в ${[...new Set(h.where)].join(', ')}`, proposal: 'удалить повтор или сослаться одним словом; другой угол - только фактом брифа, которого еще нет на странице, его формулировкой' });
   }
 }
 // CTA по блоку
@@ -204,7 +228,7 @@ if (spec) {
 // формы ai.*, style.*, fact.claim-unsupported и бюджеты страницы (ai.contrast, ai.neg-pitch, word.overuse, placeholder.count).
 // Бюджет расходуется в порядке блоков брифа: блоки выше этого + сам блок (lint-page.mjs считает так же по всей странице).
 {
-  const R = compileLint(rules, brief, cfg);
+  const R = RL;
   const mine = scanBlock(block, R);
   const order = (brief.blocks || []).map(b => b.block_id);
   const pos = order.indexOf(block.block_id);
@@ -225,6 +249,8 @@ if (a.fix) {
   for (const el of block.elements) for (const k of ['text']) if (['h1', 'h2', 'h3', 'button'].includes(el.kind) && typeof el[k] === 'string') el[k] = el[k].replace(/\.$/, '');
   writeJson(file, block);
 }
+// sha1 файла блока на момент вердикта: progress.mjs по нему отличает отчет этой версии блока от отчета прежней попытки
+try { report.block_sha = crypto.createHash('sha1').update(fs.readFileSync(file)).digest('hex'); } catch { /* файл недоступен - отчет без отпечатка */ }
 // временный файл (B01-hero.tmp-w1.json, варианты турнира) пишет свой отчет и не затирает отчет настоящего блока
 const tmpTag = path.basename(file, '.json').slice(block.block_id.length);
 writeJson(P('work', 'audit', slug, `lint-${block.block_id}${/^\.[a-z0-9.-]+$/.test(tmpTag) ? tmpTag : ''}.json`), report);

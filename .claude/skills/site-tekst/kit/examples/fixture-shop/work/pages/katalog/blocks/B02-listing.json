@@ -1,0 +1,27 @@
+{
+  "block_id": "B02-listing",
+  "type": "listing",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Вся мебель"
+    },
+    {
+      "kind": "text",
+      "text": "Выберите раздел или отфильтруйте позиции."
+    },
+    {
+      "kind": "filters",
+      "items": [
+        "Дуб",
+        "Бук",
+        "Цвет"
+      ]
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок listing",
+  "handoff_note": ""
+}

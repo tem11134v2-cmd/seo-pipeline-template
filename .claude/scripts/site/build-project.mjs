@@ -5,9 +5,13 @@
 // Скрипт делает ровно ту работу, которую агенту делать нельзя, потому что она арифметическая:
 //   - пересчитывает gates (агент их не проставляет никогда);
 //   - засевает publish: при первой сборке у всех фактов "no", при пересборке уже поднятые
-//     гейтом "yes" сохраняются по id; факты с маркером снятия и факты, задевающие
-//     constraints.forbidden, помечаются в отчете отдельной строкой;
-//   - выводит машинные признаки ниши sig из данных, а не из мнения;
+//     гейтом "yes" сохраняются по id только при том же значении; факты с маркером снятия и
+//     факты, задевающие constraints.forbidden, помечаются в отчете отдельной строкой;
+//   - пересборка после ответов заказчика снимает отметки листов и сбрасывает гейт в
+//     queue.json и печатает команду повтора всех кругов apply-answers;
+//   - выводит машинные признаки ниши sig из данных, а не из мнения; price_open (решение d6) -
+//     только по своим ценам заказчика с цифрой в facts[] либо по типу shop/both, не по ценам
+//     лидеров и не при ценах под opsec;
 //   - заполняет facts[].q сверкой label факта с колонкой NEEDS блоков pages.yml;
 //   - проставляет directions[].serves обратной сверкой с segments[].dirs;
 //   - считает gaps[].weight = сколько блоков ждут этот факт, и этим задает ПОРЯДОК
@@ -39,7 +43,7 @@ import { fileURLToPath } from "node:url";
 import {
   arr, str, low, today, B, NUM_UNIT, isCheckable, heldBack, FACT_SRC, SOURCE_KINDS,
   walkBanned, walkTypo, budget, BUDGET_WARN, BUDGET_MAX, readPages, validate, THIN,
-  PAGES_DEFAULT, kindOf, landingStructure, checkStructure
+  PAGES_DEFAULT, kindOf, landingStructure, checkStructure, LEGAL_FIELDS, FACTS_SEED_MAX, answerSheets
 } from "./_contract.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -162,8 +166,19 @@ if (!business.pages_hint.length) delete business.pages_hint;
 I(`business: сайт ${business.site === null ? "нет (null)" : str(business.site) || "не назван"}, страниц сайта ${(business.client_pages || []).length}, позиций ассортимента ${(business.assortment || []).length}, строк перечня страниц ${(business.pages_hint || []).length}`);
 business.directions = pickList(business.directions, ["id", "parent", "name", "marker", "url", "serves"], "business.directions", 25);
 business.directions.forEach((d, i) => { if (!d.id) d.id = `dir-${i + 1}`; });
-if (bizIn.legal) business.legal = pick(bizIn.legal, ["entity", "inn", "ogrn", "address", "phone", "email", "schedule", "phone_absent"], "business.legal");
+if (bizIn.legal) business.legal = pick(bizIn.legal, ["entity", "inn", "ogrn", "address", "phone", "email", "schedule", "phone_absent", "absent_fields"], "business.legal");
+if (business.legal && business.legal.absent_fields !== undefined) {
+  const keys = LEGAL_FIELDS.map((f) => f.key);
+  const ab = [...new Set(arr(business.legal.absent_fields).map((x) => str(x)))].filter((k) => keys.includes(k));
+  if (ab.length) business.legal.absent_fields = ab; else delete business.legal.absent_fields;
+}
 if (business.legal && !Object.keys(business.legal).length) delete business.legal;
+// Телефон - поле техническое, типографику в нем валидатор не смотрит. А печатается он в
+// документе 1 (решение d10) и уходит в шапку сайта: вид тире у номера смысла не несет.
+if (business.legal && typeof business.legal.phone === "string" && /[\u2012\u2013\u2014\u2015\u2212]/.test(business.legal.phone)) {
+  business.legal.phone = business.legal.phone.replace(/[\u2012\u2013\u2014\u2015\u2212]/g, "-");
+  I("business.legal.phone: тире в номере заменены на дефис - номер печатается в документе 1 (d10)");
+}
 
 // Три ответа оператора живут в queue.json. Догадка агента - фолбэк, а не источник истины.
 {
@@ -196,7 +211,7 @@ if (business.directions.length < THIN.directions) {
 
 const offerIn = merge("offer");
 const offer = pick(offerIn, ["positioning", "reasons", "promise", "limits", "tone"], "offer");
-offer.reasons = pickList(offer.reasons, ["claim", "proof", "kind"], "offer.reasons", 8);
+offer.reasons = pickList(offer.reasons, ["claim", "proof", "facts", "kind"], "offer.reasons", 8);
 offer.promise = pick(offerIn.promise, ["who", "result", "how", "proof_id", "cta"], "offer.promise");
 offer.limits = clean(offer.limits, 8, "offer.limits");
 if (!offer.limits.length) delete offer.limits;
@@ -296,7 +311,7 @@ for (const k of ["locked", "canonical"]) { const v = clean(lIn[k], 25, `lexicon.
 }
 if (!Object.keys(lexicon).length) I("lexicon пуст: язык заказчика не снят - три секции документа 1 про слова не напечатаются");
 
-const facts = pickList(partFacts.facts, ["id", "label", "value", "kind", "q", "artifact", "publish", "src"], "facts", 40)
+const facts = pickList(partFacts.facts, ["id", "label", "value", "kind", "q", "artifact", "publish", "src"], "facts", FACTS_SEED_MAX)
   .filter((f) => f.label && (f.value || f.artifact));
 // value обязателен схемой, даже когда он пуст: факт с одним artifact - законное состояние,
 // и в документе 1 такая строка печатается ссылкой на подтверждение, а не прочерком.
@@ -340,8 +355,7 @@ const corp = {
   facts: low(facts.map((f) => `${f.label} ${f.value || ""} ${f.artifact || ""}`).join(" ")),
   who: low(`${audience.segments.map((s) => `${s.name} ${s.who || ""}`).join(" ")} ${(business.legal && business.legal.entity) || ""}`),
   pain: low(audience.segments.map((s) => `${arrOf(s.pain).join(" ")} ${arrOf(s.fear).join(" ")} ${arrOf(s.objection).map((o) => o.says).join(" ")}`).join(" ")),
-  choose: low(audience.segments.map((s) => `${arrOf(s.choose).join(" ")} ${arrOf(s.objection).map((o) => `${o.says} ${o.behind || ""}`).join(" ")}`).join(" ")),
-  market: low(`${arrOf(competitors.seen_numbers).join(" ")} ${arrOf(competitors.market && competitors.market.offers_seen).join(" ")}`)
+  choose: low(audience.segments.map((s) => `${arrOf(s.choose).join(" ")} ${arrOf(s.objection).map((o) => `${o.says} ${o.behind || ""}`).join(" ")}`).join(" "))
 };
 const input = partFacts.input && typeof partFacts.input === "object" ? partFacts.input : (queue.input && typeof queue.input === "object" ? queue.input : {});
 const skus = Number(input.skus != null ? input.skus : input.items);
@@ -356,14 +370,36 @@ if (arrOf(business.geo).length >= 2 || /выезд|радиус|зона обс�
 if (/замер|выезд|монтаж|установк|на объект|обследован|осмотр|подключ/.test(corp.biz)) derived.add("visit");
 if (/авари|срочн|прорв|течет|не работает|встал|сегодня же|за час|немедлен/.test(corp.pain)) derived.add("urgent");
 if (/сравнива|несколько подрядч|несколько компан|тендер|смет|выбираем долго|не первый месяц|согласован/.test(corp.choose)) derived.add("long_cycle");
-if (arrOf(competitors.seen_numbers).filter((n) => /\d/.test(n) && new RegExp(`₽|руб|${B}р\\.|цен|стоим|от \\d`, "i").test(n)).length >= 2) derived.add("price_open");
+// Цены на сайте (d6) - решение заказчика, а не рынка. Признак ставят свои ценовые факты
+// (ниже, после facts[].q) либо магазин: карточкам каталога нужна цена. Цены лидеров
+// (seen_numbers) признак не ставят - чья это цифра, контракт не знает. Цены под opsec
+// заказчика признак снимают у любого типа сайта.
+// Слово о ценах - формы «цена», «ценник», «ценовой»; «ценности» и «ценные» к ценам не относятся.
+const PRICE_WORD = new RegExp(`${B}(цен(а|ы|у|е|ой|ою|ам|ами|ах|ник[а-я]*|ов[а-я]*|ообразован[а-я]*)?(?![а-яa-z])|стоимост|прайс|тариф)`);
+const pricesClosed = PRICE_WORD.test(low(constraints.opsec));
+if ((business.type === "shop" || business.type === "both") && !pricesClosed) derived.add("price_open");
 if (mustHave.has("cat_text")) derived.add("serp_hot");
+// Следствие признака ниши - третья колонка секции sig в pages.yml: «docs обязателен»,
+// «steps и geo обязательны». Имена блоков вычитываются оттуда, а не перечисляются тут руками.
+function growBySig(list) {
+  const grown = [];
+  for (const s of list) {
+    for (const id of blockIds) {
+      if (active.has(id)) continue;
+      if (new RegExp(`(^|[^a-z0-9_])${id}([^a-z0-9_]|$)`).test(pages.sigBody.get(s) || "")) { active.add(id); grown.push(`${id} (по признаку ${s})`); }
+    }
+  }
+  if (grown.length) I(`блоки добавлены следствием признака ниши: ${grown.join(", ")}; активных стало ${active.size}`);
+}
+// price_open со слов агента не берется: основание считается машинно, после facts[].q.
+let agentPrice = false;
 {
   const given = new Set(clean(business.sig, 9, "business.sig").filter((s) => {
     if (sigIds.has(s)) return true;
     V("business.sig", `«${s}» не признак ниши из pages.yml (их девять: ${pages.sig.join(", ")})`);
     return false;
   }));
+  agentPrice = given.delete("price_open") && !derived.has("price_open");
   const added = [...derived].filter((s) => !given.has(s));
   const onlyAgent = [...given].filter((s) => !derived.has(s));
   const sig = [...new Set([...given, ...derived])].filter((s) => sigIds.has(s));
@@ -372,16 +408,7 @@ if (mustHave.has("cat_text")) derived.add("serp_hot");
   if (onlyAgent.length) I(`sig стоят со слов агента, машинного подтверждения нет: ${onlyAgent.join(", ")}`);
   if (Number.isFinite(photos)) I(`фото на входе: ${photos}; отдельного признака под фото в словаре pages.yml нет, на sig число не влияет - оно влияет на блоки cases и gallery`);
   if (Number.isFinite(skus)) I(`номенклатура на входе: ${skus} позиций`);
-  // Следствие признака ниши - это третья колонка секции sig в pages.yml: «docs обязателен»,
-  // «steps и geo обязательны». Имена блоков вычитываются оттуда, а не перечисляются тут руками.
-  const grown = [];
-  for (const s of arrOf(business.sig)) {
-    for (const id of blockIds) {
-      if (active.has(id)) continue;
-      if (new RegExp(`(^|[^a-z0-9_])${id}([^a-z0-9_]|$)`).test(pages.sigBody.get(s) || "")) { active.add(id); grown.push(`${id} (по признаку ${s})`); }
-    }
-  }
-  if (grown.length) I(`блоки добавлены следствием признака ниши: ${grown.join(", ")}; активных стало ${active.size}`);
+  growBySig(arrOf(business.sig));
 }
 
 {
@@ -456,6 +483,31 @@ function matchBlocks(text, kind) {
   I(`facts[].q: заполнено скриптом ${filled}, без единого ждущего блока ${empty} - такой факт лежит в файле весом без применения`);
 }
 
+// ---------------------------------------------------------------- price_open из своих цен
+// Своя цена - факт заказчика (любой источник из FACT_SRC: чужие цифры живут в seen_numbers)
+// с блоком price в q и цифрой в значении, не снятый и не задевающий запретов. «Стоимость:
+// по запросу» ценой не считается. Считается после q: вопрос price факту ставит сверка с
+// блоками выше. Магазину признак уже поставлен типом.
+{
+  const forbidden = arrOf(constraints.forbidden);
+  const own = facts.filter((f) => arrOf(f.q).includes("price") && /\d/.test(str(f.value)) && !heldBack(f, forbidden));
+  const sig = arrOf(business.sig);
+  if (pricesClosed) {
+    I(`price_open не ставится: цены закрыты opsec заказчика («${str(constraints.opsec).slice(0, 80)}») - d6 уйдет «цены на сайте не печатаем»`);
+  } else if (!sig.includes("price_open") && own.length) {
+    business.sig = [...sig, "price_open"];
+    I(`price_open: свои цены с цифрой в facts (${own.map((f) => f.id).join(", ")}) - d6 уйдет «печатаем цены прямо на страницах»`);
+    growBySig(["price_open"]);
+  } else if (sig.includes("price_open")) {
+    I(`price_open: ${own.length ? `свои цены в facts (${own.map((f) => f.id).join(", ")})` : "магазин - карточкам каталога нужна цена"}`);
+  }
+  if (agentPrice && !arrOf(business.sig).includes("price_open")) {
+    W("business.sig", pricesClosed
+      ? "price_open стоит со слов агента, а цены закрыты opsec заказчика - признак снят, d6 уйдет «цены на сайте не печатаем»"
+      : "price_open стоит со слов агента, а своих цен с цифрой в facts нет - признак снят: цены лидеров его не ставят, d6 уйдет «цены на сайте не печатаем»");
+  }
+}
+
 // ---------------------------------------------------------------- facts[].kind
 // Вид факта ставит site-intake. Не поставил - мост q -> kind, тот же, что у импорта текстов.
 // Чужое значение ловит схема ниже: его тут не чиним, это ошибка агента.
@@ -465,41 +517,54 @@ function matchBlocks(text, kind) {
   if (derived.length) W("facts", `kind не проставлен агентом у ${derived.length} фактов, выведен мостом q -> kind: ${derived.join(", ")}`);
 }
 
-// ---------------------------------------------------------------- objection[].facts
-// Ссылка ответа на факт живет, только пока факт есть в контракте. Чужой id снимается тут,
-// иначе валидатор отверг бы сборку за ссылку, которую агент поставил на догадку.
+// ---------------------------------------------------------------- objection[].facts, reasons[].facts
+// Ссылка ответа или причины на факт живет, только пока факт есть в контракте. Чужой id
+// снимается тут, иначе валидатор отверг бы сборку за ссылку, которую агент поставил на догадку.
 {
   const ids = new Set(facts.map((f) => f.id));
   const lost = [];
-  let linked = 0;
-  audience.segments.forEach((s) => arrOf(s.objection).forEach((o) => {
-    if (o.facts === undefined) return;
+  const keepIds = (o, where) => {
+    if (o.facts === undefined) return false;
     const list = [...new Set(arrOf(o.facts).map((x) => str(x)).filter(Boolean))];
     const ok = list.filter((x) => ids.has(x)).slice(0, 5);
-    for (const x of list) if (!ids.has(x)) lost.push(`${s.id}: ${x}`);
-    if (ok.length) { o.facts = ok; linked++; } else delete o.facts;
-  }));
-  if (lost.length) W("audience.segments.objection.facts", `ссылки на несуществующие факты сняты: ${lost.join(", ")}`);
+    for (const x of list) if (!ids.has(x)) lost.push(`${where}: ${x}`);
+    if (ok.length) o.facts = ok; else delete o.facts;
+    return ok.length > 0;
+  };
+  let linked = 0, reasonsLinked = 0;
+  audience.segments.forEach((s) => arrOf(s.objection).forEach((o) => { if (keepIds(o, s.id)) linked++; }));
+  arrOf(offer.reasons).forEach((r, i) => { if (keepIds(r, `причина ${i + 1}`)) reasonsLinked++; });
+  if (lost.length) W("facts ссылки", `ссылки на несуществующие факты сняты: ${lost.join(", ")}`);
   if (linked) I(`ответов на возражения со ссылкой на факт: ${linked}`);
+  if (reasonsLinked) I(`причин «чем отличаемся» со ссылкой на факт: ${reasonsLinked} из ${arrOf(offer.reasons).length}`);
+  else if (arrOf(offer.reasons).length) I("у причин offer.reasons нет ссылок facts на факты - импорт текстов не отличит причину на снятом факте");
 }
 
 // ---------------------------------------------------------------- publish
+// «yes» переживает пересборку, только если значение факта то же: иначе в тексты ушло бы
+// значение брифа, которое заказчик исправил (гарантия 12 месяцев вместо 24), под видом
+// подтвержденного. Исправленное вернет повтор листа ответов - его велит строка ниже.
+const reverted = [];
 {
   const forbidden = arrOf(constraints.forbidden);
   const keep = new Map();
-  if (prev && !forceSeed) for (const f of arrOf(prev.facts)) if (f && f.publish === "yes" && f.id) keep.set(f.id, true);
+  if (prev && !forceSeed) for (const f of arrOf(prev.facts)) if (f && f.publish === "yes" && f.id) keep.set(f.id, f);
+  const same = (a, b) => str(a.value) === str(b.value) && str(a.artifact) === str(b.artifact);
   const flagged = [];
   for (const f of facts) {
     const mark = heldBack(f, forbidden);
-    f.publish = keep.has(f.id) && !mark ? "yes" : "no";
+    const was = keep.get(f.id);
+    if (was && !same(was, f)) reverted.push(f.id);
+    f.publish = was && same(was, f) && !mark ? "yes" : "no";
     if (mark) flagged.push(`${f.id} «${f.label}» - ${mark}`);
     if (!FACT_SRC.includes(f.src)) {
       V(`facts ${f.id}`, `источник «${f.src || "нет"}» вне набора ${FACT_SRC.join(", ")} - факт без источника не факт и не пишется вовсе`);
     }
   }
   const yes = facts.filter((f) => f.publish === "yes").length;
-  if (yes) I(`publish: сохранено "yes" у ${yes} фактов из прошлой сборки (гейт их уже поднял), остальные засеяны "no"`);
-  else I(`publish: засеяно "no" у всех ${facts.length} фактов - "yes" поднимает только гейт после ответа заказчика по таблице «ваши цифры»`);
+  if (yes) I(`publish: сохранено "yes" у ${yes} фактов из прошлой сборки с тем же значением, остальные засеяны "no"`);
+  if (reverted.length) W("facts", `значение из ответа заказчика перебито входом, publish снят: ${reverted.join(", ")} - повтори apply-answers --apply по всем кругам`);
+  if (!yes) I(`publish: засеяно "no" у всех ${facts.length} фактов - "yes" поднимает только гейт после ответа заказчика по таблице «ваши цифры»`);
   if (flagged.length) {
     I(`не предлагать к публикации (${flagged.length}): ${flagged.join("; ")}`);
     W("facts", `${flagged.length} фактов задевают запреты или помечены снятием - в документе 1 они идут с рекомендацией «не публикуем»`);
@@ -620,11 +685,37 @@ if (!violations.length) {
   written = true;
 }
 
+// Пересборка собирает контракт из parts/ - данных до ответов заказчика. Если ответы уже
+// применялись, они стерты: отметки листов снимаются (повтор всех кругов даст тот же итог,
+// номера фактов из ответов держит queue.json -> fact_ids), гейт сбрасывается - очередь сама
+// вернется на шаг 5. Молча этого не делаем.
+let resetNote = "";
+if (written && existsSync(queuePath) && resolve(outPath) === join(root, "project.json")) {
+  const marks = arrOf(queue.answers).length;
+  // Следы применения без отметок: лист применяли до программы 28.09 (ответ дал src «ответ»
+  // либо поднял publish), а лист ответов лежит рядом.
+  const answered = answerSheets(root).length > 0 && arrOf(prev && prev.facts).some((f) => f && (f.src === "ответ" || f.publish === "yes"));
+  const gated = !!(queue.gate && queue.gate.approved === true);
+  if (marks || gated || answered) {
+    const q = readJson(queuePath, "queue.json", false) || {};
+    // Лист до программы 28.09 остается помеченным legacy без суммы: повтор разберет его по
+    // прежним правилам (прочерк - «не публикуем»), а не как первое применение нового листа.
+    const was = Array.isArray(q.answers) ? q.answers : [];
+    const oldSheets = !Array.isArray(q.answers) && answered ? answerSheets(root).filter((s) => s.round === 1) : [];
+    q.answers = [...was.filter((m) => m && m.legacy).map((m) => ({ file: m.file, sha: "", legacy: true })),
+      ...oldSheets.map((s) => ({ file: s.file, sha: "", legacy: true }))];
+    if (gated) q.gate = { approved: false, by: "", at: "" };
+    writeFileSync(queuePath, JSON.stringify(q, null, 2) + "\n", "utf8");
+    resetNote = `ответы заказчика стерты пересборкой${gated ? ", гейт сброшен" : ""}: повтори node .claude/scripts/site/apply-answers.mjs ${root} --apply (все круги answers*.txt по порядку), затем verify-data и queue.mjs gate`;
+  }
+}
+
 if (!quiet) {
   console.log(`[build-project] ${written ? outPath : "НЕ ЗАПИСАН"}  (фактов ${facts.length}, направлений ${business.directions.length}, сегментов ${audience.segments.length}, вопросов ${gapsOut.length})`);
   for (const m of infos) console.log("   i " + m);
   if (warnings.length) { console.log("  предупреждения:"); for (const w of warnings) console.log("   ~ " + w); }
   if (violations.length) { console.log("  НАРУШЕНИЯ (project.json не записан):"); for (const v of violations.slice(0, 30)) console.log("   ! " + v); if (violations.length > 30) console.log(`   ! и еще ${violations.length - 30}`); }
   if (written) console.log(`  дальше: verify-data.mjs на этом файле${project.tier === "basic" && business.site_kind === "multipage" ? ", pages-planner (шаг 3b)" : ""}, затем build-doc.mjs на оба документа.`);
-}
+  if (resetNote) console.log(`  ВНИМАНИЕ: ${resetNote}`);
+} else if (resetNote) console.log(`[build-project] ВНИМАНИЕ: ${resetNote}`);
 process.exit(violations.length ? 2 : warnings.length ? 1 : 0);

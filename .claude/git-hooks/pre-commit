@@ -101,9 +101,13 @@ allowed_prefixes=(
 )
 task_rels=""   # для сообщения об ошибке
 task_count=0
+# BOM (EF BB BF): PowerShell (> и Out-File) пишет UTF-8 с BOM - без снятия первая задача не совпала бы ни с одним путем,
+# хотя task.mjs init такую строку принимает (trim в JS снимает U+FEFF).
+bom=$'\xef\xbb\xbf'
 
 while IFS= read -r raw_line || [ -n "${raw_line}" ]; do
   task_dir=$(printf '%s' "${raw_line}" | tr -d '\r\n')
+  task_dir="${task_dir#"${bom}"}"
   [ -z "${task_dir}" ] && continue
 
   # Преобразуем task_dir в относительный путь относительно PROJECT_ROOT

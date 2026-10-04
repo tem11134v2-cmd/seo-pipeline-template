@@ -1,6 +1,6 @@
 {
   "$id": "competitors-seed",
-  "_doc": "work/competitors/seed.json - затравка конкурентов из анализа (project.json -> competitors.list). Пишет scripts/import-project.mjs, читает 02-competitor-verifier вместо грепа по inputs/analysis.md.",
+  "_doc": "work/competitors/seed.json - затравка конкурентов из анализа (project.json -> competitors.list). Пишет scripts/import-project.mjs, читает 02-competitor-verifier вместо грепа по inputs/analysis.md. domain - в ASCII (кириллический домен - punycode xn--), юникод и остаток строки без пометок - в name, исходная строка - в raw; строки без домена - в rejected (их разбирает верификатор).",
   "type": "object",
   "required": ["source", "generated_at", "domains"],
   "properties": {
@@ -14,8 +14,9 @@
         "type": "object",
         "required": ["domain", "source"],
         "properties": {
-          "domain": { "type": "string", "pattern": "^[a-z0-9.-]+\\.[a-z]{2,}$" },
+          "domain": { "type": "string", "pattern": "^(?:[a-z0-9-]+\\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$" },
           "source": { "type": "string", "enum": ["analysis"] },
+          "name": { "type": "string" },
           "raw": { "type": "string" }
         }
       }

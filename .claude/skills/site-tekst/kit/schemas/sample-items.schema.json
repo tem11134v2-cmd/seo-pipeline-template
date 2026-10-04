@@ -1,0 +1,52 @@
+{
+  "$id": "sample-items",
+  "description": "work/catalog/sample-items.json - примеры товаров для карточек прототипа (контракт C5). Пишет prompts/07-sample-items.md, читает сборщик прототипа. Схема в подмножестве валидатора kit (lib.mjs validate): один строковый type на поле, без null и объединений типов. Состав (одна карточка \"*\", не больше 12 категорий, лимиты фото 200 КБ и 2 МБ) держит промт.",
+  "type": "object",
+  "required": ["generated_at", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "generated_at": { "type": "string" },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["key", "category_slug", "source", "name", "attributes", "images"],
+        "additionalProperties": false,
+        "properties": {
+          "key": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "description": "уникальный ключ примера: латиница, цифры, дефис" },
+          "category_slug": { "type": "string", "pattern": "^(\\*|[a-z0-9-]+)$", "description": "slug страницы-листинга карты или \"*\" - карточка на весь сайт" },
+          "source": { "type": "string", "enum": ["site", "illustrative"], "description": "site - реальный товар текущего сайта заказчика; illustrative - карточка-пример \"*\" без фото" },
+          "name": { "type": "string", "minLength": 2, "maxLength": 160 },
+          "price": { "type": "number", "description": "цена в рублях числом; нет цены - поля нет" },
+          "price_note": { "type": "string", "maxLength": 40, "description": "слово при цене, как на сайте (например «от», «по запросу»)" },
+          "attributes": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "type": "object",
+              "required": ["label", "value"],
+              "additionalProperties": false,
+              "properties": { "label": { "type": "string", "minLength": 1 }, "value": { "type": "string", "minLength": 1 } }
+            }
+          },
+          "facets": {
+            "type": "object",
+            "description": "имя фильтра catalog-spec -> значения этого фильтра дословно; всегда массив строк (одно значение - массив из одного, у range - одна строка-число)",
+            "additionalProperties": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+          },
+          "images": {
+            "type": "array",
+            "maxItems": 2,
+            "description": "1-2 фото, первое - главное; файлы в work/catalog/samples/, имя без точек кроме расширения; у illustrative - []",
+            "items": { "type": "string", "pattern": "^work/catalog/samples/[A-Za-z0-9_-]+\\.(jpg|jpeg|png|webp)$" }
+          },
+          "source_url": { "type": "string", "pattern": "^https?://" },
+          "taken_at": { "type": "string" },
+          "why": { "type": "string" }
+        }
+      }
+    },
+    "notes": { "type": "string" }
+  }
+}

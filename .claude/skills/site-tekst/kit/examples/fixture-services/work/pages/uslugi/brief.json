@@ -1,0 +1,75 @@
+{
+  "slug": "uslugi",
+  "url": "/uslugi/",
+  "type": "hub",
+  "subject": "Услуги по ремонту",
+  "geo": "",
+  "block_set": "full",
+  "company": "Кварта Ремонт",
+  "positioning": "",
+  "main_promise": "",
+  "segment": {
+    "id": "S1",
+    "name": "Семья с новой квартирой",
+    "portrait": "Пара 30-40 лет",
+    "pains": [
+      "не понимают итоговую цену"
+    ],
+    "fears": [],
+    "objections": []
+  },
+  "unique_argument": "",
+  "hook": "",
+  "cta": {
+    "main": "Подобрать услугу"
+  },
+  "facts": [],
+  "anti_promises": [],
+  "disclaimer_text": "",
+  "links": [],
+  "blocks": [
+    {
+      "block_id": "B01-hero",
+      "type": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "",
+      "pattern": "hero-split",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [
+        "F03"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B02-list",
+      "type": "list",
+      "name": "Список услуг",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "listing",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B03-cta",
+      "type": "cta",
+      "name": "Призыв",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "cta-band",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [
+        "F04"
+      ],
+      "elements": [],
+      "notes": ""
+    }
+  ]
+}

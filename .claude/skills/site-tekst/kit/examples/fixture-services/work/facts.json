@@ -1,0 +1,89 @@
+{
+  "generated_at": "2026-09-27 12:00",
+  "source": "fixture",
+  "facts": [
+    {
+      "id": "F01",
+      "label": "год основания",
+      "value": "2014",
+      "wording": "ремонтируем квартиры с 2014 года",
+      "publish": "yes",
+      "source_quote": "работаем с 2014 года",
+      "kind": "number"
+    },
+    {
+      "id": "F02",
+      "label": "гарантия",
+      "value": "3 года",
+      "wording": "гарантия 3 года на работы по договору",
+      "publish": "yes",
+      "source_quote": "гарантия три года",
+      "kind": "legal"
+    },
+    {
+      "id": "F03",
+      "label": "смета",
+      "value": "фиксируем в договоре",
+      "wording": "смета фиксируется в договоре до начала работ",
+      "publish": "yes",
+      "source_quote": "смета в договоре",
+      "kind": "process"
+    },
+    {
+      "id": "F04",
+      "label": "выезд замерщика",
+      "value": "в день заявки",
+      "wording": "замерщик приезжает в день заявки",
+      "publish": "yes",
+      "source_quote": "выезжаем в день обращения",
+      "kind": "process"
+    },
+    {
+      "id": "F05",
+      "label": "срок ремонта",
+      "value": "от 45 дней",
+      "wording": "ремонт однокомнатной квартиры - от 45 дней",
+      "publish": "yes",
+      "source_quote": "от 45 дней",
+      "kind": "number"
+    },
+    {
+      "id": "F06",
+      "label": "цена",
+      "value": "от 9 500 руб. за кв. м",
+      "wording": "от 9 500 руб. за квадратный метр",
+      "publish": "yes",
+      "source_quote": "от 9500",
+      "kind": "price"
+    }
+  ],
+  "anti_promises": [],
+  "terminology": {
+    "use": [],
+    "jargon": []
+  },
+  "company": {
+    "legal_name": "ООО «Кварта»",
+    "brand": "Кварта Ремонт",
+    "address": "Самара, ул. Примерная, 10",
+    "phones": [
+      "8 (846) 200-00-00"
+    ],
+    "email": "info@kvarta.example",
+    "hours": "ежедневно 9:00-20:00",
+    "inn": "6300000000",
+    "ogrn": "1236300000000",
+    "channels": {
+      "whatsapp": "https://wa.me/78462000000",
+      "telegram": {
+        "label": "Telegram",
+        "value": "@kvarta_example",
+        "href": "https://t.me/kvarta_example"
+      }
+    },
+    "status": "confirmed",
+    "source": "fixture"
+  },
+  "tone": {},
+  "gaps": []
+}

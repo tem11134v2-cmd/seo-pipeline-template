@@ -23,6 +23,11 @@
 //   4. Узкий фолбэк того же хука при непригодном имени агента («*» из matcher,
 //      пустой payload): маркер берется, только когда он в .claude/tmp/ ровно один;
 //      при двух маркерах проверка пропускается без падения и маркеры не трогаются.
+//   5. Режим клиентского клона (есть .claude/.machinery-version, нет .claude/.is-template-root): docs/ туда не
+//      раскатывается, поэтому шаги, завязанные на docs/ (таблица MODEL-POLICY, файлы ADR), - SKIP с причиной, а не
+//      красный набор у каждого клиента. Проверяется запуском этого же набора в песочнице-клоне.
+//
+// bash для хука ищется в PATH, затем рядом с git (Git for Windows): из PowerShell bash в PATH нет.
 //
 // Обоснование политики моделей - docs/MODEL-POLICY.md и ADR-024.
 //
@@ -50,6 +55,9 @@ const SCRIPTS_DIR = join(PROJECT_ROOT, ".claude/scripts");
 const ADR_DIR = join(PROJECT_ROOT, "docs/adr");
 const MODEL_POLICY = join(PROJECT_ROOT, "docs/MODEL-POLICY.md");
 const SANDBOX = join(PROJECT_ROOT, ".claude/tmp/machinery-test");
+// Клиентский клон: метка синка есть, маркера шаблона нет (программа 28.09, раздел 1). docs/ в клон не раскатывается.
+const CLIENT_CLONE = existsSync(join(PROJECT_ROOT, ".claude/.machinery-version")) && !existsSync(join(PROJECT_ROOT, ".claude/.is-template-root"));
+const CLIENT_SKIP = "SKIP: клиентский клон (.machinery-version без .is-template-root) - docs/ не раскатывается /sync-from-template";
 
 // === Мини-фреймворк (по образцу style/run.mjs и skill-split/run.mjs) ===
 let passed = 0;
@@ -129,6 +137,7 @@ const agents = agentFiles.map((f) => {
 });
 
 step("docs/MODEL-POLICY.md на месте и таблица агентов парсится", () => {
+  if (CLIENT_CLONE) return CLIENT_SKIP;
   if (!policyExists) return "docs/MODEL-POLICY.md отсутствует";
   if (policyRows.length === 0) return "в таблице не распознано ни одной строки агента";
   if (agents.length === 0) return ".claude/agents/*.md не найдены";
@@ -136,6 +145,7 @@ step("docs/MODEL-POLICY.md на месте и таблица агентов па
 });
 
 step("каждая строка таблицы имеет файл .claude/agents/<агент>.md", () => {
+  if (CLIENT_CLONE) return CLIENT_SKIP;
   const onDisk = new Set(agents.map((a) => a.slug));
   const ghosts = policyRows.map((r) => r.agent).filter((a) => !onDisk.has(a));
   if (ghosts.length > 0) {
@@ -151,6 +161,7 @@ const DRIFT_HINT =
   "если это клиентский клон - docs/ не раскатывается /sync-from-template, см. .claude/tests/README.md";
 
 step("каждый файл агента есть в таблице модельной политики", () => {
+  if (CLIENT_CLONE) return CLIENT_SKIP;
   const missing = agents.map((a) => a.slug).filter((a) => !policyMap.has(a));
   if (missing.length > 0) {
     return `агенты на диске отсутствуют в таблице (новые - ярус не объявлен): ${missing.join(", ")}. ${DRIFT_HINT}`;
@@ -159,6 +170,7 @@ step("каждый файл агента есть в таблице модель
 });
 
 step("модель в таблице совпадает с model: во frontmatter", () => {
+  if (CLIENT_CLONE) return CLIENT_SKIP;
   const diff = [];
   for (const a of agents) {
     const want = policyMap.get(a.slug);
@@ -186,6 +198,7 @@ step("frontmatter name: совпадает с именем файла агент
 });
 
 step("заголовок «Таблица агентов (N)» называет фактическое число агентов", () => {
+  if (CLIENT_CLONE) return CLIENT_SKIP;
   const m = policySrc.match(/Таблица агентов\s*\((\d+)\)/);
   if (!m) return "SKIP: в MODEL-POLICY.md нет заголовка вида «Таблица агентов (N)»";
   const declared = Number(m[1]);
@@ -265,6 +278,7 @@ for (const file of scanned) {
 }
 
 step("сканер видит файлы и находит ссылки на ADR (санити обхода)", () => {
+  if (CLIENT_CLONE) return CLIENT_SKIP;
   if (scanned.length < 50) return `обход дал всего ${scanned.length} файлов - похоже, сломан`;
   if (adrNumbers.size === 0) return "docs/adr/ пуст или файлы названы не по схеме NNN-slug.md";
   if (refs.size === 0) return "не найдено ни одной ссылки ADR-NNN - сканер молчит вхолостую";
@@ -272,6 +286,7 @@ step("сканер видит файлы и находит ссылки на ADR
 });
 
 step("нет висячих ссылок: у каждой ADR-NNN есть файл docs/adr/NNN-*.md", () => {
+  if (CLIENT_CLONE) return CLIENT_SKIP;
   const dangling = [];
   for (const [num, files] of [...refs.entries()].sort()) {
     if (adrNumbers.has(num)) continue;
@@ -291,11 +306,16 @@ step("нет висячих ссылок: у каждой ADR-NNN есть фа�
 console.log("");
 console.log("=== JSON-lint в SubagentStop-хуке check-file.sh ===");
 
+// bash/sh: PATH, затем рядом с git (Git for Windows: <git --exec-path>/../../../bin/bash.exe, каталог git var GIT_SHELL_PATH).
 function findSh() {
-  for (const bin of ["bash", "sh"]) {
-    const r = spawnSync(bin, ["-c", "exit 0"], { encoding: "utf8" });
-    if (!r.error && r.status === 0) return bin;
-  }
+  const ok = (b) => { const r = spawnSync(b, ["-c", "exit 0"], { encoding: "utf8" }); return !r.error && r.status === 0; };
+  for (const bin of ["bash", "sh"]) if (ok(bin)) return bin;
+  const cands = [];
+  const ex = spawnSync("git", ["--exec-path"], { encoding: "utf8" });
+  if (!ex.error && ex.status === 0 && ex.stdout.trim()) cands.push(resolve(ex.stdout.trim(), "..", "..", "..", "bin", "bash.exe"), resolve(ex.stdout.trim(), "..", "..", "..", "usr", "bin", "bash.exe"));
+  const gs = spawnSync("git", ["var", "GIT_SHELL_PATH"], { encoding: "utf8" });
+  if (!gs.error && gs.status === 0 && gs.stdout.trim()) cands.push(join(dirname(gs.stdout.trim()), "bash.exe"), resolve(dirname(gs.stdout.trim()), "..", "..", "bin", "bash.exe"), gs.stdout.trim());
+  for (const c of cands) if (existsSync(c) && ok(c)) return c;
   return null;
 }
 
@@ -457,8 +477,44 @@ step("агент известен, но своего маркера нет -> п
   return true;
 });
 
-// Песочница за собой убирается.
-if (existsSync(SANDBOX)) rmSync(SANDBOX, { recursive: true, force: true });
+// ──────────────────────────────────────────────────────────────────────────
+// 5. Режим клиентского клона: тот же набор в песочнице без docs/.
+// Клон с .machinery-version без .is-template-root - шаги по docs/ SKIP, набор зеленый; с маркером шаблона те же шаги
+// обязаны падать (в шаблоне docs/ на месте, расхождение - настоящий дрейф). Вложенный запуск раздел 5 не повторяет.
+// ──────────────────────────────────────────────────────────────────────────
+console.log("");
+console.log("=== режим клиентского клона: шаги по docs/ - SKIP с причиной ===");
+
+if (process.env.MACHINERY_TEST_NESTED !== "1") {
+  const clone = join(SANDBOX, "client-clone");
+  const put = (rel, from) => { mkdirSync(dirname(join(clone, rel)), { recursive: true }); copyFileSync(from, join(clone, rel)); };
+  const runClone = () => spawnSync(process.execPath, [join(clone, ".claude/tests/machinery/run.mjs")], {
+    cwd: clone, encoding: "utf8", env: { ...process.env, MACHINERY_TEST_NESTED: "1" },
+  });
+  let cloneRun = null;
+  step("клиентский клон без docs/: шаги MODEL-POLICY и ADR - SKIP с причиной, набор зеленый", () => {
+    put(".claude/tests/machinery/run.mjs", fileURLToPath(import.meta.url));
+    for (const a of agentFiles.slice(0, 2)) put(`.claude/agents/${a}`, join(AGENTS_DIR, a));
+    if (existsSync(hookScript)) put(".claude/hooks/check-file.sh", hookScript);
+    if (existsSync(join(SCRIPTS_DIR, "_node.sh"))) put(".claude/scripts/_node.sh", join(SCRIPTS_DIR, "_node.sh"));
+    writeFileSync(join(clone, ".claude/.machinery-version"), JSON.stringify({ template_commit: "0".repeat(40), synced_by: "sync-from-template.mjs" }) + "\n", "utf8");
+    cloneRun = runClone();
+    const out = (cloneRun.stdout || "") + (cloneRun.stderr || "");
+    const skippedDocs = (out.match(/SKIP \(клиентский клон/g) || []).length;
+    if (cloneRun.status !== 0) return `код ${cloneRun.status}: ${out.split("\n").filter((l) => /FAIL/.test(l)).slice(0, 3).join(" | ")}`;
+    return skippedDocs === 7 || `шагов SKIP «клиентский клон»: ${skippedDocs} (ожидалось 7)`;
+  });
+  step("тот же клон с маркером .is-template-root (шаблон): шаги по docs/ идут и падают без docs/", () => {
+    if (!cloneRun) return "SKIP: предыдущий шаг не выполнялся";
+    writeFileSync(join(clone, ".claude/.is-template-root"), "шаблон\n", "utf8");
+    const r = runClone();
+    const out = (r.stdout || "") + (r.stderr || "");
+    return (r.status === 1 && /docs\/MODEL-POLICY\.md отсутствует/.test(out) && !/SKIP \(клиентский клон/.test(out)) || `код ${r.status}: ${out.slice(-300)}`;
+  });
+}
+
+// Песочница за собой убирается (вложенный запуск раздела 5 - в своей песочнице внутри нее).
+if (process.env.MACHINERY_TEST_NESTED !== "1" && existsSync(SANDBOX)) rmSync(SANDBOX, { recursive: true, force: true });
 
 // === Итог ===
 console.log("");

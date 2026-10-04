@@ -35,5 +35,7 @@ texts/*/html/
 texts/*/config/house_style.md
 texts/*/rules/*
 !texts/*/rules/decisions.md
+# снимок блоков до фиксера фазы 6 (fix-diff.mjs --snap): нужен только внутри прогона, журнал fix-diff.json - в git
+texts/*/work/audit/*/pre-fix/
 # Конфиг превью панели браузера (task.mjs preview): локальные пути машины, не коммитится
 .claude/launch.json

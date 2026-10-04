@@ -1,0 +1,48 @@
+{
+  "block_id": "B04-process",
+  "type": "process",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Как проходит ремонт"
+    },
+    {
+      "kind": "step",
+      "title": "Замер",
+      "text": "Замерщик приезжает в день заявки",
+      "facts": [
+        "F04"
+      ]
+    },
+    {
+      "kind": "step",
+      "title": "Смета и договор",
+      "text": "Фиксируем смету в договоре до начала работ",
+      "facts": [
+        "F03"
+      ]
+    },
+    {
+      "kind": "step",
+      "title": "Работы",
+      "text": "Ведем ремонт по графику из договора"
+    },
+    {
+      "kind": "step",
+      "title": "Приемка",
+      "text": "Вы принимаете работы по акту, гарантия 3 года",
+      "facts": [
+        "F02"
+      ]
+    }
+  ],
+  "facts_used": [
+    "F04",
+    "F03",
+    "F02"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок process",
+  "handoff_note": ""
+}

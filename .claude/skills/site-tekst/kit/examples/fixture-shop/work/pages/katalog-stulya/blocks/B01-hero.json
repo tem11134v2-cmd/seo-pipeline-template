@@ -1,0 +1,28 @@
+{
+  "block_id": "B01-hero",
+  "type": "hero",
+  "role": "hero",
+  "elements": [
+    {
+      "kind": "h1",
+      "text": "Стулья из массива"
+    },
+    {
+      "kind": "sub",
+      "text": "Стулья из массива дуба и бука",
+      "facts": [
+        "F02"
+      ]
+    },
+    {
+      "kind": "button",
+      "text": "Выбрать модель"
+    }
+  ],
+  "facts_used": [
+    "F02"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок hero",
+  "handoff_note": ""
+}

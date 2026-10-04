@@ -1,0 +1,33 @@
+{
+  "block_id": "B05-form",
+  "type": "form",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Рассчитаем укладку"
+    },
+    {
+      "kind": "field",
+      "label": "Имя"
+    },
+    {
+      "kind": "field",
+      "label": "Телефон",
+      "layout": "tel"
+    },
+    {
+      "kind": "field",
+      "label": "Площадь и комментарий",
+      "layout": "textarea"
+    },
+    {
+      "kind": "button",
+      "text": "Рассчитать укладку"
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок form",
+  "handoff_note": ""
+}

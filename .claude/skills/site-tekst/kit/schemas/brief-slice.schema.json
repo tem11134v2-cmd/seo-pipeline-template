@@ -8,6 +8,7 @@
     "url": { "type": "string" },
     "type": { "type": "string" },
     "subject": { "type": "string" },
+    "key_phrase": { "type": "string", "description": "Только в срезе первого экрана: ключевая фраза страницы из брифа (K5)." },
     "geo": { "type": "string" },
     "block_set": { "type": "string", "enum": ["full", "short"] },
     "company": { "type": "string" },
@@ -23,15 +24,18 @@
         "fears": { "type": "array", "items": { "type": "string" } },
         "criteria": { "type": "array", "items": { "type": "string" } },
         "objections": { "type": "array", "items": { "type": "object", "required": ["id", "text", "answer"], "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "answer": { "type": "string" }, "facts": { "type": "array", "items": { "type": "string" } } } } },
-        "objections_page": { "type": "array", "items": { "type": "object", "required": ["id", "text"], "properties": { "id": { "type": "string" }, "text": { "type": "string" } } } }
+        "objections_page": { "type": "array", "items": { "type": "object", "required": ["id", "text"], "properties": { "id": { "type": "string" }, "text": { "type": "string" } } } },
+        "segments": { "type": "array", "description": "Только у сегмента all: сценарии сегментов страницы.", "items": { "type": "object", "required": ["id", "name"], "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "comes_with": { "type": "string" } } } }
       }
     },
+    "positioning": { "type": "string" },
     "unique_argument": { "type": "string" },
     "hook": { "type": "string" },
     "main_promise": { "type": "string" },
     "offer_formula": { "type": "object", "required": ["id", "name", "recipe"], "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "recipe": { "type": "string" } } },
-    "cta": { "type": "object", "required": ["main"], "properties": { "main": { "type": "string" }, "secondary": { "type": "string" } } },
-    "facts": { "type": "array", "items": { "type": "object", "required": ["id", "wording"], "properties": { "id": { "type": "string" }, "wording": { "type": "string" }, "value": { "type": "string" }, "kind": { "type": "string" } } } },
+    "cta": { "type": "object", "required": ["main"], "properties": { "main": { "type": "string" }, "secondary": { "type": "string" }, "action": { "type": "string" }, "secondary_action": { "type": "string" }, "short": { "type": "string", "maxLength": 20 } } },
+    "facts": { "type": "array", "items": { "type": "object", "required": ["id", "wording"], "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "wording": { "type": "string" }, "value": { "type": "string" }, "kind": { "type": "string" }, "angle": { "type": "string" }, "note": { "type": "string", "description": "условие факта" }, "rule": { "type": "string", "description": "разрешенная формулировка (decisions.md §1): факт - только в ней" }, "owner_block": { "type": "string", "description": "блок, за которым факт закреплен" } } } },
+    "unknowns": { "type": "array", "description": "Открытые вопросы: по ним ничего не утверждать.", "items": { "type": "string" } },
     "anti_promises": { "type": "array", "items": { "type": "object", "required": ["id", "text"], "properties": { "id": { "type": "string" }, "text": { "type": "string" }, "allowed_context": { "type": "string" } } } },
     "disclaimer_text": { "type": "string" },
     "terminology": { "type": "object" },
@@ -55,9 +59,10 @@
         "objection_ids": { "type": "array", "items": { "type": "string" } },
         "facts": { "type": "array", "items": { "type": "string" } },
         "elements": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["kind", "count", "chars"], "properties": { "kind": { "type": "string" }, "count": { "type": "string" }, "chars": { "type": "object", "required": ["min", "max"], "properties": { "min": { "type": "number" }, "median": { "type": "number" }, "max": { "type": "number" } } }, "note": { "type": "string" } } } },
-        "examples": { "type": "array", "maxItems": 1, "items": { "type": "object", "required": ["domain", "text"], "properties": { "domain": { "type": "string" }, "text": { "type": "string" }, "why_strong": { "type": "string" } } } },
+        "examples": { "type": "array", "maxItems": 1, "description": "Пример лидера - только форма: цифры заменены на N, домен и бренд - на [компания] (writer-inputs.mjs maskExample).", "items": { "type": "object", "required": ["domain", "text"], "properties": { "domain": { "type": "string" }, "text": { "type": "string" }, "why_strong": { "type": "string" } } } },
         "task": { "type": "string" },
-        "notes": { "type": "string" }
+        "notes": { "type": "string", "description": "в новых срезах не передается (заметки агрегатора)" },
+        "custom_name": { "type": "string", "description": "pattern custom: название нового вида блока, писать по элементам и этому названию" }
       }
     }
   }

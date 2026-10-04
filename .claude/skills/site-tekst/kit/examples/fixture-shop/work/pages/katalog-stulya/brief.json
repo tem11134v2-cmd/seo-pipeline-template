@@ -1,0 +1,78 @@
+{
+  "slug": "katalog-stulya",
+  "url": "/katalog/stulya",
+  "type": "category",
+  "subject": "Стулья из массива",
+  "geo": "",
+  "block_set": "full",
+  "company": "Дом Дерева",
+  "positioning": "",
+  "main_promise": "",
+  "segment": {
+    "id": "S1",
+    "name": "Семья с новой квартирой",
+    "portrait": "Пара 30-40 лет",
+    "pains": [
+      "не понимают итоговую цену"
+    ],
+    "fears": [],
+    "objections": []
+  },
+  "unique_argument": "",
+  "hook": "",
+  "cta": {
+    "main": "Выбрать модель",
+    "action": "anchor:listing",
+    "secondary": "Оставить заявку",
+    "secondary_action": "lead"
+  },
+  "facts": [],
+  "anti_promises": [],
+  "disclaimer_text": "",
+  "links": [],
+  "blocks": [
+    {
+      "block_id": "B01-hero",
+      "type": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "",
+      "pattern": "hero-center",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [
+        "F02"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B02-faq",
+      "type": "faq",
+      "name": "Вопросы",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "accordion",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [
+        "F01"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B03-listing",
+      "type": "listing",
+      "name": "Каталог",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "listing",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    }
+  ]
+}

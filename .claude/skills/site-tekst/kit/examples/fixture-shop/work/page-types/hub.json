@@ -1,0 +1,139 @@
+{
+  "type": "hub",
+  "generated_at": "2026-09-27 12:00",
+  "sources": [],
+  "market_blocks": [
+    {
+      "id": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "",
+      "pattern": "hero-center",
+      "core": true,
+      "cta_allowed": true,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h1",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "sub",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "button",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    },
+    {
+      "id": "listing",
+      "name": "Каталог",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "listing",
+      "core": true,
+      "cta_allowed": false,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h2",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "text",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "filters",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    },
+    {
+      "id": "delivery",
+      "name": "Доставка",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "text",
+      "core": true,
+      "cta_allowed": false,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h2",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "text",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    }
+  ],
+  "differentiation_blocks": [],
+  "recommended_order": [
+    "hero",
+    "listing",
+    "delivery"
+  ],
+  "short_set": [
+    "hero",
+    "listing",
+    "delivery"
+  ],
+  "competitor_promises": [],
+  "cliches_to_avoid": [],
+  "only_we_can_say": [],
+  "notes": "фикстура"
+}

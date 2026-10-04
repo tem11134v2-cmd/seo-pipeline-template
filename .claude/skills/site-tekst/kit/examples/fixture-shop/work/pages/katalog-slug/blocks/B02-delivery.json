@@ -1,0 +1,24 @@
+{
+  "block_id": "B02-delivery",
+  "type": "delivery",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Доставка"
+    },
+    {
+      "kind": "text",
+      "text": "Доставка по Самаре за 2 дня.",
+      "facts": [
+        "F01"
+      ]
+    }
+  ],
+  "facts_used": [
+    "F01"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок delivery",
+  "handoff_note": ""
+}

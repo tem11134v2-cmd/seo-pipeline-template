@@ -36,6 +36,23 @@
         "client_preferences": { "type": "string" },
         "key_phrases": { "type": "array", "items": { "type": "string" } }
       }
+    },
+    "site": {
+      "type": "object",
+      "description": "Необязательно: настройки прототипа-сайта (build-html.mjs). Без блока все модули строятся по данным проекта.",
+      "properties": {
+        "nav": {
+          "type": "array",
+          "description": "Меню шапки вместо построенного по карте: slug страницы (строка) или { label, page } / { label, anchor }. У лендинга (одна рабочая страница) - только якоря { label, anchor: id блока типа }. Форму пункта проверяет сборщик: неизвестные пункты пропускаются.",
+          "items": {}
+        },
+        "off": {
+          "type": "array",
+          "description": "Выключенные модули прототипа.",
+          "items": { "type": "string", "enum": ["menu", "mega", "topbar", "search", "cart", "account", "catalog", "product", "map", "messengers", "mbar"] }
+        },
+        "tagline": { "type": "string", "description": "Подпись под логотипом (только из конфига, сборщик ее не придумывает)." }
+      }
     }
   }
 }

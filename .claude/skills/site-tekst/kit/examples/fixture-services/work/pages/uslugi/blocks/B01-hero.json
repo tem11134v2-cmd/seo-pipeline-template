@@ -1,0 +1,32 @@
+{
+  "block_id": "B01-hero",
+  "type": "hero",
+  "role": "hero",
+  "elements": [
+    {
+      "kind": "h1",
+      "text": "Услуги по ремонту квартир"
+    },
+    {
+      "kind": "sub",
+      "text": "Ремонт, дизайн-проект и электрика по одной смете в договоре",
+      "facts": [
+        "F03"
+      ]
+    },
+    {
+      "kind": "button",
+      "text": "Подобрать услугу"
+    },
+    {
+      "kind": "image",
+      "alt": "Бригада на объекте"
+    }
+  ],
+  "facts_used": [
+    "F03"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок hero",
+  "handoff_note": ""
+}

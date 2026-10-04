@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-09-27 12:00",
+  "global": {
+    "positioning": "",
+    "cta_by_type": {
+      "home": {
+        "main": "Рассчитать стоимость ремонта",
+        "short": "Рассчитать",
+        "secondary": "Посмотреть услуги",
+        "secondary_action": "page:uslugi"
+      },
+      "hub": "Подобрать услугу",
+      "service": {
+        "main": "Рассчитать стоимость",
+        "secondary": "Написать в мессенджер",
+        "secondary_action": "messenger"
+      },
+      "info_about": {
+        "main": "Рассчитать стоимость ремонта"
+      },
+      "info_contacts": {
+        "main": "Написать в мессенджер",
+        "action": "messenger"
+      }
+    }
+  },
+  "pages": {}
+}

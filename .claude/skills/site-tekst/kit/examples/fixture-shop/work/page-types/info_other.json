@@ -1,0 +1,86 @@
+{
+  "type": "info_other",
+  "generated_at": "2026-09-27 12:00",
+  "sources": [],
+  "market_blocks": [
+    {
+      "id": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "",
+      "pattern": "hero-center",
+      "core": true,
+      "cta_allowed": true,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h1",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    },
+    {
+      "id": "checkout",
+      "name": "Оформление",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "form",
+      "core": true,
+      "cta_allowed": true,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h2",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "field",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "button",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    }
+  ],
+  "differentiation_blocks": [],
+  "recommended_order": [
+    "hero",
+    "checkout"
+  ],
+  "short_set": [
+    "hero",
+    "checkout"
+  ],
+  "competitor_promises": [],
+  "cliches_to_avoid": [],
+  "only_we_can_say": [],
+  "notes": "фикстура"
+}

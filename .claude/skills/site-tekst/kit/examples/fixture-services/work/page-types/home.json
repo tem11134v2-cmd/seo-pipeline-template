@@ -1,0 +1,325 @@
+{
+  "type": "home",
+  "generated_at": "2026-09-27 12:00",
+  "sources": [],
+  "market_blocks": [
+    {
+      "id": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "Куда я попал",
+      "pattern": "hero-center",
+      "core": true,
+      "cta_allowed": true,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h1",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "sub",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "bullets",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "button",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    },
+    {
+      "id": "services",
+      "name": "Услуги",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "tiles",
+      "core": true,
+      "cta_allowed": false,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h2",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "card",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    },
+    {
+      "id": "calc",
+      "name": "Расчет стоимости",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "custom",
+      "core": true,
+      "cta_allowed": true,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h2",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "text",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "number",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "button",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": [],
+      "custom_name": "калькулятор"
+    },
+    {
+      "id": "process",
+      "name": "Как работаем",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "steps",
+      "core": true,
+      "cta_allowed": false,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h2",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "step",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    },
+    {
+      "id": "reviews",
+      "name": "Отзывы",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "timeline",
+      "core": true,
+      "cta_allowed": false,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h2",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "quote",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    },
+    {
+      "id": "faq",
+      "name": "Вопросы",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "accordion",
+      "core": true,
+      "cta_allowed": false,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h2",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "qa",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    },
+    {
+      "id": "form",
+      "name": "Заявка",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "form",
+      "core": true,
+      "cta_allowed": true,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h2",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "text",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "field",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "button",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "note",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    }
+  ],
+  "differentiation_blocks": [],
+  "recommended_order": [
+    "hero",
+    "services",
+    "calc",
+    "process",
+    "reviews",
+    "faq",
+    "form"
+  ],
+  "short_set": [
+    "hero",
+    "services",
+    "calc",
+    "process",
+    "reviews",
+    "faq",
+    "form"
+  ],
+  "competitor_promises": [],
+  "cliches_to_avoid": [],
+  "only_we_can_say": [],
+  "notes": "фикстура"
+}

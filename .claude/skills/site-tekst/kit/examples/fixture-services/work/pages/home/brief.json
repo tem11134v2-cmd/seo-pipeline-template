@@ -1,0 +1,146 @@
+{
+  "slug": "home",
+  "url": "/",
+  "type": "home",
+  "subject": "Ремонт квартир в Самаре",
+  "geo": "",
+  "block_set": "full",
+  "company": "Кварта Ремонт",
+  "positioning": "",
+  "main_promise": "",
+  "segment": {
+    "id": "S1",
+    "name": "Семья с новой квартирой",
+    "portrait": "Пара 30-40 лет",
+    "pains": [
+      "не понимают итоговую цену"
+    ],
+    "fears": [],
+    "objections": []
+  },
+  "unique_argument": "",
+  "hook": "",
+  "cta": {
+    "main": "Рассчитать стоимость ремонта",
+    "short": "Рассчитать",
+    "secondary": "Посмотреть услуги",
+    "secondary_action": "page:uslugi"
+  },
+  "facts": [],
+  "anti_promises": [],
+  "disclaimer_text": "",
+  "links": [],
+  "blocks": [
+    {
+      "block_id": "B01-hero",
+      "type": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "Куда я попал",
+      "pattern": "hero-center",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [
+        "F03",
+        "F02",
+        "F04",
+        "F01"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B02-services",
+      "type": "services",
+      "name": "Услуги",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "tiles",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [
+        "F03"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B03-calc",
+      "type": "calc",
+      "name": "Расчет стоимости",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "custom",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [
+        "F03",
+        "F06",
+        "F05"
+      ],
+      "custom_name": "калькулятор",
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B04-process",
+      "type": "process",
+      "name": "Как работаем",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "steps",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [
+        "F04",
+        "F03",
+        "F02"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B05-reviews",
+      "type": "reviews",
+      "name": "Отзывы",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "timeline",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B06-faq",
+      "type": "faq",
+      "name": "Вопросы",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "accordion",
+      "cta_allowed": false,
+      "objection_ids": [],
+      "facts": [
+        "F03",
+        "F02",
+        "F04"
+      ],
+      "elements": [],
+      "notes": ""
+    },
+    {
+      "block_id": "B07-form",
+      "type": "form",
+      "name": "Заявка",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "form",
+      "cta_allowed": true,
+      "objection_ids": [],
+      "facts": [],
+      "elements": [],
+      "notes": ""
+    }
+  ]
+}

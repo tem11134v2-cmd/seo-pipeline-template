@@ -14,6 +14,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validate, SERVICE_NOTE_COPY } from '../../skills/site-tekst/kit/scripts/lib.mjs';
 import { blockId } from '../../skills/site-tekst/kit/scripts/render-analysis.mjs';
+import { briefSha } from '../../skills/site-tekst/kit/scripts/writer-inputs.mjs';
 
 const TPL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'skills', 'site-tekst', 'kit');
 const FIX = path.join(TPL, 'examples', 'smoke-fixtures');
@@ -111,7 +112,8 @@ try {
   {
     // задание блока ссылается на факт вне списка страницы: F03 (замер) у категории, где в facts только F04, F05
     const st = rj(SW('strategy.json'));
-    st.pages['okna-rehau'].block_overrides = { cta: { task: 'Рядом с кнопкой назови срок замера (F03).' } };
+    // финальный призыв фикстуры - cta-final (программа 28.09); cta старых данных - синоним в проверках, не в ключах block_overrides
+    st.pages['okna-rehau'].block_overrides = { 'cta-final': { task: 'Рядом с кнопкой назови срок замера (F03).' } };
     wj(SW('strategy.json'), st);
     const bb = run(S, ['scripts/build-briefs.mjs']);
     check('build-briefs: код 0, брифов 2, срезов 8, проблем 0', bb.code === 0 && /брифов собрано: 2\b/.test(bb.out) && /срезов для писателей: 8\b/.test(bb.out) && /проблем: 0\b/.test(bb.out), bb.out);
@@ -127,12 +129,12 @@ try {
         slices.push({ slug, f, s });
         const e = schemaErrors('brief-slice', s);
         check(`writer-inputs: ${slug}/${f} проходит схему brief-slice`, !e.length, e.slice(0, 3).join('; '));
-        check(`writer-inputs: ${slug}/${f} помнит sha1 брифа`, s._brief_sha1 === sha1(briefText));
+        check(`writer-inputs: ${slug}/${f} помнит sha брифа (с версией формата среза)`, s._brief_sha1 === briefSha(briefText));
       }
     }
     const sl = (slug, id) => (slices.find(x => x.slug === slug && x.f === `${id}.json`) || {}).s || {};
     const okBrief = rj(SW('pages', 'okna-rehau', 'brief.json'));
-    const cta = okBrief.blocks.find(b => b.type === 'cta');
+    const cta = okBrief.blocks.find(b => b.type === 'cta-final');
     check('build-briefs: факт из текста задания (F03) - в фактах страницы', okBrief.facts.some(f => f.id === 'F03'), okBrief.facts.map(f => f.id).join(','));
     check('build-briefs: факт из текста задания (F03) - в фактах блока', !!cta && cta.facts.includes('F03') && /F03/.test(cta.task), JSON.stringify(cta));
     check('writer-inputs: срез блока с заданием видит F03 в facts и в block.facts', sl('okna-rehau', cta.block_id).facts?.some(f => f.id === 'F03') && sl('okna-rehau', cta.block_id).block?.facts.includes('F03'));
@@ -151,15 +153,26 @@ try {
     const wi = run(S, ['scripts/writer-inputs.mjs', 'home']);
     check('writer-inputs CLI: код 0, срезов 5', wi.code === 0 && /срезов брифа: 5 на 1 стр\., ошибок: 0/.test(wi.out), wi.out);
     check('writer-inputs CLI: срез выпавшего блока удален, недостающий восстановлен', !fs.existsSync(SW('pages', 'home', 'brief', 'B09-old.json')) && fs.existsSync(SW('pages', 'home', 'brief', 'B02-benefits.json')));
-    // ссылка на непубликуемый факт (F06, publish: no) - строка проблемы и код 1, в бриф факт не идет
-    st.pages['okna-rehau'].block_overrides.hero = { task: 'Старую цену F06 не называй.' };
+    // утвердительная ссылка на непубликуемый факт (F06, publish: no) - предупреждение (код 0) и facts_dropped, в бриф факт не идет
+    st.pages['okna-rehau'].block_overrides.hero = { task: 'Назови старую цену F06.' };
     wj(SW('strategy.json'), st);
-    const bad = run(S, ['scripts/build-briefs.mjs', '--force', 'okna-rehau']);
-    check('build-briefs: ссылка на непубликуемый F06 - код 1 и строка проблемы', bad.code === 1 && /okna-rehau: задание блока ссылается на F06, которого нет среди публикуемых фактов/.test(bad.out), bad.out);
+    const bad = run(S, ['scripts/build-briefs.mjs', 'okna-rehau']);
+    const rep = rj(SW('briefs-report.json'));
+    check('build-briefs: ссылка на непубликуемый F06 - код 0, предупреждение и facts_dropped', bad.code === 0 && /okna-rehau: факт F06 снят \(не публикуется\): hero\.task/.test(bad.out) && rep.pages['okna-rehau'].facts_dropped.some(d => d.id === 'F06' && d.reason === 'publish'), bad.out);
     const okBrief2 = rj(SW('pages', 'okna-rehau', 'brief.json'));
     check('build-briefs: F06 не попал ни в факты страницы, ни в факты блоков', !okBrief2.facts.some(f => f.id === 'F06') && !okBrief2.blocks.some(b => b.facts.includes('F06')));
+    // id после отрицания («F06 не называй») в факты не идет: предупреждение строкой, без снятия факта
+    st.pages['okna-rehau'].block_overrides.hero = { task: 'Старую цену F06 не называй.' };
+    wj(SW('strategy.json'), st);
+    const neg = run(S, ['scripts/build-briefs.mjs', 'okna-rehau']);
+    check('build-briefs: F06 после отрицания - код 0, предупреждение строкой, факт не снимается и не берется', neg.code === 0 && /okna-rehau: hero\.task: id после отрицания \(F06\) в факты блока не взят/.test(neg.out) && !/факт F06 снят/.test(neg.out) && !rj(SW('pages', 'okna-rehau', 'brief.json')).facts.some(f => f.id === 'F06'), neg.out);
+    // задание hero - только для проверок выше: для раздела merge-strategy запись та же, что до них
+    delete st.pages['okna-rehau'].block_overrides.hero;
+    wj(SW('strategy.json'), st);
+    run(S, ['scripts/build-briefs.mjs', 'okna-rehau']);
+    const mtime = fs.statSync(SW('pages', 'okna-rehau', 'brief.json')).mtimeMs;
     const noBrief = run(S, ['scripts/build-briefs.mjs', 'okna-rehau']);
-    check('build-briefs: без --force бриф не пересобирается, срезы обновляются', noBrief.code === 0 && /собрано: 0, пропущено \(уже есть\): 1, срезов для писателей: 3/.test(noBrief.out), noBrief.out);
+    check('build-briefs: данные не менялись - бриф не переписан (mtime тот же), срезы обновляются', noBrief.code === 0 && /брифов собрано: 0, без изменений: 1, структура изменилась: 0, срезов для писателей: 3/.test(noBrief.out) && fs.statSync(SW('pages', 'okna-rehau', 'brief.json')).mtimeMs === mtime, noBrief.out);
   }
 
   // ================================================================== 2. blind-prep
@@ -203,7 +216,7 @@ try {
     const bf = SW('pages', 'home', 'brief.json');
     fs.writeFileSync(bf, JSON.stringify(rj(bf), null, 1) + '\n');
     const ps3 = run(S, ['scripts/page-state.mjs', 'home']);
-    check('page-state: бриф изменился - срезы брифа rebuilt', ps3.code === 0 && /срезы брифа: rebuilt/.test(ps3.out) && rj(SW('pages', 'home', 'brief', 'B01-hero.json'))._brief_sha1 === sha1(fs.readFileSync(bf, 'utf8')), ps3.out);
+    check('page-state: бриф изменился - срезы брифа rebuilt', ps3.code === 0 && /срезы брифа: rebuilt/.test(ps3.out) && rj(SW('pages', 'home', 'brief', 'B01-hero.json'))._brief_sha1 === briefSha(fs.readFileSync(bf, 'utf8')), ps3.out);
     check('page-state: last_block снова B03 после удаления B04', rj(SW('pages', 'home', 'state.writer.json')).last_block.block_id === 'B03-process');
     check('page-state: без slug - код 2', run(S, ['scripts/page-state.mjs']).code === 2);
   }
@@ -212,8 +225,8 @@ try {
   {
     const mode = (r, slug) => (r.json?.pages || []).find(p => p.slug === slug)?.hero_mode;
     const def = runJson(S, ['scripts/plan-run.mjs']);
-    check('plan-run: по умолчанию home - tournament, category - single', def.code === 0 && mode(def, 'home') === 'tournament' && mode(def, 'okna-rehau') === 'single', def.out.slice(0, 300));
-    check('plan-run: hero by-type со списком типов турнира', def.json?.hero?.mode === 'by-type' && canon(def.json.hero.tournament_types) === canon(['home', 'hub', 'service']));
+    check('plan-run: по умолчанию home и первая категория - tournament (C8)', def.code === 0 && mode(def, 'home') === 'tournament' && mode(def, 'okna-rehau') === 'tournament', def.out.slice(0, 300));
+    check('plan-run: hero first-of-type - home и hub, первая страница service и category', def.json?.hero?.mode === 'first-of-type' && canon(def.json.hero.tournament_types) === canon(['home', 'hub']) && canon(def.json.hero.first_of_types) === canon(['service', 'category']));
     check('plan-run: фаза write - без sample, срезы ok', !!def.json && !('sample' in def.json) && def.json.pages.every(p => p.slices === 'ok'), JSON.stringify(def.json?.pages?.map(p => p.slices)));
     const single = runJson(S, ['scripts/plan-run.mjs', '--hero', 'single']);
     check('plan-run: --hero single - все single, tournament_types пуст', mode(single, 'home') === 'single' && mode(single, 'okna-rehau') === 'single' && single.json.hero.mode === 'single' && single.json.hero.tournament_types.length === 0);
@@ -255,8 +268,11 @@ try {
     const pw = runJson(A, ['scripts/plan-run.mjs']);
     const c3 = pw.json?.pages?.find(p => p.slug === 'c3');
     check('plan-run write: только недописанная c3, блок с lint fix - в pending и lint_dirty', pw.json?.pages?.length === 1 && !!c3 && canon(c3.pending_blocks) === canon(['B02-text']) && canon(c3.lint_dirty) === canon(['B02-text']) && c3.hero_done, pw.out.slice(0, 400));
-    const pwave = runJson(A, ['scripts/plan-run.mjs', '--phase', 'audit', '--wave', '2']);
-    check('plan-run audit: --wave без страниц - пусто', pwave.json?.pages?.length === 0 && pwave.json.sample.length === 0);
+    // волны по карте (C8): волна 1 - главная и первая категория c3 (она не дописана), волна 2 - остальные
+    const pwave = runJson(A, ['scripts/plan-run.mjs', '--phase', 'audit', '--wave', '1']);
+    check('plan-run audit: --wave 1 - только дописанная главная', canon(pwave.json?.pages?.map(p => p.slug)) === canon(['home']) && canon(pwave.json.sample) === canon(['home']), pwave.out.slice(0, 300));
+    const pwave3 = runJson(A, ['scripts/plan-run.mjs', '--phase', 'audit', '--wave', '3']);
+    check('plan-run audit: --wave без страниц - пусто', pwave3.json?.pages?.length === 0 && pwave3.json.sample.length === 0);
   }
 
   // ================================================================== 5. merge-strategy
@@ -629,7 +645,8 @@ try {
     check('import --structure: неизвестный dir:<id> - предупреждение', rep.warnings.some(w => /dir:<id>, которых нет в business\.directions: dveri/.test(w)), JSON.stringify(rep.warnings));
     const d9main = rep.gate.decisions.d9 || {};
     check('import: решение d9 в отчете - состав из внешней структуры (SEO), 4 страницы, принят ее гейтом', d9main.name === 'состав страниц' && /^4 страниц в работе; источник - /.test(d9main.value || '') && /гейте \/seo-struktura/.test(d9main.how || ''), JSON.stringify(d9main));
-    check('import: реквизиты при гейте - confirmed', facts.company.status === 'confirmed' && facts.company.phones?.[0] === '+7 000 000-00-00');
+    // C2: confirmed - только при принятом решении d10; в журнале этого гейта d10 нет (старый анализ) - не сверены
+    check('import: реквизиты при гейте без решения d10 - не сверены, строка gaps, телефон в едином формате', facts.company.status === 'from_site_unconfirmed' && facts.company.phones?.[0] === '+7 (000) 000-00-00' && facts.gaps.some(g => /^контакты и реквизиты не сверены заказчиком \(в анализе нет решения d10\)/.test(g)), JSON.stringify({ c: facts.company, g: facts.gaps }));
     // render-analysis: заголовки-контракт, цитаты дословно, house style
     const md = fs.readFileSync(path.join(I, 'inputs', 'analysis.md'), 'utf8');
     const HEADS = ['Конкуренты', 'Чем отличаемся', 'Чего нет у конкурентов / дыры рынка', 'Обязательные блоки у рынка', 'Вопросы читателя', 'Чего не обещаем', 'Позиции и карточки', 'Обещания рынка', 'Цифры рынка', 'Факты', 'Пробелы'];
@@ -638,10 +655,11 @@ try {
     const missQ = facts.facts.filter(f => !md.includes(f.source_quote)).map(f => f.id);
     check('render-analysis: каждая source_quote дословно в analysis.md', !missQ.length && rep.counts.quotes_in_render === facts.facts.length, missQ.join(', '));
     check('render-analysis: строка факта с источником', md.includes('- F01 [бриф] год основания: работаем с 2012 года | kind: number | публикация: да'));
-    check('render-analysis: мост блоков анализа к блокам текстов', md.includes('- steps -> process') && md.includes('- price -> pricing') && md.includes('- cta_form -> cta'));
+    // программа 28.09: id финального призыва - cta-final (старый cta читают как синоним потребители)
+    check('render-analysis: мост блоков анализа к блокам текстов', md.includes('- steps -> process') && md.includes('- price -> pricing') && md.includes('- cta_form -> cta-final'));
     check('render-analysis: причина без доказательства вынесена отдельно', /Без доказательства[^\n]*\n- Бережный монтаж без пыли \(процесс\)/.test(md));
     check('render-analysis: гейт согласован, без буквы е с точками и длинных тире', /Гейт анализа: согласован \(заказчик, 2026-09-21\)/.test(md) && !/[\u0451\u0401\u2014\u2013]/.test(md));
-    check('render-analysis: blockId - синонимы и подчеркивания', blockId('steps') === 'process' && blockId('cta_mid') === 'cta' && blockId('new_block') === 'new-block');
+    check('render-analysis: blockId - синонимы и подчеркивания', blockId('steps') === 'process' && blockId('cta_mid') === 'cta-final' && blockId('cta_form') === 'cta-final' && blockId('new_block') === 'new-block');
     // регулярки антиобещаний: проверка на примерах и перенос в facts.json
     wj(IW('anti-promises.patterns.json'), { items: [
       { id: 'A01', text: 'не обещаем самую низкую цену', lint_pattern: 'сам(ая|ой|ую) низк(ая|ой|ую) цен', must_match: ['самая низкая цена в городе', 'по самой низкой цене', 'гарантируем самую низкую цену'], must_not_match: ['цена ниже рынка не обещана', 'низкий порог входа'] },

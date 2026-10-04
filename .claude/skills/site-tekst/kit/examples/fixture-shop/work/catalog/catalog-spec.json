@@ -1,0 +1,129 @@
+{
+  "generated_at": "2026-09-27 12:00",
+  "entities": [
+    {
+      "name": "Модель",
+      "url_pattern": "/katalog/{slug}",
+      "page_type": "product"
+    }
+  ],
+  "listing": {
+    "layout": "grid",
+    "cards_per_page": 8,
+    "pagination": "страницы"
+  },
+  "card_fields": [
+    {
+      "name": "Фото",
+      "type": "image",
+      "required": true,
+      "source": "база"
+    },
+    {
+      "name": "Название",
+      "type": "text",
+      "required": true,
+      "source": "база"
+    },
+    {
+      "name": "Цена",
+      "type": "money",
+      "required": true,
+      "source": "база"
+    }
+  ],
+  "filters": [
+    {
+      "name": "Материал",
+      "type": "multiselect",
+      "values": [
+        "Дуб",
+        "Бук",
+        "Сосна"
+      ],
+      "values_source": "analysis",
+      "source": "анализ",
+      "labels": [
+        "Порода дерева"
+      ]
+    },
+    {
+      "name": "Цвет",
+      "type": "select",
+      "values": [
+        "Натуральный",
+        "Белый",
+        "Графит"
+      ],
+      "values_source": "competitor",
+      "source": "лидеры"
+    },
+    {
+      "name": "Стиль",
+      "type": "select",
+      "values": [],
+      "source": "нужны данные"
+    },
+    {
+      "name": "Назначение",
+      "type": "select",
+      "values": [],
+      "source": "нужны данные",
+      "values_by_category": {
+        "katalog-stoly": [
+          "Обеденный",
+          "Письменный"
+        ]
+      }
+    },
+    {
+      "name": "Высота сиденья",
+      "type": "select",
+      "values": [
+        "45 см",
+        "65 см"
+      ],
+      "values_source": "analysis",
+      "categories": [
+        "katalog-stulya"
+      ],
+      "source": "анализ"
+    },
+    {
+      "name": "Цена",
+      "type": "range",
+      "source": "база",
+      "field": "price"
+    },
+    {
+      "name": "В наличии",
+      "type": "toggle",
+      "source": "база"
+    },
+    {
+      "name": "Поиск по названию",
+      "type": "search",
+      "source": "база"
+    }
+  ],
+  "sorting": [
+    "Сначала популярные",
+    "Сначала дешевле"
+  ],
+  "states": [
+    {
+      "state": "нет в наличии",
+      "behavior": "заявка"
+    }
+  ],
+  "card_cta": {
+    "main": "Узнать цену",
+    "secondary": "Подробнее"
+  },
+  "sources": [
+    {
+      "domain": "example.com",
+      "url": "https://example.com/"
+    }
+  ]
+}

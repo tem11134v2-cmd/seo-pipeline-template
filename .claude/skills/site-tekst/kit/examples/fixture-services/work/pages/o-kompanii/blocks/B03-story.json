@@ -1,0 +1,29 @@
+{
+  "block_id": "B03-story",
+  "type": "story",
+  "role": "info",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Как мы работаем"
+    },
+    {
+      "kind": "text",
+      "text": "Смету фиксируем в договоре до начала работ, чтобы цена не менялась.",
+      "facts": [
+        "F03"
+      ]
+    },
+    {
+      "kind": "link",
+      "text": "Все услуги",
+      "href": "/uslugi/"
+    }
+  ],
+  "facts_used": [
+    "F03"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок story",
+  "handoff_note": ""
+}

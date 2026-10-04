@@ -21,10 +21,13 @@
 2. Внутри - только div/aside/ul с классами из `primitives.css` (`cols cols-2`, `grid grid-3`, `stack`, `band`, `aside`, `narrow`, `center`, `slider`, `tiles`...) и атрибутами `data-slot="<виды через пробел>"`.
    Виды: h1 h2 h3 sub text bullets button badges card step qa quote image field number note link filters table_row, и `*` для всего остального.
    У каждой секции есть хотя бы один слот; слоты покрывают все `elements[].kind` блока или есть слот `*`.
-3. Раскладка следует `pattern` блока: `hero-split` - две колонки (текст слева: h1 sub badges button; справа image);
-   `grid-3` - сетка карточек; `steps` - вертикальный stack шагов в узкой колонке; `accordion` - stack qa; `listing` -
-   `cols-side`: aside с filters, справа h2/text (заглушку карточек добавит сборщик); `numbers` - grid-4 чисел; `form` -
-   две колонки: текст и поля; `cta-band` - band center; `map` - cols-2 с картой (`div class="map"`) и текстом; `quote` - stack quote.
+3. Раскладка следует `pattern` блока: `hero-split` - две колонки (текст слева: h1 sub badges button; справа слот `image`
+   всегда, даже если image нет в elements: сборщик нарисует место под медиа); `grid-3` - сетка карточек; `steps` -
+   вертикальный stack шагов в узкой колонке; `accordion` - stack qa; `listing` - одна секция со слотом `*`, без aside и
+   колонок: панель фильтров, чипы и выдачу рисует сборщик; `numbers` - grid-4 чисел; `form` - две колонки: текст и поля;
+   `cta-band` - band center; `map` - cols-2 с картой (`div class="map"`) и текстом; `quote` - stack quote.
+   `custom` (новый для kit вид блока, `custom_name`) и прочие - раскладка по элементам блока: заголовок и текст сверху,
+   ниже сетка его повторяющихся элементов (карточки, числа - grid, шаги - stack, поля - cols-2 с текстом).
 4. Тип страницы диктует характер: категория с листингом - листинг вторым-третьим блоком; инфо-страницы - без продающих
    band; карточка позиции - галерея и характеристики первыми. Не переноси раскладку продающей страницы на инфо-страницу.
 5. Никакого текста, комментариев с текстом, script, style, link, инлайн-стилей.

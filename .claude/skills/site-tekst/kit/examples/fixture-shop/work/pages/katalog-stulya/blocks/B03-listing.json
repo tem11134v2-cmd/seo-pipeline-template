@@ -1,0 +1,25 @@
+{
+  "block_id": "B03-listing",
+  "type": "listing",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Стулья: выберите модель"
+    },
+    {
+      "kind": "filters",
+      "items": [
+        "Дуб",
+        "Бук",
+        "Натуральный",
+        "Порода дерева",
+        "Высота сиденья"
+      ]
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок listing",
+  "handoff_note": ""
+}

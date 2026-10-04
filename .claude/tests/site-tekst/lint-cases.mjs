@@ -121,9 +121,11 @@ const CASES = [
   { el: [{ kind: 'bullets', items: ['В каталоге цена застройщика', 'В офисе встреча очно', 'В расчете годовые расходы'], facts: [] }], not: ['style.same-start'] },
   { el: ['Можно ли начать без всей суммы?', 'Можно ли отказаться после расчета?', 'Можно ли купить удаленно?'].map(q => ({ kind: 'qa', q, a: 'Да, это разбирают на встрече.', facts: [] })), not: ['style.same-start'] },
   // fact.claim-unsupported
-  { el: [T('text', 'Налог на покупку платит продавец.')], has: ['fact.claim-unsupported'], sev: { 'fact.claim-unsupported': 'minor' } },
+  // общее ядро claim_markers (нишевые основы «налог», «рассыл» - в examples/lint-niche-markers.example.json, cases-briefs.mjs)
+  { el: [T('text', 'Гарантию на монтаж дает завод-изготовитель.')], has: ['fact.claim-unsupported'], sev: { 'fact.claim-unsupported': 'minor' } },
+  { el: [T('text', 'Налог на покупку платит продавец.')], not: ['fact.claim-unsupported'] },
   { el: [T('text', 'Комиссию агентству покупатель не платит.')], has: ['fact.claim-unsupported'] },
-  { el: [T('text', 'Рассылок и звонков после заявки нет.')], has: ['fact.claim-unsupported'] },
+  { el: [T('text', 'Страховку оформляет банк после заявки.')], has: ['fact.claim-unsupported'] },
   { el: [T('text', 'Налог на покупку платит продавец.', ['F1'])], not: ['fact.claim-unsupported'] },
   // строгий вариант: факты у элемента есть, но ни один (label, value, wording) не содержит основу маркера
   { el: [T('text', 'Комиссия покупателя - первый вопрос: в каталоге стоит цена застройщика.', ['F2'])], has: ['fact.claim-unsupported'], sev: { 'fact.claim-unsupported': 'minor' } },

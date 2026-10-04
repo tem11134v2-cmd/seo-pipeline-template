@@ -1,5 +1,6 @@
 {
   "$id": "sitemap",
+  "_doc": "work/sitemap.json. url и parent - путь без схемы, хоста и слеша на конце (главная - «/»); parent - url родителя, у главной и страниц первого уровня пусто. ui_role: legal ставит import-structure (юридические страницы, status skip), search/cart/account - обогатитель по назначению страницы; такие страницы не идут в меню и в /seo-faq. template - страница-шаблон (адрес с {...}, [...] или -slug). listing - на странице список позиций каталога. segment \"all\" + segments - у главной и хабов, чьи дети или направления обслуживают 2+ сегмента. key_phrase - маркер структуры (import-structure кладет его и первым в source_queries), писатель держит по нему H1. wave устарело: волны считает scripts/progress.mjs.",
   "type": "object",
   "required": ["source", "page_types", "pages"],
   "properties": {
@@ -17,18 +18,23 @@
           "url": { "type": "string" },
           "type": { "type": "string", "enum": ["home", "hub", "category", "service", "product", "info_about", "info_contacts", "info_team", "info_reviews", "info_cases", "info_faq", "info_other"] },
           "subject": { "type": "string", "minLength": 2 },
+          "nav_label": { "type": "string", "minLength": 2, "maxLength": 24 },
           "parent": { "type": "string" },
           "level": { "type": "number" },
           "geo": { "type": "string" },
           "segment": { "type": "string" },
+          "segments": { "type": "array", "minItems": 2, "items": { "type": "string", "pattern": "^S[1-9]$" } },
           "facts_available": { "type": "array", "items": { "type": "string" } },
           "fact_coverage": { "type": "number" },
           "block_set": { "type": "string", "enum": ["full", "short"] },
           "listing": { "type": "boolean" },
+          "template": { "type": "boolean" },
+          "ui_role": { "type": "string", "enum": ["search", "cart", "account", "legal"] },
           "wave": { "type": "number" },
           "status": { "type": "string", "enum": ["planned", "skip", "briefed", "written", "judged", "done", "blocked"] },
           "source_h1": { "type": "string" },
           "source_queries": { "type": "array", "items": { "type": "string" } },
+          "key_phrase": { "type": "string", "minLength": 2, "_doc": "ключевая фраза страницы: маркер структуры (живая фраза клиента с регионом), он же первый в source_queries; нет маркера - первый запрос" },
           "notes": { "type": "string" }
         }
       }

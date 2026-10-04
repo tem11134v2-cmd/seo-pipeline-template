@@ -13,12 +13,22 @@
 //   node queue.mjs journal [<slug|каталог>]
 //   node queue.mjs gate    [<slug|каталог>] --by "<кто согласовал>" [--ground "<основание>"]
 //
-// Exit: 0 сделано | 2 отказ (нет проекта, пустое основание, чужое значение поля).
+// Гейт до записи проверяет готовность анализа (контракт K10) и пишет итог в gate.checks:
+// очередь стоит на шаге 5 (состав страниц и документы на месте), verify-data без нарушений,
+// каждый лист ответов (answers.txt, answers-2.txt ...) применен и не менялся после применения
+// (контрольная сумма в queue.json -> answers[]), в журнале нет незакрытого «не разобрано» по
+// фактам и решениям d1-d8. Не выполнено - отказ с перечнем; обход только --ground, и он
+// ложится в журнал вместе с перечнем. После гейта nextStep сверяет листы со снимком
+// gate.checks.sheets: круг, появившийся или измененный после гейта, возвращает на шаг 5, а
+// apply-answers --apply такого круга сбрасывает саму отметку (прежняя - gate.prev).
+//
+// Exit: 0 сделано | 2 отказ (нет проекта, пустое основание, чужое значение поля, гейт не готов).
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { join, resolve, basename } from "node:path";
+import { join, resolve, basename, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { today } from "./_contract.mjs";
+import { spawnSync } from "node:child_process";
+import { today, answerSheets, sheetSha, structureFlip } from "./_contract.mjs";
 
 export const KINDS = ["waiver", "violation", "gap", "dropped"];
 const TIERS = ["basic", "seo"];
@@ -87,26 +97,58 @@ export const writeQueue = (dir, q) => writeFileSync(join(dir, "queue.json"), JSO
 export function structureState(dir, q) {
   if (q.tier !== "basic") return { need: false, ok: true };
   const p = join(dir, "structure_data.json");
-  // Тип сайта берется из контракта: ответ d7 мог его поменять после init.
-  let kind = q.site_kind;
-  try { kind = JSON.parse(readFileSync(join(dir, "project.json"), "utf8")).business.site_kind || kind; } catch { /* контракта еще нет */ }
+  // Тип сайта берется из контракта: ответ d7 или d8 мог его поменять после init (apply-answers
+  // пишет новое значение и в queue.json, но старый контракт мог его не донести).
+  let kind = q.site_kind, type = q.type;
+  try {
+    const b = JSON.parse(readFileSync(join(dir, "project.json"), "utf8")).business || {};
+    kind = b.site_kind || kind; type = b.type || type;
+  } catch { /* контракта еще нет */ }
   if (!existsSync(p)) return { need: true, ok: false, kind };
   let sd = null;
   try { sd = JSON.parse(readFileSync(p, "utf8").replace(/^\uFEFF/, "")); } catch { return { need: true, ok: false, broken: true, kind }; }
   const n = Array.isArray(sd && sd.pages) ? sd.pages.length : 0;
-  const ok = n > 0 && (kind === "landing" ? n === 1 : String(sd.source_file || "") !== "site-analiz");
-  return { need: true, ok, pages: n, kind };
+  const flip = kind === "landing" ? "" : structureFlip(sd, type);
+  const ok = n > 0 && !flip && (kind === "landing" ? n === 1 : String(sd.source_file || "") !== "site-analiz");
+  return { need: true, ok, pages: n, kind, ...(flip ? { flip } : {}) };
 }
 const siteNum = (dir) => (basename(dir).match(/^(\d{3})-/) || [])[1] || basename(dir);
 
+// ---------------------------------------------------------------- листы после гейта
+// Листы ответов, которых отметка гейта не видела. Гейт с gate.checks сверяется со своим
+// снимком листов (имя и сумма, в том числе при обходе --ground). Гейт до программы 28.09
+// (без gate.checks) принял первый круг; следующий круг он не видел, если его отметки нет.
+export function gateStale(dir, q) {
+  const now = answerSheets(dir).map((s) => ({ file: s.file, round: s.round, sha: sheetSha(s.path) }));
+  const ch = q && q.gate && q.gate.checks;
+  if (ch && Array.isArray(ch.sheets)) {
+    const was = new Map(ch.sheets.filter((x) => x && x.file).map((x) => [x.file, x.sha]));
+    return now.filter((s) => was.get(s.file) !== s.sha).map((s) => `${s.file} ${was.has(s.file) ? "изменен" : "появился"} после гейта`);
+  }
+  const marks = Array.isArray(q && q.answers) ? q.answers : [];
+  return now.filter((s) => s.round > 1 && !marks.some((m) => m && m.file === s.file && m.sha === s.sha)).map((s) => `${s.file} появился после гейта`);
+}
+
+// Факты контракта: «не разобрано» по факту, которого в контракте нет (опечатка f77, факт
+// уступил место ответу), гейт не держит - публиковать по нему нечего.
+function contractFactIds(dir) {
+  try {
+    const p = JSON.parse(readFileSync(join(dir, "project.json"), "utf8").replace(/^\uFEFF/, ""));
+    return new Set((Array.isArray(p.facts) ? p.facts : []).map((f) => f && f.id).filter(Boolean));
+  } catch { return null; }
+}
+
 // ---------------------------------------------------------------- следующий шаг
 // Ровно одна лестница проверок содержимого. Ни одно состояние нигде не хранится.
-export function nextStep(dir) {
+// n === "-" - гейт пройден и файлы на месте: по этому признаку /site-tekst решает, можно ли
+// начинать. opt.ignoreGate - та же лестница без отметки гейта (ей пользуется сам gate).
+export function nextStep(dir, opt = {}) {
   if (!isProjectDir(dir)) {
     return { n: "0", name: "init", need: "каталога и queue.json", cmd: "node .claude/scripts/site/queue.mjs init <slug>" };
   }
   const q = readQueue(dir);
   const has = (...p) => existsSync(join(dir, ...p));
+  const ignoreGate = !!(opt && opt.ignoreGate);
   if (!q.tier || !q.type || !q.site_kind) {
     return { n: "0b", name: "три вопроса оператору", need: "tier, type, site_kind в queue.json",
       cmd: "node .claude/scripts/site/queue.mjs init <slug> --tier <basic|seo> --type <services|shop|both> --kind <landing|multipage>" };
@@ -122,18 +164,24 @@ export function nextStep(dir) {
   const st = structureState(dir, q);
   if (st.need && !st.ok) {
     const landing = st.kind === "landing";
-    return { n: "3b", name: "состав страниц", need: "structure_data.json",
-      cmd: landing ? "node .claude/scripts/site/build-project.mjs <каталог> (после гейта с --force) - у лендинга состав из одной главной пишет сборка"
-                   : "агент pages-planner: вход project.json, выход structure_data.json; затем node .claude/scripts/site/verify-data.mjs <каталог>" };
+    return { n: "3b", name: "состав страниц", need: st.flip ? `structure_data.json под тип сайта (${st.flip})` : "structure_data.json",
+      cmd: landing ? "node .claude/scripts/site/build-project.mjs <каталог> - состав лендинга из одной главной; после ответов его пишет apply-answers.mjs <каталог> --apply по ответу d7 «лендинг» (прежний состав - в structure_data.prev.json)"
+                   : "агент pages-planner: вход project.json (повторный проход - и прежний structure_data.json), выход structure_data.json; затем node .claude/scripts/site/verify-data.mjs <каталог>" };
   }
   const d = q.docs || {};
   if (!has("docs", "understood.html") || !has("docs", "ask.html") || !String(d.understood || "").trim() || !String(d.ask || "").trim()) {
     return { n: "4", name: "два документа и Drive", need: "docs/understood.html, docs/ask.html и ссылок в queue.json",
       cmd: "node .claude/scripts/site/build-doc.mjs <каталог>, затем node .claude/scripts/site/queue.mjs docs --understood <url> --ask <url>" };
   }
-  if (!(q.gate && q.gate.approved === true)) {
-    return { n: "5", name: "гейт: ответы заказчика", need: "отметки согласования (единственное, что не выводится из файлов)",
-      cmd: "node .claude/scripts/site/apply-answers.mjs <каталог> [--apply], затем queue.mjs gate --by \"<кто>\"" };
+  const cmd5 = "node .claude/scripts/site/apply-answers.mjs <каталог> --apply (все круги; молчание заказчика - пустой answers.txt), затем verify-data.mjs <каталог> и queue.mjs gate --by \"<кто>\"";
+  if (ignoreGate || !(q.gate && q.gate.approved === true)) {
+    return { n: "5", name: "гейт: ответы заказчика", need: "отметки согласования (единственное, что не выводится из файлов)", cmd: cmd5 };
+  }
+  // Отметка гейта видит только те листы, что лежали при нем: круг, появившийся или измененный
+  // после гейта, возвращает на шаг 5 (применение круга после гейта сбрасывает и саму отметку).
+  const stale = gateStale(dir, q);
+  if (stale.length) {
+    return { n: "5", name: "гейт: круг ответов после гейта", need: `отметки гейта, которая видит все круги: ${stale.join("; ")}`, cmd: cmd5 };
   }
   const next = q.tier === "seo" ? `/seo-struktura ${siteNum(dir)} - структура с SEO читает project.json, затем /site-tekst --site ${siteNum(dir)} --structure <MMM>`
                                 : `/site-tekst --site ${siteNum(dir)} - тексты читают project.json, parts/facts-src.json и structure_data.json`;
@@ -142,7 +190,9 @@ export function nextStep(dir) {
 
 // ---------------------------------------------------------------- журнал исключений
 // Одна запись, одно место, основание обязательно и непусто. Другого журнала в конвейере нет.
-export function appendJournal(dir, kind, subject, ground) {
+// key - ключ строки листа ответов (f07, d3, g2): по нему гейт видит, закрыт ли ответ,
+// ушедший в «не разобрано».
+export function appendJournal(dir, kind, subject, ground, key) {
   if (!isProjectDir(dir)) throw new Error(`не проект v8: ${dir}`);
   const k = plain(kind).toLowerCase();
   if (!KINDS.includes(k)) throw new Error(`вид «${kind}» вне набора: ${KINDS.join(", ")}`);
@@ -152,9 +202,51 @@ export function appendJournal(dir, kind, subject, ground) {
   const q = readQueue(dir);
   if (!Array.isArray(q.journal)) q.journal = [];
   const entry = { id: `j${q.journal.length + 1}`, at: today(), step: nextStep(dir).n, kind: k, subject: s, ground: g };
+  if (key) entry.key = plain(key);
   q.journal.push(entry);
   writeQueue(dir, q);
   return entry;
+}
+// «Не разобрано» не молчание: ответ по факту или решению d1-d8, ушедший в dropped, держит гейт,
+// пока по тому же ключу не появится более поздняя запись другого вида (правка листа и повтор).
+// known - id фактов контракта: запись по факту, которого в контракте нет, гейт не держит.
+export function openDropped(q, known) {
+  const last = new Map();
+  for (const e of Array.isArray(q && q.journal) ? q.journal : []) {
+    if (e && typeof e.key === "string" && /^(f\d{2,3}|d[1-8])$/.test(e.key)) last.set(e.key, e);
+  }
+  return [...last.values()].filter((e) => e.kind === "dropped" && !(known && /^f/.test(e.key) && !known.has(e.key)));
+}
+
+// ---------------------------------------------------------------- готовность к гейту (K10)
+const VERIFY = join(dirname(fileURLToPath(import.meta.url)), "verify-data.mjs");
+export function gateChecks(dir) {
+  const q = readQueue(dir);
+  const fails = [];
+  const st = nextStep(dir, { ignoreGate: true });
+  if (st.n !== "5") fails.push(`очередь на шаге ${st.n} (${st.name}${st.need ? `: нет ${st.need}` : ""}) - ${st.cmd}`);
+  const v = spawnSync(process.execPath, [VERIFY, dir, "--no-write"], { encoding: "utf8" });
+  const vcode = v.status == null ? 2 : v.status;
+  if (vcode === 2) {
+    const bad = String((v.stdout || "") + (v.stderr || "")).split("\n").filter((l) => /^\s+!/.test(l)).map((l) => l.trim().replace(/^!\s*/, ""));
+    fails.push(`verify-data: нарушений ${bad.length || "?"}${bad.length ? ` - ${bad.slice(0, 3).join("; ")}${bad.length > 3 ? " ..." : ""}` : ""}`);
+  }
+  const legacyQ = !Array.isArray(q.answers);
+  const marks = legacyQ ? [] : q.answers;
+  const all = answerSheets(dir);
+  const sheets = all.map((s) => ({ file: s.file, sha: sheetSha(s.path) }));
+  if (!sheets.length) fails.push("листа ответов нет: заказчик промолчал - положи пустой answers.txt (молчание = как в документе 1) и запусти apply-answers --apply");
+  sheets.forEach((s, i) => {
+    const m = marks.find((x) => x && x.file === s.file);
+    if (!m) fails.push(legacyQ && all[i].round === 1
+      ? `лист ${s.file} применен до программы 28.09 без отметки - apply-answers --apply запишет отметку (лист заново не разбирается)`
+      : `лист ${s.file} не применен - apply-answers --apply`);
+    else if (!m.sha) fails.push(`лист ${s.file} не применен после пересборки контракта - apply-answers --apply`);
+    else if (m.sha !== s.sha) fails.push(`лист ${s.file} изменен после применения - apply-answers --apply`);
+  });
+  const open = openDropped(q, contractFactIds(dir));
+  if (open.length) fails.push(`не разобраны ответы по ${open.map((e) => `${e.key} (${e.id})`).join(", ")} - поправь строки листа и повтори apply-answers`);
+  return { fails, checks: { step: st.n, verify: vcode, sheets } };
 }
 
 // ---------------------------------------------------------------- команды
@@ -210,6 +302,7 @@ function cmdInit(pos, flags, root) {
     tier, type, site_kind,
     docs: { understood: "", ask: "" },
     gate: { approved: false, by: "", at: "" },
+    answers: [],
     journal: []
   });
   console.log(`[queue] создан ${dir}`);
@@ -247,7 +340,9 @@ function cmdState(pos, flags, root) {
   console.log(`  есть: ${map.filter(([, v]) => v).map(([k]) => k).join(", ") || "-"}`);
   console.log(`  нет:  ${map.filter(([, v]) => !v).map(([k]) => k).join(", ") || "-"}`);
   console.log(`  журнал: ${j.length} записей${byKind.length ? " (" + byKind.map(([k, n]) => `${k} ${n}`).join(", ") + ")" : ""}`);
-  if (q.gate && q.gate.approved) console.log(`  гейт пройден ${q.gate.at} - ${q.gate.by}`);
+  if (q.gate && q.gate.approved) console.log(`  гейт пройден ${q.gate.at} - ${q.gate.by}${q.gate.checks ? "" : " (до программы 28.09: без gate.checks)"}`);
+  const open = openDropped(q, contractFactIds(dir));
+  if (open.length) console.log(`  не разобрано в листе ответов: ${open.map((e) => e.key).join(", ")} - гейт ждет правки строк`);
   console.log(`  СЛЕДУЮЩИЙ ШАГ ${step.n} - ${step.name}${step.need ? ` (нет ${step.need})` : ""}`);
   console.log(`    ${step.cmd}`);
   return 0;
@@ -290,7 +385,7 @@ function cmdJournal(pos, flags, root) {
   const j = readQueue(dir).journal || [];
   console.log(`[queue] журнал исключений ${dir}: записей ${j.length}`);
   for (const e of j) {
-    console.log(`  ${e.id} ${e.at} ${e.kind} (шаг ${e.step}): ${e.subject}`);
+    console.log(`  ${e.id} ${e.at} ${e.kind} (шаг ${e.step})${e.key ? ` [${e.key}]` : ""}: ${e.subject}`);
     console.log(`     основание: ${e.ground}`);
   }
   if (!j.length) console.log("  пусто - отступлений не было.");
@@ -303,12 +398,23 @@ function cmdGate(pos, flags, root) {
   const by = flags.by === true ? "" : plain(flags.by || "");
   if (!by) die("нужно имя согласовавшего: gate --by \"<кто>\" - это единственное, что не выводится из файлов");
   if (!existsSync(join(dir, "project.json"))) die("нет project.json - согласовывать нечего");
+  const ground = flags.ground === true ? "" : plain(flags.ground || "");
+  const { fails, checks } = gateChecks(dir);
+  if (fails.length && !ground) {
+    console.error("[queue] гейт не поставлен - анализ не готов:");
+    for (const f of fails) console.error(`  ! ${f}`);
+    console.error("  Порядок: apply-answers --apply (все круги) -> verify-data -> gate. Осознанный обход - gate --by \"<кто>\" --ground \"<основание>\" (ляжет в журнал).");
+    process.exit(2);
+  }
   const q = readQueue(dir);
-  q.gate = { approved: true, by, at: today() };
+  q.gate = { approved: true, by, at: today(), checks: fails.length ? { ...checks, bypass: fails } : checks };
   writeQueue(dir, q);
   console.log(`[queue] гейт пройден ${q.gate.at} - ${by}`);
-  const ground = flags.ground === true ? "" : flags.ground;
-  if (ground) { const e = appendJournal(dir, "waiver", "согласование гейта", ground); console.log(`  ${e.id} записан в журнал`); }
+  if (fails.length) {
+    const e = appendJournal(dir, "waiver", "обход проверок гейта", `${ground}; не выполнено: ${fails.join("; ")}`);
+    console.log(`  ОБХОД проверок (${fails.length}) записан в журнал: ${e.id}`);
+    for (const f of fails) console.log(`   ~ ${f}`);
+  } else if (ground) { const e = appendJournal(dir, "waiver", "согласование гейта", ground); console.log(`  ${e.id} записан в журнал`); }
   return cmdState([dir], {}, root);
 }
 

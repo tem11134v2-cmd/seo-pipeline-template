@@ -1,0 +1,130 @@
+{
+  "type": "info_contacts",
+  "generated_at": "2026-09-27 12:00",
+  "sources": [],
+  "market_blocks": [
+    {
+      "id": "hero",
+      "name": "Первый экран",
+      "role": "hero",
+      "reader_question": "",
+      "pattern": "hero-center",
+      "core": true,
+      "cta_allowed": true,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h1",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "sub",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    },
+    {
+      "id": "route",
+      "name": "Как нас найти",
+      "role": "info",
+      "reader_question": "",
+      "pattern": "map",
+      "core": true,
+      "cta_allowed": false,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h2",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "text",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    },
+    {
+      "id": "form",
+      "name": "Написать нам",
+      "role": "conversion",
+      "reader_question": "",
+      "pattern": "form",
+      "core": true,
+      "cta_allowed": true,
+      "objection_slot": false,
+      "fact_kinds": [],
+      "elements": [
+        {
+          "kind": "h2",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "field",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        },
+        {
+          "kind": "button",
+          "count": "1",
+          "chars": {
+            "min": 5,
+            "median": 40,
+            "max": 400
+          }
+        }
+      ],
+      "seen_at": [],
+      "examples": []
+    }
+  ],
+  "differentiation_blocks": [],
+  "recommended_order": [
+    "hero",
+    "route",
+    "form"
+  ],
+  "short_set": [
+    "hero",
+    "route",
+    "form"
+  ],
+  "competitor_promises": [],
+  "cliches_to_avoid": [],
+  "only_we_can_say": [],
+  "notes": "фикстура"
+}

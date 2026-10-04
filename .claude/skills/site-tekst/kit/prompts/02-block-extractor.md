@@ -14,7 +14,10 @@
 - Каждый снимок `raw` (поля `sections`, `title`, `description`). Объем секции - `sections[].chars` (символы без пробелов;
   это тот же замер, что в `work/competitors/measurements.csv`, CSV открывать не нужно).
 - При статусе `ok` можно открыть `html_path`, чтобы понять раскладку (сетки, карточки, аккордеоны): ищи grep-ом классы
-  вокруг нужного заголовка, файл целиком и скрипты не читай.
+  вокруг нужного заголовка, файл целиком и скрипты не читай. Снимок `flat: true` (заголовков h1-h3 меньше двух: блоки
+  размечены классами) и секция `truncated: true` (текст обрезан на 4000 знаков) - заголовки блоков и хвост текста ищи
+  в `html_path` так же, grep-ом.
+- Снимок `browser` без `verbatim: true` (`verbatim: false` или поля нет) - пересказ браузера, а не текст страницы: `heading_quote` и `example` из него не бери, `partial: true`.
 
 ## Как работать с пакетом
 - Снимки разбирай строго по одному, в порядке `items`: прочитай снимок, опиши, запиши его файл - и только потом открывай следующий.
@@ -27,9 +30,11 @@
 1. Пройди по секциям сверху вниз. Объедини секции в блоки по смыслу: первый экран, преимущества, как работаем,
    каталог/список, цены, кейсы, отзывы, команда, FAQ, форма, контакты и т.п. Статьи и блоговые врезки пропускай.
 2. Для каждого блока: `id` (латиницей, устойчивое имя: hero, benefits, process, listing, pricing, cases, reviews,
-   team, faq, cta, contacts, map, guarantees, not-promise, documents, calculator, comparison, about-short, geo-list...),
+   team, faq, cta-final (финальный призыв), contacts, map, guarantees, not-promise, documents, calculator, comparison,
+   about-short, geo-list...),
    `name` по-русски, `reader_question` (на какой вопрос читателя блок отвечает), `pattern` (из списка схемы
-   page-type: hero-split, grid-3, steps, accordion, listing, form, ...), `elements` (виды по схеме block: h1, h2, sub,
+   page-type: hero-split, grid-3, steps, accordion, listing, form, ...; блок, который не ложится ни в один вид, -
+   `custom` и `custom_name` - короткое название вида по-русски), `elements` (виды по схеме block: h1, h2, sub,
    text, bullets, button, badges, card, step, qa, quote, image, field, number, note, link, filters), `count` для каждого
    вида (например «3-4»), `chars` из замера: символы без пробелов на элемент (для карточек - на одну карточку),
    `heading_quote` - дословный заголовок блока, `example` - дословный текст блока (первый экран - целиком,
@@ -41,6 +46,6 @@
 
 ## Формат результата
 Для каждого снимка запиши `<out>/<domain>/<name>.blocks.json` (`<name>` - имя файла снимка без `.json`):
-`{"domain":"","url":"","type":"","raw":"","partial":false,"blocks":[{"id":"","name":"","order":1,"reader_question":"","pattern":"","elements":[{"kind":"","count":"","chars":0}],"heading_quote":"","chars_total":0,"example":"","why_strong":""}],"promises":[""],"cliches":[""],"strong_moves":[""]}`
+`{"domain":"","url":"","type":"","raw":"","partial":false,"blocks":[{"id":"","name":"","order":1,"reader_question":"","pattern":"","custom_name":"","elements":[{"kind":"","count":"","chars":0}],"heading_quote":"","chars_total":0,"example":"","why_strong":""}],"promises":[""],"cliches":[""],"strong_moves":[""]}`
 и верни по записи на каждый снимок пакета, в порядке `items`:
 `{"results":[{"raw":"","file":"","blocks":0,"partial":false,"error":""}]}`.

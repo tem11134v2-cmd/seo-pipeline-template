@@ -19,7 +19,7 @@ description: SEO-нормализация готовых страниц (фаз�
 ```
 - Без источника - **спросит**.
 - `--from-tekst <NNN>` - страницы из `texts/<NNN>-*/`, формат задачи по `meta.json.format`. NNN faq зеркалит NNN текстов.
-  - **v9** (`format: "v9"`, `/site-tekst`): страницы - `work/sitemap.json` (кроме `status: skip`), текст - `work/pages/<slug>/page.md` без служебных строк (только написанные), url - от `config/project.json` -> `site_url`, маркер и запросы - `source_queries`. Бренд, `region_name`, `forbidden_wordings`, `anti_promises`, стоп-домены и `facts_path` (`work/facts.json`) `read-faq-input.mjs` сам дописывает в `inputs.json` (заданное не перетирает).
+  - **v9** (`format: "v9"`, `/site-tekst`): страницы - `work/sitemap.json` (кроме `status: skip` и страниц интерфейса с `ui_role` search, cart, account, legal - поиск, корзина, кабинет, юридические: FAQ им не нужен), текст - `work/pages/<slug>/page.md` без служебных строк (только написанные), url - от `config/project.json` -> `site_url`, маркер и запросы - `source_queries`. Бренд, `region_name`, `forbidden_wordings`, `anti_promises`, стоп-домены и `facts_path` (`work/facts.json`) `read-faq-input.mjs` сам дописывает в `inputs.json` (заданное не перетирает).
   - **v7** (старые задачи, формата нет): текст из `pages/<slug>/page.json`, запросы из `pages.json`; бренд, регион, `forbidden_wordings` - из `texts/NNN/inputs.json` (шаг 1).
 - `--from-table <путь>` - таблица URL/Маркер/Запросы[/Текст] (csv/tsv).
 - `--url <URL>` - одна живая страница (faq-builder сам спарсит текст; дай маркер/запросы).

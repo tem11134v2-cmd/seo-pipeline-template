@@ -1,6 +1,6 @@
 {
   "$id": "import-report",
-  "_doc": "work/import-report.json - отчет scripts/import-project.mjs: что взято из project.json как есть, что выведено эвристикой, что пусто, состояние регулярок антиобещаний.",
+  "_doc": "work/import-report.json - отчет scripts/import-project.mjs: что взято из project.json как есть, что выведено эвристикой, что пусто, состояние регулярок антиобещаний. company_missing - пустые поля company (phones, address, hours): по ним фаза 0 снимает сайт; company_origin - откуда поле company (анализ или снимок сайта), по нему --facts-only убирает поля, снятые в анализе, и оставляет данные снимка; contact_facts - служебные факты F901-F907; facts_digest - хеши фактов анализа (без F8xx и F9xx) для сверки ручных правок в --facts-only; facts_diff и other_changed - что изменилось в анализе при --facts-only (facts_diff читает режим обновления стратегии wf-04; факт оператора, перенесенный в анализ, - в removed); analysis_fingerprint - отпечаток анализа для other_changed; inputs.held_mark_rule - откуда правило маркера снятия.",
   "type": "object",
   "required": ["generated_at", "inputs", "gate", "outputs", "counts", "id_map", "heuristic", "empty", "warnings", "anti"],
   "properties": {
@@ -12,7 +12,9 @@
         "project": { "type": "string" },
         "facts_src": { "type": "string" },
         "queue": { "type": "string" },
-        "structure": { "type": "string" }
+        "structure": { "type": "string" },
+        "service_note_rule": { "type": "string" },
+        "held_mark_rule": { "type": "string", "_doc": "откуда правило маркера снятия: путь к _contract.mjs анализа (экспорт HELD_MARK) или копия HELD_MARK_COPY kit" }
       }
     },
     "gate": {
@@ -64,6 +66,23 @@
         "conflicts": { "type": "array", "items": { "type": "string" } }
       }
     },
-    "structure": { "type": "object" }
+    "structure": { "type": "object" },
+    "mode": { "type": "string", "enum": ["facts-only"] },
+    "company_origin": { "type": "object", "additionalProperties": { "type": "string", "enum": ["analysis", "site"] }, "_doc": "поле company (phones, email, hours, address, legal_name, inn, ogrn) -> analysis (business.legal) или site (снимок сайта)" },
+    "company_missing": { "type": "array", "items": { "type": "string", "enum": ["phones", "address", "hours"] } },
+    "contact_facts": { "type": "array", "items": { "type": "string", "pattern": "^F9[0-9]{2}$" } },
+    "facts_digest": { "type": "object", "additionalProperties": { "type": "string" } },
+    "facts_diff": {
+      "type": "object",
+      "properties": {
+        "added": { "type": "array", "items": { "type": "string" } },
+        "removed": { "type": "array", "items": { "type": "string" } },
+        "changed": { "type": "array", "items": { "type": "string" } },
+        "published": { "type": "array", "items": { "type": "string" } },
+        "unpublished": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "other_changed": { "type": "array", "items": { "type": "string" } },
+    "analysis_fingerprint": { "type": "object", "additionalProperties": { "type": "string" }, "_doc": "хеши того, что пришло из анализа помимо фактов, по разделам: audience, client-preferences, directions, competitors-seed, anti_promises, company. Пишет полный импорт; --facts-only сравнивает с ним анализ (other_changed) и переносит хеш раздела, который не применил" }
   }
 }

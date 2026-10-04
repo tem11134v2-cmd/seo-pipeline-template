@@ -6,7 +6,8 @@
 // Имена файлов те самые, по которым queue.mjs считает шаг закрытым.
 // Состав страниц (structure_data.json рядом с контрактом, tier basic) печатается в документе 1
 // решением d9 с дефолтом: заказчик снимает лишнее или возвращает снятое, ответ принимает
-// apply-answers.mjs, как и остальные решения.
+// apply-answers.mjs, как и остальные решения. Контакты и реквизиты (business.legal) - решением
+// d10 с дефолтом «верно»: правка идет строкой «d10: метка: значение».
 //
 // Прозу не генерирует НИКТО. Скрипт только подставляет значения в шаблон, поэтому раздуть
 // документ нечем: нет данных - секция не печатается вовсе. В шаблонизаторе намеренно нет
@@ -29,8 +30,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from "no
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  arr, str, low, isCheckable, heldBack, SRC_HUMAN, DECISIONS, decisionRow,
-  BAD_TYPO, TYPO_NAME, readPages, PAGES_DEFAULT, STRUCT_DECISION
+  arr, str, low, isCheckable, factRec, SRC_HUMAN, DECISIONS, decisionRow,
+  BAD_TYPO, TYPO_NAME, readPages, PAGES_DEFAULT, STRUCT_DECISION, LEGAL_DECISION, legalRow
 } from "./_contract.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -212,6 +213,13 @@ if (str(offer.positioning)) v1.positioning = str(offer.positioning);
   } else if (str(data.tier) === "basic" && str(data.business && data.business.site_kind) === "multipage") {
     W("structure_data.json", "tier basic, многостраничник, а состава нет - решение d9 не напечатано: сначала pages-planner (шаг 3b)");
   }
+  // d10 - контакты и реквизиты: уйдут в шапку, подвал и контакты сайта. Печатаются
+  // решением с дефолтом «верно»; значения очищены от знаков, на которых откажет проверка.
+  const lr = legalRow(data);
+  if (lr) {
+    rows.push(lr);
+    I(`контакты и реквизиты (${LEGAL_DECISION.key}): ${lr.value.split("; ").length} полей - печатаются решением с дефолтом «верно»`);
+  } else I(`контактов и реквизитов в business.legal нет - решение ${LEGAL_DECISION.key} не напечатано, тексты снимут их со снимка сайта`);
   if (rows.length) v1.decisions = rows;
 }
 
@@ -282,25 +290,31 @@ if (str(offer.positioning)) v1.positioning = str(offer.positioning);
   const mg = arr(comp.market && comp.market.gaps);
   if (mg.length) v1.market_gaps = mg;
   if (arr(comp.seen_numbers).length) v1.seen_numbers = arr(comp.seen_numbers);
-  if (arr(comp.list).length) v1.rivals_line = arr(comp.list).join(", ");
+  // Пометки разведки в скобках в конце строки («не мерили») - служебные: заказчику
+  // печатается строка без них, в контракте они остаются для импорта текстов.
+  const rivals = arr(comp.list).map((s) => str(s).replace(/\s*\([^()]*\)\s*$/, "")).filter(Boolean);
+  if (rivals.length) v1.rivals_line = rivals.join(", ");
 }
 
 {
   const all = arr(data.facts).filter((f) => str(f.label) && (str(f.value) || str(f.artifact)));
   const rows = all.map((f) => ({
+    // Код строки - по нему заказчик и лист ответов называют факт: «f07: нет».
+    code: str(f.id),
     label: str(f.label),
     // Значения нет - печатается ссылка на подтверждение, а не прочерк: прочерк в клиентском
     // документе читается как «мы не знаем», то есть как открытый вопрос.
     value: str(f.value) || str(f.artifact),
     src: str(f.artifact) ? `${SRC_HUMAN[str(f.src)] || str(f.src)}, есть подтверждение` : (SRC_HUMAN[str(f.src)] || str(f.src)),
-    // Не публикуем только то, что задевает запреты заказчика. Непроверяемая строка
-    // публикуется, просто доказательством она не работает - это разные вещи, и путать их
-    // нельзя: иначе состав ремонта или перечень услуг вылетит со страницы за то, что в нем
-    // нет цифры с единицей.
-    rec: heldBack(f, forbidden) ? "нет, у вас это в запретах" : "да, публикуем"
+    // Рекомендация - та же функция, что принимает молчание в листе ответов (Р1): что
+    // напечатано «да, публикуем», то молчание и публикует. Не публикуем только помеченное как
+    // закрытое, задевающее запреты заказчика и служебную пометку. Непроверяемая строка
+    // публикуется, просто доказательством она не работает: иначе состав ремонта или перечень
+    // услуг вылетит со страницы за то, что в нем нет цифры с единицей.
+    rec: factRec(f, forbidden).text
   }));
   if (rows.length) v1.facts = rows;
-  const proof = all.filter((f) => isCheckable(f) && !heldBack(f, forbidden)).length;
+  const proof = all.filter((f) => isCheckable(f) && factRec(f, forbidden).publish).length;
   I(`таблица «ваши цифры»: строк ${rows.length}, из них проверяемых ${proof} - на воротах facts3 нужно три`);
   if (proof < 3) W("facts", `проверяемых фактов ${proof}, воротам нужно 3 - пока заказчик не ответит, тексты будут доказывать нечем и станут короче`);
 }

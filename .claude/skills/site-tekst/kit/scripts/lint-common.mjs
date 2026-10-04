@@ -1,10 +1,57 @@
 // Общие проверки линтера для lint.mjs (блок) и lint-page.mjs (страница). Модуль, напрямую не запускается.
 // ai.* (формы, по которым текст звучит как сгенерированный), style.same-start, style.summary-tail,
-// fact.claim-unsupported, страничные бюджеты (ai.contrast, ai.neg-pitch), word.overuse, placeholder.count.
+// fact.claim-unsupported, fact.embellish, fact.hedge-lost (hedgeLostFindings, зовет lint.mjs по элементам),
+// страничные бюджеты (ai.contrast, ai.neg-pitch), word.overuse, placeholder.count.
 // Правила и пороги - rules/lint.json. Политика severity:
 // - заголовки (h1, h2, h3, sub, title карточки и шага, вопрос qa): любая находка ai.* - minor, в бюджеты не входит;
 // - тело: severity паттерна; для id из page_budgets - бюджет страницы в порядке блоков: в бюджете minor, сверх - major на блок.
-import { B, cyr, esc, splitSentences, elementTexts, PLACEHOLDER_RE } from './lib.mjs';
+import { B, cyr, esc, splitSentences, elementTexts, PLACEHOLDER_RE, allowedRuleText } from './lib.mjs';
+
+// ---------- стоп-слова: одна регулярка для lint.mjs и предупреждений build-briefs ----------
+// Левая граница - граница слова; правая - граница слова после окончания до 2 букв («надежная», «качественного»), поэтому
+// «надежность», «эффективность», «быстросъемные» не ловятся. Пункт с «*» на конце - основа без правой границы
+// («динамично развивающ*»). m[1] - найденная фраза.
+export function stopWordsRe(rules) {
+  const alts = (rules.stop_words || []).map(w => String(w).trim()).filter(Boolean)
+    .map(w => (w.endsWith('*') ? esc(w.slice(0, -1)) : `${esc(w)}[а-яa-z]{0,2}${B}`));
+  return alts.length ? cyr(B + '(' + alts.join('|') + ')') : /(?!)/;
+}
+
+// ---------- маска имен: предмет страницы, ключевая фраза, компания, предметы страниц из ссылок, непереводимые термины ----------
+// Имя целиком (без учета регистра) заменяется пробелами той же длины. Токены имени с цифрой и буквой или с дробью (R16,
+// S24, М300, 205/55, 3D в предмете) маскируются отдельно по всему тексту: они переживают склонение соседних слов. Голое
+// число из имени («24» в «Окна 24») маскируется только в составе всего имени, иначе «24 часа» прошли бы без факта.
+// Антиобещания, do_not_say и клише по маске не проверяются (линтер смотрит их по исходному тексту).
+// maskLoose - для стоп-слов: имя из двух и больше слов маскируется и в склонении («ремонта квартир под ключ»): слова
+// имени сверяются по основам подряд, между ними допускается один предлог («монтаж окон в Туле» при «монтаж окон тула»).
+// Стоп-слово прощается только внутри такого фрагмента: «Быстрый выезд» при ссылке «Быстрый ремонт окон» - находка.
+const NAME_TOKEN_RE = /[\p{L}\d]*\d[\p{L}\d]*(?:\/[\p{L}\d]+)*|\d+(?:\/\d+)+/gu;
+const NAME_WORD_RE = /[\p{L}\d]+(?:[\/-][\p{L}\d]+)*/gu;
+const NAME_GAP = '[^\\p{L}\\d]+(?:(?:в|во|на|по|для|из|у|с|со|к|ко|от|и)[^\\p{L}\\d]+)?';
+// основа слова имени: короткие (до 3 знаков) и слова с цифрой - целиком; 4 буквы - 2 первые («окна» - «окон»); длиннее -
+// без двух последних, не короче 3; к основе - до 3 букв окончания
+const nameStem = w => {
+  if (w.length <= 3 || /\d/.test(w)) return esc(w);
+  const n = w.length === 4 ? 2 : Math.max(3, w.length - 2);
+  return `${esc(w.slice(0, n))}\\p{L}{0,${w.length - n + 3}}`;
+};
+export function nameMask(names) {
+  const list = [...new Set((names || []).map(x => String(x || '').replace(/\s+/g, ' ').trim()).filter(x => x.length >= 2))].sort((a, b) => b.length - a.length);
+  const whole = list.map(n => new RegExp(`(?<![\\p{L}\\d])${esc(n).replace(/ /g, '\\s+')}(?![\\p{L}\\d])`, 'giu'));
+  const toks = new Set();
+  for (const n of list) for (const m of n.matchAll(NAME_TOKEN_RE)) { const t = m[0]; if (/\p{L}/u.test(t) || t.includes('/')) toks.add(t); }
+  const tokRes = [...toks].sort((a, b) => b.length - a.length).map(t => new RegExp(`(?<![\\p{L}\\d])${esc(t)}(?![\\p{L}\\d])`, 'giu'));
+  const loose = list.map(n => (n.match(NAME_WORD_RE) || []).map(w => w.toLowerCase())).filter(ws => ws.length >= 2)
+    .map(ws => new RegExp(`(?<![\\p{L}\\d])${ws.map(nameStem).join(NAME_GAP)}(?![\\p{L}\\d])`, 'giu'));
+  const blank = s => ' '.repeat(s.length);
+  const mask = s => { let t = String(s ?? ''); for (const re of [...whole, ...tokRes]) t = t.replace(re, blank); return t; };
+  return {
+    names: list,
+    mask,
+    maskLoose: s => { let t = mask(s); for (const re of loose) t = t.replace(re, blank); return t; },
+  };
+}
+export const briefNames = brief => [brief && brief.subject, brief && brief.key_phrase, brief && brief.company, ...((brief && brief.links) || []).map(l => l && l.subject), ...(((brief && brief.terminology) || {}).untranslatable || [])];
 
 export const SKIP_KINDS = new Set(['button', 'link', 'field', 'image', 'filters', 'number']);
 const HEAD_KINDS = new Set(['h1', 'h2', 'h3', 'sub']);
@@ -50,10 +97,95 @@ export function compileLint(rules, brief = {}, cfg = {}) {
     claimRe: rules.claim_markers?.length ? cyr(B + '(' + rules.claim_markers.map(esc).join('|') + ')[а-яa-z]*', 'gi') : null,
     claimExcept: rules.claim_markers_except || [],
     claimStems: rules.claim_markers || [],
-    factText: Object.fromEntries((brief.facts || []).map(f => [f.id, [f.label, f.value, f.wording].filter(Boolean).join(' ').toLowerCase()])),
+    // текст факта для сверки маркеров: label, value, wording, условие (note) и разрешенная часть rule (без запретов)
+    factText: Object.fromEntries((brief.facts || []).map(f => [f.id, [f.label, f.value, f.wording, f.note, allowedRuleText(f.rule)].filter(Boolean).join(' ').toLowerCase()])),
     embellish: (rules.embellish_markers || []).map(p => ({ p, re: cyr(B + '(' + p + ')', 'gi'), test: cyr(B + '(' + p + ')', 'i') })),
+    embellishWindow: rules.embellish_window || rules.hedge_window || 3,
     word: { minLen, stop, stem, protectedStems },
+    hedge: compileHedge(rules, brief),
   };
+}
+
+// ---------- fact.hedge-lost: условие у числа факта ----------
+// Группы оговорок (lint.json hedge_groups): маркер - слова через пробел; слово до 3 букв сравнивается целиком, длиннее -
+// по началу (основа). В факте маркер стоит в 1-3 словах перед числом (hedge_near_only - только прямо перед числом).
+// В тексте элемента достаточно маркера той же группы где угодно.
+function compileHedge(rules, brief) {
+  const groups = (rules.hedge_groups || []).map(g => ({ id: g.id, markers: (g.markers || []).map(m => String(m).toLowerCase().split(/\s+/).filter(Boolean)) }));
+  return {
+    groups,
+    window: rules.hedge_window || 3,
+    nearOnly: new Set((rules.hedge_near_only || []).map(s => String(s).toLowerCase())),
+    comparatives: new Set((rules.hedge_comparatives || []).map(s => String(s).toLowerCase())),
+    // плашки, цифры и строки прайса проверяются: оговорка ищется во всем элементе (подпись number, соседняя ячейка строки)
+    skipKinds: new Set(rules.hedge_skip_kinds || ['button', 'link', 'field', 'image', 'filters']),
+    skipFactKinds: new Set(rules.hedge_skip_fact_kinds || ['contact', 'legal']),
+    facts: Object.fromEntries((brief.facts || []).map(f => [f.id, { text: [f.wording, f.value].filter(Boolean).join(' \n '), kind: f.kind || '' }])),
+  };
+}
+const tokMatch = (tok, w) => (tok.length <= 3 ? w === tok : w.startsWith(tok));
+const markerAt = (words, i, m) => m.every((tok, k) => words[i + k] !== undefined && tokMatch(tok, words[i + k]));
+// Число - отдельный токен: не часть слова («3D», «4K»), не время «10:00», не часть номера («ЮЛ770»).
+const NUM_RE = /(?<![\p{L}\d.,:])(\d{1,3}(?:[  ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(?![\p{L}\d:]|[.,]\d)/gu;
+const numVal = s => s.replace(/[  ]/g, '').replace(',', '.');
+const lcWords = s => String(s).toLowerCase().match(/[а-яa-z]+/g) || [];
+// Группы маркеров, стоящих у каждого числа текста: [{n, groups:Set}]
+function hedgedNumbers(text, H) {
+  const out = [];
+  for (const m of String(text).matchAll(NUM_RE)) {
+    const before = String(text).slice(0, m.index).split(/[.;!?\n]/).pop();
+    const w = lcWords(before);
+    const groups = new Set();
+    for (const g of H.groups) for (const mk of g.markers) {
+      const near = mk.length === 1 && H.nearOnly.has(mk[0]);
+      const from = near ? w.length - 1 : Math.max(0, w.length - H.window - mk.length + 1);
+      for (let i = Math.max(0, from); i <= w.length - mk.length; i++) if (markerAt(w, i, mk)) groups.add(g.id);
+    }
+    out.push({ n: numVal(m[1]), index: m.index, len: m[0].length, groups });
+  }
+  return out;
+}
+const groupInText = (words, g) => g.markers.some(mk => words.some((_, i) => markerAt(words, i, mk)));
+// Находки fact.hedge-lost для одного элемента (idx - индекс в блоке).
+export function hedgeLostFindings(el, idx, R) {
+  const H = R.hedge;
+  if (!H || !H.groups.length || H.skipKinds.has(el.kind)) return [];
+  const ids = (el.facts || []).filter(id => H.facts[id] && !H.skipFactKinds.has(H.facts[id].kind));
+  if (!ids.length) return [];
+  const text = elementTexts(el).map(t => t.text).join('\n').replace(PLACEHOLDER_RE, ' ');
+  const words = lcWords(text);
+  const nums = hedgedNumbers(text, { ...H, groups: [] });
+  const out = [];
+  const seen = new Set();
+  for (const fid of ids) {
+    const other = ids.filter(x => x !== fid).flatMap(x => hedgedNumbers(H.facts[x].text, H)).filter(x => !x.groups.size).map(x => x.n);
+    for (const fn of hedgedNumbers(H.facts[fid].text, H)) {
+      for (const gid of fn.groups) {
+        const g = H.groups.find(x => x.id === gid);
+        if (other.includes(fn.n) || groupInText(words, g)) continue;
+        const hits = nums.filter(x => x.n === fn.n).filter(x => {
+          const pre = lcWords(text.slice(0, x.index).split(/[.;!?\n]/).pop()).slice(-2);
+          if (pre.some(w => H.comparatives.has(w) || /[а-я]{3,}ее$/.test(w))) return false; // «тоньше 1,3 мм» - сравнение, не факт
+          // край диапазона «2-5» заменяет оговорки «от» и «до»
+          if (g.markers.some(mk => mk.length === 1 && H.nearOnly.has(mk[0]))) {
+            if (/\d\s*-\s*$/.test(text.slice(Math.max(0, x.index - 3), x.index)) || /^\s*-\s*\d/.test(text.slice(x.index + x.len, x.index + x.len + 3))) return false;
+          }
+          return true;
+        });
+        // одна находка на потерю условия: оба края диапазона «20-25» при «в среднем» - одна находка, не две
+        const key = `${fid}:${gid}`;
+        if (!hits.length || seen.has(key)) continue;
+        seen.add(key);
+        const mk = g.markers.map(m => m.join(' ')).slice(0, 3).join(' / ');
+        out.push({
+          severity: 'major', category: 'fact', rule: 'fact.hedge-lost', element_index: idx, quote: clip(text),
+          problem: `условие факта ${fid} потеряно: в факте у числа ${fn.n} стоит оговорка (${mk}), в тексте ее нет`,
+          proposal: 'вернуть условие рядом с числом, как в wording факта (или в разрешенной формулировке rule), либо убрать число',
+        });
+      }
+    }
+  }
+  return out;
 }
 
 // ---------- проверка одного блока ----------
@@ -116,23 +248,43 @@ export function scanBlock(block, R) {
           findings.push({
             severity: 'minor', category: 'fact', rule: 'fact.claim-unsupported', element_index: idx, quote: clip(s),
             problem: `утверждение про «${[...new Set(hits)].join('», «')}» ${ids.length ? `не подтверждено: факты элемента (${ids.join(', ')}) не про это` : 'без факта'}`,
-            proposal: 'подтвердить фактом из брифа (поле facts) или переформулировать вопросом к специалисту',
+            proposal: 'подтвердить фактом из брифа (поле facts) или убрать утверждение; не заменять обещанием консультации, звонка, встречи',
           });
         }
       }
     }
     // fact.embellish: элемент ссылается на факты, а предложение усиливает их тем, чего в фактах нет
     // («до 14% годовых уже за вычетом расходов», «гарантированный доход»). Цифру линтер подтвердил, а усиление - нет.
-    // Отрицание перед маркером («не гарантируем») - не усиление.
+    // Не находка: отрицание перед маркером («не гарантируем»); маркер из группы оговорок (hedge_groups), если в факте
+    // стоит любой маркер той же группы («минимум 5 лет» при факте «не менее 5 лет»); в факте есть общая основа маркера
+    // («гарантируем» при факте «гарантия 12 месяцев»); маркер дальше embellish_window слов от числа и от ключевого слова
+    // фактов элемента (инструкция читателю «запишитесь минимум за неделю» к факту не относится).
     if (R.embellish.length && (el.facts || []).length) {
       const factsText = (el.facts || []).map(id => R.factText[id] || '').join(' ');
+      const factWords = lcWords(factsText);
+      const sameGroup = hit => {
+        const hw = lcWords(hit);
+        const g = (R.hedge?.groups || []).find(x => x.markers.some(mk => mk.length === hw.length && markerAt(hw, 0, mk)));
+        return !!g && groupInText(factWords, g);
+      };
+      const stemOf = w => w.slice(0, Math.max(4, Math.min(6, w.length - 2)));
+      const sameStem = hit => { const ws = lcWords(hit).filter(w => w.length >= 4); return ws.length > 0 && ws.every(w => factWords.some(fw => fw.startsWith(stemOf(w)))); };
+      const keys = new Set(factWords.filter(w => w.length >= 5).map(w => w.slice(0, 5)));
+      const nearFact = (s, idx, len) => {
+        const toks = [...s.toLowerCase().matchAll(/[а-яa-z0-9]+/g)].map(t => ({ w: t[0], i: t.index }));
+        const own = toks.map((t, k) => (t.i >= idx && t.i < idx + len ? k : -1)).filter(k => k >= 0);
+        if (!own.length) return true;
+        const from = own[0], to = own[own.length - 1];
+        return toks.some((t, k) => !own.includes(k) && Math.min(Math.abs(k - from), Math.abs(k - to)) <= R.embellishWindow && (/^\d/.test(t.w) || (t.w.length >= 5 && keys.has(t.w.slice(0, 5)))));
+      };
       for (const { field, text } of texts) {
         if (!zoneOf(el.kind, field)) continue;
         for (const s of splitSentences(String(text).replace(PLACEHOLDER_RE, ' '))) {
           const hits = [];
           for (const e of R.embellish) for (const m of s.matchAll(e.re)) {
             if (/(^|[^а-яa-z])не\s+$/i.test(s.slice(Math.max(0, m.index - 4), m.index))) continue;
-            if (e.test.test(factsText)) continue;
+            if (e.test.test(factsText) || sameGroup(m[0]) || sameStem(m[0])) continue;
+            if (!nearFact(s, m.index, m[0].length)) continue;
             hits.push(m[0].trim());
           }
           if (!hits.length) continue;

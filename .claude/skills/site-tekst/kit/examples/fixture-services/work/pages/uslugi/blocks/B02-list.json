@@ -1,0 +1,27 @@
+{
+  "block_id": "B02-list",
+  "type": "list",
+  "role": "conversion",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Выберите услугу"
+    },
+    {
+      "kind": "text",
+      "text": "У каждой услуги своя страница с этапами и сроками."
+    },
+    {
+      "kind": "filters",
+      "items": [
+        "Квартиры",
+        "Новостройки",
+        "Под ключ"
+      ]
+    }
+  ],
+  "facts_used": [],
+  "objections_closed": [],
+  "summary": "фикстура: блок list (filters - старый формат listing: true у сайта услуг)",
+  "handoff_note": ""
+}

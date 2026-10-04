@@ -1,6 +1,6 @@
 ---
 name: sync-from-template
-description: Обновляет машинерию проекта (.claude/{scripts,agents,skills,hooks,git-hooks,migrations,tests} + package.json + .gitignore + .claude/settings.json) из локального шаблона seo-pipeline-template. Клиентские файлы (ЗАКАЗЧИК.md, template.html, topics.xlsx, рабочие папки, settings.local.json) НЕ трогаются. Запускать в main. Аргументы - [путь к шаблону] [--apply].
+description: Обновляет машинерию проекта (.claude/{scripts,agents,skills,hooks,git-hooks,migrations,tests} + package.json + .gitignore + .claude/settings.json, а .claude/CLAUDE.md - только если клиент его не правил) из локального шаблона seo-pipeline-template движком шаблона. Клиентские файлы (ЗАКАЗЧИК.md, template.html, topics.xlsx, рабочие папки, settings.local.json, README.md) НЕ трогаются; синк, который удалил бы скил с незавершенной задачей, отказывает целиком. Запускать в main. Аргументы - [путь к шаблону] [--apply].
 ---
 
 # sync-from-template
@@ -11,7 +11,10 @@ description: Обновляет машинерию проекта (.claude/{scri
 Вся механика - в детерминированном движке [`sync-from-template.mjs`](../../scripts/sync-from-template.mjs):
 точное зеркало папок-машинерии, сверка версий, миграции данных, коммит с возможностью отката.
 Этот скил - тонкая обёртка: запустить движок, показать отчёт, подтвердить, при согласии
-применить и доделать пост-шаги (npm install, дифф CLAUDE.md).
+применить и доделать пост-шаги (npm install, дифф CLAUDE.md с правками клиента).
+
+Запускается **движок шаблона** (`<шаблон>/.claude/scripts/sync-from-template.mjs --target .`), а не копия в проекте:
+у несинкнутого проекта копия старая, и ее страховок (CLAUDE.md, незавершенные задачи) еще нет.
 
 Для раскатки сразу на ВСЕ проекты есть родительский `/sync-all` (в `~/seo-projects/`) - он зовёт
 тот же движок по каждому клиенту. Этот скил - для одного проекта (текущего).
@@ -22,14 +25,17 @@ description: Обновляет машинерию проекта (.claude/{scri
 - `.claude/{scripts,agents,skills,hooks,git-hooks,migrations,tests}` - точное зеркало шаблона;
 - `package.json` - если изменились зависимости, движок пометит «нужен npm install»;
 - `.gitignore` - правила игнора (напр. `_index.json`); без них миграции данных бессмысленны;
-- `.claude/settings.json` - конфигурация хуков Claude Code.
+- `.claude/settings.json` - конфигурация хуков Claude Code;
+- `.claude/CLAUDE.md` - только если он байт в байт равен одной из версий шаблона (клиент его не правил); копируется
+  версия HEAD шаблона и только когда CLAUDE.md шаблона закоммичен. В отчете поле `claudemd`: `same`, `updated`,
+  `customized` (правка клиента, в том числе незакоммиченная - не трогается), `stale` (CLAUDE.md шаблона не закоммичен).
 
 ## Что НЕ трогается
 
 - `ЗАКАЗЧИК.md`, `template.html`, `topics.xlsx`, рабочие папки (`articles/`, `strategies/`, ...);
 - `.claude/tmp/`, `.claude/handoff-requests/`, `.claude/worktrees/`;
-- `.claude/CLAUDE.md` - НЕ копируется (может содержать клиентские пометки). Движок только
-  показывает факт расхождения; дифф смотрим и решаем вручную.
+- `.claude/CLAUDE.md` с клиентскими правками - движок его не трогает и пишет предупреждение «кастомные правки клиента,
+  не обновлен - вручную»; дифф смотрим и решаем вручную. `README.md` не синкается.
 
 ## Аргументы
 
@@ -46,19 +52,24 @@ description: Обновляет машинерию проекта (.claude/{scri
 - Запуск в **main** (не worktree): синк меняет общие файлы. Движок сам откажет, если target -
   это worktree.
 - Чистое дерево по машинерии: иначе движок откажет применять (защита от затирания правок).
+- Нет незавершенных задач у скилов, которые синк удаляет (выведенные `seo-tekst`, `seo-tekst-fix`, `share-tekst` - задачи
+  `texts/*` не v9; `seo-analiz`, `share-analysis` - `analyses/*`; проверяются main и живые worktree). Иначе движок
+  отказывает целиком (status `error`, перечень «незавершенная задача <путь> скила <имя>») и в dry-run, и с `--apply`;
+  `--force` отказ не снимает. Выход - владелец закрывает задачу (`state` `completed` или `cancelled...` в ее `meta.json`).
 
 ## Алгоритм
 
 ### 1. Dry-run (всегда первым)
 
 ```
-.claude\scripts\_node.cmd .claude\scripts\sync-from-template.mjs
+.claude\scripts\_node.cmd <шаблон>\.claude\scripts\sync-from-template.mjs --template <шаблон> --target .
 ```
-(добавь `--template <путь>`, если шаблон не в дефолтном месте.)
+(`<шаблон>` по умолчанию `%USERPROFILE%\seo-projects\template-project`.)
 
 Покажи пользователю отчёт движка: что добавится/изменится/удалится по папкам, меняется ли
-`package.json`, отличается ли `CLAUDE.md`, какие миграции применятся, предупреждения (в т.ч.
-не отстал ли сам шаблон от origin). Если статус `up-to-date` - «машинерия актуальна», стоп.
+`package.json`, что с `CLAUDE.md` (обновится или правки клиента), какие миграции применятся, предупреждения (в т.ч.
+не отстал ли сам шаблон от origin). Если статус `up-to-date` - «машинерия актуальна», стоп. Статус `error` с перечнем
+незавершенных задач - стоп: показать перечень, решение по задачам за владельцем.
 
 ### 2. Проверка стоп-условий ПЕРЕД apply
 
@@ -72,7 +83,7 @@ description: Обновляет машинерию проекта (.claude/{scri
 ### 3. Apply (по согласию пользователя или при --apply)
 
 ```
-.claude\scripts\_node.cmd .claude\scripts\sync-from-template.mjs --apply
+.claude\scripts\_node.cmd <шаблон>\.claude\scripts\sync-from-template.mjs --template <шаблон> --target . --apply
 ```
 
 Движок зеркалит файлы, пишет `.claude/.machinery-version`, прогоняет невыполненные миграции и
@@ -87,8 +98,9 @@ description: Обновляет машинерию проекта (.claude/{scri
   ```
   (или `& "$env:USERPROFILE\scoop\apps\nodejs-lts\current\npm.cmd" install`, если npm не в PATH).
   Если это создало изменения в `package-lock.json` - закоммить их.
-- Если движок пометил **claudemd_differs** - покажи дифф `CLAUDE.md` шаблона vs проекта и спроси,
-  переносить ли (могут быть клиентские пометки). Переносишь - только осознанно.
+- `claudemd: updated` - CLAUDE.md уже обновлен движком и вошел в коммит синка, ничего не делать.
+- `claudemd: customized` - покажи дифф `CLAUDE.md` шаблона vs проекта и спроси, переносить ли (клиентские пометки).
+  Переносишь - только осознанно. `claudemd: stale` - сначала закоммить CLAUDE.md шаблона, затем повтори синк.
 
 ### 5. Вывод
 

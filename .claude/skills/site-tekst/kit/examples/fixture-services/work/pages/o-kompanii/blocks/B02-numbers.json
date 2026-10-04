@@ -1,0 +1,34 @@
+{
+  "block_id": "B02-numbers",
+  "type": "numbers",
+  "role": "info",
+  "elements": [
+    {
+      "kind": "h2",
+      "text": "Кварта в цифрах"
+    },
+    {
+      "kind": "number",
+      "value": "2014",
+      "label": "год основания",
+      "facts": [
+        "F01"
+      ]
+    },
+    {
+      "kind": "number",
+      "value": "3 года",
+      "label": "гарантия на работы",
+      "facts": [
+        "F02"
+      ]
+    }
+  ],
+  "facts_used": [
+    "F01",
+    "F02"
+  ],
+  "objections_closed": [],
+  "summary": "фикстура: блок numbers",
+  "handoff_note": ""
+}

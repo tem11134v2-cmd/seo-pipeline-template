@@ -19,15 +19,22 @@
 //   --force             применить даже если дерево машинерии target грязное (опасно)
 //
 // Что синхронизируется (точное зеркало, идентичное у всех клиентов):
-//   .claude/{scripts,agents,skills,hooks,git-hooks,migrations} + package.json
-// Что НЕ трогается: ЗАКАЗЧИК.md, template.html, topics.xlsx, рабочие папки,
-//   .claude/tmp, .claude/handoff-requests, .claude/worktrees, .claude/CLAUDE.md
-//   (по нему только показываем diff - копировать может быть опасно).
+//   .claude/{scripts,agents,skills,hooks,git-hooks,migrations,tests} + package.json + .gitignore + .claude/settings.json
+// .claude/CLAUDE.md (Р8): обновляется, только если файл клиента байт в байт равен одной из версий шаблона (git hash-object
+//   рабочего файла против блобов `git log --raw` шаблона по этому пути) - значит, клиент его не правил. Копируется версия
+//   HEAD шаблона и только когда CLAUDE.md шаблона закоммичен. Иначе не трогается: клиентская правка (в том числе
+//   незакоммиченная) - предупреждение «кастомные правки клиента, вручную». В JSON - поле claudemd:
+//   same | updated | customized | stale (есть что обновить, но CLAUDE.md шаблона не закоммичен). README.md не синкается.
+// Отказ целиком (Р9): синк удаляет SKILL.md скила, у которого в проекте (main и живые worktree) есть незавершенная задача -
+//   status error с перечнем «незавершенная задача <путь> скила <имя>», в dry-run и в --apply, до копирования и миграций.
+//   --force его не снимает (выход - закрыть задачу решением владельца); с --no-delete удалений нет - и отказа нет.
+// Что НЕ трогается: ЗАКАЗЧИК.md, template.html, topics.xlsx, рабочие папки, README.md,
+//   .claude/tmp, .claude/handoff-requests, .claude/worktrees.
 //
 // Exit (без --json): 0 - успех / нечего делать; 1 - ошибка/отказ.
 
 import {
-  existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, rmSync, copyFileSync, statSync,
+  existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, rmSync, copyFileSync, statSync, realpathSync,
 } from "node:fs";
 import { join, resolve, dirname, relative, sep } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -50,6 +57,15 @@ const SYNC_FILES = ["package.json", ".gitignore", ".claude/settings.json"];
 // Метаданные (пишем сами, не из шаблона).
 const VERSION_FILE = join(".claude", ".machinery-version");
 const MIGRATIONS_LOG = join(".claude", ".migrations-applied.json");
+// CLAUDE.md проекта (Р8): обновляется, только если клиент его не правил.
+const CLAUDE_MD = ".claude/CLAUDE.md";
+// Р9: скилы выведенных конвейеров и папки их задач. Синк, который удаляет SKILL.md такого скила при незавершенной задаче,
+// отказывает целиком. done - завершенные state (cancelled* - любые варианты отмены); прочие, в том числе meta без state, -
+// незавершенные. У seo-tekst v7 approved - промежуточное состояние (перед blueprints-ready), у analyses - финал.
+const RETIRED = [
+  { skills: ["seo-tekst", "seo-tekst-fix", "share-tekst"], dir: "texts", pick: (m) => m.format !== "v9", done: ["completed", "finalized"] },
+  { skills: ["seo-analiz", "share-analysis"], dir: "analyses", pick: () => true, done: ["completed", "finalized", "approved"] },
+];
 
 // ──────────────────────────────────────────────────────────────────────────
 // Разбор аргументов
@@ -105,13 +121,23 @@ function parsePorcelain(out) {
   });
 }
 
+// Путь для сравнения: настоящий путь ФС (realpath.native раскрывает короткие имена Windows вида ADMINI~1 и
+// символические ссылки), разделители - «/», на Windows без учета регистра. Без этого клиент во временной папке
+// (os.tmpdir() с коротким именем) ложно считался worktree: git отдает длинный путь, а resolve(dir, ".git") - короткий.
+function canonPath(p) {
+  let r = resolve(p);
+  try { r = realpathSync.native(r); } catch { /* пути нет - сравниваем как есть */ }
+  r = r.split(sep).join("/").replace(/\/+$/, "");
+  return process.platform === "win32" ? r.toLowerCase() : r;
+}
+
 function isMainWorktree(dir) {
   const gd = git(dir, ["rev-parse", "--absolute-git-dir"]);
-  let cd = git(dir, ["rev-parse", "--git-common-dir"]);
+  // --path-format=absolute (git 2.31+) отдает common-dir абсолютным; старый git - относительный, резолвим от dir.
+  let cd = git(dir, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+  if (!cd || cd.startsWith("--")) cd = git(dir, ["rev-parse", "--git-common-dir"]);
   if (!gd || !cd) return true; // не git или git недоступен - не блокируем по этому признаку
-  // common-dir может быть относительным - резолвим относительно dir.
-  cd = resolve(dir, cd);
-  return resolve(gd) === cd;
+  return canonPath(gd) === canonPath(resolve(dir, cd));
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -119,7 +145,8 @@ function isMainWorktree(dir) {
 // ──────────────────────────────────────────────────────────────────────────
 
 function readJsonSafe(p, fallback) {
-  try { return JSON.parse(readFileSync(p, "utf8")); } catch { return fallback; }
+  // BOM снимается: PowerShell пишет UTF-8 с BOM (так записаны .machinery-version части клонов и meta.json задач)
+  try { return JSON.parse(readFileSync(p, "utf8").replace(/^﻿/, "")); } catch { return fallback; }
 }
 
 // Рекурсивный список относительных путей файлов внутри dir (posix-разделители).
@@ -169,6 +196,86 @@ function copyInto(srcDir, dstDir, rel) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Р8: CLAUDE.md клиента против истории шаблона
+// ──────────────────────────────────────────────────────────────────────────
+
+// Блобы всех версий файла в истории шаблона - одной командой (`git log --raw`: «:mode mode <old> <new> M\tpath»).
+function templateBlobs(template, rel) {
+  const out = git(template, ["log", "--no-abbrev", "--raw", "--format=", "--", rel], { raw: true }) || "";
+  const set = new Set();
+  for (const line of out.split("\n")) {
+    const m = line.match(/^:\d+ \d+ ([0-9a-f]{40}) ([0-9a-f]{40}) /);
+    if (!m) continue;
+    for (const b of [m[1], m[2]]) if (!/^0+$/.test(b)) set.add(b);
+  }
+  return set;
+}
+
+// same - как в HEAD шаблона; updated - клиент на одной из прежних версий шаблона (обновляется); customized - клиентская
+// правка (нет среди версий шаблона, или правка не закоммичена) - не трогаем; stale - обновить есть что, но CLAUDE.md
+// шаблона не закоммичен (раскатилась бы версия, которой нет в истории, и клиент навсегда стал бы «кастомным»).
+function claudeMdState(template, target, tplDirty) {
+  const tplHeadBlob = git(template, ["rev-parse", `HEAD:${CLAUDE_MD}`]);
+  if (!tplHeadBlob || !/^[0-9a-f]{40}$/.test(tplHeadBlob)) return { state: "same", why: "в шаблоне нет закоммиченного CLAUDE.md" };
+  const dst = join(target, CLAUDE_MD);
+  const blob = existsSync(dst) ? git(target, ["hash-object", "--", CLAUDE_MD]) : "";
+  if (blob === tplHeadBlob) return { state: "same", tplHeadBlob };
+  const clientDirty = existsSync(dst) && !!(git(target, ["status", "--porcelain", "--", CLAUDE_MD]) || "").trim();
+  const known = !existsSync(dst) || (!clientDirty && blob && templateBlobs(template, CLAUDE_MD).has(blob));
+  if (!known) return { state: "customized", tplHeadBlob, why: clientDirty ? "незакоммиченная правка клиента" : "нет среди версий шаблона" };
+  if (tplDirty) return { state: "stale", tplHeadBlob };
+  return { state: "updated", tplHeadBlob, missing: !existsSync(dst) };
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Р9: незавершенные задачи скилов, которые синк удалит
+// ──────────────────────────────────────────────────────────────────────────
+
+// Корни проекта: main и живые worktree (`git worktree list --porcelain`), только существующие папки.
+function projectRoots(target) {
+  const roots = [resolve(target)];
+  const out = git(target, ["worktree", "list", "--porcelain"]) || "";
+  for (const line of out.split("\n")) {
+    const m = line.match(/^worktree (.+)$/);
+    if (!m) continue;
+    const p = resolve(m[1].trim());
+    if (existsSync(p) && !roots.some((r) => canonPath(r) === canonPath(p))) roots.push(p);
+  }
+  return roots;
+}
+
+function unfinishedTasks(target, deletedSkills) {
+  const hits = [];
+  const doomed = RETIRED.filter((r) => r.skills.some((s) => deletedSkills.has(s)));
+  if (!doomed.length) return hits;
+  const seen = new Set();
+  for (const root of projectRoots(target)) {
+    for (const r of doomed) {
+      const base = join(root, r.dir);
+      if (!existsSync(base)) continue;
+      let names = [];
+      try { names = readdirSync(base, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort(); } catch { continue; }
+      for (const n of names) {
+        const metaFile = join(base, n, "meta.json");
+        if (!existsSync(metaFile)) continue;
+        const meta = readJsonSafe(metaFile, {}) || {};
+        if (!r.pick(meta)) continue;
+        const st = String(meta.state || "").trim();
+        if (r.done.includes(st) || /^cancel/i.test(st)) continue;
+        const where = relative(target, join(base, n)).split(sep).join("/");
+        const shown = where.startsWith("..") ? join(base, n).split(sep).join("/") : where;
+        const skill = r.skills.find((s) => deletedSkills.has(s));
+        const key = `${canonPath(join(base, n))}|${skill}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        hits.push({ path: shown, skill, state: st || "без state" });
+      }
+    }
+  }
+  return hits;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Основная логика
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -199,7 +306,7 @@ async function main() {
   if (!existsSync(join(target, ".claude"))) {
     fail(J, `target не похож на проект (нет .claude): ${target}`, { target });
   }
-  if (resolve(template) === resolve(target)) {
+  if (canonPath(template) === canonPath(target)) {
     fail(J, "template == target: это и есть шаблон, синкать нечего", { template, target });
   }
 
@@ -228,6 +335,8 @@ async function main() {
   const tplShort = git(template, ["rev-parse", "--short", "HEAD"]) || (tplHead ? tplHead.slice(0, 7) : "unknown");
   const tplDirty = (git(template, ["status", "--porcelain", "--", ...machineryPaths]) || "").trim();
   if (tplDirty) warnings.push("template: машинерия в источнике НЕ закоммичена - метка версии будет неточной (закоммить шаблон)");
+  // CLAUDE.md шаблона - в той же проверке грязного источника: копируется только закоммиченная версия (Р8)
+  const tplClaudeDirty = !!(git(template, ["status", "--porcelain", "--", CLAUDE_MD]) || "").trim();
   const upstream = git(template, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]);
   if (upstream) {
     const lr = git(template, ["rev-list", "--left-right", "--count", "HEAD...@{upstream}"]);
@@ -265,12 +374,26 @@ async function main() {
   const pkgChanged = !!fileReports["package.json"]?.changed;
   const needsNpmInstall = !!fileReports["package.json"]?.needsNpmInstall;
 
-  // --- CLAUDE.md (не копируем, только сигнал о различии) ---
-  let claudemdDiffers = false;
-  {
-    const sc = join(template, ".claude", "CLAUDE.md"), dc = join(target, ".claude", "CLAUDE.md");
-    if (existsSync(sc) && (!existsSync(dc) || !sameContent(sc, dc))) claudemdDiffers = true;
+  // --- Р9: синк не удаляет скил, у которого в проекте есть незавершенная задача (до копирования и миграций) ---
+  if (!opts.noDelete) {
+    const deletedSkills = new Set(dirs.skills.deleted.filter((f) => /^[^/]+\/SKILL\.md$/.test(f)).map((f) => f.split("/")[0]));
+    const open = unfinishedTasks(target, deletedSkills);
+    if (open.length) {
+      fail(J, "синк удалит скилы с незавершенными задачами - отказ целиком (--force его не снимает; закрой задачи решением " +
+        "владельца: state completed или cancelled в meta.json): " +
+        open.map((t) => `незавершенная задача ${t.path} скила ${t.skill} (state ${t.state})`).join("; "),
+        { target, unfinished: open });
+    }
   }
+
+  // --- CLAUDE.md (Р8): обновляется, только если клиент его не правил ---
+  const cm = claudeMdState(template, target, tplClaudeDirty);
+  const claudemd = cm.state;
+  const claudemdDiffers = claudemd !== "same";
+  if (claudemd === "customized") warnings.push(`CLAUDE.md: кастомные правки клиента (${cm.why}), не обновлен - вручную (дифф с ${CLAUDE_MD} шаблона)`);
+  if (claudemd === "stale") warnings.push(`CLAUDE.md: версия шаблона не закоммичена - CLAUDE.md клиента не обновлен (закоммить шаблон и повтори синк)`);
+  if (claudemd === "updated") { nModified++; fileReports[CLAUDE_MD] = { changed: true, ...(cm.missing ? { added: true } : {}) }; }
+  else fileReports[CLAUDE_MD] = { changed: false };
 
   // --- Версия target сейчас ---
   const curVersion = readJsonSafe(join(target, VERSION_FILE), null);
@@ -290,10 +413,9 @@ async function main() {
     .map((f) => f.replace(/\.mjs$/, ""))
     .filter((id) => !appliedIds.has(id));
 
-  // claudemd_differs - чисто информационный сигнал (движок CLAUDE.md не копирует),
-  // поэтому в условие "нечего делать" он НЕ входит.
+  // Обновление CLAUDE.md (Р8) - тоже дело синка; customized и stale - только предупреждения, в «нечего делать» не входят.
   const nothingToDo = !filesChanged && !anyFileChanged && !versionStale &&
-    pendingMigrations.length === 0;
+    pendingMigrations.length === 0 && claudemd !== "updated";
 
   // --- Сборка отчёта ---
   const report = {
@@ -305,6 +427,7 @@ async function main() {
     dirs,
     package: { changed: pkgChanged, needsNpmInstall },
     files: fileReports,
+    claudemd,
     claudemd_differs: claudemdDiffers,
     version: { from: curCommit, to: tplHead, stale: versionStale },
     migrations: { pending: pendingMigrations, applied: [] },
@@ -338,6 +461,12 @@ async function main() {
     //    вернётся обратно при стейджинге артефактов миграций).
     for (const f of SYNC_FILES) {
       if (fileReports[f]?.changed) copyFileSync(join(template, f), join(target, f));
+    }
+    // CLAUDE.md (Р8): версия HEAD шаблона (блоб, а не рабочий файл - он закоммичен, проверено выше)
+    if (claudemd === "updated") {
+      const body = git(template, ["cat-file", "blob", cm.tplHeadBlob], { raw: true });
+      if (body === null) warnings.push("CLAUDE.md: блоб шаблона не прочитан - не обновлен (не закоммичена - повтори синк)");
+      else { mkdirSync(join(target, ".claude"), { recursive: true }); writeFileSync(join(target, CLAUDE_MD), body, "utf8"); }
     }
 
     // 3. Метка версии
@@ -442,6 +571,7 @@ function printHuman(r, opts) {
 
   if (r.status === "up-to-date") {
     L.push("Машинерия уже актуальна относительно шаблона. Делать нечего.");
+    for (const w of r.warnings) L.push(`  ! ${w}`);
     console.log(L.join("\n"));
     return;
   }
@@ -450,7 +580,9 @@ function printHuman(r, opts) {
   if (r.package.changed) L.push(`  package.json изменится${r.package.needsNpmInstall ? " (нужен npm install - изменились зависимости)" : ""}`);
   if (r.files?.[".gitignore"]?.changed) L.push(`  .gitignore изменится`);
   if (r.files?.[".claude/settings.json"]?.changed) L.push(`  .claude/settings.json (хуки) изменится`);
-  if (r.claudemd_differs) L.push(`  CLAUDE.md отличается (НЕ синкается авто - проверь дифф вручную)`);
+  if (r.claudemd === "updated") L.push(`  CLAUDE.md обновится (у клиента прежняя версия шаблона, правок нет)`);
+  else if (r.claudemd === "customized") L.push(`  CLAUDE.md с кастомными правками клиента - не обновляется, дифф вручную`);
+  else if (r.claudemd === "stale") L.push(`  CLAUDE.md устарел, но версия шаблона не закоммичена - не обновляется`);
   if (r.version.stale) L.push(`  версия: ${r.version.from ? r.version.from.slice(0, 7) : "нет метки"} -> ${r.template_commit_short}`);
   if (r.migrations.pending.length) L.push(`  миграции к применению: ${r.migrations.pending.join(", ")}`);
 
