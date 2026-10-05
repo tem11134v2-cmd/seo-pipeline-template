@@ -1,5 +1,5 @@
 {
-  "_doc": "Словарь интерфейса прототипа (build-html.mjs, site-parts.mjs, render-blocks.mjs, shell.html). Все подписи интерфейса, которые попадают в prototype.html, - только отсюда: в коде сборщика кириллицы нет (тест cases-site). ui - подписи интерфейса и тексты для скрипта страницы; contract - комментарий-контракт в <head>; type_groups - подписи групп меню по типу страницы; anchor_names - подписи якорей лендинга по pattern блока (когда config.site.nav не дал якорей); lang - языковые списки (неразрывный пробел, вид поля формы, детектор утверждений служебного слоя); maps - провайдер карты; ops - строки prototype.modules.json для оператора. Нишевых слов здесь нет: проектная правка - через overrides/html/site/ui.json задачи только с измененными ключами (task.mjs place сливает их с этим файлом).",
+  "_doc": "Словарь интерфейса прототипа (build-html.mjs, site-parts.mjs, render-blocks.mjs, shell.html). Все подписи интерфейса, которые попадают в prototype.html, - только отсюда: в коде сборщика кириллицы нет (тест cases-site). ui - подписи интерфейса и тексты для скрипта страницы; contract - комментарий-контракт в <head>; type_groups - подписи групп меню по типу страницы; anchor_names - подписи якорей лендинга по pattern блока (когда config.site.nav не дал якорей); lang - языковые списки (неразрывный пробел, вид поля формы, детектор утверждений служебного слоя); maps - провайдер карты; ops - строки prototype.modules.json для оператора. kf - подписи оболочки по пересечениям лидеров (work/shell.json) и заглушек блоков. Нишевых слов здесь нет: проектная правка - через overrides/html/site/ui.json задачи только с измененными ключами (task.mjs place сливает их с этим файлом).",
   "ui": {
     "need_data": "нужны данные",
     "demo": "пример",
@@ -112,6 +112,14 @@
     "st_page_wip": "в работе",
     "st_page_nobrief": "нет брифа"
   },
+  "kf": {
+    "_doc": "Подписи оболочки по пересечениям лидеров (work/shell.json, программа 05.10) и заглушек блоков brief.stubs - отдельно от ui: в данные скрипта страницы не идут, прототип без shell.json не меняется. {name} - нормализованное название элемента (подпись конкурента не берется).",
+    "need": "нужны данные: {name}",
+    "toast_function": "Функция вне прототипа",
+    "toast_page": "Страница вне прототипа",
+    "footer_info": "Информация",
+    "stub_note": "Блок появится на сайте, когда будут данные"
+  },
   "contract": [
     "ПРОТОТИП САЙТА, черно-белый, один файл. Собран скриптом build-html.mjs.",
     "Дословно: тексты внутри секций data-block-id - они сверены скриптом check-html с файлами блоков.",
@@ -211,6 +219,8 @@
     "src_blocks": "work/pages/*/blocks",
     "src_strategy": "work/pages/*/brief.json cta (work/strategy.json cta_by_type)",
     "src_config": "config/project.json site",
-    "src_project_registry": "html/site/registry.json, html/site/behaviors (overrides/html/site задачи)"
+    "src_project_registry": "html/site/registry.json, html/site/behaviors (overrides/html/site задачи)",
+    "shell_on": "оболочка по пересечениям лидеров (work/shell.json): элементов {n}; на сайте {shown}, чипов «нужны данные» {chip}, функций вне прототипа {fn}, страниц вне карты {pm}, снято заказчиком {dec}; заглушек блоков {stubs}",
+    "src_shell": "work/shell.json, work/facts.json company, brief.stubs"
   }
 }

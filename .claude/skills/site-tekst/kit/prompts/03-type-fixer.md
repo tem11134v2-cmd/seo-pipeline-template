@@ -36,8 +36,10 @@
 8. Редакционный стандарт (`config/house_style.md`): находки п. 14 аудитора правь count и лимитами - `h2` и `text`
    сеток «0-1», `sub` вне первого экрана «0-1», `chars.max` карточки и шага до `limits.card_max`, пункты первого экрана
    «0-2», `objection_slot` и `fact_kinds` - по смыслу блока. Замеры рынка - эталон формы, не довод для отказа.
-9. После правки: `node scripts/validate.mjs page-type work/page-types/<type>.json`, `node scripts/normalize.mjs work/page-types/<type>.json`.
-10. Обнови статусы в файле находок типа.
+9. Находки `kf.coverage`: правь `kf_coverage`, `recommended_order`, `short_set` по выводу
+   `node scripts/kf-coverage.mjs <type>` (новый блок - по п.2); после правки скрипт без нарушений.
+10. После правки: `node scripts/validate.mjs page-type work/page-types/<type>.json`, `node scripts/normalize.mjs work/page-types/<type>.json`.
+11. Обнови статусы в файле находок типа.
 
 ## Формат результата
 По записи на каждый тип из `types`:

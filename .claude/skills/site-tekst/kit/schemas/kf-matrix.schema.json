@@ -1,0 +1,63 @@
+{
+  "$id": "kf-matrix",
+  "_doc": "work/kf/matrix.json (scripts/kf-matrix.mjs): матрица КФ и КНДР лидеров. Строка - (scope, zone, id): scope site - зоны header, footer, mobile, fixed; scope <тип страницы> (info_other:<назначение>) - зона body. values - по домену конкурента 1, 0 (страница снята, элемента нет; у x-элемента - только после перепроверки) или «?». n - конкуренты со значением 1, N - конкуренты со снятыми страницами scope. level - по абсолютному n: must (n >= must_n), recommended (n >= recommended_n), optional (n = 1); n = 0 - строки нет. own - значение сайта заказчика, already - производная пометка «уже есть» (на уровень не влияет). sums - «сумма элементов»: строк со значением 1 у домена.",
+  "type": "object",
+  "required": ["generated_at", "target", "must_n", "recommended_n", "domains", "rows", "sums", "limits"],
+  "properties": {
+    "generated_at": { "type": "string" },
+    "target": { "type": "number" },
+    "must_n": { "type": "number" },
+    "recommended_n": { "type": "number" },
+    "site_kind": { "type": "string", "enum": ["landing", "multipage"] },
+    "mode": { "type": "string", "enum": ["frames", "text", "mixed"] },
+    "domains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain", "role"],
+        "properties": {
+          "domain": { "type": "string" },
+          "role": { "type": "string", "enum": ["competitor", "own"] },
+          "pages": { "type": "number" },
+          "captured": { "type": "number" },
+          "observed": { "type": "boolean" }
+        }
+      }
+    },
+    "scopes": { "type": "array", "items": { "type": "object", "required": ["scope", "N"], "properties": { "scope": { "type": "string" }, "N": { "type": "number" }, "domains": { "type": "array", "items": { "type": "string" } } } } },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["scope", "zone", "id", "name", "kind", "level", "n", "N", "values"],
+        "properties": {
+          "scope": { "type": "string" },
+          "zone": { "type": "string", "enum": ["header", "footer", "mobile", "fixed", "body"] },
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "kind": { "type": "string", "enum": ["slot", "function", "page_link", "block", "nav"] },
+          "category": { "type": "string" },
+          "eeat": {},
+          "x": { "type": "boolean" },
+          "visible": { "type": "boolean" },
+          "level": { "type": "string", "enum": ["must", "recommended", "optional"] },
+          "n": { "type": "number" },
+          "N": { "type": "number" },
+          "values": { "type": "object", "additionalProperties": { "enum": [1, 0, "?"] } },
+          "own": { "enum": [1, 0, "?", null] },
+          "already": { "type": "boolean" },
+          "label": { "type": "string" },
+          "block_hint": {},
+          "render": {},
+          "needs": { "type": "array", "items": { "type": "string" } },
+          "needs_hint": { "type": "string" },
+          "page_match": {},
+          "multipage_only": { "type": "boolean" },
+          "notes": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "sums": { "type": "object", "additionalProperties": { "type": "number" } },
+    "limits": { "type": "array", "items": { "type": "string" } }
+  }
+}

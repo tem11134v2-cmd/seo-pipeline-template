@@ -10,6 +10,10 @@
 // меню и выпадающие панели) и в мобильном меню. Кнопка-ссылка <a data-act> без href не получает фокус с клавиатуры
 // (html.a11y-focus, major). Чипы filters писателя без фильтра каталога или со значениями не из фильтра - надписи, а не
 // кнопки (html.chip-dead, minor).
+// Оболочка по пересечениям лидеров (программа 05.10): заглушки brief.stubs (секции data-stub="1" без data-block-id) не
+// сверяются на дословность, их якоря валидны; чип «нужны данные» (span.ph-need) - не в меню, h1 и кнопках (major
+// html.placeholder-ui), с data-kf; элемент prototype.modules.json shell в состоянии chip - с чипом на сайте, declined -
+// без следа в файле (html.shell-chip, minor; html.shell-declined, major).
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { argv, P, readText, readJson, exists, writeJson, loadSitemap, pageDir, makeFindings, addFinding, finalizeVerdict } from './lib.mjs';
@@ -73,7 +77,7 @@ else {
     const h1s = (pg.body.match(/<h1\b/g) || []).length;
     const heroWritten = /<section\b[^>]*data-role="hero"(?![^>]*data-missing)[^>]*>/.test(pg.body);
     if (h1s !== 1) F(heroWritten ? 'blocker' : 'major', 'html.h1', `на маршруте ${pg.route} ${h1s} h1`, slug);
-    for (const h of pg.body.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)) if (/\[\[|class="ph"/.test(h[1])) F('major', 'html.placeholder-ui', 'плейсхолдер в h1', slug, '', toText(h[1]));
+    for (const h of pg.body.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)) if (/\[\[|class="ph(?:-need)?"/.test(h[1])) F('major', 'html.placeholder-ui', 'плейсхолдер в h1', slug, '', toText(h[1]));
     // блоки
     for (const sec of pg.body.matchAll(/<section\b([^>]*)>([\s\S]*?)<\/section>/g)) {
       const id = attr(sec[1], 'data-block-id');
@@ -108,7 +112,7 @@ else {
   if (/\[\[/.test(visible)) F('major', 'html.raw-placeholder', 'в видимом тексте есть [[ без чипа «нужны данные»', '', '', (visible.match(/.{0,40}\[\[.{0,60}/) || [''])[0]);
   // плейсхолдеры в меню и кнопках
   const navHtml = (markup.match(/<nav class="nav"[\s\S]*?<\/nav>/) || [''])[0];
-  if (/\[\[|class="ph"/.test(navHtml)) F('major', 'html.placeholder-ui', 'плейсхолдер в меню');
+  if (/\[\[|class="ph(?:-need)?"/.test(navHtml)) F('major', 'html.placeholder-ui', 'плейсхолдер в меню');
   // меню: каждая рабочая страница достижима из меню компьютера (строка и выпадающие панели; при выключенных панелях -
   // только мобильное) и из мобильного меню. Не проверяются: главная, ui_role, шаблоны, товары; лендинг и site.off menu
   let cfgDoc = {};
@@ -129,7 +133,21 @@ else {
     if (!offMods.has('mega')) miss(need.filter(x => !inDesk.has(x.route)), 'меню компьютера (строка меню и выпадающие панели)');
     miss(need.filter(x => !inMob.has(x.route)), 'мобильном меню');
   }
-  for (const m of markup.matchAll(/<(a|button)\b([^>]*\bclass="[^"]*\bbtn\b[^"]*"[^>]*)>([\s\S]*?)<\/\1>/g)) if (/\[\[|class="ph"/.test(m[3])) F1(`btn:${m[3]}`, 'major', 'html.placeholder-ui', 'плейсхолдер в кнопке', '', '', toText(m[3]));
+  for (const m of markup.matchAll(/<(a|button)\b([^>]*\bclass="[^"]*\bbtn\b[^"]*"[^>]*)>([\s\S]*?)<\/\1>/g)) if (/\[\[|class="ph(?:-need)?"/.test(m[3])) F1(`btn:${m[3]}`, 'major', 'html.placeholder-ui', 'плейсхолдер в кнопке', '', '', toText(m[3]));
+  // оболочка по пересечениям лидеров и заглушки (проверки срабатывают, только если они есть в файле)
+  const noKf = [...markup.matchAll(/<span\b[^>]*\bclass="ph-need"[^>]*>/g)].filter(m => !/\bdata-kf="[^"]+"/.test(m[0])).length;
+  if (noKf) F('minor', 'html.shell-chip', `чипов «нужны данные» без data-kf: ${noKf} - отчет и таблица КФ не свяжут их с элементом лидеров`);
+  let shellMod = null;
+  try { const mf = file.replace(/\.html$/, '.modules.json'); shellMod = exists(mf) ? (readJson(mf).shell || null) : null; } catch { shellMod = null; }
+  if (shellMod && Array.isArray(shellMod.items)) {
+    // чипы заглушек тела страниц - не оболочка (их id может совпасть с id элемента оболочки)
+    const outside = markup.replace(/<section\b[^>]*\bdata-stub="1"[\s\S]*?<\/section>/g, ' ');
+    const kfIds = new Set([...outside.matchAll(/\bdata-kf="([^"]*)"/g)].map(m => decode(m[1])));
+    const lost = shellMod.items.filter(i => i && i.state === 'chip' && !kfIds.has(String(i.id))).map(i => i.id);
+    if (lost.length) F('minor', 'html.shell-chip', `элементов оболочки в состоянии chip без чипа на сайте: ${lost.length}`, '', '', lost.join(', '));
+    const leaked = shellMod.items.filter(i => i && i.state === 'declined' && kfIds.has(String(i.id))).map(i => i.id);
+    if (leaked.length) F('major', 'html.shell-declined', `элементы, снятые заказчиком, есть на сайте: ${leaked.length}`, '', '', leaked.join(', '));
+  }
   // демо-данные с пометкой
   for (const m of markup.matchAll(/data-demo="1"/g)) {
     const near = markup.slice(m.index, m.index + 800);
@@ -205,6 +223,9 @@ else {
   const kb = Buffer.byteLength(html) / 1024;
   if (kb > 5 * 1024) F('minor', 'html.size', `файл ${kb.toFixed(0)} КБ: тяжело открывать на телефоне`);
   report.scores = { pages: pages.filter(p => p.slug).length, expected_pages: working.length, routes: routes.size, blocks_written: written, blocks_missing: missing, size_kb: Math.round(kb), stale };
+  // заглушки элементов лидеров (brief.stubs): счетчик - только если они есть
+  const stubsN = (main.match(/<section\b[^>]*\bdata-stub="1"/g) || []).length;
+  if (stubsN) report.scores.stubs = stubsN;
   if (stale) console.log('check-html: прототип старше данных (брифы, блоки, линтер, каталог или карта изменились после сборки) - пересоберите build-html');
 }
 finalizeVerdict(report);

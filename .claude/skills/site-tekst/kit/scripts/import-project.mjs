@@ -12,6 +12,9 @@
 // Пишет: work/facts.json, work/audience.json, work/client-preferences.json, work/directions.json,
 // work/competitors/seed.json, config/project.json (company, site_url, niche.*, sources.*), inputs/analysis.md
 // (рендер, scripts/render-analysis.mjs), inputs/structure_data.json (копия --structure), work/import-report.json.
+// niche.yandex_id и niche.keyso_base - по региону (scripts/regions.mjs), niche.site_kind - тип сайта анализа; рядом со
+// структурой лежит competitors.json seo-base - копия work/competitors/structure-competitors.json (ее отпечаток - раздел
+// structure-competitors в analysis_fingerprint, только если копия есть). Домены затравки - scripts/domains.mjs.
 // Регулярки антиобещаний скрипт не сочиняет: оставляет заглушку (?!) (не ловит ничего), их пишет агент по
 // prompts/00-antipromise-patterns.md в work/anti-promises.patterns.json, а --apply-patterns проверяет каждую
 // на примерах агента (3 должны ловиться, 2 нет) и переносит прошедшие в work/facts.json. Если файл регулярок
@@ -62,9 +65,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { domainToASCII, domainToUnicode, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { argv, P, readJson, writeJson, writeText, readText, exists, nowIso, loadSchema, validate, normalizeText, esc, serviceNoteRule } from './lib.mjs';
 import { renderAnalysis, factsSection, gapsSection, replaceSection } from './render-analysis.mjs';
+import { parseCompetitor, normDomain } from './domains.mjs';
+import { parseRegion } from './regions.mjs';
+import { noPhone, absentOf, ABSENT_KIT } from './absent.mjs';
 import { phoneDigits, phoneFormat, phonesInText, formatPhonesInText, buildChannels, splitChannels, syncChannelGaps, CHANNELS } from './contacts.mjs';
 
 const a = argv({ 'allow-ungated': 'bool', 'facts-only': 'bool', 'company-facts': 'bool', force: 'bool' });
@@ -238,15 +244,10 @@ function sameAs(field, v, company, f) {
   return n.length >= 8 && normTxt(hay).includes(n);
 }
 const contactLike = f => f && (f.kind === 'contact' || f.kind === 'legal');
-// Заказчик без телефона: company.no_phone (старое имя phone_absent тоже читается).
-const noPhone = c => !!c && (c.no_phone === true || c.phone_absent === true);
-// Поля, которые заказчик велел убрать ответом на d10 (контракт K1): business.legal.absent_fields анализа в именах kit -
-// company.absent. Телефон - не в absent, а no_phone. Такое поле не берется ни из анализа, ни со снимка сайта, снимок
-// ради него не зовется (company_missing), служебного факта F9xx нет.
-const ABSENT_KIT = { email: 'email', schedule: 'hours', address: 'address', entity: 'legal_name', inn: 'inn', ogrn: 'ogrn' };
-const ABSENT_FIELDS = Object.values(ABSENT_KIT);
+// Заказчик без телефона (noPhone) и поля, которые заказчик велел убрать ответом на d10 (контракт K1: ABSENT_KIT,
+// ABSENT_FIELDS, absentOf) - общий модуль scripts/absent.mjs (его же читает оболочка прототипа, site-parts.mjs). Снятое
+// поле не берется ни из анализа, ни со снимка сайта, снимок ради него не зовется (company_missing), служебного факта F9xx нет.
 const CO_NAME = { email: 'почта', hours: 'часы работы', address: 'адрес', legal_name: 'юрлицо', inn: 'ИНН', ogrn: 'ОГРН' };
-const absentOf = c => [...new Set(arr(c && c.absent).filter(k => ABSENT_FIELDS.includes(k)))];
 // Нормализация company: телефоны в едином формате без повторов (исходный вид - в rawPhones), no_phone, поля absent,
 // маска ИНН/ОГРН, снятие полей, совпавших с фактом анализа publish: no (только после гейта: honorUnpublished).
 // Возвращает {rawPhones, notes}.
@@ -1021,48 +1022,8 @@ const directions = {
 const noServes = directions.directions.filter(d => !d.serves.length).map(d => d.id);
 if (noServes.length) warn(`направления без сегментов (serves пуст): ${noServes.join(', ')} - обогатитель выберет сегмент сам`);
 
-// Строка списка конкурентов анализа -> { domain (ASCII, punycode для кириллицы), name, raw } или null.
-// Домен - доменоподобный токен строки: из URL (путь не разбирается), латинская зона (не расширение файла) или
-// кириллическая из списка зон, каждая метка не короче 2 знаков. Токенов несколько - берется написанный строчными
-// (формат анализа «домен - имя (пометки)»), иначе первый. Остаток строки без пометок в скобках - name.
-const FILE_EXT = /^(html?|php|aspx?|jsp|pdf|jpe?g|png|gif|svg|webp|js|css|xml|txt|docx?|xlsx?|zip|rar)$/i;
-const CYR_ZONES = /^(рф|рус|москва|онлайн|сайт|орг|ком|дети)$/;
-const DOMAIN_TOKEN = /(?<![\p{L}\p{N}@._-])(?:www\.)?((?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+(?:[\p{L}]{2,63}|xn--[a-z0-9-]{2,59}))(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}])/giu;
-function domainOf(tok) {
-  const t = tok.replace(/^www\./i, '');
-  const labels = t.split('.');
-  const zone = labels[labels.length - 1].toLowerCase();
-  const cyr = /[а-я]/i.test(t);
-  if (cyr) { if (!CYR_ZONES.test(zone) || labels.some(l => len(l) < 2) || /[a-z]/i.test(t)) return ''; }
-  else if (!/^([a-z]{2,63}|xn--[a-z0-9-]{2,59})$/i.test(zone) || FILE_EXT.test(zone)) return '';
-  let ascii = '';
-  try { ascii = domainToASCII(t.toLowerCase()); } catch { ascii = ''; }
-  return /^(?:[a-z0-9-]+\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$/.test(ascii) ? ascii : '';
-}
-function parseCompetitor(line) {
-  const src = T(line);
-  const cands = [];
-  let rest = src;
-  for (const m of src.matchAll(/https?:\/\/[^\s;,()«»<>]+/gi)) {
-    let host = '';
-    try { host = new URL(m[0]).hostname; } catch { host = ''; }
-    const d = host && domainOf(host);
-    if (d) cands.push({ written: host, domain: d, text: m[0] });
-    rest = rest.replace(m[0], ' ');
-  }
-  for (const m of rest.matchAll(DOMAIN_TOKEN)) {
-    const d = domainOf(m[1]);
-    if (d) cands.push({ written: m[1], domain: d, text: m[0] });
-  }
-  if (!cands.length) return null;
-  const pickC = cands.find(c => c.written === c.written.toLowerCase()) || cands[0];
-  const name = src.replace(pickC.text, ' ').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').replace(/^[\s\-:|,;/]+|[\s\-:|,;/]+$/g, '').trim();
-  let uni = pickC.domain;
-  try { uni = domainToUnicode(pickC.domain) || pickC.domain; } catch { /* как есть */ }
-  const punny = uni !== pickC.domain;
-  const nm = punny ? (name ? `${name} (${uni})` : uni) : name;
-  return { domain: pickC.domain, ...(nm ? { name: nm } : {}), raw: src };
-}
+// Строка списка конкурентов анализа -> { domain, name, raw }: parseCompetitor из scripts/domains.mjs (одна нормализация
+// доменов для импорта, отбора и верификатора).
 
 const roots = arr(b.directions).filter(d => !T(d.parent));
 const keyPhrases = [...new Set(roots.map(d => T(d.marker)).filter(Boolean))].slice(0, 7);
@@ -1094,6 +1055,14 @@ else if (sig.includes('urgent')) { niche.purchase_cycle = 'days'; heur('config.n
 else if (sig.includes('long_cycle')) { niche.purchase_cycle = 'months'; heur('config.niche.purchase_cycle', 'признак long_cycle в business.sig (weeks от months не отличается)', 'months'); }
 else empty('niche.purchase_cycle', `в контракте нет, оставлено «${niche.purchase_cycle}»`);
 niche.geo = T(b.region) || niche.geo || '';
+// регион для отбора конкурентов фазы 2 (rank-competitors.mjs, скаут): база Keys.so и код Яндекса - одно правило с
+// /seo-struktura (scripts/regions.mjs); тип сайта (landing | multipage) - для множителя типа сайта в отборе
+{
+  const rg = parseRegion(niche.geo);
+  niche.yandex_id = rg.yandex_id;
+  niche.keyso_base = rg.keyso_base;
+  if (T(b.site_kind)) niche.site_kind = T(b.site_kind);
+}
 const newCfg = {
   ...cfg,
   slug: cfg.slug || p.slug,
@@ -1169,6 +1138,27 @@ if (structurePath) {
   report.gate.decisions.d9 = { name: 'состав страниц', value, how: dhow };
 }
 
+// ---------------------------------------------------------------- конкуренты структуры SEO
+// Рядом с внешним structure_data.json лежит competitors.json seo-base (/seo-struktura) - его копия в
+// work/competitors/structure-competitors.json: {source, direct[], indirect[], excluded[{domain, reason}], stop_list[]}
+// (stop_list - serp.json.stop_list с причинами). Домены - канон scripts/domains.mjs. Нет файла (tier basic,
+// --structure-file без соседа, режим doc) - молча пропуск. Отбор (rank-competitors.mjs) ставит исключенным стоп.
+let structComp = null;
+if (structurePath) {
+  const cf = path.join(path.dirname(structurePath), 'competitors.json');
+  if (exists(cf)) {
+    try {
+      const sc = readJson(cf);
+      const norm = list => arr(list).map(x => (typeof x === 'string' ? { domain: x } : x)).filter(x => x && typeof x === 'object')
+        .map(x => ({ ...x, domain: normDomain(x.domain) })).filter(x => x.domain);
+      let stop = [];
+      const sf = path.join(path.dirname(structurePath), 'serp.json');
+      if (exists(sf)) { try { stop = norm(readJson(sf).stop_list).map(x => ({ domain: x.domain, reason: T(x.reason) })); } catch { warn(`serp.json структуры не читается: ${sf}`); } }
+      structComp = { source: cf, direct: norm(sc.direct), indirect: norm(sc.indirect), excluded: norm(sc.excluded).map(x => ({ domain: x.domain, reason: T(x.reason) })), stop_list: stop };
+    } catch { warn(`competitors.json структуры не читается: ${cf} - копия конкурентов структуры не сделана`); }
+  }
+}
+
 // ---------------------------------------------------------------- отпечаток анализа (K3)
 // Хеш того, что пришло из анализа помимо фактов, по разделам. --facts-only сравнивает анализ с отпечатком прошлого
 // импорта, а не с рабочими файлами: их дописывают стратеги (адреса блоков и свои пункты пожеланий). Без производного
@@ -1182,6 +1172,8 @@ const FP_PARTS = {
   'competitors-seed': fpSeed(seed),
   anti_promises: antiOut.map(x => x.text),
   company: lg,
+  // копия конкурентов структуры: раздел есть, только если копия есть (старые задачи - прежние 6 разделов)
+  ...(structComp ? { 'structure-competitors': { direct: structComp.direct, indirect: structComp.indirect, excluded: structComp.excluded, stop_list: structComp.stop_list } } : {}),
 };
 const fingerprint = Object.fromEntries(Object.entries(FP_PARTS).map(([k, v]) => [k, sha(canon(v))]));
 report.analysis_fingerprint = fingerprint;
@@ -1303,13 +1295,18 @@ if (FACTS_ONLY) {
     // затравка: регион, фразы и домены анализа строками (name и raw пишет по-разному каждая версия kit)
     'competitors-seed': () => { const w = readWork('work/competitors/seed.json'); return !w || canon(seedCore(w)) !== canon(seedCore(seed)); },
     anti_promises: () => canon(arr(cur.anti_promises).map(x => x.text)) !== canon(antiOut.map(x => x.text)),
+    // копия конкурентов структуры: нет ни копии, ни структуры с competitors.json - не изменение
+    'structure-competitors': () => { const w = readWork('work/competitors/structure-competitors.json'); const core = x => (x ? { direct: arr(x.direct), indirect: arr(x.indirect), excluded: arr(x.excluded), stop_list: arr(x.stop_list) } : null); return canon(core(w)) !== canon(core(structComp)); },
   };
   const other = [];
   const fpOut = {};
   for (const [k, changedByFile] of Object.entries(FALLBACK)) {
     const known = typeof prevFp[k] === 'string' && prevFp[k];
+    // задача до программы 05.10: раздела конкурентов структуры нет ни в отпечатке, ни копией - раздел новый, не изменение;
+    // его отпечаток пишет следующий полный импорт вместе с копией
+    if (!known && k === 'structure-competitors' && !readWork('work/competitors/structure-competitors.json')) continue;
     const changed = known ? prevFp[k] !== fingerprint[k] : changedByFile();
-    if (changed) { other.push(k); if (known) fpOut[k] = prevFp[k]; } else fpOut[k] = fingerprint[k];
+    if (changed) { other.push(k); if (known) fpOut[k] = prevFp[k]; } else if (fingerprint[k]) fpOut[k] = fingerprint[k];
   }
   // company --facts-only переносит сам: его отпечаток - текущий
   fpOut.company = fingerprint.company;
@@ -1361,6 +1358,7 @@ const OUT = [
   ['work/directions.json', directions], ['work/competitors/seed.json', seed], ['config/project.json', newCfg],
 ];
 for (const [f, d] of OUT) { writeJson(P(f), d); report.outputs.push(f); }
+if (structComp) { writeJson(P('work', 'competitors', 'structure-competitors.json'), { ...structComp, generated_at: nowIso() }); report.outputs.push('work/competitors/structure-competitors.json'); }
 const mdPath = newCfg.sources.analysis_dump || 'inputs/analysis.md';
 writeText(P(mdPath), md);
 report.outputs.push(mdPath, 'work/import-report.json');
@@ -1373,7 +1371,7 @@ console.log(`факты: ${factsOut.length} (publish yes ${pubFacts.length}), ki
 console.log(`цитаты: из facts-src ${qFromSrc} (найдено во входе ${qVerified}, не найдено ${qMissing}, нет файла ${qNoFile}), строкой «[src] label: value» ${qFallback}`);
 console.log(`антиобещания: ${antiOut.length}, без регулярки ${report.anti.pending.length}${report.anti.pending.length ? ' - нужен агент по prompts/00-antipromise-patterns.md' : ''}`);
 console.log(`аудитория: сегментов ${segmentsOut.length}, возражений ${objN} (факты ответа из контракта ${objFromContract}, эвристикой ${objHeuristic}), слов клиентов ${phrases.length}; пожелания: ${JSON.stringify(prefCount)}`);
-console.log(`компания: ${company.status}${d10.why && legalFilled ? ` (${d10.why})` : ''}; пусто для снимка сайта: ${report.company_missing.join(', ') || '-'}; сайт: ${siteUrl || '-'}; конкурентов в затравке: ${seedDomains.length}; пробелов: ${facts.gaps.length}`);
+console.log(`компания: ${company.status}${d10.why && legalFilled ? ` (${d10.why})` : ''}; пусто для снимка сайта: ${report.company_missing.join(', ') || '-'}; сайт: ${siteUrl || '-'}; конкурентов в затравке: ${seedDomains.length}${structComp ? `, в структуре ${structComp.direct.length + structComp.indirect.length}` : ''}; пробелов: ${facts.gaps.length}`);
 if (report.structure.copied) console.log(`структура: ${report.structure.pages} страниц -> ${rel(structDest)}`);
 console.log(`решение d9 (состав страниц): ${report.gate.decisions.d9.value}; ${report.gate.decisions.d9.how}`);
 for (const w of report.warnings) console.log(` ! ${w}`);

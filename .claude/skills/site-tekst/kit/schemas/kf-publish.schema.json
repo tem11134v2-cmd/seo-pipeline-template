@@ -1,0 +1,29 @@
+{
+  "$id": "kf-publish",
+  "_doc": "work/output/kf-publish.json - публикация таблицы КФ и КНДР (work/output/kf-kndr.xlsx) в Google Таблицы. Пишет только scripts/build-kf-xlsx.mjs --record --status published|skipped [--file-id --url --reason]; оркестратор JSON руками не пишет. data_sha - отпечаток содержимого листов (work/output/kf-xlsx.meta.json): тот же data_sha при published - новая публикация не нужна. revisions - прежние опубликованные файлы (их переименовывают «(устарело)»). Нет work/kf/matrix.json - таблица не строится и файл не пишется.",
+  "type": "object",
+  "required": ["status", "file_id", "url", "name", "data_sha", "published_at", "reason", "revisions"],
+  "properties": {
+    "status": { "type": "string", "enum": ["published", "skipped"] },
+    "file_id": { "_doc": "id файла Drive или null" },
+    "url": { "_doc": "ссылка на Google Таблицу или null" },
+    "name": { "type": "string", "minLength": 1, "pattern": "^[^.]+$", "_doc": "имя файла в Drive без точек: «КФ и КНДР - <компания>»" },
+    "data_sha": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "published_at": { "_doc": "дата публикации (YYYY-MM-DD HH:MM:SS) или null при skipped" },
+    "reason": { "_doc": "причина пропуска публикации (skipped) или null" },
+    "revisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["data_sha"],
+        "properties": {
+          "file_id": { "_doc": "id прежнего файла или null" },
+          "url": { "_doc": "ссылка прежнего файла или null" },
+          "data_sha": { "_doc": "отпечаток прежней таблицы или null" },
+          "published_at": { "_doc": "дата прежней публикации или null" },
+          "renamed": { "_doc": "«(устарело)» - прежний файл переименован новой публикацией; null - публикация пропущена" }
+        }
+      }
+    }
+  }
+}

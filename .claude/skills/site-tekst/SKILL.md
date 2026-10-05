@@ -1,17 +1,19 @@
 ---
 name: site-tekst
-description: Конверсионные тексты сайта по алгоритму v9 (kit в kit/ - воркфлоу, промты, скрипты, правила). Импорт анализа sites/NNN после его гейта (и структуры structures/MMM или планировщика анализа), решения по проекту агентом, разбор лидеров, типы страниц, стратегия с рецензией, волны, аудит, каталог, прототип-сайт одним файлом и отчет с вопросами заказчику. Прогон без остановок - пауза только по --stop или автостоп по аномалии. Папка задачи texts/NNN-<slug>/ (format v9); копию kit в нее кладет скрипт при старте и --resume, в git она не идет. Аргументы - --site <NNN> [--structure <MMM>] | --doc <id> --slug <slug>, [--stop map|strategy|pilot], [--pilot a,b], [--allow-ungated], [--wave N], [--fix <slug> "<правка>"], [--resume [NNN]].
+description: Конверсионные тексты сайта по алгоритму v9 (kit в kit/ - воркфлоу, промты, скрипты, правила). Импорт анализа sites/NNN после его гейта (и структуры structures/MMM или планировщика анализа), решения по проекту агентом, разбор лидеров с анализом КФ и КНДР, типы страниц, стратегия с рецензией, волны, аудит, каталог, прототип-сайт одним файлом с аудитом прототипа целиком, таблица КФ/КНДР и отчет с вопросами заказчику. Прогон без остановок - пауза только по --stop или автостоп по аномалии. Папка задачи texts/NNN-<slug>/ (format v9); копию kit в нее кладет скрипт при старте и --resume, в git она не идет. Аргументы - --site <NNN> [--structure <MMM>] | --doc <id> --slug <slug>, [--stop map|strategy|pilot], [--pilot a,b], [--allow-ungated], [--wave N], [--fix <slug> "<правка>"], [--resume [NNN]].
 ---
 
 # site-tekst (v9)
 
 Скил-оркестратор: тексты коммерческих страниц сайта уровня лидеров ниши и прототип-сайт одним html. Запускается
-**в worktree-сессии**. Весь алгоритм - `kit/` (бывший test-text-template): 11 воркфлоу, 34 промта, 39 скриптов, схемы,
+**в worktree-сессии**. Весь алгоритм - `kit/` (бывший test-text-template): 12 воркфлоу, 38 промтов, 51 скрипт, схемы,
 правила. Скил только ведет задачу: папка, копия kit, args воркфлоу, автопереходы и автостопы, resume, сдача.
 
 Прогон идет от импорта анализа до готового прототипа **без остановок**: решения по карте заполняет агент фазы 0,
 стратегию проверяет рецензия, тексты пишутся волнами подряд, вопросы копятся в отчете. Остановка - только ручная
-пауза `--stop` или автостоп по аномалии. Заказчик видит только финальный прототип.
+пауза `--stop` или автостоп по аномалии. Заказчик видит только финал: прототип, отчет и таблицу КФ/КНДР (Google
+Таблица - показать работу, а не на согласование; ADR-045). КФ - коммерческие факторы (телефон, цены, доставка,
+реквизиты), КНДР - контент, необходимый для ранжирования (элементы и блоки, которые массово используют лидеры ниши).
 
 ```
 /site-analiz -> sites/NNN-<slug>/project.json (гейт заказчика)
@@ -62,9 +64,13 @@ texts/KKK-<slug>/                         данные задачи - в git
 ├── rules/decisions.md                    решения проекта (формат v2: заполняет составитель фазы 0, стратеги - §8)
 ├── overrides/<путь kit>                  проектные правки файлов kit (rules/lint.json, html/site/ui.json и т.п.), поверх копии
 ├── inputs/                               structure_data.json, analysis.md (рендер импорта), пожелания
-└── work/                                 facts, audience, sitemap, конкуренты, типы, стратегия, страницы, аудит, output/
+└── work/                                 facts, audience, sitemap, конкуренты (pool, ranking, capture, kf/), kf/ (матрица КФ),
+                                          shell.json, типы, стратегия, страницы, аудит (site.json - аудит прототипа), output/
+                                          (прототип, отчет, kf-kndr.xlsx, kf-publish.json)
     копия kit - НЕ в git (.gitignore):    CLAUDE.md, workflows/, prompts/, scripts/, schemas/, html/,
-                                          rules/* кроме decisions.md, config/house_style.md, .kit.json (манифест)
+                                          rules/* кроме decisions.md, config/house_style.md, config/kf-elements.json,
+                                          config/kf-stoplist.json, .kit.json (манифест); кадры work/competitors/shots/
+                                          и work/audit/site-shots/ - тоже не в git
 ```
 
 Копия kit - кеш: `task.mjs place` кладет ее при каждом старте и `--resume` (исправления kit доходят до старых задач);
@@ -94,7 +100,7 @@ texts/KKK-<slug>/                         данные задачи - в git
 | `init --task texts/KKK-s <флаги plan> [--allow-ungated] [--stop x] [--pilot a,b]` | папка, `meta.json` (с `stop`, `pilot`), `config/project.json`, `rules/decisions.md`, копия kit |
 | `place <KKK> [--force] [--reconciled <путь,...>]` | освежить копию kit (+ overrides), пересчитать `sources` конфига, overrides по видам; код 3 - правки на месте |
 | `args <KKK> <вид> [флаги]` | одна строка JSON для `args` воркфлоу; код 4 - делать нечего; код 2 - slug `--slugs` или пилота не из карты |
-| `status <KKK>` | сводка для автостопов: state, остановка, факты, `decisions.md`, карта, волны, блоки, каталог, пилот, прототип |
+| `status <KKK>` | сводка для автостопов: state, остановка, факты, `decisions.md`, карта, волны, блоки, каталог, пилот, прототип; итог аудита прототипа (`work/audit/site.json`, пропуск из `meta.skips`) и в `site-audited` - следующий шаг |
 | `stop <KKK> [--set map\|strategy\|pilot [--pilot a,b] \| --autostop '<причина>' \| --clear [all]]` | пауза и автостоп в `meta.json`: `--set` - ручная пауза, `--autostop` - автостоп с причиной, `--clear` - снять автостоп, а если его нет - паузу (`all` - обе); без флагов - текущие |
 | `preview <KKK>` | конфиг `site-tekst-<KKK-slug>` в `.claude/launch.json` (serve.mjs kit, порт от хеша пути задачи, не в git) |
 | `find [KKK]` | папка задачи и state; без номера - все незавершенные v9 |
@@ -103,8 +109,9 @@ texts/KKK-<slug>/                         данные задачи - в git
 при паузе `pilot`, иначе недописанные страницы волны 1, затем волны 2; `--wave N` / `--slugs a,b` / `--hero single`,
 `--concurrency`; код 4 - писать нечего, в том числе остались только exhausted-блоки), `audit` (wf-06: дописанные страницы
 без свежего аудита - `page.md` изменился после него, `round` - следующий круг; `--wave N`, `--slugs a,b`, `--all` - все),
-`fix` (wf-06b, `--slug`, `--findings`, `--judge`), `hero` (wf-05b, `--slug`, `--block`), `catalog` (wf-07). `--extra '<json>'`
-добавляет или заменяет поля (`{"skipGlobal":true}`, `{"skipReview":true}`, `{"types":["<type>"]}` и т.п., RUNBOOK). В каждом
+`fix` (wf-06b, `--slug`, `--findings`, `--judge`), `hero` (wf-05b, `--slug`, `--block`), `catalog` (wf-07), `site-audit`
+(wf-08: `maxFixPages` 8, `--max-fix-pages N` - не больше 8; нет `work/output/prototype.html` - код 2). `--extra '<json>'`
+добавляет или заменяет поля (`{"skipGlobal":true}`, `{"skipReview":true}`, `{"types":["<type>"]}`, `{"skipKf":true}` и т.п., RUNBOOK). В каждом
 `args`: `root` - абсолютный путь папки задачи в этой worktree, `model` - `opus` (роли `strong`), `model_light` - `sonnet`
 (роли `light`); точечная замена модели роли - `--extra '{"models":{"extract":"sonnet"}}'` (RUNBOOK, «Модели по ролям»).
 
@@ -138,7 +145,7 @@ Workflow  scriptPath = <root>/workflows/<wf-...>.js   args = <строка JSON 
 
 ```
 init -> facts-done -> map-approved -> competitors-done -> types-audited -> strategy-done -> strategy-approved
-     -> waves-done -> catalog-done -> built -> completed
+     -> waves-done -> catalog-done -> site-audited -> built -> completed
 пауза pilot: strategy-approved -> pilot-done -> pilot-approved -> wave-1-done -> wave-1-approved -> waves-done
 ```
 Источник истины - `meta.json`, переходы только `bash .claude/hooks/update-meta.sh <task> <state> [k=v]`; пауза и
@@ -148,7 +155,7 @@ init -> facts-done -> map-approved -> competitors-done -> types-audited -> strat
 |---|---|---|
 | `init` | фаза 0: факты, аудитория, карта, решения | шаг 1 -> `facts-done` |
 | `facts-done` | проверка фазы 0; пауза `map` | шаг 3 -> `map-approved` (`meta.answers_rerun` - `types-audited`) |
-| `map-approved` | фаза 2: конкуренты, разбор лидеров | `args types` -> `wf-02-competitors.js` -> `competitors-done` |
+| `map-approved` | фаза 2: отбор лидеров, КФ и КНДР (снятие, наблюдение, матрица, оболочка), разбор лидеров | `args types` -> `wf-02-competitors.js` -> `competitors-done` (шаг 4) |
 | `competitors-done` | фаза 3: аудит типов | `args types` -> `wf-03-audit-types.js` -> `types-audited` |
 | `types-audited` | фаза 4: стратегия, рецензия, брифы, раскладки | `args types` (`meta.strategy_update` - режим обновления, шаг 2) -> `wf-04-strategy-layouts.js` -> `strategy-done` |
 | `strategy-done` | проверка фазы 4; пауза `strategy` | шаг 5 -> `strategy-approved` |
@@ -156,7 +163,8 @@ init -> facts-done -> map-approved -> competitors-done -> types-audited -> strat
 | `pilot-done` | пауза `pilot` | шаг 6 -> `pilot-approved` |
 | `pilot-approved`, `wave-1-done`, `wave-1-approved` | волны | шаг 7 -> `waves-done` |
 | `waves-done` | фаза 7: каталог | шаг 8 -> `catalog-done` |
-| `catalog-done` | фаза 8: сборка и отчет | шаг 8 -> `built` |
+| `catalog-done` | фаза 8: сборка и проверки, аудит прототипа | шаг 8: сборка -> снимок -> `args site-audit` -> `wf-08-site-audit.js` -> `site-audited` |
+| `site-audited` | фаза 8: сборка заново (поломка - откат правок wf-08), таблица КФ/КНДР, отчет | шаг 8 -> `built` |
 | `built` | сдача | шаг 8 -> `completed` |
 
 **Автопереход:** после каждой фазы - одна строка итога, проверка автостопа этой точки (таблица ниже) по `task.mjs status`
@@ -175,16 +183,18 @@ init -> facts-done -> map-approved -> competitors-done -> types-audited -> strat
 | запись (wf-05) | два запуска подряд без прогресса или 4 запуска на одну выборку без кода 4; тот же блок с `no_answer` в `failed` два запуска подряд | строка «блоки» `status` до и после запуска; `failed` wf-05 | запись выборки закончена, дальше аудит |
 | после волны 1 | у образца типа exhausted не меньше 2 блоков и больше 30% (системная проблема типа) | `status`: «волна 1, exhausted больше 30%» | `wave=1` (шаг 7) |
 | после всех волн | недописано больше 30% блоков | `status`: «блоки: ... недописано N (X%)» | `waves-done` |
-| сборка (шаг 8, `--fix`) | после одной пересборки: `build-html` не 0, `check-html` blocked (код 2) или `check-site-js` fail | вывод сборки этого запуска | `built`, итог проверок как есть |
+| сборка (шаг 8, `--fix`) | после одной пересборки: `build-html` не 0, `check-html` blocked (код 2) или `check-site-js` fail; в state `site-audited` - только после отката правок wf-08 по снимку и сборки на прежних данных (шаг 8) | вывод сборки этого запуска | `built`, итог проверок как есть (в `site-audited` - сначала таблица КФ/КНДР и `report.mjs`, шаг 8) |
 | волны до гейта | `gate.ungated_import: true`, гейт анализа не согласован, паузы нет (шаг 6, «После гейта анализа») | `work/import-report.json`, `task.mjs plan` | «После гейта анализа» заново |
 | ответы заказчика (шаг 2) | `--facts-only` - код 1: выход не прошел схему, ничего не записано | вывод скрипта | `--facts-only` заново |
-| любой воркфлоу | третий сбой среды подряд (и wf-02 «нет доступных конкурентов»); второй отказ агента подряд («Запуск воркфлоу») | ошибка воркфлоу | новый запуск |
+| любой воркфлоу, кроме wf-08 | третий сбой среды подряд (и wf-02 «нет доступных конкурентов»); второй отказ агента подряд («Запуск воркфлоу»). Сбой wf-08 целиком (среда или отказ агента) - не автостоп: один повтор, затем `update-meta.sh <task> site-audited skip_reason="аудит прототипа не отработал: <причина>"` и строка в отчете (шаг 8) | ошибка воркфлоу | новый запуск |
 
 Автостоп: `task.mjs stop <KKK> --autostop '<где, что, файл>'`, причина - в чат, дальше не идти. Снимает его оркестратор, но
 только по явному решению человека в чате («продолжай»): `task.mjs stop <KKK> --clear` и сразу, до любой другой работы,
 действие колонки «После снятия» - так на `--resume` та же проверка не сработает снова. Без такого решения автостоп не
 снимается. Не автостоп, а вопрос человеку (в meta не пишется, скрипт проверит снова): код 3 `place` («Папка задачи»),
-коды 3 и 2 `--facts-only` (шаг 2, п. 3).
+коды 3 и 2 `--facts-only` (шаг 2, п. 3). Шаги анализа КФ/КНДР (отбор, снятие, наблюдение, матрица; нет Chrome),
+аудитор прототипа (wf-08) и публикация таблицы КФ/КНДР автостопов не дают: сбой - строка в `limits` воркфлоу, в
+`meta.skips` или в отчете, прогон идет дальше.
 
 **Resume:** `task.mjs find [KKK]` -> `meta.json` -> `format` не `v9` - стоп: «задача v7: конвейер v7 выведен, режима
 доделки нет - новая задача /site-tekst (FAQ по старой задаче - /seo-faq --from-tekst)». Иначе `current-task.txt`, `place`
@@ -194,8 +204,12 @@ init -> facts-done -> map-approved -> competitors-done -> types-audited -> strat
 - иначе - по таблице, с проверками точек (на `strategy-done` проблемы брифов - кодом `build-briefs.mjs`, шаг 5). Старые
   гейтовые state без `meta.stop`: `facts-done`, `strategy-done` - проверка и автопереход; `pilot-done`, `pilot-approved`,
   `wave-1-done`, `wave-1-approved` - волны (шаг 7), готовое не переписывается;
-- `built` или `completed` со строкой `status` «собран старым kit - пересобрать фазу 8» - сначала сборка (шаг 8), затем
-  сдача; `completed` без нее - делать нечего, кроме ответов заказчика (шаг 2) и `--fix`.
+- `site-audited` - шаг 8 с этого state (снимок перед wf-08 лежит в `.claude/tmp/`; строки `status` «аудит прототипа: ...»
+  и «дальше (site-audited): ...» - итог wf-08 и следующий шаг);
+- `built` или `completed` со строкой `status` «собран старым kit - пересобрать фазу 8» (задача до апгрейда) - без wf-08:
+  `update-meta.sh <task> site-audited skip_reason="аудитор прототипа - для новых задач"`, затем шаг 8 с `site-audited`
+  (сборка, таблица КФ/КНДР - у такой задачи матрицы нет, в итоге «нет: <причина>», отчет) и сдача; `completed` без нее -
+  делать нечего, кроме ответов заказчика (шаг 2) и `--fix`.
 `args` с кодом 4 - шаг сделан, дальше.
 
 ## Шаги
@@ -245,10 +259,11 @@ init -> facts-done -> map-approved -> competitors-done -> types-audited -> strat
    `work/import-report.json` -> `facts_diff` непусты `added`, `removed`, `published` или `unpublished` (стратеги переносят
    прежние записи и правят только по диффу, обогатитель пересчитывает покрытие фактами и `block_set`); после wf-04 -
    `update-meta.sh <task> strategy-done strategy_update=` (пустое значение - режим выключен). Непуст («нужен повтор фазы
-   0»: ЦА, пожелания, направления, конкуренты, антиобещания) - фаза 0 без паузы (шаги 1, 3): `competitors-seed` нет в
-   `other_changed` - `update-meta.sh <task> init answers_rerun=1` (после фазы 0 шаг 3 ведет в `types-audited`: фазы 2-3
-   не повторяются, фаза 4 полная; ключ в meta - чтобы ветка пережила `--resume`), иначе `update-meta.sh <task> init` и
-   полный путь.
+   0»: ЦА, пожелания, направления, конкуренты, антиобещания) - фаза 0 без паузы (шаги 1, 3): ни `competitors-seed`, ни
+   `structure-competitors` (конкуренты структуры SEO) нет в `other_changed` - `update-meta.sh <task> init answers_rerun=1`
+   (после фазы 0 шаг 3 ведет в `types-audited`: фазы 2-3 не повторяются, фаза 4 полная; ключ в meta - чтобы ветка пережила
+   `--resume`), иначе `update-meta.sh <task> init` и полный путь (отбор фазы 2 повторится сам: `pool.json` устарел по
+   `input_sha`, `rank-competitors.mjs --check` ответит stale).
 5. После фазы 4 (шаг 5, когда блоки уже написаны), в Bash, в папке задачи:
    - `node scripts/build-briefs.mjs`; `structure_changed` в `work/briefs-report.json` - `build-briefs.mjs --force <slug...>`;
    - `node scripts/lint-page.mjs <slug>` по каждой странице с написанными блоками (блок со снятым фактом перестает
@@ -259,7 +274,9 @@ init -> facts-done -> map-approved -> competitors-done -> types-audited -> strat
      страницы - вместо этого `--fix` с находкой human по блоку (шаг 9).
 6. Волны (шаг 7) переписывают только блоки без файла, не pass (в том числе не прошедшие перелинт и exhausted со
    сменившимся срезом) и перенесенные; pass-блоки не трогаются. Аудит - страницы, где `page.md` изменился. Каталог
-   не повторяется (шаг 8). В итог сдачи - «переписано по ответам: <n> блоков».
+   не повторяется (шаг 8). Дальше поток доходит до шага 8 сам: аудит прототипа (wf-08), итоговая сборка, затем таблица
+   КФ/КНДР (публикация только при новом `data_sha`: та же таблица заново не публикуется) и отчет. В итог сдачи -
+   «переписано по ответам: <n> блоков».
 Точечно, одна-две страницы, - `--fix` с фактом F8xx (шаг 9).
 
 ### 3. После фазы 0 (state `facts-done`)
@@ -285,6 +302,23 @@ types-audited answers_rerun=` (пустое значение снимает ве
 Перезапуск части: `--extra` с флагами RUNBOOK (`skipInventory`, `skipGlobal`, `skipTypes`, `skipReview`, `skipLayouts`).
 wf-02 с `degraded: no_competitors` (все лидеры ответили, но недоступны) - штатный исход, не автостоп: типы собраны по
 анализу, отчет спросит заказчика о 2-3 сайтах-ориентирах.
+
+**Этап КФ/КНДР в wf-02** (ADR-045; порядок, файлы и деградации - RUNBOOK, «Фазы 2-4»): отбор лидеров - скаут
+(`02-competitor-scout`: выдача Арсенкина и Keys.so при любом tier, единицы платных вызовов; пропуск, если
+`rank-competitors.mjs --check` ответил fresh) и ранжирование скриптом (`ranking.json`: SEO-вес, тип сайта, возраст и рост,
+эталон), затем верификатор по `ranking.order` до 5 годных. После инвентаризации, параллельно разбору блоков: снятие
+страниц лидеров и сайта заказчика (`capture-pages.mjs`, Chrome или Edge через CDP), наблюдатель КФ по доменам,
+нормализатор x-элементов (элементы не из словаря kit), перепроверка, матрица `work/kf/matrix.json` с абсолютными
+порогами охвата и оболочка `work/shell.json`; агрегатор типов покрывает строки «обязательно» и «рекомендовано»
+(`kf_coverage`), аудитор типов (wf-03) проверяет покрытие `kf-coverage.mjs` первым шагом. В строку итога wf-02 -
+`kf_status` возврата (`done`, `no_chrome`, `no_competitors`, `skip`, `kept` при частичном разборе) и число строк `limits`.
+Сбой шагов КФ (нет ответа агента, нет Chrome, сбой MCP) - строка в `limits`, не автостоп; нет Chrome - снятие
+`skipped`, наблюдение по тексту снимков (`no_chrome`). Повтор wf-02 без `resumeFromRunId` платный отбор и готовое снятие
+не повторяет. Флаги (через `--extra`): `reselect` - скаут и при свежем `pool.json`; `recapture` - снятие заново, без
+`--resume`; `skipKf` - без отбора, снятия и матрицы (прежние `matrix.json`, `shell.json` и `candidates.json` снимаются,
+наблюдения `kf/*.json` остаются) - передавать **и в wf-02, и в wf-03** (`args types --extra '{"skipKf":true}'` перед
+каждым), иначе аудитор типов получит по готовой матрице blocker, которые нечем закрыть. Без матрицы этап КФ считается
+непроведенным: типы без строк КФ, прототип без оболочки по пересечениям, таблица не строится.
 
 ### 5. После фазы 4 (state `strategy-done`)
 
@@ -351,7 +385,7 @@ exhausted). Два запуска подряд без прогресса или 
 запуск цикла), state не меняется.
 `--wave N` вне очереди: цикл записи `--wave N`, `args audit --wave N` -> wf-06, сборка шага 8 и стоп, state прежний.
 
-### 8. Каталог, сборка, сдача (states `waves-done` .. `built`)
+### 8. Каталог, сборка, аудит прототипа, сдача (states `waves-done` .. `built`)
 
 - Фаза 7: `status` «каталог (фаза 7): да» и в `meta.completed_steps` нет `catalog-done` -> `args catalog` ->
   `wf-07-catalog.js` (спецификация, ТЗ и примеры товаров для карточек; сбой примеров фазу не валит - поле `samples`;
@@ -366,15 +400,55 @@ exhausted). Два запуска подряд без прогресса или 
   Итог - вывод этого запуска, а не `status`: строка `check-html: <вердикт> ... код N` (0 - pass, 1 - fix: major, например
   ненаписанные блоки, - штатно, это в отчете; 2 - blocked) и строка `check-site-js` (pass, fail, SKIP). «прототип старше данных» в выводе
   `check-html`, blocked или fail - одна пересборка (пп. 1-2), не помогло - автостоп (`work/audit/html-check.json`,
-  `work/output/prototype.js-check.json`). Фаза 8 -> `built`.
+  `work/output/prototype.js-check.json`); в state `site-audited` вместо автостопа сначала откат правок wf-08 (ниже).
+  «Сборка» не зовет wf-08: шаги 6, 7, 9, «Превью» и пакет правок заказчика его не запускают.
+- **Аудит прототипа** (state `catalog-done`; ADR-045): «Сборка» (пп. 1-2) -> снимок для отката в Bash, в папке задачи
+  (`<снимок>` - абсолютный путь `<корень проекта>/.claude/tmp/site-audit-snap/<KKK>`, вне git; эти файлы меняют фиксер и
+  `cta-unify` wf-08): `rm -rf <снимок> && mkdir -p <снимок> && cp -r --parents work/strategy.json work/strategy.pages
+  work/briefs-report.json work/pages/*/brief.json work/pages/*/brief work/pages/*/blocks $(ls -d work/audit/*/fix-diff.json
+  work/audit/*/lint-*.json 2>/dev/null) <снимок>/` -> `task.mjs args <KKK> site-audit` ->
+  `wf-08-site-audit.js` (дайджест сайта и скриншоты первых экранов, аудитор `08-site-auditor`, фиксер сужения не больше
+  чем на 8 страницах, одна надпись одного действия скриптом `cta-unify.mjs`; итог - `work/audit/site.json`) -> строка
+  итога (`fixed_pages`, `cta_unified`, `failed_steps`) -> `update-meta.sh <task> site-audited`. Пауз нет, судьи после
+  фиксера нет: правки wf-08 идут в «Правки без проверки судьей». Сбой wf-08 целиком (сбой среды или отказ агента) - один
+  повтор (сбой среды - с `resumeFromRunId`), снова сбой - `update-meta.sh <task> site-audited skip_reason="аудит
+  прототипа не отработал: <причина>"` (строка попадет в отчет и в `status`), автостопа нет. `failed_steps` непуст -
+  тоже не автостоп: шаги записаны в `site.json` -> `run`, отчет их покажет.
+- **После аудита** (state `site-audited`): «Сборка» заново (свой вызов со своим правом на одну пересборку). Прошла ->
+  таблица КФ/КНДР (ниже) -> `node scripts/report.mjs` -> `update-meta.sh <task> built`. Не прошла (`build-html` не 0,
+  `check-html` blocked или `check-site-js` fail после пересборки) - откат правок wf-08 по снимку, в папке задачи:
+  `rm -rf work/strategy.pages work/pages/*/brief work/pages/*/blocks && cp -r <снимок>/work/. work/`, затем
+  `node scripts/render-md.mjs` и `node scripts/lint-page.mjs <slug>` по страницам `fixed_pages` возврата wf-08 и
+  страницам `cta_unify[].applied` в `work/audit/site.json`, затем `node scripts/split-site.mjs --rollback "<причина>"`
+  (отчет не покажет откаченное как исправленное); `update-meta.sh <task> site-audited skip_reason="аудит
+  прототипа откачен: <причина>"`; «Сборка» на прежних данных. Не проходит и она - автостоп «сборка (шаг 8)». Снимка
+  нет (worktree сменился) - откатывать нечем: автостоп сразу, причина «сборка после аудита прототипа, снимка нет».
+- **Таблица КФ/КНДР** (шаг 8 в `site-audited`, шаг 9 после `--fix` и пакета правок заказчика; ответы заказчика доходят
+  сюда через шаг 8), в Bash, в папке задачи; JSON публикации руками не писать:
+  1. `node scripts/build-kf-xlsx.mjs` -> одна строка JSON `{path, drive_name, data_sha, need_publish, prev_url,
+     prev_file_id}`. `path: null` - этап КФ не проводился (матрицы нет), таблицы и публикации нет, причина - поле `skipped`
+     (в итог она придет строкой отчета).
+  2. `need_publish: false` - действующая публикация совпадает по `data_sha`, ничего не делать (`--record` не звать).
+  3. `need_publish: true` - `uploadFile` (файл `path`, имя `drive_name` - в нем нет точек, `mimeType`
+     `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `convertToGoogleFormat: true`, папка
+     `texts_folder_id` из `~/.claude/seo-knowledge/DRIVE.md`); конверсия не удалась - повтор без нее. Затем
+     `node scripts/build-kf-xlsx.mjs --record --status published --file-id <id> --url <url>`. Есть `prev_file_id` -
+     `renameItem` прежнего файла: прежнее имя и « (устарело)».
+  4. `need_publish: true`, но нет `texts_folder_id`, значение `TODO_*` или Drive MCP недоступен -
+     `node scripts/build-kf-xlsx.mjs --record --status skipped --reason "<причина>"` (локальный xlsx остается; при той же
+     таблице скрипт действующую публикацию не затирает).
+  5. `node scripts/report.mjs` - строка «Таблица КФ/КНДР» в сводке отчета и в строке консоли (`; таблица КФ/КНДР: ...`).
 - **Превью:** `task.mjs preview <KKK>` -> `{name, url}` -> Browser `preview_start` с этим `name` (serve.mjs kit
   отдает `work/output/prototype.html`). Скриншот первого экрана главной - в чат.
 - `check-site-js` SKIP (нет `jsdom`) - сказать оператору до `completed`: скрипты прототипа не проверены, `npm install`
   в корне проекта и пересборка.
 - Финал: `update-meta.sh <task> completed`, коммит в Bash `git add -A && git commit -m "Tekst <KKK> for <slug>: <N> страниц"`
-  (копия kit и `.claude/launch.json` в `.gitignore`, в коммит не попадают). Итог (N, R, блоки, скелеты, вопросы, K,
-  каталог - из последней строки `report.mjs`; skip - из строки `status` «карта: ... (skip K)»). K больше 0 - до сдачи
-  прочитать раздел отчета «Правки без проверки судьей» и назвать оператору спорные правки одной строкой:
+  (копия kit, `.claude/launch.json`, кадры `work/competitors/shots/` и `work/audit/site-shots/` в `.gitignore`, в коммит
+  не попадают). Итог (N, R, блоки, скелеты, вопросы, K, каталог, таблица КФ/КНДР - из последней строки `report.mjs`, часть
+  «; таблица КФ/КНДР: ...», ее нет у задачи до этапа КФ - «нет: этап КФ не проводился»; аудит прототипа - из строки
+  `status` «аудит прототипа: ...»; skip - из строки `status` «карта: ... (skip K)»). K больше 0 (в него входят и правки
+  wf-08: фиксер и `cta-unify`) - до сдачи прочитать раздел отчета «Правки без проверки судьей» и назвать оператору
+  спорные правки одной строкой:
 ```
 === ТЕКСТЫ ГОТОВЫ (site-tekst v9) ===
 Задача: texts/<KKK>-<slug>   Страниц: <N> (готово <R>)   Пропущено по карте: <skip>
@@ -383,6 +457,8 @@ exhausted). Два запуска подряд без прогресса или 
 Блоки: <P>/<T> прошли линтер, скелетов <m> (exhausted <e>); правок без проверки судьей <K>
 Отчет: work/output/report.md - «Что спросить у заказчика»: <n> вопросов (ответы - шаг 2)
 Каталог: <ссылка на ТЗ | docx без публикации | нет> (ТЗ: открыто blocker/major <x>/<y>, вопросов раздела 8 <q>)
+Таблица КФ/КНДР: <url | xlsx без публикации | нет: причина>
+Аудит прототипа: находок <f>, исправлено <x>, надписей cta-unify <c> | не отработал: <причина> | откачен: <причина> | для новых задач
 Дальше: /site-tekst <KKK> --fix <slug> "..." - правки | /handoff - перенести в main
    (tier seo из plan, <MMM> - номер из meta.structure: | /seo-faq --from-tekst <KKK> | /seo-metategi --from-structure <MMM>)
 ===
@@ -416,6 +492,8 @@ exhausted). Два запуска подряд без прогресса или 
    `check-site-js` fail - сборка шага 8 (там одна пересборка, затем автостоп). Откат - находка снова `open` с причиной;
    откат текста заказчика (`human.fix` с `proposal`; блок без lint pass в прототипе был бы скелетом) - решение
    человека: проектное исключение `lint_extra` (пакет, п. 1) и повтор `--fix` или другая формулировка с заказчиком.
+   Сборка прошла - таблица КФ/КНДР (шаг 8, «Таблица КФ/КНДР», пп. 1-5: правка меняет колонку «В прототипе» - новый
+   `data_sha` и новая публикация, иначе публикация прежняя). wf-08 после `--fix` не запускается.
 6. Показать дифф: `git diff -- <task>/work/pages/<slug>/page.md` (только эта страница) и статусы находок
    (`rejected` - с причиной). Превью. Коммит `Tekst <KKK> fix <slug>: <кратко>`.
 7. Правка меняет состав блоков (добавить, убрать, переставить) - это не точечная правка: стратегия типа
@@ -455,7 +533,7 @@ exhausted). Два запуска подряд без прогресса или 
    по правленым страницам. Находки судьи на тексте заказчика - человеку (оставить как у заказчика или согласовать правку);
    на остальных блоках - `args fix --slug <slug> --findings work/audit/<slug>/round-<n>.json`.
 7. Сборка шага 8 (`render-md`, `build-html`, `check-html`, `check-site-js`, `report`; одна пересборка, затем автостоп),
-   превью; state задачи не меняется. Коммит `Tekst <KKK> client edits: <N> страниц`.
+   таблица КФ/КНДР (шаг 8, пп. 1-5), превью; state задачи не меняется, wf-08 не запускается. Коммит `Tekst <KKK> client edits: <N> страниц`.
 
 ## Запреты
 
@@ -471,6 +549,8 @@ exhausted). Два запуска подряд без прогресса или 
 - НЕ читай большие JSON `work/` целиком и НЕ передавай их содержимое агентам: пути, `status`, коды выхода.
 - НЕ выдумывай факты, цифры, реквизиты: только `work/facts.json`; пробел факта - вопрос заказчику в отчете, факт из
   правки заказчика - только F8xx с источником.
+- НЕ пиши `work/output/kf-publish.json` и `work/kf/*` руками: публикацию отмечает `build-kf-xlsx.mjs --record`, матрицу и
+  статус - `kf-matrix.mjs`. НЕ добавляй нишевые элементы в словарь kit: только `overrides/config/kf-elements.json` задачи.
 - НЕ ослабляй линтер ради прохода блока: причина чаще в брифе или стратегии (RUNBOOK, «Если что-то упало»).
 - Длинное и среднее тире запрещены - только дефис; буква е-с-точками запрещена - всегда е.
 - НЕ запускай другие скилы из этой сессии; перед закрытием worktree - `/handoff`.

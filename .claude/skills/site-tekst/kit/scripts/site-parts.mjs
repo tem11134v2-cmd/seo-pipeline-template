@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { P, exists } from './lib.mjs';
 import { esc, icon } from './render-blocks.mjs';
+import { noPhone, absentOf, ABSENT_FIELDS } from './absent.mjs';
 
 // ---------------------------------------------------------------- адреса и маршруты
 // путь без схемы и хоста, без query и хеша, без слеша на конце; пусто - «/»
@@ -123,8 +124,9 @@ export function photoStore({ budget = 2 * 1024 * 1024, perFile = 300 * 1024 } = 
 }
 
 // ---------------------------------------------------------------- модель сайта
-// { cfg, sm, facts, strategy, briefs: { slug: brief }, ui, contacts }
-export function buildSite({ cfg, sm, facts, strategy, briefs, ui, contacts, catalogSpec, samples }) {
+// { cfg, sm, facts, strategy, briefs: { slug: brief }, ui, contacts, shellSpec? } - shellSpec (work/shell.json, программа
+// 05.10) необязателен: без него S.shell = null и разметка прежняя (check-html зовет без него)
+export function buildSite({ cfg, sm, facts, strategy, briefs, ui, contacts, catalogSpec, samples, shellSpec = null }) {
   const t = ui.t;
   setTailStop(ui.lang && ui.lang.nbsp_words);
   const site = cfg.site && typeof cfg.site === 'object' ? cfg.site : {};
@@ -229,12 +231,14 @@ export function buildSite({ cfg, sm, facts, strategy, briefs, ui, contacts, cata
     .filter(s => s && !(lg.inn && s.includes(lg.inn)) && !(lg.ogrn && s.includes(lg.ogrn)) && !(lg.name && s.includes(lg.name)))
     .slice(0, 4);
 
-  return {
+  const S = {
     cfg, off, catalogOn, btype, pages, bySlug, home, landing, navOk, kids, descendants, searchPage, cartPage, accountPage, legalPages,
     productPage, listingPages, hrefFor, routeBySlug, usedRoutes, byUrl, brand, contacts: cc, homeCta, ctaByType, ctaLegacy, mapsHref, legalExtra,
     tagline: String(site.tagline || '').trim(), nav: Array.isArray(site.nav) ? site.nav : null, siteHost, catalogSpec, samples,
-    t, ui,
+    t, ui, allPages: all,
   };
+  S.shell = shellSpec ? shellPlan(S, shellSpec, facts) : null;
+  return S;
 }
 
 // ---------------------------------------------------------------- действия кнопок (C3, C10)
@@ -470,15 +474,19 @@ export function headerHtml(S, menu, photos) {
   const searchToggle = S.searchPage ? `<button type="button" class="icon-btn search-toggle" data-act="search-toggle" aria-label="${esc(t('search'))}">${icon('search')}</button>` : '';
   const acc = S.accountPage ? `<a class="hdr-icon" href="#${esc(S.accountPage.route)}" aria-label="${esc(S.accountPage.label)}" title="${esc(S.accountPage.title)}">${icon('user')}<span class="hdr-il">${esc(t('account'))}</span></a>` : '';
   const cart = S.cartPage ? `<a class="hdr-icon" href="#${esc(S.cartPage.route)}" aria-label="${esc(t('cart'))}">${icon('bag')}<span class="cart-n" data-cart-count hidden>0</span><span class="hdr-il">${esc(t('cart'))}</span></a>` : '';
-  const hdrPhone = phone ? `<a class="hdr-phone" href="${esc(phone.href)}">${icon('phone')}<span>${esc(phone.text)}</span></a>` : '';
-  const hdrMsgs = msgLinks(S) ? `<span class="hdr-msgs">${msgLinks(S)}</span>` : '';
+  // оболочка по пересечениям лидеров (S.shell): чипы телефона и мессенджеров - на своих местах, новые элементы - группой
+  // перед CTA; без S.shell строка шапки прежняя
+  const sh = S.shell ? shellHeader(S, menu) : null;
+  const hdrPhone = phone ? `<a class="hdr-phone" href="${esc(phone.href)}">${icon('phone')}<span>${esc(phone.text)}</span></a>` : sh ? sh.phone : '';
+  const hdrMsgs = msgLinks(S) ? `<span class="hdr-msgs">${msgLinks(S)}</span>` : sh ? sh.msgs : '';
   const logo = `<a class="logo" href="#/" aria-label="${esc(S.brand)}"><span class="logo-w">${esc(S.brand)}</span>${S.tagline ? `<span class="logo-t">${esc(S.tagline)}</span>` : ''}</a>`;
-  const html = `${topbar}<header class="hdr" id="hdr"><div class="hdr-main"><div class="container hdr-main-in">${burger}${logo}${search || '<span class="hdr-sp"></span>'}${hdrPhone}${hdrMsgs}${searchToggle}${acc}${cart}${ctaBtn}</div></div>${nav}</header>${megaCount ? '<div class="mega-dim" data-act="mega-close" data-mega-dim></div>' : ''}`;
+  const html = `${topbar}<header class="hdr" id="hdr"><div class="hdr-main"><div class="container hdr-main-in">${burger}${logo}${search || '<span class="hdr-sp"></span>'}${hdrPhone}${hdrMsgs}${searchToggle}${acc}${cart}${sh ? sh.group : ''}${ctaBtn}</div></div>${nav}</header>${megaCount ? '<div class="mega-dim" data-act="mega-close" data-mega-dim></div>' : ''}`;
   return { html, topbarOn, megaCount, navCount: menu.items.length };
 }
 export function mobileNavHtml(S, menu) {
   const t = S.t;
-  if (S.landing || !menu.items.length) return '';
+  // без меню (лендинг) новые элементы шапки из S.shell - полосой под шапкой на телефоне
+  if (S.landing || !menu.items.length) return S.shell ? shellStrip(S, menu) : '';
   // уровень пункта: дети и все их потомки (внуки и глубже - с отступом)
   const row = d => `<a class="mrow${d.depth > 1 ? ` d${Math.min(d.depth, 3)}` : ''}" href="#${esc(d.x.route)}">${esc(d.x.name)}</a>`;
   const items = menu.items.map(it => {
@@ -497,7 +505,7 @@ export function mobileNavHtml(S, menu) {
   const phone = c.phones[0];
   const hca = headerCtaAttrs(S);
   const cta = S.homeCta.main ? `<a class="btn btn-block"${attrs(btnAttrs(hca))}>${esc(S.homeCta.main)}</a>` : '';
-  return `<div class="mnav" id="mnav" aria-hidden="true"><div class="mnav-h"><a class="logo" href="#/"><span class="logo-w">${esc(S.brand)}</span></a><button type="button" class="icon-btn" data-act="mnav-close" aria-label="${esc(t('close'))}">${icon('close')}</button></div><div class="mnav-body"><ul class="mroot">${items}${extra}</ul><div class="mnav-contacts">${phone ? `<a class="mphone" href="${esc(phone.href)}">${icon('phone')}${esc(phone.text)}</a>` : ''}${c.hours ? `<span class="mhours">${esc(c.hours)}</span>` : ''}${msgLinks(S, 'msgs-lg')}</div>${cta}</div></div>`;
+  return `<div class="mnav" id="mnav" aria-hidden="true"><div class="mnav-h"><a class="logo" href="#/"><span class="logo-w">${esc(S.brand)}</span></a><button type="button" class="icon-btn" data-act="mnav-close" aria-label="${esc(t('close'))}">${icon('close')}</button></div><div class="mnav-body"><ul class="mroot">${items}${extra}</ul>${S.shell ? shellMnav(S, menu) : ''}<div class="mnav-contacts">${phone ? `<a class="mphone" href="${esc(phone.href)}">${icon('phone')}${esc(phone.text)}</a>` : ''}${c.hours ? `<span class="mhours">${esc(c.hours)}</span>` : ''}${msgLinks(S, 'msgs-lg')}</div>${cta}</div></div>`;
 }
 export function mbarHtml(S) {
   if (S.off.has('mbar')) return '';
@@ -506,8 +514,10 @@ export function mbarHtml(S) {
   const hc = S.homeCta;
   const hca = headerCtaAttrs(S);
   const cta = hc.main ? `<a class="btn mbar-btn" data-mbar-cta${attrs(btnAttrs(hca))}>${esc(hc.short || hc.main)}</a>` : '';
-  if (!phone && !cta) return '';
-  return `<div class="mbar">${phone ? `<a class="mbar-call" href="${esc(phone.href)}" aria-label="${esc(t('call'))}">${icon('phone')}</a>` : ''}${cta}</div>`;
+  // элементы оболочки зоны mobile (S.shell), которых нет на первом экране телефона
+  const mob = S.shell ? shellZoneHtml(S, null, 'mobile', 'mbar') : '';
+  if (!phone && !cta && !mob) return '';
+  return `<div class="mbar">${phone ? `<a class="mbar-call" href="${esc(phone.href)}" aria-label="${esc(t('call'))}">${icon('phone')}</a>` : ''}${mob}${cta}</div>`;
 }
 
 // ---------------------------------------------------------------- подвал
@@ -530,6 +540,10 @@ export function footerHtml(S, menu) {
     if (flat.length) cols.push(col(t('footer_site'), flat));
     if (svc.length) cols.push(col(t('footer_service'), svc));
   }
+  // оболочка по пересечениям лидеров: ссылки страниц - колонкой «Информация», слоты - строками контактов, функции - в
+  // строке документов (без S.shell подвал прежний)
+  const sf = S.shell ? shellFooter(S, menu) : null;
+  if (sf && sf.col) cols.push(sf.col);
   const phones = c.phones.map(p => `<a class="fphone" href="${esc(p.href)}">${esc(p.text)}</a>`).join('');
   // каналы строками «подпись: значение» (номера мессенджеров видны, а не только значки)
   const chRows = S.off.has('messengers') ? '' : c.channels.filter(x => x.text).map(x => `<div class="fc-row fc-ch">${icon(channelIcon(x.key))}<span>${x.href ? `<a href="${esc(x.href)}" target="_blank" rel="noopener">${esc(x.label)}: ${esc(x.text)}</a>` : `${esc(x.label)}: ${esc(x.text)}`}</span></div>`).join('');
@@ -539,12 +553,13 @@ export function footerHtml(S, menu) {
     chRows,
     c.hours ? `<div class="fc-row">${icon('clock')}<span>${esc(c.hours)}</span></div>` : '',
     c.email ? `<div class="fc-row">${icon('mail')}<span><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></span></div>` : '',
+    sf ? sf.rows : '',
   ].join('');
   const legalParts = [c.legal.name ? esc(c.legal.name) : '', c.legal.inn ? `${esc(t('inn'))} ${esc(c.legal.inn)}` : '', c.legal.ogrn ? `${esc(t('ogrn'))} ${esc(c.legal.ogrn)}` : ''].filter(Boolean);
   const docs = S.legalPages.length
     ? S.legalPages.map(p => `<button type="button" class="linkbtn" data-act="toast" data-toast="${esc(t('toast_legal'))}">${esc(p.nav_label || pageTitle(p))}</button>`).join('')
     : `<button type="button" class="linkbtn" data-act="toast" data-toast="${esc(t('toast_legal'))}">${esc(t('policy'))}</button>`;
-  return `<footer class="ftr"><div class="container"><div class="ftr-top"><div class="fbrand"><a class="logo logo-inv" href="#/"><span class="logo-w">${esc(S.brand)}</span>${S.tagline ? `<span class="logo-t">${esc(S.tagline)}</span>` : ''}</a><div class="fcontacts">${rows}${msgLinks(S, 'msgs-lg msgs-dark')}</div></div><div class="fcols">${cols.join('')}</div></div><div class="ftr-legal">${legalParts.length ? `<p>${legalParts.join(' · ')}</p>` : ''}${S.legalExtra.map(s => `<p>${esc(s)}</p>`).join('')}<p class="ftr-docs">${docs}<span class="sp"></span><span class="proto-badge">${esc(t('prototype_badge'))}</span><span>© ${esc(S.brand)}</span></p></div></div></footer>`;
+  return `<footer class="ftr"><div class="container"><div class="ftr-top"><div class="fbrand"><a class="logo logo-inv" href="#/"><span class="logo-w">${esc(S.brand)}</span>${S.tagline ? `<span class="logo-t">${esc(S.tagline)}</span>` : ''}</a><div class="fcontacts">${rows}${msgLinks(S, 'msgs-lg msgs-dark')}</div></div><div class="fcols">${cols.join('')}</div></div><div class="ftr-legal">${legalParts.length ? `<p>${legalParts.join(' · ')}</p>` : ''}${S.legalExtra.map(s => `<p>${esc(s)}</p>`).join('')}<p class="ftr-docs">${docs}${sf ? sf.docs : ''}<span class="sp"></span><span class="proto-badge">${esc(t('prototype_badge'))}</span><span>© ${esc(S.brand)}</span></p></div></div></footer>`;
 }
 
 // ---------------------------------------------------------------- окна, тост, служебная панель
@@ -558,6 +573,294 @@ export function overlaysHtml(S, debugPanel) {
   const msg = msgOn ? `<div class="modal" id="modal-msg" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="mm-t"><div class="modal-bg" data-act="modal-close"></div><div class="modal-box modal-sm"><button type="button" class="icon-btn modal-x" data-act="modal-close" aria-label="${esc(t('close'))}">${icon('close')}</button><div class="modal-h" id="mm-t">${esc(t('messengers'))}</div><ul class="msg-list">${chan.map(x => (x.href ? `<li><a href="${esc(x.href)}" target="_blank" rel="noopener"><b>${esc(x.label)}</b><span>${esc(x.text || x.value)}</span>${icon('arrow')}</a></li>` : `<li><div><b>${esc(x.label)}</b><span>${esc(x.text || x.value)}</span><span></span></div></li>`)).join('')}</ul></div></div>` : '';
   return `${lead}${msg}<div class="toast" id="toast" role="status" aria-live="polite"></div>${debugPanel || ''}`;
 }
+
+// ---------------------------------------------------------------- оболочка по пересечениям лидеров (work/shell.json)
+// Программа 05.10 (КФ и КНДР), раздел 3.5. Только при shellSpec (work/shell.json пишет kf-matrix.mjs --shell): без него
+// разметка, стили и скрипт прототипа прежние (эталон .claude/tests/site-tekst/fixtures/site-golden). Элемент - строка
+// scope site уровня не ниже «рекомендовано»: { id, name, zone header|footer|mobile|fixed, level, coverage, kind
+// slot|function|page_link, render, needs, page_match, niche }. Состояние (prototype.modules.json shell.items[].state):
+// shown - элемент на сайте (данные проекта, живая функция, страница карты); chip - слот без данных (чип «нужны данные:
+// <название>» на своем месте, вопрос заказчику задает отчет); function - функция без страницы модуля (кнопка-тост
+// «функция вне прототипа», без data-search, data-cart, секций и данных модуля); page_missing - нужной страницы нет в
+// карте (кнопка-тост «страница вне прототипа», рекомендация в отчете); declined - поле снято заказчиком (company.absent,
+// телефон при no_phone) или каналы есть, а модуль мессенджеров выключен оператором (reason: "off" в modules.json): ни
+// чипа, ни вопроса. Мессенджер или соцсеть ищется по ключу канала из id (messenger_viber -> viber), обобщенный id -
+// любой канал набора. Подписи - только шаблоны ui.json с нормализованным name; подпись
+// конкурента (label) в прототип не попадает. Отрисовка оболочки - только в этом файле.
+const SHELL_ZONES = ['header', 'footer', 'mobile', 'fixed'];
+const SHELL_RENDERS = {
+  phone: 'slot', messengers: 'slot', socials: 'slot', email: 'slot', address: 'slot', hours: 'slot', map_link: 'slot', legal_line: 'slot',
+  licenses: 'slot', tagline: 'slot', rating: 'slot', payment_icons: 'slot', city: 'slot', docs: 'page_link',
+  callback: 'function', cta: 'function', up_button: 'function', subscribe: 'function',
+  search: 'function', cart: 'function', account: 'function', favorites: 'function', compare: 'function',
+};
+const MSG_KEYS = new Set(['whatsapp', 'telegram', 'max', 'viber']);
+const SOC_KEYS = new Set(['vk', 'youtube', 'instagram', 'dzen', 'ok']);
+// ключ канала элемента: id словаря КФ с префиксом (messenger_viber, social_telegram) или голый ключ канала (whatsapp);
+// '' - обобщенный id (messengers, socials): тогда подходит любой канал набора
+const channelKeyOf = id => { const k = String(id).replace(/^(messengers?|socials?)_/, ''); return k !== id || MSG_KEYS.has(k) || SOC_KEYS.has(k) ? k : ''; };
+const LIVE_PAGE = { search: 'searchPage', cart: 'cartPage', account: 'accountPage' };
+const LEGAL_PARTS = ['legal_name', 'inn', 'ogrn'];
+const RENDER_FIELDS = { email: ['email'], address: ['address'], map_link: ['address'], hours: ['hours'], legal_line: LEGAL_PARTS };
+// Снятые заказчиком поля (noPhone, absentOf, ABSENT_FIELDS) - общий модуль scripts/absent.mjs, тот же, что у импорта.
+export { noPhone, absentOf };
+// подписи оболочки - раздел kf словаря (в данные скрипта страницы не идет: без shell.json файл прототипа прежний)
+const tv = (S, key, vars = {}) => String(((S.ui && S.ui.kf) || {})[key] ?? key).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+// название элемента для подписей: без кавычек и хвостовой пунктуации, до 40 знаков по слову, с прописной
+export function shellName(s) {
+  let n = String(s ?? '').replace(/[«»"“”„']/g, '').replace(/\s+/g, ' ').trim().replace(/[\s.,;:!?-]+$/, '');
+  if (n.length > 40) n = cutWords(n, 40);
+  return n ? n.charAt(0).toUpperCase() + n.slice(1) : '';
+}
+// в чипе - со строчной только кириллическое первое слово с прописной в начале и строчными дальше; сокращения и латиница
+// (имена брендов вроде WhatsApp, TikTok) - как есть
+const lowerFirst = s => (/^[\u0410-\u042F\u0401][\u0430-\u044F\u0451-]*(\s|$)/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+const legalVal = (c, k) => (k === 'legal_name' ? c.legal.name : c.legal[k]);
+// страница карты по page_match ({type?, ui_role?, subject_re?}): рабочая - { x }, со status skip - { skip }, нет - null
+function matchPage(S, pm) {
+  if (!pm || typeof pm !== 'object') return null;
+  let re = null;
+  if (pm.subject_re) { try { re = new RegExp(String(pm.subject_re), 'i'); } catch { return null; } }
+  if (!pm.type && !pm.ui_role && !re) return null;
+  const ok = p => p && p.slug && (!pm.type || p.type === pm.type) && (!pm.ui_role || p.ui_role === pm.ui_role) && (!re || re.test(String(p.subject || '')) || re.test(String(p.nav_label || '')));
+  const hits = (S.allPages || []).filter(ok);
+  const live = hits.map(p => S.bySlug.get(p.slug)).find(Boolean);
+  if (live) return { x: live };
+  const skip = hits.find(p => p.status === 'skip');
+  return skip ? { skip } : null;
+}
+// модель оболочки: элементы с состоянием (вызывается из buildSite)
+export function shellPlan(S, spec, facts) {
+  if (!spec || typeof spec !== 'object' || !Array.isArray(spec.items)) return null;
+  const c = S.contacts;
+  const absent = absentOf(c.company);
+  const noPh = noPhone(c.company);
+  // слоты без поля company (рейтинг, оплата, города, нишевые) - публикуемый факт с полем slot: "<id элемента>"
+  const slotVal = {};
+  for (const f of (facts && Array.isArray(facts.facts) ? facts.facts : [])) {
+    const k = f && typeof f.slot === 'string' ? f.slot.trim() : '';
+    const v = k && f.publish === 'yes' ? String(f.wording || f.value || '').trim() : '';
+    if (v && !(k in slotVal)) slotVal[k] = { value: v, fact: String(f.id || '') };
+  }
+  const items = [];
+  const seen = new Set();
+  for (const raw of spec.items) {
+    if (!raw || typeof raw !== 'object' || !raw.id) continue;
+    const id = String(raw.id).trim();
+    const zone = SHELL_ZONES.includes(raw.zone) ? raw.zone : '';
+    if (!zone || seen.has(`${zone}:${id}`)) continue;
+    seen.add(`${zone}:${id}`);
+    const render = Object.hasOwn(SHELL_RENDERS, raw.render) ? raw.render : 'generic';
+    const kind = render !== 'generic' ? SHELL_RENDERS[render] : ['slot', 'function', 'page_link'].includes(raw.kind) ? raw.kind : 'slot';
+    const it = {
+      id, name: shellName(raw.name) || id, zone, level: String(raw.level || ''), coverage: String(raw.coverage || ''), niche: raw.niche === true,
+      kind, render, needs: (Array.isArray(raw.needs) ? raw.needs : []).map(String), value: '', fact: '', channels: [], page: null, skipPage: null,
+      match: render === 'docs' && docsMatch(raw.page_match),
+    };
+    it.state = shellState(S, it, raw, { absent, noPh, slot: slotVal[id] || null });
+    items.push(it);
+  }
+  return { items };
+}
+function shellState(S, it, raw, { absent, noPh, slot }) {
+  const c = S.contacts;
+  if ((it.render === 'phone' || it.needs.includes('company.phones')) && noPh) return 'declined';
+  if (it.render === 'legal_line') {
+    // реквизиты: сняты все части - слота нет; часть - остаток без чипа
+    const cut = LEGAL_PARTS.filter(k => absent.includes(k));
+    if (LEGAL_PARTS.some(k => !cut.includes(k) && legalVal(c, k))) return 'shown';
+    return cut.length ? 'declined' : 'chip';
+  }
+  const fields = [...(RENDER_FIELDS[it.render] || []), ...it.needs.map(n => n.replace(/^company\./, '')).filter(k => ABSENT_FIELDS.includes(k))];
+  if (fields.length && fields.every(k => absent.includes(k))) return 'declined';
+  const fromFact = () => { if (!slot) return 'chip'; it.value = slot.value; it.fact = slot.fact; return 'shown'; };
+  switch (it.render) {
+    case 'phone': return c.phones[0] ? 'shown' : 'chip';
+    case 'messengers': case 'socials': {
+      const set = it.render === 'messengers' ? MSG_KEYS : SOC_KEYS;
+      const key = channelKeyOf(it.id);
+      it.channels = c.channels.filter(ch => (key ? ch.key === key : set.has(ch.key)) && (ch.href || ch.text));
+      if (!it.channels.length) return 'chip';
+      // каналы есть, но оператор выключил модуль мессенджеров: не вопрос заказчику, а решение оператора
+      if (S.off.has('messengers')) { it.reason = 'off'; return 'declined'; }
+      return 'shown';
+    }
+    case 'email': return c.email ? 'shown' : 'chip';
+    case 'address': return c.address ? 'shown' : 'chip';
+    case 'hours': return c.hours ? 'shown' : 'chip';
+    case 'map_link': return S.mapsHref ? 'shown' : 'chip';
+    case 'licenses': return S.legalExtra.length ? 'shown' : fromFact();
+    case 'tagline': if (S.tagline) { it.value = S.tagline; return 'shown'; } return fromFact();
+    case 'rating': case 'payment_icons': case 'city': return fromFact();
+    case 'docs': if (it.match) return pageState(S, it, raw); return 'shown';
+    case 'callback': case 'cta': case 'up_button': return 'shown';
+    case 'subscribe': return 'function';
+    case 'search': case 'cart': case 'account': { const x = S[LIVE_PAGE[it.render]]; if (x) { it.page = x; return 'shown'; } return 'function'; }
+    case 'favorites': case 'compare': { const x = S.pages.find(p => p.p.ui_role === it.render); if (x) { it.page = x; return 'shown'; } return 'function'; }
+    default: break;
+  }
+  if (it.kind === 'function') return 'function';
+  if (it.kind === 'page_link') return pageState(S, it, raw);
+  return fromFact();
+}
+// ссылка на страницу карты: рабочая - ссылка, status skip - «есть в карте» с тостом, нет - page_missing и тост
+function pageState(S, it, raw) {
+  const m = matchPage(S, raw.page_match);
+  if (m && m.x) { it.page = m.x; return 'shown'; }
+  if (m && m.skip) { it.skipPage = m.skip; return 'shown'; }
+  return 'page_missing';
+}
+// docs с page_match не на юридические страницы (сертификаты, документы) - как page_link; иначе строка юридических страниц
+const docsMatch = pm => !!pm && typeof pm === 'object' && !!(pm.type || pm.subject_re || pm.ui_role) && pm.ui_role !== 'legal';
+// маршруты, видимые в строке меню и выпадающих панелях; маршруты колонок подвала
+function menuRoutes(S, menu) {
+  const out = new Set();
+  const add = it => { if (it.page) out.add(it.page.route); for (const c of it.children || []) { out.add(c.route); for (const d of S.descendants(c)) out.add(d.x.route); } };
+  for (const it of (menu && menu.items) || []) { if (it.kind === 'more') it.more.forEach(add); else add(it); }
+  return out;
+}
+function footerRoutes(S, menu) {
+  const out = new Set();
+  for (const it of ((menu && menu.items) || []).flatMap(it => (it.kind === 'more' ? it.more : [it]))) {
+    if (it.kind === 'anchor') continue;
+    const k = (it.children || []).slice(0, 8);
+    if (it.page) out.add(it.page.route);
+    k.forEach(x => out.add(x.route));
+  }
+  if (!S.landing) [S.searchPage, S.accountPage, S.cartPage].filter(Boolean).forEach(x => out.add(x.route));
+  return out;
+}
+// элемент уже стоит в зоне прежней разметкой (тогда новой разметки нет)
+function shellExisting(S, it, menu) {
+  if (it.state !== 'shown') return false;
+  const c = S.contacts;
+  const r = it.render;
+  const msgs = !S.off.has('messengers') && it.channels.some(ch => ch.href);
+  if (it.zone === 'header' || it.zone === 'fixed') {
+    // шапка закреплена (sticky): ее элементы видны и при прокрутке
+    if (r === 'phone') return !!c.phones[0];
+    if (r === 'messengers' || r === 'socials') return msgs;
+    if (r === 'search' || r === 'cart' || r === 'account') return true;
+    if (r === 'cta') return !!S.homeCta.main;
+    if (r === 'tagline') return !!S.tagline;
+    if (it.zone === 'header' && (r === 'address' || r === 'hours')) {
+      const topFields = [c.address, c.hours, c.channels.some(x => x.href) ? 'ch' : ''].filter(Boolean).length;
+      return topFields >= 2 && !S.off.has('topbar');
+    }
+    if (it.page && it.zone === 'header') return menuRoutes(S, menu).has(it.page.route);
+    return false;
+  }
+  if (it.zone === 'footer') {
+    if (['phone', 'email', 'address', 'hours', 'legal_line'].includes(r) || (r === 'docs' && !it.match)) return true;
+    if (r === 'messengers' || r === 'socials') return !S.off.has('messengers');
+    if (r === 'map_link') return !!c.address;
+    if (r === 'licenses') return S.legalExtra.length > 0;
+    if (r === 'tagline') return !!S.tagline;
+    if (it.page) return footerRoutes(S, menu).has(it.page.route);
+    if (it.skipPage) return S.legalPages.includes(it.skipPage);
+    return false;
+  }
+  // mobile: первый экран телефона - шапка (бургер, значки поиска, кабинета и корзины) и нижняя панель
+  // без нижней панели (off mbar) первый экран - мобильное меню многостраничника: там телефон и CTA уже есть
+  const inMnav = S.off.has('mbar') && !S.landing && !!(menu && menu.items && menu.items.length);
+  if (r === 'phone') return !!c.phones[0] && (!S.off.has('mbar') || inMnav);
+  if (r === 'cta') return !!S.homeCta.main && (!S.off.has('mbar') || inMnav);
+  if (r === 'search' || r === 'cart' || r === 'account') return true;
+  return false;
+}
+const SHELL_ICON = { phone: 'phone', email: 'mail', address: 'pin', map_link: 'pin', hours: 'clock', messengers: 'chat', socials: 'chat', callback: 'phone', up_button: 'chev', cta: 'lead' };
+// разметка одного элемента; where: hdr | mob | fc (строка контактов подвала) | fdoc (строка документов) | fcol (колонка
+// «Информация») | mbar | fab
+function shellItemHtml(S, it, where) {
+  const c = S.contacts;
+  const dk = esc(it.id);
+  const btnCls = where === 'fdoc' || where === 'fcol' ? 'linkbtn' : where === 'fab' ? 'shell-fab-b' : 'shell-fn';
+  const toast = key => `<button type="button" class="${btnCls}" data-act="toast" data-toast="${esc(tv(S, key))}" data-kf="${dk}">${esc(it.name)}</button>`;
+  if (it.state === 'declined') return '';
+  if (it.state === 'chip') return `<span class="ph-need" data-kf="${dk}">${esc(tv(S, 'need', { name: lowerFirst(it.name) }))}</span>`;
+  if (it.state === 'function') return toast('toast_function');
+  if (it.state === 'page_missing') return toast('toast_page');
+  const vCls = where === 'fab' ? 'shell-fab-b' : 'shell-v';
+  const ext = { target: '_blank', rel: 'noopener' };
+  const link = (href, text, more = {}) => `<a${attrs({ class: vCls, href, ...more, 'data-kf': it.id })}>${text}</a>`;
+  switch (it.render) {
+    case 'phone': { const p = c.phones[0]; return link(p.href, where === 'fab' ? icon('phone') : esc(p.text), where === 'fab' ? { 'aria-label': it.name } : {}); }
+    case 'messengers': case 'socials': {
+      const withHref = it.channels.filter(ch => ch.href);
+      if (withHref.length) return `<span class="msgs" data-kf="${dk}">${withHref.map(ch => `<a class="msg" href="${esc(ch.href)}" target="_blank" rel="noopener" title="${esc(ch.label)}" aria-label="${esc(ch.label)}">${phIco(channelIcon(ch.key))}</a>`).join('')}</span>`;
+      return `<span class="${vCls}" data-kf="${dk}">${it.channels.map(ch => `${esc(ch.label)}: ${esc(ch.text || ch.value)}`).join(', ')}</span>`;
+    }
+    case 'email': return link(`mailto:${c.email}`, esc(c.email));
+    case 'address': return `<span class="${vCls}" data-kf="${dk}">${esc(c.address)}</span>`;
+    case 'hours': return `<span class="${vCls}" data-kf="${dk}">${esc(c.hours)}</span>`;
+    case 'map_link': return link(S.mapsHref, esc(S.t('map_route')), ext);
+    case 'legal_line': {
+      const p = [c.legal.name ? esc(c.legal.name) : '', c.legal.inn ? `${esc(S.t('inn'))} ${esc(c.legal.inn)}` : '', c.legal.ogrn ? `${esc(S.t('ogrn'))} ${esc(c.legal.ogrn)}` : ''].filter(Boolean);
+      return `<span class="${vCls}" data-kf="${dk}">${p.join(' · ')}</span>`;
+    }
+    case 'licenses': return `<span class="${vCls}" data-kf="${dk}">${esc(S.legalExtra.length ? S.legalExtra.join('; ') : it.value)}</span>`;
+    case 'docs': if (it.match) break; return S.legalPages.length
+      ? S.legalPages.map(p => `<button type="button" class="${btnCls}" data-act="toast" data-toast="${esc(S.t('toast_legal'))}" data-kf="${dk}">${esc(p.nav_label || pageTitle(p))}</button>`).join('')
+      : `<button type="button" class="${btnCls}" data-act="toast" data-toast="${esc(S.t('toast_legal'))}" data-kf="${dk}">${esc(S.t('policy'))}</button>`;
+    case 'callback': return `<button type="button" class="${btnCls}" data-act="lead" data-title="${esc(it.name)}" data-kf="${dk}">${where === 'fab' ? icon('phone') : ''}${esc(it.name)}</button>`;
+    case 'cta': { const main = String(S.homeCta.main || '') || S.t('lead_default'); return `<a${attrs({ class: where === 'fab' ? 'shell-fab-b' : 'btn btn-sm', ...btnAttrs(headerCtaAttrs(S)), 'data-kf': it.id })}>${esc(main)}</a>`; }
+    case 'up_button': return `<button type="button" class="${btnCls} shell-up" data-act="up" aria-label="${esc(it.name)}" title="${esc(it.name)}" data-kf="${dk}">${icon('chev')}</button>`;
+    default: break;
+  }
+  if (it.page) return link(`#${it.page.route}`, esc(it.name));
+  if (it.skipPage) return `<button type="button" class="${btnCls}" data-act="toast" data-toast="${esc(it.skipPage.ui_role === 'legal' ? S.t('toast_legal') : tv(S, 'toast_page'))}" data-kf="${dk}">${esc(it.name)}</button>`;
+  return `<span class="${vCls}" data-kf="${dk}">${esc(it.value)}</span>`;
+}
+// новые элементы зоны (без уже стоящих в прежней разметке) - склеенная разметка
+export function shellZoneHtml(S, menu, zone, where, filter = () => true) {
+  if (!S.shell) return '';
+  return S.shell.items.filter(it => it.zone === zone && filter(it) && !shellExisting(S, it, menu)).map(it => shellItemHtml(S, it, where)).join('');
+}
+const hdrPlace = it => it.state === 'chip' && (it.render === 'phone' || it.render === 'messengers');
+// шапка: чип телефона и мессенджеров - на месте телефона и значков, прочие - группой перед CTA
+export function shellHeader(S, menu) {
+  const one = r => S.shell.items.filter(it => it.zone === 'header' && it.render === r && hdrPlace(it)).map(it => shellItemHtml(S, it, 'hdr')).join('');
+  const group = shellZoneHtml(S, menu, 'header', 'hdr', it => !hdrPlace(it));
+  return { phone: one('phone'), msgs: one('messengers'), group: group ? `<span class="shell-hdr">${group}</span>` : '' };
+}
+// телефон: новые элементы шапки - в мобильном меню (многостраничник) или полосой под шапкой (лендинг)
+// нижняя панель выключена (off mbar) - туда же элементы зоны mobile
+const mobExtra = (S, menu) => (S.off.has('mbar') ? shellZoneHtml(S, menu, 'mobile', 'mob') : '');
+export function shellMnav(S, menu) {
+  const h = shellZoneHtml(S, menu, 'header', 'mob') + mobExtra(S, menu);
+  return h ? `<div class="mnav-shell">${h}</div>` : '';
+}
+export function shellStrip(S, menu) {
+  const h = shellZoneHtml(S, menu, 'header', 'mob') + mobExtra(S, menu);
+  return h ? `<div class="shell-strip">${h}</div>` : '';
+}
+// подвал: { rows (строки контактов), docs (строка документов), col (колонка «Информация») }
+export function shellFooter(S, menu) {
+  const rows = S.shell.items.filter(it => it.zone === 'footer' && it.kind === 'slot' && !shellExisting(S, it, menu))
+    .map(it => { const h = shellItemHtml(S, it, 'fc'); return h ? `<div class="fc-row fc-kf">${icon(SHELL_ICON[it.render] || 'info')}<span>${h}</span></div>` : ''; }).join('');
+  const docs = shellZoneHtml(S, menu, 'footer', 'fdoc', it => it.kind === 'function');
+  const links = S.shell.items.filter(it => it.zone === 'footer' && it.kind === 'page_link' && !shellExisting(S, it, menu)).map(it => shellItemHtml(S, it, 'fcol')).filter(Boolean);
+  const col = links.length ? `<div class="fcol"><div class="fcol-h">${esc(tv(S, 'footer_info'))}</div><ul>${links.map(l => `<li>${l}</li>`).join('')}</ul></div>` : '';
+  return { rows, docs, col };
+}
+// закрепленные элементы: плавающие кнопки
+export function shellFabHtml(S, menu) {
+  const h = shellZoneHtml(S, menu, 'fixed', 'fab');
+  return h ? `<div class="shell-fab">${h}</div>` : '';
+}
+// заглушка блока лидеров без фактов (brief.stubs, программа 05.10 3.4): название и чип «нужны данные: <needs>»
+export function stubHtml(S, stub) {
+  const needs = (Array.isArray(stub.needs) ? stub.needs : []).map(s => String(s).trim()).filter(Boolean);
+  const name = shellName(stub.name) || String(stub.type || '');
+  const chip = `<span class="ph-need"${attrs({ 'data-kf': stub.kf_el ? String(stub.kf_el) : null })}>${esc(tv(S, 'need', { name: needs.length ? needs.join(', ') : lowerFirst(name) }))}</span>`;
+  return `<div class="stub"><div class="stub-name">${esc(name)}</div><p class="stub-note">${esc(tv(S, 'stub_note'))}</p>${chip}</div>`;
+}
+// стили и скрипт оболочки в site.css и shell.html - между метками /*@shell*/ и /*@/shell*/: без оболочки вырезаются
+// (файл прототипа совпадает с прежним), с оболочкой метки остаются комментариями
+// (метка в начале строки - вместе с переводом строки после закрывающей, внутри строки - без него)
+export const shellCut = (text, on) => (on ? String(text) : String(text)
+  .replace(/(^|\n)\/\*@shell\*\/[\s\S]*?\/\*@\/shell\*\/\n?/g, '$1')
+  .replace(/\/\*@shell\*\/[\s\S]*?\/\*@\/shell\*\//g, ''));
 
 // ---------------------------------------------------------------- каталог (C5)
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
@@ -1154,7 +1457,7 @@ export function loadProjectRegistry(dir = P('html', 'site')) {
     for (const f of fs.readdirSync(bdir).sort()) {
       const m = f.match(/^([A-Za-z0-9_-]+)\.(js|css)$/);
       if (!m) continue;
-      const text = fs.readFileSync(path.join(bdir, f), 'utf8').replace(/^﻿/, '').trim();
+      const text = fs.readFileSync(path.join(bdir, f), 'utf8').replace(/^\uFEFF/, '').trim();
       if (m[2] === 'css') { PROJECT.css[m[1]] = text; continue; }
       const code = text.replace(/^export\s+default\s+/, '').replace(/;\s*$/, '');
       if (!jsFn(code)) { problems.push({ code: 'js', file: f }); continue; }
@@ -1164,7 +1467,7 @@ export function loadProjectRegistry(dir = P('html', 'site')) {
   const rf = path.join(dir, 'registry.json');
   if (exists(rf)) {
     let reg = null;
-    try { reg = JSON.parse(fs.readFileSync(rf, 'utf8').replace(/^﻿/, '')); } catch (e) { problems.push({ code: 'json', detail: e.message }); }
+    try { reg = JSON.parse(fs.readFileSync(rf, 'utf8').replace(/^\uFEFF/, '')); } catch (e) { problems.push({ code: 'json', detail: e.message }); }
     if (reg && typeof reg === 'object' && !Array.isArray(reg)) {
       for (const [key, v] of Object.entries(reg)) {
         if (key.startsWith('_')) continue;
@@ -1255,5 +1558,12 @@ export function modulesJson(S, info) {
   const pr = info.projectRegistry || { keys: [], behaviors: [], sections: 0 };
   put('project_behaviors', pr.keys.length > 0 && pr.sections > 0, pr.keys.length ? op('project_behaviors_on', { keys: pr.keys.join(', '), n: pr.sections }) : op('project_behaviors_none'), src('src_project_registry'));
   put('debug', true, op('debug_on'), src('src_blocks'));
+  // оболочка по пересечениям лидеров (программа 05.10): ключ только при work/shell.json; ключи живых модулей (search,
+  // cart, account) описывают только живые модули
+  if (S.shell) {
+    const items = S.shell.items.map(it => ({ id: it.id, name: it.name, zone: it.zone, level: it.level, coverage: it.coverage, niche: it.niche, state: it.state, ...(it.reason ? { reason: it.reason } : {}) }));
+    const n = st => items.filter(i => i.state === st).length;
+    m.shell = { on: true, why: op('shell_on', { n: items.length, shown: n('shown'), chip: n('chip'), fn: n('function'), pm: n('page_missing'), dec: n('declined'), stubs: info.stubs || 0 }), source: src('src_shell'), items };
+  }
   return m;
 }

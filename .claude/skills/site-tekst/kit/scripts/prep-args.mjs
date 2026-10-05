@@ -13,7 +13,8 @@
 // --check-degraded - проверка деградации «без конкурентов» (wf-02, когда верификатор никого не оставил): stdout
 //   {"degraded":"no_competitors"|null,"why":"..."}, код 0. Деградация подтверждается, только если верификатор отметил ее
 //   в competitors.json и каждый кандидат (не агрегатор и не excluded) ответил, но недоступен: главная закрыта HTTP-кодом
-//   400+, статус js_only или antibot и браузер пробовал (файл home.browser.md рядом), или браузерный снимок главной пуст
+//   400+, статус js_only или antibot и браузер пробовал (рядом след home.browser.md браузера агента или home.cdp.html
+//   снятия CDP со страницей проверки), или браузерный снимок главной пуст
 //   (status browser, текста меньше JS_ONLY_CHARS fetch-page). Браузерный снимок с текстом - сайт доступен. Кандидатов нет,
 //   сайт не ответил (error, в том числе при сохраненной браузером странице ошибки), статус js_only или antibot без
 //   браузерного снимка - это сбой среды или пустой вход: degraded null, фазу останавливают, --resume повторит.
@@ -42,7 +43,8 @@ if (a['check-degraded']) {
       if ((Number(s.text_chars) || 0) < JS_ONLY_CHARS) continue;
       done(`${c.domain}: браузер снял главную с текстом (${s.text_chars} знаков) - сайт доступен, деградации нет`);
     }
-    if (['antibot', 'js_only'].includes(s.status) && exists(P(home.replace(/\.json$/, '.browser.md')))) continue;
+    // след браузера: .browser.md (браузер агента) или .cdp.html (снятие CDP получило страницу проверки)
+    if (['antibot', 'js_only'].includes(s.status) && ['.browser.md', '.cdp.html'].some(ext => exists(P(home.replace(/\.json$/, ext))))) continue;
     done(`${c.domain}: статус ${s.status || '?'} без браузерного снимка - похоже на сбой среды`);
   }
   done('');

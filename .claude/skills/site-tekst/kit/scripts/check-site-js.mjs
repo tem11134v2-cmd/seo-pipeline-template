@@ -5,6 +5,8 @@
 // которого нет, якорь без блока, окно не открылось) и пустые страницы. tel:, mailto: и внешние ссылки не нажимаются.
 // Одинаковые действия проверяются не больше двух раз: кнопки блоков писателя - на каждой странице, элементы
 // компонента каталога (выдача, чипы, панель, строка разделов) - на весь обход (их строит одна функция сборщика).
+// Действия: toast - виден текст data-toast; up (кнопка «наверх» оболочки по пересечениям лидеров, программа 05.10) -
+// прокрутка к началу; плавающие кнопки .shell-fab и кнопки оболочки на телефоне (.mbar, .shell-strip, .mnav-shell).
 // Отчет work/output/prototype.js-check.json: { verdict: pass|fail|skip, routes_checked, clicks, errors: [{route, kind,
 // detail}], warnings, skip_reason?, proto_sha, file_sha, checked_at }. proto_sha - sha входных данных из meta
 // proto-data-sha проверенного файла, file_sha - sha1 самого файла (первые 16 знаков): по ним видно, что вердикт - о
@@ -65,7 +67,8 @@ async function load(width) {
         const matches = (!min || width >= +min[1]) && (!max || width <= +max[1]);
         return { matches, media: q, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent() { return false; } };
       };
-      win.scrollTo = () => {}; win.scrollBy = () => {};
+      // прокрутка к началу (кнопка «наверх» оболочки, data-act up) считается: проверка ждет вызова scrollTo
+      win.scrollTo = () => { win.__protoScrollTop = (win.__protoScrollTop || 0) + 1; }; win.scrollBy = () => {};
       win.Element.prototype.scrollIntoView = function () {};
       win.Element.prototype.scrollBy = function () {};
       win.Element.prototype.scrollTo = function () {};
@@ -135,6 +138,20 @@ async function checkClickable(route, el) {
     await open(route);
     return;
   }
+  // тост (документ, функция или страница вне прототипа): текст из data-toast виден
+  if (act === 'toast') {
+    click(el); await sleep(3);
+    const te = doc.getElementById('toast');
+    if (!te || !te.classList.contains('on') || te.textContent !== (el.getAttribute('data-toast') || '')) err('dead', `тост не показан: ${(el.textContent || '').trim().slice(0, 60) || el.getAttribute('aria-label') || ''}`);
+    return;
+  }
+  // кнопка «наверх» оболочки по пересечениям лидеров
+  if (act === 'up') {
+    const n0 = W.__protoScrollTop || 0;
+    click(el); await sleep(3);
+    if ((W.__protoScrollTop || 0) <= n0) err('dead', 'кнопка «наверх» не прокрутила страницу');
+    return;
+  }
   if (!act && (!href || href === '#')) { err('dead', `кнопка или ссылка без действия: ${(el.textContent || '').trim().slice(0, 60) || el.getAttribute('aria-label') || el.outerHTML.slice(0, 80)}`); return; }
   click(el); await sleep(5);
   const om = openModalEl();
@@ -172,7 +189,8 @@ for (const route of routes) {
 // меню, мега-панели, подвал - с главной
 where = '/';
 await open('/');
-for (const el of [...doc.querySelectorAll('.nav a, .nav button, .ftr a, .ftr button, .hdr-main a, .hdr-main button')].slice(0, 120)) {
+// (плавающие кнопки оболочки .shell-fab - есть только при work/shell.json)
+for (const el of [...doc.querySelectorAll('.nav a, .nav button, .ftr a, .ftr button, .hdr-main a, .hdr-main button, .shell-fab a, .shell-fab button')].slice(0, 120)) {
   if (el.closest('.mnav')) continue;
   try { await checkClickable('/', el); } catch (e) { err('script', e.message); }
   if (curRoute() !== '/') await open('/');
@@ -222,6 +240,17 @@ try {
       if (now !== want) err('mobile', `переход из мобильного меню на ${want} не случился`);
       if (d.querySelector('#mnav.open')) err('mobile', 'мобильное меню не закрылось после перехода');
     }
+  }
+  // кнопки оболочки на телефоне (нижняя панель, полоса под шапкой лендинга, блок мобильного меню): тост и «наверх»
+  for (const b of [...d.querySelectorAll('.mbar button[data-act], .shell-strip button[data-act], .mnav-shell button[data-act]')].slice(0, 20)) {
+    const act = b.getAttribute('data-act');
+    if (act !== 'toast' && act !== 'up') continue;
+    const n0 = m.window.__protoScrollTop || 0;
+    b.dispatchEvent(new m.window.MouseEvent('click', { bubbles: true, cancelable: true })); res.clicks++;
+    await sleep(3);
+    const te = d.getElementById('toast');
+    if (act === 'toast' && (!te || te.textContent !== (b.getAttribute('data-toast') || ''))) err('mobile', `тост не показан: ${(b.textContent || '').trim().slice(0, 60)}`);
+    if (act === 'up' && (m.window.__protoScrollTop || 0) <= n0) err('mobile', 'кнопка «наверх» не прокрутила страницу');
   }
   const mb = d.querySelector('[data-mbar-cta]');
   if (mb && !mb.hidden) {

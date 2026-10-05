@@ -3,9 +3,14 @@ export const meta = {
   description: 'Phase 3: audit page-type files against snapshots (small types in batches), fix, re-audit (max 2 rounds)',
   phases: [{ title: 'Audit' }],
 }
-// args: { root, types:[...], type_pages?:{type:N}, small_type_max?: 2, small_batch?: 4, solo_types?: ["home"], model?, model_light?, models?: {роль: модель} }
+// args: { root, types:[...], type_pages?:{type:N}, small_type_max?: 2, small_batch?: 4, solo_types?: ["home"], skipKf?: true, model?, model_light?, models?: {роль: модель} }
 // Мелкие типы (<= small_type_max страниц в карте, кроме solo_types) идут пакетом: один аудитор, один фиксер и один
 // повторный аудитор на пакет; файлы находок по-прежнему свои у каждого типа. type_pages - из `node scripts/prep-args.mjs`.
+// Элементы лидеров (КФ, программа 05.10 §3.4): первый шаг аудитора каждого круга - `node scripts/kf-coverage.mjs <type> --json`
+// (детерминированные находки kf.coverage переносятся в файл находок как есть, prompts/03-type-auditor.md); фиксер правит
+// kf_coverage по тому же скрипту. Новой роли и вызова нет: нет work/kf/matrix.json - скрипт дает «анализ КФ не проводился».
+// skipKf (тот же флаг, что у wf-02): аудитор получает kf=off и шаг КФ пропускает - готовая матрица прошлого прогона не
+// дает находок типам, которые агрегатор собрал без строк КФ. Без флага текст вызовов прежний (кэш resume тот же).
 const A = args || {}
 const types = A.types || []
 if (!types.length) throw new Error('args.types обязателен')
@@ -27,6 +32,7 @@ const modelFor = role => {
 const SMALL_MAX = A.small_type_max == null ? 2 : Number(A.small_type_max)
 const SMALL_BATCH = Math.max(1, Number(A.small_batch) || 4)
 const SOLO = A.solo_types || ['home']
+const KF = A.skipKf ? '; kf=off' : ''
 const pre = p => `Папка проекта: ${ROOT}. Все относительные пути в промтах считаются от нее; команды запускай из нее (cd "${ROOT}" && ...). Сначала прочитай ${ROOT}/CLAUDE.md, затем ${ROOT}/${p}, и выполни роль строго по нему.`
 const PREP = { type: 'object', properties: { ok: { type: 'boolean' }, type_pages: { type: 'array', items: { type: 'object', properties: { type: { type: 'string' }, pages: { type: 'number' } }, required: ['type', 'pages'] } }, error: { type: 'string' } }, required: ['ok', 'type_pages'] }
 const AUDIT = { type: 'object', properties: { results: { type: 'array', items: { type: 'object', properties: { type: { type: 'string' }, file: { type: 'string' }, verdict: { type: 'string' }, summary: { type: 'string' }, blocker: { type: 'number' }, major: { type: 'number' }, minor: { type: 'number' } }, required: ['type', 'verdict', 'summary', 'blocker', 'major'] } } }, required: ['results'] }
@@ -53,7 +59,7 @@ if (packs.length) log(`мелкие типы пакетами: ${packs.map(g => 
 const key = g => g.join('+')
 
 const results = await pipeline(groups,
-  g => agent(`${pre('prompts/03-type-auditor.md')}\nПараметры: types=${JSON.stringify(g)}; round=1.`, { label: `audit:${key(g)}:1`, phase: 'Audit', effort: 'high', model: modelFor('type-audit'), schema: AUDIT }),
+  g => agent(`${pre('prompts/03-type-auditor.md')}\nПараметры: types=${JSON.stringify(g)}; round=1${KF}.`, { label: `audit:${key(g)}:1`, phase: 'Audit', effort: 'high', model: modelFor('type-audit'), schema: AUDIT }),
   async (r1, g) => {
     const one = byType(r1)
     const lost = g.filter(t => !one[t])
@@ -61,7 +67,7 @@ const results = await pipeline(groups,
     const bad = g.filter(t => serious(one[t]))
     if (!bad.length) return g.map(t => ({ type: t, round1: one[t] || null, fix: null, round2: null }))
     const fix = byType(await agent(`${pre('prompts/03-type-fixer.md')}\nПараметры: types=${JSON.stringify(bad)}; round=1.`, { label: `fix:${key(bad)}`, phase: 'Audit', effort: 'high', model: modelFor('type-fix'), schema: FIX }))
-    const two = byType(await agent(`${pre('prompts/03-type-auditor.md')}\nПараметры: types=${JSON.stringify(bad)}; round=2.`, { label: `audit:${key(bad)}:2`, phase: 'Audit', effort: 'high', model: modelFor('type-audit'), schema: AUDIT }))
+    const two = byType(await agent(`${pre('prompts/03-type-auditor.md')}\nПараметры: types=${JSON.stringify(bad)}; round=2${KF}.`, { label: `audit:${key(bad)}:2`, phase: 'Audit', effort: 'high', model: modelFor('type-audit'), schema: AUDIT }))
     for (const t of bad) if (serious(two[t])) log(`тип ${t}: после второго круга остались серьезные находки (${serious(two[t])}) - смотреть work/audit/types/${t}-round-2.json`)
     return g.map(t => bad.includes(t) ? { type: t, round1: one[t], fix: fix[t] || null, round2: two[t] || null } : { type: t, round1: one[t] || null, fix: null, round2: null })
   })

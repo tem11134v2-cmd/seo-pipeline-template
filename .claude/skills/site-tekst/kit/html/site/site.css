@@ -795,3 +795,33 @@ body.dbg .dbg-claim { background: #dcdcdc; box-shadow: 0 0 0 2px #dcdcdc; border
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+/*@shell*/
+/* Оболочка по пересечениям лидеров (work/shell.json, программа 05.10): чип «нужны данные», группа шапки, полоса и блок
+   мобильного меню, строки и колонка подвала, панель и плавающие кнопки, заглушки блоков. Между метками - только при
+   shell.json: без него сборщик вырезает этот кусок (прототип совпадает с прежним). Только серые цвета. */
+.ph-need { display: inline-block; background: #ededed; color: #5c5c5c; border: 1px dashed #bdbdbd; border-radius: 3px; padding: .1em .55em; font-size: 12px; font-weight: 500; letter-spacing: .02em; line-height: 1.5; white-space: normal; max-width: 100%; }
+.shell-hdr .ph-need { white-space: nowrap; }
+.ftr .ph-need, .mbar .ph-need { font-size: 11px; }
+.ftr .ph-need { background: rgba(255,255,255,.08); color: #cfcfcf; border-color: rgba(255,255,255,.3); }
+.shell-hdr { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; min-width: 0; font-size: 13px; }
+.shell-fn { font-size: 13px; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.shell-v { font-size: 13px; white-space: nowrap; }
+.ftr .shell-v { font-size: inherit; white-space: normal; }
+.shell-up .ico { transform: rotate(180deg); }
+.mnav-shell { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-top: 20px; }
+.shell-strip { display: none; }
+.mbar .shell-fn, .mbar .shell-v { align-self: center; font-size: 13px; }
+.shell-fab { position: fixed; right: 20px; bottom: 24px; z-index: 55; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.shell-fab-b { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; min-width: 44px; justify-content: center; padding: 0 14px; background: #fff; color: var(--ink); border: 1px solid var(--ink); border-radius: var(--r); font-size: 13px; font-weight: 600; }
+.shell-fab-b:hover { background: var(--ink); color: #fff; }
+.shell-fab .ph-need { background: #fff; }
+.blk-stub .stub { display: grid; justify-items: start; gap: 10px; padding: 28px; border: 1px dashed var(--line-2); background: var(--bg-2); }
+.blk-stub.alt .stub { background: #fff; }
+.stub-name { font-size: 19px; font-weight: 600; }
+.stub-note { margin: 0; color: var(--ink-3); font-size: 14px; }
+@media (max-width: 899px) {
+  .shell-hdr { display: none; }
+  .shell-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 16px; border-bottom: 1px solid var(--line); background: #fff; }
+  .shell-fab { right: 16px; bottom: 88px; }
+}
+/*@/shell*/

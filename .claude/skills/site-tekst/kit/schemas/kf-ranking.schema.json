@@ -1,0 +1,38 @@
+{
+  "$id": "kf-ranking",
+  "_doc": "work/competitors/ranking.json - ранжирование кандидатов в лидеры: чистая функция work/competitors/pool.json и параметров config/project.json -> competitors.selection (scripts/rank-competitors.mjs). order - порядок проверки для верификатора (по effective, эталон не ниже места target), anchors - эталоны (old, затем mid по весу; нет - unknown с предупреждением). stop - причина стопа (стоп-лист, сайт клиента, поддомен, исключен структурой) или пусто. weight - вес W 0-100 по метрикам (лог-шкала от лидера), effective - E = W x тип сайта x возраст x рост; null - метрик нет. coverage - доля доступного веса метрик. metrics_used - метрики, вошедшие в W; reason - пропуски и множители.",
+  "type": "object",
+  "required": ["generated_at", "params", "order", "anchors", "warnings", "candidates"],
+  "properties": {
+    "generated_at": { "type": "string" },
+    "pool_sha": { "type": "string" },
+    "params": { "type": "object" },
+    "order": { "type": "array", "items": { "type": "string" } },
+    "anchors": { "type": "array", "items": { "type": "string" } },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain", "stop", "weight", "effective", "coverage", "age_years", "age_class", "growth", "site_type", "metrics_used", "reason"],
+        "properties": {
+          "domain": { "type": "string" },
+          "domain_unicode": { "type": "string" },
+          "sources": { "type": "array", "items": { "type": "string" } },
+          "stop": { "type": "string" },
+          "weight": { "_doc": "0-100 или null" },
+          "effective": { "_doc": "число или null" },
+          "coverage": { "type": "number" },
+          "age_years": { "_doc": "лет с регистрации домена (одна десятая) или null" },
+          "age_class": { "type": "string", "enum": ["young", "mid", "old", "unknown"] },
+          "growth": { "type": "string", "enum": ["up", "flat", "down", "unknown"] },
+          "site_type": { "type": "string", "enum": ["multipage_leader", "medium", "small", "landing", "unknown"] },
+          "metrics_used": { "type": "array", "items": { "type": "string" } },
+          "anchor": { "type": "boolean" },
+          "rank": { "_doc": "место в order (с 1) или null для стопа" },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

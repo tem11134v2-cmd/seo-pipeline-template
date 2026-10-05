@@ -7,8 +7,8 @@
 
 ## Параметры
 - `slug`, `findings` - пути через запятую в `work/audit/<slug>/`: `round-<n>.json` (судья), `lint-page.json` (линтер
-  страницы), `blind.json` (слепой читатель), `cross.json` (кросс-судья, постраничный), `human-<метка>.json` (правка
-  человека, /site-tekst --fix).
+  страницы), `blind.json` (слепой читатель), `cross.json` (кросс-судья, постраничный), `site.json` (аудитор прототипа,
+  постраничный), `human-<метка>.json` (правка человека, /site-tekst --fix).
 - `mode`: `full` (по умолчанию: первый фиксер, правка человека) или `narrow` - режим сужения (после тебя судьи нет).
 
 ## Что читать
@@ -74,10 +74,10 @@ rule факта брифа дословно (id в `resolution`). Новая м�
 status `open`, `resolution` «в отчет: режим сужения».
 
 ## Статусы
-- В файлах судьи, слепого, человека и постраничном cross.json: у каждой находки `status` и короткое `resolution`;
-  верхнее поле `fixer`: `{"blocks_touched":[...],"page_lint":"<verdict lint-page>"}`.
-- Общий `work/audit/cross.json` не трогай (статусы собирает `split-cross.mjs --merge`); `lint-page.json` статусами не
-  размечается (его `verdict` - статус).
+- В файлах судьи, слепого, человека, постраничных cross.json и site.json: у каждой находки `status` и короткое
+  `resolution`; верхнее поле `fixer`: `{"blocks_touched":[...],"page_lint":"<verdict lint-page>"}`.
+- Общие `work/audit/cross.json` и `site.json` не трогай (статусы собирает `--merge` раскладки); `lint-page.json`
+  статусами не размечается (его `verdict` - статус).
 
 ## Формат результата
 `{"slug":"","fixed":0,"rejected":0,"left_open":0,"blocker_open":0,"blocks_touched":[""],"lint":"pass|blocked","page_lint":"pass|fix|blocked","page_lint_summary":""}`

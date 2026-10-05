@@ -1,0 +1,35 @@
+{
+  "$id": "kf-elements",
+  "_doc": "config/kf-elements.json - словарь КФ и КНДР (фаза 2). Подсказка, не фильтр: элемент не из словаря наблюдатель пишет как x-<латиница>. Проект переопределяет файл через overrides/config/kf-elements.json.",
+  "type": "object",
+  "required": ["version", "categories", "elements"],
+  "properties": {
+    "version": { "type": "number" },
+    "categories": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "elements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "zones", "category", "kind"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "name": { "type": "string", "minLength": 2, "maxLength": 80 },
+          "zones": { "type": "array", "minItems": 1, "items": { "type": "string", "enum": ["header", "footer", "mobile", "fixed", "body"] } },
+          "category": { "type": "string" },
+          "eeat": { "enum": ["trust", "experience", "expertise", "authority", null] },
+          "kind": { "type": "string", "enum": ["slot", "function", "page_link", "block", "nav"] },
+          "needs": { "type": "array", "items": { "type": "string" } },
+          "needs_hint": { "type": "string", "maxLength": 160 },
+          "render": { "enum": ["phone", "messengers", "socials", "email", "address", "hours", "map_link", "legal_line", "licenses", "docs", "callback", "cta", "up_button", "subscribe", "tagline", "rating", "payment_icons", "city", "search", "cart", "account", "favorites", "compare", null] },
+          "block_hint": { "_doc": "id блока типа страницы или null" },
+          "page_match": { "_doc": "{type?, ui_role?, subject_re?} или null: страница карты, на которую ведет ссылка" },
+          "visible": { "type": "boolean" },
+          "synonyms": { "type": "array", "items": { "type": "string" } },
+          "multipage_only": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

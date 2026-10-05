@@ -1,0 +1,70 @@
+{
+  "$id": "kf-pool",
+  "_doc": "work/competitors/pool.json - длинный список кандидатов в лидеры (фаза 2, отбор). Пишет скрипт scripts/rank-competitors.mjs --merge-pool <raw.json> по частям: скаут (prompts/02-competitor-scout.md) после каждого источника кладет сырой ответ в raw.json, скрипт сводит дубли доменов (punycode и кириллица, www), сливает sources и метрики, проверяет файл этой схемой. domain - канон scripts/domains.mjs (ASCII, без www), domain_unicode - для Keys.so и таблицы. serp - по выдаче ниши (share = top10 / queries), null - домена в выдаче не было или выдачу не снимали; keyso - метрики Keys.so (keyso_status not_found - не ноль, а нет данных); history - it50 сейчас и 12 месяцев назад; iks - ИКС Яндекса; created - дата регистрации домена из whois (YYYY-MM-DD). own - домены клиента с метриками и serp (в кандидаты не идут; строка «ваш сайт» в таблице). errors - строки «<источник>: <причина>» (serp, serp_msk, keyso, history, iks, whois, competitors, analysis, structure): по префиксу --check перезапрашивает только упавшие источники. input_sha - отпечаток входов (запросы, регион, затравка, конкуренты структуры).",
+  "type": "object",
+  "required": ["generated_at", "input_sha", "region", "queries", "candidates", "rejected", "errors"],
+  "properties": {
+    "generated_at": { "type": "string" },
+    "input_sha": { "type": "string", "minLength": 8 },
+    "region": {
+      "type": "object",
+      "required": ["keyso_base", "yandex_id"],
+      "properties": {
+        "city": {},
+        "keyso_base": { "type": "string" },
+        "yandex_id": { "type": "number" },
+        "federal": { "type": "boolean" },
+        "city_not_in_keyso": { "type": "boolean" },
+        "yandex_fallback_213": { "type": "boolean" },
+        "text": { "type": "string" }
+      }
+    },
+    "queries": { "type": "array", "items": { "type": "string" } },
+    "queries_msk": { "type": "array", "items": { "type": "string" } },
+    "serp_results": {
+      "type": "array",
+      "_doc": "выдача региона, сжатая скриптом: по запросу - домены ТОП в порядке позиций («-» - не домен); по ней serp пересчитывается у каждого кандидата",
+      "items": { "type": "object", "required": ["query", "domains"], "properties": { "query": { "type": "string" }, "domains": { "type": "array", "items": { "type": "string" } } } }
+    },
+    "serp_msk_results": {
+      "type": "array",
+      "_doc": "то же по Москве (второй вызов при нехватке заметных кандидатов в регионе)",
+      "items": { "type": "object", "required": ["query", "domains"], "properties": { "query": { "type": "string" }, "domains": { "type": "array", "items": { "type": "string" } } } }
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain", "domain_unicode", "sources", "serp", "keyso", "keyso_status", "history", "iks", "created"],
+        "properties": {
+          "domain": { "type": "string", "pattern": "^(?:[a-z0-9-]+\\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$" },
+          "domain_unicode": { "type": "string", "minLength": 3 },
+          "sources": { "type": "array", "minItems": 1, "items": { "type": "string", "enum": ["analysis", "serp", "serp_msk", "structure", "keyso"] } },
+          "serp": { "_doc": "null | {top1, top3, top5, top10, queries, share, region}" },
+          "keyso": { "_doc": "null | {top10, top50, traffic, pages, top1?, top3?, top5?, dr?}" },
+          "keyso_status": { "type": "string", "enum": ["ok", "not_found", "error", "none"] },
+          "history": { "_doc": "null | {it50_now, it50_12m}" },
+          "iks": { "_doc": "число или null" },
+          "created": { "_doc": "YYYY-MM-DD или null" },
+          "name": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "own": {
+      "type": "array",
+      "items": { "type": "object", "required": ["domain"], "properties": { "domain": { "type": "string" }, "domain_unicode": { "type": "string" } } }
+    },
+    "rejected": {
+      "type": "array",
+      "items": { "type": "object", "required": ["raw", "reason"], "properties": { "raw": { "type": "string" }, "reason": { "type": "string" } } }
+    },
+    "method": { "type": "string" },
+    "sources_done": {
+      "type": "array",
+      "_doc": "источники, слитые без ошибок (пустой список для вызова - тоже пройден); все источники кандидатов пройдены и годных меньше target - --check fresh (ниша узкая, повтор платного отбора не нужен). Нет поля (pool до 05.10) - как раньше",
+      "items": { "type": "string", "enum": ["analysis", "serp", "serp_msk", "structure", "keyso", "data", "keyso_batch", "history", "iks", "whois"] }
+    },
+    "errors": { "type": "array", "items": { "type": "string" } }
+  }
+}
