@@ -8,6 +8,7 @@
 // Блоки линтуются по порядку брифа с флагом --page: повтор фраз (phrase.repeat) - только с прошедшими линтер блоками
 // выше (решение Р5): фраза, вставленная ниже, не переворачивает вердикт готового блока, находка одна - у нижнего блока.
 // Предмет страницы, ключевая фраза и компания повтором (phrase.overuse) не считаются.
+// editorial.few-headings (minor): от 5 написанных блоков меньше 2 h2 на странице.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -67,6 +68,13 @@ const blocks = loadBlocks(slug);
     if (list.length < OVERUSE_BLOCKS) continue;
     for (const { id } of list.slice(2)) report.findings.push({ id: `${id}:overuse:${g}`, page: slug, block_id: id, severity: 'major', category: 'repeat', rule: 'phrase.overuse', quote: g, problem: `«${g}» звучит в ${list.length} блоках (${list.map(x => x.id).join(', ')})`, proposal: 'оставить в двух блоках, здесь сказать иначе или сослаться одним словом', status: 'open' });
   }
+}
+// мало заголовков (редакционный стандарт, правило 3: h2 необязателен у блоков вне первого экрана): от 5 написанных
+// блоков и меньше 2 h2 на странице - minor, вердикт не меняет
+{
+  const MIN_BLOCKS = 5, MIN_H2 = 2;
+  const h2 = blocks.reduce((n, { block }) => n + (block.elements || []).filter(e => e && e.kind === 'h2' && String(e.text || '').trim()).length, 0);
+  if (blocks.length >= MIN_BLOCKS && h2 < MIN_H2) report.findings.push({ id: 'page:few-headings', page: slug, severity: 'minor', category: 'structure', rule: 'editorial.few-headings', problem: `мало заголовков: ${h2} h2 на ${blocks.length} написанных блоков`, proposal: `дать h2 блокам, где заголовок называет раздел для читателя (не меньше ${MIN_H2} на странице)`, status: 'open', auto_fixable: false });
 }
 finalizeVerdict(report);
 // page.md по текущим блокам и его sha1

@@ -1,0 +1,17 @@
+{
+  "$id": "kf-status",
+  "_doc": "work/kf/status.json (scripts/kf-matrix.mjs): итог этапа КФ и КНДР фазы 2. done - матрица построена по кадрам; no_chrome - матрица построена по тексту снимков (нет Chrome и Edge); no_competitors - деградация «без конкурентов», матрицы нет; skip - этап пропущен (args.skipKf). Этап считается проведенным, только если есть work/kf/matrix.json; нет файла status.json - pre_kf (задача начата до этапа).",
+  "type": "object",
+  "required": ["status", "generated_at"],
+  "properties": {
+    "status": { "type": "string", "enum": ["done", "no_competitors", "skip", "no_chrome"] },
+    "generated_at": { "type": "string" },
+    "reason": { "type": "string" },
+    "competitors": { "type": "number" },
+    "rows": { "type": "number" },
+    "must": { "type": "number" },
+    "recommended": { "type": "number" },
+    "shell_items": { "type": "number" },
+    "limits": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -34,22 +34,32 @@ const read = rel => fs.readFileSync(path.join(KIT, rel), 'utf8').replace(/^\uFEF
 // замечания « ~ » в рецензии), 04-strategist-type 5500 -> 6700 (режим обновления K4, наследование CTA), 05-hero-selector
 // 5300 -> 5700 (временный файл и прежний блок, п.23); 01-decisions-drafter - новый в наборе. Доработка P3b: 04-strategist-global
 // 10000 -> 10300 (хаб с блоком листинга по K7, рецензия в update только по changed_pages), 04-strategist-type 6700 -> 6800.
+// Программа 05.10 (анализ КФ/КНДР, аудитор прототипа): 02-type-aggregator 7800 -> 8300 (строки КФ своего типа: kf-coverage
+// --rows/--dir, x-элемент вида block - pattern custom), 03-type-auditor 5700 -> 6100 (kf-coverage первым шагом, kf=off),
+// 03-type-fixer 3200 -> 3500 (правило КФ одной фразой), 04-strategist-type 6800 -> 6900 (прежний текст целиком плюс строка
+// о снятии КФ-блока с причиной), 06-fixer 7400 -> 7500 (site.json аудитора прототипа как файл находок, статусы как у
+// cross); новые промты фазы 2 и 8 - бюджеты из §5 программы.
 const BUDGET = {
   'CLAUDE.md': 4900,
   'prompts/01-decisions-drafter.md': 4500,
   // P7 (28.09): лендинг, самопроверка, режим «без конкурентов» (K13); сверка цитат после нормализации, тип без конкурентов
-  'prompts/02-type-aggregator.md': 7800,
-  'prompts/03-type-auditor.md': 5700,
-  'prompts/03-type-fixer.md': 3200,
+  'prompts/02-type-aggregator.md': 8300,
+  'prompts/03-type-auditor.md': 6100,
+  'prompts/03-type-fixer.md': 3500,
+  'prompts/02-competitor-verifier.md': 5200,
+  'prompts/02-competitor-scout.md': 3500,
+  'prompts/02-kf-observer.md': 4500,
+  'prompts/02-kf-normalizer.md': 2000,
+  'prompts/08-site-auditor.md': 3000,
   'prompts/04-strategist-global.md': 10300,
-  'prompts/04-strategist-type.md': 6800,
+  'prompts/04-strategist-type.md': 6900,
   'prompts/04-layout-generator.md': 3300,
   'prompts/05-block-writer.md': 9900,
   'prompts/05-hero-writer.md': 7700,
   'prompts/05-hero-selector.md': 5700,
   // интеграция (этап B): 8000 -> 8100 - причина второго круга `restored` (откат fix-diff снова открыл находки)
   'prompts/06-page-judge.md': 8100,
-  'prompts/06-fixer.md': 7400,
+  'prompts/06-fixer.md': 7500,
   'prompts/06-cross-judge.md': 6100,
   'prompts/06-blind-reader.md': 2400,
   'rules/conversion.md': 4600,

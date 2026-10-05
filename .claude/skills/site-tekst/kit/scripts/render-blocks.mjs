@@ -43,7 +43,9 @@ export function protoDataSha() {
   const h = crypto.createHash('sha1');
   const add = (name, s) => { h.update(name); h.update('\u0000'); h.update(String(s)); h.update('\u0000'); };
   const file = r => { const f = P(r); if (exists(f)) add(r, readText(f)); };
-  ['config/project.json', 'work/sitemap.json', 'work/facts.json', 'work/strategy.json', 'work/catalog/catalog-spec.json', 'work/catalog/sample-items.json'].forEach(file);
+  // work/shell.json (оболочка по пересечениям лидеров, программа 05.10) - только если есть: у задач без этапа КФ sha
+  // прежний. Правки аудитора прототипа (wf-08: блоки, брифы со stubs, strategy.json после merge-strategy) входят ниже.
+  ['config/project.json', 'work/sitemap.json', 'work/facts.json', 'work/strategy.json', 'work/catalog/catalog-spec.json', 'work/catalog/sample-items.json', 'work/shell.json'].forEach(file);
   for (const f of listFiles(P('work', 'layouts'), '.html').sort()) add(rel(f), readText(f));
   const pagesDir = P('work', 'pages');
   const slugs = exists(pagesDir) ? fs.readdirSync(pagesDir).filter(s => fs.statSync(path.join(pagesDir, s)).isDirectory()).sort() : [];

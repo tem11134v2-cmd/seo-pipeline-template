@@ -27,6 +27,12 @@
 // только свежие числовые факты, подписи блока цифр без своих опор - не выше новой границы number; у списков и плашек
 // возражение - опора, только если его факт вне фактов блока) - предупреждением, без вопроса заказчику. Подсказка
 // элемента filters - всегда «названия признаков без значений».
+// Элементы лидеров (программа 05.10, §3.4): КФ-блок - блок типа из kf_coverage строки «обязательно»/«рекомендовано».
+// Выпал «нет фактов» или «нет числовых фактов» - заглушка brief.stubs[] вне blocks {type, name, after, needs, kf_el,
+// level} без вопроса о выпадении (вопрос задает отчет по заглушке); снят стратегом (exclude_blocks, пустой facts) или
+// выпал по свежести и дому факта - как раньше, плюс предупреждение «элемент лидеров снят стратегом». Нет kf_coverage
+// или нет work/kf/matrix.json (этап КФ не проводился, §3) - поля stubs нет, бриф как раньше. Уровень строки - из
+// матрицы (kf_coverage.level - только если строки в матрице нет).
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -37,6 +43,7 @@ import {
 } from './lib.mjs';
 import { stopWordsRe } from './lint-common.mjs';
 import { writeSlices } from './writer-inputs.mjs';
+import { loadKfMatrix, kfRows, kfLevel } from './kf-coverage.mjs';
 
 const a = argv({ force: 'bool' });
 const cfg = loadConfig();
@@ -52,6 +59,8 @@ const REPORT = P('work', 'briefs-report.json');
 // Необязательные слоты (редакционный стандарт: заголовок и подзаголовок - только если добавляют смысл). Вне первого экрана
 // sub всегда 0-N; у сеток и плиток, где карточки, шаги или ссылки сами называют разделы, h2 и поясняющий text тоже 0-N.
 // Писатель решает по 5 вопросам стандарта, линтер structure.element-missing на count «0-...» не срабатывает.
+// Правило 3 стандарта (программа 05.10, §3.4): h2 необязателен у всех блоков, кроме первого экрана; мало заголовков на
+// странице ловит lint-page (minor editorial.few-headings).
 const SELF_NAMED_PATTERNS = new Set(limits.self_named_patterns || ['tiles', 'grid-2', 'grid-3', 'grid-4', 'cards-slider']);
 function optionalCount(b, e) {
   const count = String(e.count ?? '1');
@@ -60,7 +69,7 @@ function optionalCount(b, e) {
   // первый экран: одно главное доказательство - в sub или одном пункте; пункты-доказательства необязательны, верх из замеров
   if (b.role === 'hero') return ['bullets', 'badges'].includes(e.kind) ? `0-${m[2] || m[1]}` : count;
   const selfNamed = SELF_NAMED_PATTERNS.has(b.pattern) && (b.elements || []).some(x => ['card', 'step', 'link'].includes(x.kind));
-  if (e.kind === 'sub' || (selfNamed && ['h2', 'text'].includes(e.kind))) return `0-${m[2] || m[1]}`;
+  if (e.kind === 'sub' || e.kind === 'h2' || (selfNamed && e.kind === 'text')) return `0-${m[2] || m[1]}`;
   return count;
 }
 
@@ -77,6 +86,8 @@ const company = facts.company || {};
 const hasChannels = !!company.channels && Object.keys(company.channels).length > 0;
 const hasPhone = Array.isArray(company.phones) && company.phones.some(x => String(x || '').trim());
 const badVerbs = (lintRules.cta_verbs_bad || []).map(x => String(x).toLowerCase());
+// элементы лидеров (КФ/КНДР): строки матрицы - уровень и подсказка заглушки (needs_hint); нет матрицы - КФ-блоков нет
+const kfMatrix = loadKfMatrix().matrix;
 const dropRules = {};
 for (const item of limits.drop_blocks_without_facts || []) { const [id, kind] = String(item).split(':'); dropRules[id] = kind || null; }
 
@@ -250,6 +261,20 @@ for (const page of pages) {
   // a. порядок блоков: рекомендованный (или короткий набор) минус exclude_blocks
   const allBlocks = [...(pt.market_blocks || []), ...(pt.differentiation_blocks || [])];
   const byId = Object.fromEntries(allBlocks.map(b => [b.id, b]));
+  // КФ-блоки: блоки типа, на которые указывает kf_coverage строки «обязательно»/«рекомендовано» (сильнейшая строка блока)
+  const kfBlock = {};
+  if (kfMatrix) {
+    const rows = Object.fromEntries(kfRows(kfMatrix, page.type, 'optional').map(r => [r.id, r]));
+    for (const c of Array.isArray(pt.kf_coverage) ? pt.kf_coverage : []) {
+      if (!c || !c.el || !byId[c.to]) continue;
+      const level = rows[c.el] ? rows[c.el].level : kfLevel(c.level);
+      if (level !== 'must' && level !== 'recommended') continue;
+      const prev = kfBlock[c.to];
+      if (prev && (prev.level === 'must' || level !== 'must')) continue;
+      kfBlock[c.to] = { el: c.el, name: c.name || (rows[c.el] || {}).name || byId[c.to].name, level, hint: (rows[c.el] || {}).needs_hint || '' };
+    }
+  }
+  const kfOff = (id, why) => pw('kf', `${slug}: элемент лидеров снят стратегом: блок ${id} («${kfBlock[id].name}», ${kfBlock[id].el}) - ${why}`);
   let order = (pt.recommended_order || []).filter(id => byId[id]);
   if (page.block_set === 'short') {
     const short = pt.short_set && pt.short_set.length ? pt.short_set : allBlocks.filter(b => b.core).map(b => b.id);
@@ -272,6 +297,10 @@ for (const page of pages) {
     pw('excluded', `${slug}: блок ${id} снят стратегом (пустой facts) - как exclude_blocks`);
   }
   order = order.filter(id => !rec.excluded.includes(id));
+  // КФ-блок, снятый стратегом: предупреждение и строка отчета, без заглушки и вопроса
+  const why0 = ps.notes ? `notes: «${String(ps.notes).slice(0, 120)}»` : 'причины в notes страницы нет';
+  for (const id of rec.excluded) if (kfBlock[id]) kfOff(id, `${(ps.exclude_blocks || []).includes(id) ? 'exclude_blocks' : 'пустой facts'}; ${why0}`);
+  const orderFull = [...order];
   for (const k of Object.keys(ov)) if (!byId[k]) pw('overrides', `${slug}: block_overrides.${k}: блока нет в типе ${page.type}`);
   if (!order.length) { problems.push(`${slug}: пустой порядок блоков`); finish(); continue; }
 
@@ -403,6 +432,7 @@ for (const page of pages) {
   // блок цифр, чьи числа уже сказаны выше, фактов не просит (предупреждение)
   const droppedIds = [];
   const staleIds = [];
+  const stubIds = [];
   let dealt = assignFacts(order);
   for (let round = 0; round < order.length; round++) {
     const above = new Set();
@@ -411,7 +441,13 @@ for (const page of pages) {
       const why = mustDrop(x, above);
       if (!why) { x.facts.forEach(fid => above.add(fid)); continue; }
       now.push(x.id);
-      if (why === STALE || why === HOMED) { staleIds.push(x.id); rec.dropped_repeat.push({ block: x.id, reason: why }); continue; }
+      if (why === STALE || why === HOMED) {
+        staleIds.push(x.id); rec.dropped_repeat.push({ block: x.id, reason: why });
+        if (kfBlock[x.id]) kfOff(x.id, why);
+        continue;
+      }
+      // КФ-блок без фактов - заглушка (brief.stubs) вместо выпадения: вопрос заказчику задает отчет по заглушке
+      if (kfBlock[x.id] && (why === 'нет фактов' || why === 'нет числовых фактов')) { stubIds.push(x.id); continue; }
       rec.dropped.push({ block: x.id, reason: why });
       rec.questions.push({ text: `Нужны факты для блока «${byId[x.id].name}»: ${byId[x.id].reader_question}`, blocks: [x.id] });
     }
@@ -420,7 +456,8 @@ for (const page of pages) {
     order = order.filter(id => !now.includes(id));
     dealt = assignFacts(order);
   }
-  const noFacts = droppedIds.filter(id => !staleIds.includes(id));
+  const noFacts = droppedIds.filter(id => !staleIds.includes(id) && !stubIds.includes(id));
+  if (stubIds.length) pw('stubs', `${slug}: заглушки элементов лидеров (нет фактов): ${stubIds.join(', ')} - вопрос заказчику в отчете`);
   if (noFacts.length) pw('dropped', `${slug}: без фактов выпали блоки ${noFacts.join(', ')}`);
   const homedIds = rec.dropped_repeat.filter(x => x.reason === HOMED).map(x => x.block);
   const staleNum = staleIds.filter(id => !homedIds.includes(id));
@@ -551,6 +588,16 @@ for (const page of pages) {
     if (target) { target.disclaimer_text = discText; discOn = target.block_id; discPlaced++; }
   }
 
+  // i. заглушки элементов лидеров: после ближайшего оставшегося блока выше (первый экран не выпадает)
+  const stubs = stubIds.map(id => {
+    const i = orderFull.indexOf(id);
+    const prevId = orderFull.slice(0, Math.max(0, i)).reverse().find(x => order.includes(x));
+    const after = (blocks.find(b => b.type === prevId) || blocks[0]).block_id;
+    const k = kfBlock[id];
+    return { type: id, name: byId[id].name, after, needs: [k.hint || k.name || byId[id].name], kf_el: k.el, level: k.level };
+  });
+  if (stubs.length) rec.stubs = stubs.map(x => ({ block: x.type, kf_el: x.kf_el, level: x.level }));
+
   // g. CTA: объект C3 (строку старых данных - в {main}); страница наследует от global.cta_by_type поля, которых не задала
   // (action и short - при той же подписи main, secondary_action - при той же подписи secondary: lib.mjs mergeCta);
   // action проверяется; слабый глагол - предупреждение
@@ -645,6 +692,7 @@ for (const page of pages) {
     // разрешенные ссылки: только страницы карты, ближние первыми; писатель не выдумывает URL
     links,
     blocks,
+    ...(stubs.length ? { stubs } : {}),
   };
   const errors = validate(loadSchema('brief'), brief);
   if (errors.length) { problems.push(`${slug}: бриф не прошел схему: ${errors.slice(0, 3).join('; ')}`); finish(); continue; }

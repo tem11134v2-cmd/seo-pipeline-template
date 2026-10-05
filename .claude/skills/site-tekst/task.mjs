@@ -6,7 +6,7 @@
 //   node .claude/skills/site-tekst/task.mjs init    --task texts/NNN-<slug> <те же флаги> [--allow-ungated] [--stop map|strategy|pilot] [--pilot a,b]
 //   node .claude/skills/site-tekst/task.mjs place   <task_dir> [--force] [--reconciled <путь,...>]
 //   node .claude/skills/site-tekst/task.mjs find    [<NNN>]
-//   node .claude/skills/site-tekst/task.mjs args    <task_dir> facts|types|write|audit|fix|hero|catalog [флаги вида] [--extra '<json>']
+//   node .claude/skills/site-tekst/task.mjs args    <task_dir> facts|types|write|audit|fix|hero|catalog|site-audit [флаги вида] [--extra '<json>']
 //   node .claude/skills/site-tekst/task.mjs status  <task_dir>
 //   node .claude/skills/site-tekst/task.mjs stop    <task_dir> [--set map|strategy|pilot [--pilot a,b] | --autostop '<причина>' | --clear [all]]
 //   node .claude/skills/site-tekst/task.mjs preview <task_dir>
@@ -50,12 +50,16 @@
 //   fix     wf-06b-fix-repeats --slug s --findings f1,f2 [--judge]; без --judge skipJudge: true
 //   hero    wf-05b-hero-tournament --slug s [--block B01-hero]: турнир первого экрана на готовой странице
 //   catalog wf-07-catalog.js   publish: true (--no-publish - false)
+//   site-audit wf-08-site-audit.js  maxFixPages: 8 (--max-fix-pages N, не больше 8); нужен собранный work/output/prototype.html
+//                              (иначе код 2): аудитор готового прототипа, шаг 8 при state catalog-done
 //   --slugs, пилот (meta.pilot) и stop --set pilot --pilot сверяются с рабочими страницами карты: незнакомый slug - код 2.
 // status - строки для автостопов оркестратора (таблица автостопов SKILL.md): «без сегмента N», «брифов B из N», «decisions.md:
 //         ...» (и «Где можно» не разобрано: <id> по parseDecisions копии kit), «фактов анализа с publish yes 0 из N» (факты
 //         анализа - без F8xx оператора и служебных F9xx; при импорте до гейта - import-report gate.ungated_import, без отчета
 //         meta.allow_ungated - строки нет, ноль ожидаем), «волна 1, exhausted больше 30%» (у образца 2+ exhausted-блока),
-//         «блоки: ... недописано X%», «собран старым kit - пересобрать фазу 8».
+//         «блоки: ... недописано X%», «собран старым kit - пересобрать фазу 8»; итог аудита прототипа (work/audit/site.json:
+//         находки, исправлено, надписи cta-unify, сбои шагов) и при state site-audited - строка следующего шага (или пропуск
+//         аудита из meta.json skips).
 // preview - порт от хеша пути папки задачи (задачи с одним номером у разных клиентов и в разных worktree не делят порт).
 // Коды выхода: 0 - ок; 1 - ошибка; 2 - нет входа (анализа, структуры, задачи); 3 - правки в копии kit; 4 - делать нечего.
 import fs from 'node:fs';
@@ -69,7 +73,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const KIT = path.join(HERE, 'kit');
 // Что из kit кладется в папку задачи. Все это - кеш: в .gitignore шаблона, освежается при старте и --resume.
 export const KIT_DIRS = ['workflows', 'prompts', 'scripts', 'schemas', 'html', 'rules'];
-export const KIT_FILES = ['CLAUDE.md', 'config/house_style.md'];
+// Словарь элементов лидеров и стоп-лист отбора (анализ КФ и КНДР, программа 05.10): проект дополняет их через
+// overrides/config/kf-elements.json (слияние JSON по ключам) - нишевые элементы живут только в проекте.
+export const KIT_FILES = ['CLAUDE.md', 'config/house_style.md', 'config/kf-elements.json', 'config/kf-stoplist.json', 'config/shared-sld.json'];
 // Лежит в папке kit-правил, но это решение проекта (данные задачи, в git).
 export const KEEP = new Set(['rules/decisions.md']);
 // Файлы kit, которые в папку задачи не кладутся: старый путь обновления автономной копии kit. В проектах SEO-шаблона kit
@@ -629,7 +635,12 @@ function args(a) {
     out = { slug: a.slug, ...(typeof a.block === 'string' ? { block_id: a.block } : {}) };
   } else if (kind === 'catalog') {
     out = { publish: !a['no-publish'] };
-  } else die(1, `args: вид ${kind || '(пусто)'} не из facts|types|write|audit|fix|hero|catalog`);
+  } else if (kind === 'site-audit') {
+    // аудитор готового прототипа (wf-08): только по собранному сайту; потолок фиксера - 8 страниц
+    if (!exists(path.join(abs, 'work', 'output', 'prototype.html'))) die(2, 'site-audit: нет work/output/prototype.html - сначала сборка и проверки (шаг 8)');
+    const n = Number(a['max-fix-pages']);
+    out = { maxFixPages: Number.isInteger(n) && n >= 0 ? Math.min(n, 8) : 8 };
+  } else die(1, `args: вид ${kind || '(пусто)'} не из facts|types|write|audit|fix|hero|catalog|site-audit`);
   let extra = {};
   if (typeof a.extra === 'string') { try { extra = JSON.parse(a.extra); } catch (e) { die(1, `--extra: не JSON (${e.message})`); } }
   console.log(JSON.stringify({ ...baseArgs(abs), ...out, ...extra }));
@@ -731,7 +742,26 @@ async function status(a) {
     const old = exists(path.join(out, 'prototype.modules.json')) ? '' : '; собран старым kit - пересобрать фазу 8';
     L.push(`прототип: ${posix(path.relative(ROOT, proto))} (${checks.join(', ')})${old}`);
   }
+  L.push(...siteAuditLines(abs, meta));
   console.log(L.join('\n'));
+}
+
+// Аудит прототипа (wf-08, state site-audited): итог work/audit/site.json и следующий шаг. Нет отчета и state не
+// site-audited - строк нет (старые задачи и задачи до шага 8).
+export function siteAuditLines(abs, meta) {
+  const L = [];
+  const site = readJsonSafe(path.join(abs, 'work', 'audit', 'site.json'));
+  const skips = (Array.isArray(meta.skips) ? meta.skips : []).filter(x => x && x.step === 'site-audited' && x.reason).map(x => String(x.reason));
+  if (site && Array.isArray(site.findings)) {
+    const f = site.findings.filter(x => x && typeof x === 'object');
+    const n = s => f.filter(x => x.severity === s).length;
+    const cu = Array.isArray(site.cta_unify) ? site.cta_unify : [];
+    const steps = site.run && Array.isArray(site.run.steps) ? site.run.steps : [];
+    const bad = steps.filter(s => s && /^(fail|partial)$/.test(String(s.status || ''))).map(s => `${s.name} ${s.status}`);
+    L.push(`аудит прототипа: находок ${f.length} (blocker ${n('blocker')}, major ${n('major')}, minor ${n('minor')}), исправлено ${f.filter(x => x.status === 'fixed').length}; надписей cta-unify ${cu.filter(x => x && (x.status === 'applied' || x.status === 'partial')).length} из ${cu.length}${bad.length ? `; сбои шагов: ${bad.join(', ')}` : ''}${skips.length ? `; ${skips[skips.length - 1]}` : ''}`);
+  } else if (meta.state === 'site-audited') L.push(`аудит прототипа: нет work/audit/site.json${skips.length ? ` (${skips[skips.length - 1]})` : ''}`);
+  if (meta.state === 'site-audited') L.push('дальше (site-audited): сборка и проверки заново (поломка - откат правок аудитора по снимку), таблица КФ/КНДР, report.mjs -> built');
+  return L;
 }
 
 // ---------------------------------------------------------------- превью (serve.mjs kit в панели браузера)

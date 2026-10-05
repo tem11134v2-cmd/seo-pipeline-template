@@ -1,0 +1,31 @@
+{
+  "$id": "shell",
+  "_doc": "work/shell.json (scripts/kf-matrix.mjs --shell): оболочка прототипа по пересечениям лидеров - строки scope site матрицы уровня не ниже «рекомендовано». kind: slot - данные компании (нет данных - чип и вопрос), function - действие интерфейса (данных не требует), page_link - ссылка на страницу карты по page_match; block и nav матрицы - как slot. render - готовый отрисовщик или generic (x-элемент - всегда generic, needs пустой, niche true). Наличие данных файл не хранит: его считает сборка по фактам на момент сборки.",
+  "type": "object",
+  "required": ["generated_at", "n_competitors", "items"],
+  "properties": {
+    "generated_at": { "type": "string" },
+    "n_competitors": { "type": "number" },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "zone", "level", "coverage", "kind", "render", "needs", "niche"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "zone": { "type": "string", "enum": ["header", "footer", "mobile", "fixed"] },
+          "level": { "type": "string", "enum": ["must", "recommended"] },
+          "coverage": { "type": "string", "pattern": "^[0-9]+/[0-9]+$" },
+          "kind": { "type": "string", "enum": ["slot", "function", "page_link"] },
+          "render": { "type": "string", "minLength": 1 },
+          "needs": { "type": "array", "items": { "type": "string" } },
+          "needs_hint": { "type": "string" },
+          "page_match": {},
+          "niche": { "type": "boolean" },
+          "own": { "enum": [1, 0, "?", null] }
+        }
+      }
+    }
+  }
+}

@@ -395,11 +395,12 @@ srv.listen(0, '127.0.0.1', () => console.log('PORT ' + srv.address().port));
     const d5 = await deg({ ok: true, degraded: 'no_competitors' }, null);
     check('wf-02: верификатор без ответа - ошибка', !!d5.e && /верификатор не вернул ответ/.test(d5.e.message), d5.e ? d5.e.message : 'нет ошибки');
 
-    // роли: таблица wf-02 не менялась, у каждого вызова роль из нее
+    // роли: прежние 6 ролей wf-02 плюс роли этапа КФ (программа 05.10 §5: все light), у каждого вызова роль из таблицы
     const i0 = SRC.indexOf('const ROLES = {');
     const roles = new Function(`return (${SRC.slice(SRC.indexOf('{', i0), SRC.indexOf('\n}', i0) + 2)})`)();
-    check('wf-02: таблица ROLES без новых ролей', canon(roles) === canon({ 'prep-args': 'light', verify: 'light', inventory: 'light', 'catalog-analyst': 'light', aggregate: 'strong', extract: 'strong' }), JSON.stringify(roles));
-    const LABELS = [[/^prep-args$/, 'prep-args'], [/^verify$/, 'verify'], [/^inventory:/, 'inventory'], [/^extract:/, 'extract'], [/^aggregate:/, 'aggregate'], [/^catalog-analyst$/, 'catalog-analyst']];
+    check('wf-02: таблица ROLES - прежние роли и роли этапа КФ (light)', canon(roles) === canon({ 'prep-args': 'light', verify: 'light', inventory: 'light', 'catalog-analyst': 'light', aggregate: 'strong', extract: 'strong', scout: 'light', rank: 'light', capture: 'light', 'kf-observe': 'light', 'kf-normalize': 'light', 'kf-recheck': 'light', matrix: 'light' }), JSON.stringify(roles));
+    const LABELS = [[/^prep-args(:prune)?$/, 'prep-args'], [/^verify(:2)?$/, 'verify'], [/^inventory:/, 'inventory'], [/^extract:/, 'extract'], [/^aggregate:/, 'aggregate'], [/^catalog-analyst$/, 'catalog-analyst'],
+      [/^scout$/, 'scout'], [/^rank(:check|:order)?$/, 'rank'], [/^capture:/, 'capture'], [/^kf-observe:/, 'kf-observe'], [/^kf-normalize$/, 'kf-normalize'], [/^kf-recheck:/, 'kf-recheck'], [/^matrix(:(stale|candidates(:2)?|status))?$/, 'matrix']];
     const all = [...land.calls, ...named.calls, ...viaPrep.calls, ...bq.calls, ...d1.calls];
     const roleOf = l => (LABELS.find(([re]) => re.test(l)) || [])[1];
     const off = all.filter(c => !roleOf(c.label) || c.model !== (roles[roleOf(c.label)] === 'light' ? 'LIGHT' : 'STRONG')).map(c => `${c.label}=${c.model}`);
@@ -470,8 +471,9 @@ srv.listen(0, '127.0.0.1', () => console.log('PORT ' + srv.address().port));
     }
     check('файлы P7: без е с точками, длинных тире, невидимых символов, UUID MCP и нишевых слов', !bad.length, bad.join('; '));
     // бюджеты: 02-type-aggregator 6400 -> 7800 и 03-type-auditor 4900 -> 5700 (лендинг, самопроверка, без конкурентов,
-    // сверка цитат); остальные - новые в учете, с запасом на одну-две строки
-    const BUDGET = { 'prompts/02-type-aggregator.md': 7800, 'prompts/03-type-auditor.md': 5700, 'prompts/03-type-fixer.md': 3200, 'prompts/02-competitor-verifier.md': 4800, 'prompts/02-page-classifier.md': 3400, 'prompts/02-block-extractor.md': 4600 };
+    // сверка цитат); остальные - новые в учете, с запасом на одну-две строки. Программа 05.10: 02-type-aggregator 8300,
+    // 03-type-auditor 6100, 03-type-fixer 3500 (строки КФ, kf-coverage), 02-competitor-verifier 5200 (отбор по ranking, CDP)
+    const BUDGET = { 'prompts/02-type-aggregator.md': 8300, 'prompts/03-type-auditor.md': 6100, 'prompts/03-type-fixer.md': 3500, 'prompts/02-competitor-verifier.md': 5200, 'prompts/02-page-classifier.md': 3400, 'prompts/02-block-extractor.md': 4600 };
     for (const [f, n] of Object.entries(BUDGET)) { const len = read(f).length; check(`${f}: размер в бюджете (${n} знаков)`, len <= n, `${len} знаков`); }
     // cases-prompts.mjs держит те же бюджеты для 02-type-aggregator и 03-type-auditor (утверждения P7 в файле P3b)
     const cpSrc = fs.readFileSync(path.join(HERE, 'cases-prompts.mjs'), 'utf8');

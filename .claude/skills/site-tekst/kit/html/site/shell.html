@@ -387,7 +387,9 @@
       if (act === 'mega-close') { closeMega(); return; }
       if (act === 'modal-close') { e.preventDefault(); closeModal(); return; }
       if (act === 'search-toggle') { if (hdr) { hdr.classList.toggle('search-open'); var si = $('.search input', hdr); if (si && hdr.classList.contains('search-open')) si.focus(); } return; }
-      if (act === 'debug') { setDebug(!debugOn); return; }
+      if (act === 'debug') { setDebug(!debugOn); return; }/*@shell*/
+      /* оболочка по пересечениям лидеров (work/shell.json): кнопка «наверх»; без shell.json сборщик вырезает кусок */
+      if (act === 'up') { e.preventDefault(); window.scrollTo(0, 0); return; }/*@/shell*/
       return;
     }
     if (a.tagName === 'A') {

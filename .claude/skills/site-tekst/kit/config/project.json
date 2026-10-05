@@ -29,10 +29,30 @@
     "key_phrases": []
   },
   "competitors": {
-    "_doc": "Список доменов берется из анализа. max_domains - предел после верификации. pages_per_type - сколько URL одного типа брать у одного конкурента. aggregators_stoplist - домены-агрегаторы, которые не считаем конкурентами по структуре.",
+    "_doc": "Список доменов берется из анализа. max_domains - предел после верификации на старом пути без work/competitors/ranking.json (при ranking игнорируется: годных набирается selection.target). pages_per_type - сколько URL одного типа брать у одного конкурента. aggregators_stoplist - домены-агрегаторы проекта сверх config/kf-stoplist.json kit, которые не считаем конкурентами по структуре. own_domains - зеркала и старые домены клиента (сайт клиента - стоп вместе с site_url и поддоменами). selection - отбор лидеров фазы 2 (scripts/rank-competitors.mjs, промт 02-competitor-scout): target - сколько годных конкурентов берет верификатор; serp_queries_max, serp_depth - запросы и глубина выдачи; serp_share_min - доля выдачи, с которой кандидат считается заметным (меньше target таких и регион не Москва - второй вызов выдачи по Москве); keyso_batch_max, history_max - пределы вызовов Keys.so; weights - веса метрик (share - доля в выдаче ниши, top10, top50, ratio - ТОП-10/ТОП-50 при ТОП-50 от ratio_min_top50, traffic, iks); coverage_min - покрытие весом, ниже которого вес снижается; young_years, old_years - границы возраста домена; young_bonus, growth_bonus (рост it50 от growth_threshold), site_type_bonus, site_type_penalty, source_bonus (затравка анализа и структуры: тип бизнеса сверен) - множители; кандидат без источника анализа или структуры без единого попадания в ТОП-10 выдачи ниши - стоп «нет в выдаче ниши». kf - пороги охвата матрицы КФ/КНДР (scripts/kf-matrix.mjs, kf-coverage.mjs, build-kf-xlsx.mjs): must_n - сколько лидеров для «обязательно» (умолчание ceil(0,8 x target), при target 5 - 4), recommended_n - для «рекомендовано» (2). Нет поля - умолчание скрипта.",
     "max_domains": 8,
     "pages_per_type": 2,
-    "aggregators_stoplist": []
+    "aggregators_stoplist": [],
+    "own_domains": [],
+    "selection": {
+      "target": 5,
+      "serp_queries_max": 15,
+      "serp_depth": 10,
+      "serp_share_min": 0.1,
+      "keyso_batch_max": 40,
+      "history_max": 8,
+      "weights": { "share": 3, "top10": 1, "top50": 1, "ratio": 0.5, "traffic": 1, "iks": 1 },
+      "ratio_min_top50": 50,
+      "coverage_min": 0.5,
+      "young_years": 7,
+      "old_years": 12,
+      "young_bonus": 0.15,
+      "growth_bonus": 0.05,
+      "growth_threshold": 0.2,
+      "source_bonus": 0.25,
+      "site_type_bonus": 0.15,
+      "site_type_penalty": 0.15
+    }
   },
   "limits": {
     "_doc": "Верхние границы по элементам, если файл типа страницы не дает замеров. В символах без пробелов. card_max - текст карточки и шага (заголовок + 1-2 коротких предложения), действует и при более длинных замерах конкурентов. self_named_patterns - раскладки блоков, где карточки, шаги или ссылки сами называют разделы: h2 и поясняющий text у них необязательны (build-briefs ставит count 0-N; по умолчанию tiles, grid-2, grid-3, grid-4, cards-slider).",

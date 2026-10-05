@@ -14,6 +14,10 @@
 // (канал, маршрут: site-parts secondaryByText), иначе правило C10; кнопки-ссылки без href - href="#" role="button";
 // лендинг без якорей в config.site.nav - якоря из написанных блоков главной. Живые блоки проекта (K8) - реестр
 // html/site/registry.json и html/site/behaviors/ (site-parts loadProjectRegistry).
+// Оболочка по пересечениям лидеров (программа 05.10, раздел 3.5): work/shell.json (kf-matrix.mjs --shell) - элементы
+// шапки, подвала, нижней панели и плавающих кнопок, чипы «нужны данные», кнопки-тосты; заглушки brief.stubs - секции
+// без data-block-id (data-stub="1") с чипом. Нет shell.json - разметка, стили и скрипт как раньше, ключа shell в
+// prototype.modules.json нет. Дата сборки для детерминизма тестов - переменная SITE_TEKST_BUILT_AT.
 import path from 'node:path';
 import { argv, P, readJson, readText, exists, writeText, writeJson, loadConfig, loadSitemap, pageDir, nowIso, PLACEHOLDER_RE, elementTexts, isListing } from './lib.mjs';
 import { esc, icon, loadUi, makeEngine, blockState, protoDataSha, isKnownPattern } from './render-blocks.mjs';
@@ -37,6 +41,16 @@ const strategy = opt(P('work', 'strategy.json'));
 const catalogSpec = opt(P('work', 'catalog', 'catalog-spec.json'));
 const samples = opt(P('work', 'catalog', 'sample-items.json'));
 const lintRules = opt(P('rules', 'lint.json')) || {};
+// оболочка по пересечениям лидеров: файла нет (этап КФ не проводился, старая задача) - прототип как раньше
+let shellSpec = opt(P('work', 'shell.json'));
+if (shellSpec && !Array.isArray(shellSpec.items)) { warn('work/shell.json: нет массива items - оболочка по пересечениям лидеров не строится'); shellSpec = null; }
+// shell.json - снимок фазы 2: элементу словаря page_match берется из текущего словаря задачи (config/kf-elements.json),
+// чтобы правка словаря работала без пересчета матрицы; нет в словаре - как в снимке; нишевые x-элементы не трогаются
+if (shellSpec) {
+  const dict = opt(P('config', 'kf-elements.json'));
+  const pmById = new Map(((dict && Array.isArray(dict.elements)) ? dict.elements : []).filter(e => e && e.id && e.page_match).map(e => [e.id, e.page_match]));
+  for (const it of shellSpec.items) if (it && !it.niche && pmById.has(it.id)) it.page_match = pmById.get(it.id);
+}
 const HTML_DIR = P('html', 'site');
 for (const f of ['shell.html', 'site.css', 'ui.json', 'icons.svg']) if (!exists(path.join(HTML_DIR, f))) fail(`нет html/site/${f} (kit не разложен в папку задачи: task.mjs place)`);
 const ui = loadUi(path.join(HTML_DIR, 'ui.json'));
@@ -51,7 +65,7 @@ for (const p of sm.pages || []) {
   const f = path.join(pageDir(p.slug), 'brief.json');
   if (exists(f)) { try { briefs[p.slug] = readJson(f); } catch (e) { warn(`${p.slug}: бриф не читается (${e.message})`); } }
 }
-const S = parts.buildSite({ cfg, sm, facts, strategy, briefs, ui, contacts, catalogSpec, samples });
+const S = parts.buildSite({ cfg, sm, facts, strategy, briefs, ui, contacts, catalogSpec, samples, shellSpec });
 if (!S.pages.length) fail('в карте нет рабочих страниц');
 // реестр живых блоков проекта (K8): overrides/html/site/{registry.json, behaviors/} задачи лежат в html/site/ копии kit
 const projReg = parts.loadProjectRegistry(HTML_DIR);
@@ -118,7 +132,7 @@ const menu = parts.buildMenu(S);
 const header = parts.headerHtml(S, menu, photos);
 const used = new Set(['form']);
 const index = {};
-const stats = { briefPages: 0, files: 0, written: 0, missing: 0, lint: 0, placeholders: 0, fallback: [], formBlocks: 0, customRendered: 0, secondary: 0, secondaryDefault: 0, secondaryText: { channel: 0, route: 0 }, mapAdded: [], projectSections: 0 };
+const stats = { stubs: 0, briefPages: 0, files: 0, written: 0, missing: 0, lint: 0, placeholders: 0, fallback: [], formBlocks: 0, customRendered: 0, secondary: 0, secondaryDefault: 0, secondaryText: { channel: 0, route: 0 }, mapAdded: [], projectSections: 0 };
 if (menu.navIgnored) warn('config.site.nav не дал пунктов меню (только якоря или неизвестные slug) - меню построено по карте');
 const debugRows = [];
 
@@ -264,7 +278,9 @@ function renderPage(x) {
   const states = pageStates[x.slug] || [];
   const cta = parts.ctaObj(brief ? brief.cta : S.ctaByType[x.type]);
   const formSt = states.find(s => s.state === 'written' && s.block.elements.some(e => e.kind === 'field'));
-  const pc = { page: x, brief, cta, types: new Set(states.map(s => s.spec.type)), formAnchor: formSt ? formSt.spec.type : '' };
+  // заглушки элементов лидеров (brief.stubs): вне blocks, после блока after; якорь anchor:<тип заглушки> валиден
+  const stubs = brief && Array.isArray(brief.stubs) ? brief.stubs.filter(z => z && z.type) : [];
+  const pc = { page: x, brief, cta, types: new Set([...states.map(s => s.spec.type), ...stubs.map(z => String(z.type))]), formAnchor: formSt ? formSt.spec.type : '' };
   const dark = ['home', 'service', 'hub'].includes(x.type);
   let heroIdx = states.findIndex(s => s.spec.role === 'hero');
   if (heroIdx < 0) heroIdx = states.findIndex(s => /^hero/.test(String(s.spec.pattern || '')));
@@ -311,7 +327,20 @@ function renderPage(x) {
       if (autoMap) { alt = !alt; html += mapSec(alt ? 'blk alt' : 'blk'); }
     };
     if (heroIdx < 0) { html += `<section class="page-intro"><div class="container"><h1 data-ui="1">${esc(x.title)}</h1></div></section>`; placeExtras(); }
-    for (const i of order) {
+    // порядок с заглушками: каждая - после своего блока after (нет такого блока - в конце страницы)
+    const seq = order.map(i => ({ i }));
+    for (const z of stubs) {
+      let at = -1;
+      seq.forEach((e, k) => { if ((e.i != null && states[e.i].spec.block_id === z.after) || (e.z && e.z.after === z.after && at >= 0)) at = k; });
+      if (at < 0) seq.push({ z }); else seq.splice(at + 1, 0, { z });
+    }
+    for (const { i, z } of seq) {
+      if (z) {
+        alt = !alt;
+        stats.stubs++;
+        html += `<section${sectionAttrs({ type: String(z.type), block_id: null }, `blk blk-stub${alt ? ' alt' : ''}`, { 'data-stub': '1' })}><div class="container">${parts.stubHtml(S, z)}</div></section>`;
+        continue;
+      }
       const st = states[i];
       const spec = st.spec;
       if (st.state !== 'missing') stats.files++;
@@ -394,22 +423,24 @@ const data = {
 
 // ---------------------------------------------------------------- сборка файла
 const debugPanel = `<div class="dbg-panel"><b>${esc(t('debug_title'))}</b> · ${esc(t('debug_hint'))}<div>${esc(t('debug_pages'))}:</div><ul>${debugRows.map(r => `<li><a href="#${esc(r.x.route)}">${esc(r.x.name || r.x.label)}</a><span>${esc(r.status)}</span></li>`).join('')}</ul></div>`;
-const shell = readText(path.join(HTML_DIR, 'shell.html'));
+// стили и скрипт оболочки по пересечениям - между метками /*@shell*/ ... /*@/shell*/ (без shell.json вырезаются)
+const shell = parts.shellCut(readText(path.join(HTML_DIR, 'shell.html')), !!S.shell);
+if (S.shell && !/act === 'up'/.test(shell)) warn('html/site/shell.html (overrides задачи) не знает действия up: кнопка «наверх» оболочки не сработает');
 // фото примеров - по одному правилу на файл: каждое встроено один раз, карточки ссылаются на класс
 const projCss = parts.projectBehaviorCss(used);
-const css = readText(path.join(HTML_DIR, 'site.css')) + (projCss ? `\n${projCss}\n` : '') + (photos.css() ? `\n${photos.css()}\n` : '');
+const css = parts.shellCut(readText(path.join(HTML_DIR, 'site.css')), !!S.shell) + (projCss ? `\n${projCss}\n` : '') + (photos.css() ? `\n${photos.css()}\n` : '');
 const letter = (S.brand || 'S').trim().charAt(0).toUpperCase();
 const favicon = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='#0e0e0e'/><text x='16' y='22.5' font-family='Arial,sans-serif' font-size='18' font-weight='700' fill='#ffffff' text-anchor='middle'>${esc(letter)}</text></svg>`)}`;
 const map = {
   title: esc(S.brand || cfg.slug || ''),
-  built_at: nowIso(),
+  built_at: process.env.SITE_TEKST_BUILT_AT || nowIso(),
   proto_sha: protoDataSha(),
   favicon,
   contract: (ui.contract || []).map(l => `  ${String(l).replace(/--+/g, '-')}`).join('\n'),
   css,
   body_class: S.landing ? 'is-landing' : '',
   sprite: readText(path.join(HTML_DIR, 'icons.svg')).trim(),
-  header: header.html + '\n' + parts.mobileNavHtml(S, menu) + '\n' + parts.mbarHtml(S),
+  header: header.html + '\n' + parts.mobileNavHtml(S, menu) + '\n' + parts.mbarHtml(S) + (S.shell ? `\n${parts.shellFabHtml(S, menu)}` : ''),
   pages: pagesHtml,
   footer: parts.footerHtml(S, menu),
   overlays: parts.overlaysHtml(S, debugPanel),
@@ -422,7 +453,7 @@ const html = shell.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in map ? map[k] : m));
 writeText(out, html);
 writeJson(out.replace(/\.html$/, '.index.json'), index);
 const topFields = [S.contacts.address, S.contacts.hours, S.contacts.channels.some(c => c.href) ? 'ch' : ''].filter(Boolean).length;
-const modules = parts.modulesJson(S, { navCount: header.navCount, megaCount: header.megaCount, menuMode: menu.mode, navIgnored: !!menu.navIgnored, topbarOn: header.topbarOn, topFields, items: items.length, photos: photos.stats, formBlocks: stats.formBlocks, maps: mapsUsed, mbar: !!parts.mbarHtml(S), catalogHome: !S.listingPages.length && used.has('catalog'), secondaryTotal: stats.secondary, secondaryDefault: stats.secondaryDefault, secondaryText: stats.secondaryText, mapAdded: stats.mapAdded, anchorsAuto: !!menu.anchorsAuto, projectRegistry: { keys: projReg.keys, behaviors: projReg.behaviors, sections: stats.projectSections } });
+const modules = parts.modulesJson(S, { navCount: header.navCount, megaCount: header.megaCount, menuMode: menu.mode, navIgnored: !!menu.navIgnored, topbarOn: header.topbarOn, topFields, items: items.length, photos: photos.stats, formBlocks: stats.formBlocks, maps: mapsUsed, mbar: !!parts.mbarHtml(S), catalogHome: !S.listingPages.length && used.has('catalog'), secondaryTotal: stats.secondary, secondaryDefault: stats.secondaryDefault, secondaryText: stats.secondaryText, mapAdded: stats.mapAdded, anchorsAuto: !!menu.anchorsAuto, projectRegistry: { keys: projReg.keys, behaviors: projReg.behaviors, sections: stats.projectSections }, stubs: stats.stubs });
 writeJson(out.replace(/\.html$/, '.modules.json'), modules);
 
 if (stats.secondaryDefault) warn(`вторых кнопок CTA без cta.secondary_action: ${stats.secondaryDefault} - ведут к блоку-форме или окну заявки независимо от подписи (prototype.modules.json cta_secondary)`);
@@ -430,4 +461,6 @@ for (const w of warnings) console.warn(`внимание: ${w}`);
 if (stats.fallback.length) console.log(`без раскладки: ${stats.fallback.length} блоков (${[...new Set(stats.fallback)].join(', ')}) - собраны раскладкой по умолчанию для pattern`);
 const skel = stats.missing + stats.lint;
 const onMods = Object.entries(modules).filter(([, v]) => v.on).map(([k]) => k);
+if (modules.shell) console.log(`оболочка: ${modules.shell.why}`);
+else if (stats.stubs) console.log(`заглушек блоков лидеров: ${stats.stubs}`);
 console.log(`прототип: ${relp(out)} - страниц ${stats.briefPages}, блоков ${stats.files} (текстом ${stats.written}, скелетов ${skel}: не написано ${stats.missing}, не прошли линтер ${stats.lint}), маршрутов ${S.pages.length}, плейсхолдеров ${stats.placeholders}, модули: ${onMods.join(', ')}, размер ${(Buffer.byteLength(html) / 1024).toFixed(0)} КБ`);

@@ -27,7 +27,23 @@
     "competitor_promises": { "type": "array", "items": { "type": "string" } },
     "cliches_to_avoid": { "type": "array", "items": { "type": "string" } },
     "only_we_can_say": { "type": "array", "items": { "type": "string" } },
-    "notes": { "type": "string" }
+    "notes": { "type": "string" },
+    "kf_coverage": {
+      "type": "array",
+      "description": "Необязательно (только при work/kf/matrix.json): как тип покрывает строки элементов лидеров своего типа уровня «обязательно» и «рекомендовано» (scripts/kf-coverage.mjs <type>). to - id блока типа из recommended_order (рыночного или отстройки; элемент блока, например рейтинг в badges первого экрана, - id этого блока; блок строки «обязательно» - в short_set), shell - рисует оболочка, skip - why начинается с причины из списка: «нет такой сущности у бизнеса», «противоречит фактам», «покрыто другим типом». Содержание блока - только из фактов: без фактов сборка брифов ставит заглушку и вопрос заказчику.",
+      "items": {
+        "type": "object",
+        "required": ["el", "to"],
+        "properties": {
+          "el": { "type": "string", "minLength": 1, "description": "id элемента словаря или x-<латиница>" },
+          "name": { "type": "string" },
+          "level": { "type": "string", "description": "уровень строки матрицы: must | recommended (optional - по желанию)" },
+          "n": { "type": "number" },
+          "to": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "why": { "type": "string" }
+        }
+      }
+    }
   },
   "definitions": {
     "block": {

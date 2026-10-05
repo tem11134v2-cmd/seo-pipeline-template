@@ -1,0 +1,60 @@
+{
+  "$id": "kf-observed",
+  "_doc": "work/competitors/kf/<домен>.json (сайт заказчика - kf/own.json, role own): наблюдение 02-kf-observer по кадрам и DOM одного сайта. Только видимое: present 1 или «?», отсутствующее не перечисляется. id - из config/kf-elements.json или x-<латиница> (элемент не из словаря: обязателен kind, для slot - needs_hint). recheck - ответы режима перепроверки x-элементов (1, 0, «?») по ключу записи кандидата <scope>|<zone>|<id> (голый id прежнего формата - за все scope). x-элемент без kind schema не ловит (валидатор без if/then): kf-matrix пишет строку limits «x-элемент без kind».",
+  "type": "object",
+  "required": ["domain", "role", "pages"],
+  "properties": {
+    "domain": { "type": "string", "minLength": 1 },
+    "role": { "type": "string", "enum": ["competitor", "own"] },
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "zones"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "minLength": 1 },
+          "url": { "type": "string" },
+          "subject": { "type": "string" },
+          "captured": { "type": "boolean" },
+          "zones": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "header": { "$ref": "#/definitions/list" },
+              "footer": { "$ref": "#/definitions/list" },
+              "mobile": { "$ref": "#/definitions/list" },
+              "fixed": { "$ref": "#/definitions/list" },
+              "body": { "$ref": "#/definitions/list" }
+            }
+          }
+        }
+      }
+    },
+    "ambiguous": {
+      "type": "array",
+      "items": { "type": "object", "required": ["what"], "properties": { "page": { "type": "string" }, "zone": { "type": "string" }, "what": { "type": "string" }, "why": { "type": "string" } } }
+    },
+    "limits": { "type": "array", "items": { "type": "string" } },
+    "recheck": { "type": "object", "additionalProperties": { "enum": [1, 0, "?"] } }
+  },
+  "definitions": {
+    "list": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "present", "via"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^([a-z][a-z0-9_]*|x-[a-z0-9]+(-[a-z0-9]+)*)$" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "present": { "enum": [1, "?"] },
+          "via": { "type": "string", "enum": ["dom", "visual", "both", "text"] },
+          "label": { "type": "string", "maxLength": 120 },
+          "evidence": { "type": "string" },
+          "kind": { "type": "string", "enum": ["slot", "function", "page_link", "block", "nav"] },
+          "needs_hint": { "type": "string" }
+        }
+      }
+    }
+  }
+}

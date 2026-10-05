@@ -14,9 +14,10 @@
 Значения печатает `init-project` (строка `args:`) или `task.mjs args` скила; `<base>` берется оттуда как есть.
 - `root` - агенты не полагаются на текущую папку сессии (она сбрасывается после перезапуска).
 - `model` - роли с умолчанием `strong` (факты, составитель решений, разбор лидеров, аудит типов, стратеги и рецензия
-  стратегии, писатели, судьи, фиксеры, ТЗ каталога).
-- `model_light` - роли с умолчанием `light` (дамп и снимки, импорт анализа, верификация и классификация конкурентов, анализ
-  каталогов, раскладки, примеры товаров, публикация ТЗ, запуск скриптов kit). Без `model_light` легкие роли берут `model`.
+  стратегии, писатели, судьи, фиксеры, ТЗ каталога, аудитор прототипа).
+- `model_light` - роли с умолчанием `light` (дамп и снимки, импорт анализа, отбор, верификация и классификация конкурентов,
+  наблюдение КФ, сведение и перепроверка x-элементов, анализ каталогов, раскладки, примеры товаров, публикация ТЗ, запуск
+  скриптов kit: ранжирование, снятие страниц, матрица КФ). Без `model_light` легкие роли берут `model`.
 - Без `model` и `model_light` агенты наследуют модель сессии оркестратора.
 - Необязательное `models` - `{"<роль>":"<модель>"}`, точечная замена модели роли (ниже, «Модели по ролям»).
 
@@ -39,7 +40,14 @@
 | `structure-fallback` | strong | wf-00 | `01-structure-fallback` | `structure-fallback` |
 | `decisions` | strong | wf-00 | `01-decisions-drafter` (оба режима) | `decisions` |
 | `sitemap-enrich` | strong | wf-00, wf-04 | `01-sitemap-enricher` (wf-04 - `mode=facts`, режим обновления) | `sitemap-enrich` |
+| `scout` | light | wf-02 | `02-competitor-scout`: выдача и Keys.so, сам зовет `rank-competitors.mjs --queries`, `--prelim`, `--merge-pool` | `scout` |
+| `rank` | light | wf-02 | run-агент: `rank-competitors.mjs --check`, затем `rank-competitors.mjs` -> `ranking.json` | `rank:check`, `rank` |
 | `verify` | light | wf-02 | `02-competitor-verifier` | `verify` |
+| `capture` | light | wf-02 | run-агент: `capture-pages.mjs --domain <d> --resume` по домену и `own` (partial - повтор, до 3 заходов) | `capture:<домен>`, `capture:<домен>:2`, `capture:<домен>:3` |
+| `kf-observe` | light | wf-02 | `02-kf-observer` mode=observe (больше 12 кадров - части `shell` и `types`) | `kf-observe:<домен>`, `kf-observe:<домен>:<часть>` |
+| `kf-normalize` | light | wf-02 | `02-kf-normalizer` (есть x-элементы без записи в `aliases.json`) | `kf-normalize` |
+| `kf-recheck` | light | wf-02 | `02-kf-observer` mode=recheck по доменам с кандидатами | `kf-recheck:<домен>` |
+| `matrix` | light | wf-02 | run-агент: `kf-matrix.mjs --stale-observers`, `--candidates`, `--shell`, `--status skip\|no_competitors` | `matrix:stale`, `matrix:candidates`, `matrix:candidates:2`, `matrix`, `matrix:status` |
 | `inventory` | light | wf-02 | `02-page-classifier`: статика параллельно, браузерный добор по одному | `inventory:<домен>`, `inventory:browser:<домен>` |
 | `extract` | strong | wf-02 | `02-block-extractor` - пока strong, решение по эксперименту (строка `extract:` в `ROLES`) | `extract:<домен>:<часть>` |
 | `aggregate` | strong | wf-02 | `02-type-aggregator` | `aggregate:<типы>` |
@@ -55,7 +63,7 @@
 | `hero-judge` | strong | wf-05b | оба судьи турнира: `05-hero-selector` mode=score и слепой читатель | `judge:checklist:<slug>`, `judge:blind:<slug>` |
 | `hero-select` | strong | wf-05, wf-05b | `05-hero-selector` mode=select | `select:<slug>` |
 | `judge` | strong | wf-06, wf-06b | `06-page-judge`, все круги | `judge:<slug>:<круг>` (wf-06), `judge:<круг>` (wf-06b) |
-| `fixer` | strong | wf-06, wf-06b | `06-fixer`: общий фиксер страницы (`mode=full`), фиксеры после круга 2 и кросса (`mode=narrow`) | `fix:<slug>`, `fix:<slug>:2`, `fix:<slug>:cross` (wf-06), `fix:1`, `fix:2` (wf-06b) |
+| `fixer` | strong | wf-06, wf-06b, wf-08 | `06-fixer`: общий фиксер страницы (`mode=full`), фиксеры после круга 2 и кросса (`mode=narrow`), фиксер аудита прототипа (`mode=narrow`, постраничный `site.json`) | `fix:<slug>`, `fix:<slug>:2`, `fix:<slug>:cross` (wf-06), `fix:1`, `fix:2` (wf-06b), `fix:<slug>` (wf-08) |
 | `cross-judge` | strong | wf-06 | `06-cross-judge` | `cross-judge` |
 | `blind` | strong | wf-06 | `06-blind-reader` | `blind:<slug>` |
 | `catalog-spec` | strong | wf-07 | `07-catalog-spec-writer` | `catalog-spec` |
@@ -63,13 +71,14 @@
 | `tz-write` | strong | wf-07 | `07-catalog-tz-writer`, оба круга | `tz-write`, `tz-write-2` |
 | `tz-audit` | strong | wf-07 | `07-catalog-tz-auditor`, оба круга | `tz-audit-1`, `tz-audit-2` |
 | `tz-publish` | light | wf-07 | `07-catalog-publisher` | `tz-publish` |
+| `site-audit` | strong | wf-08 | `08-site-auditor`: аудит готового прототипа целиком по `site-digest.json` | `site-audit` |
 | `distill` | strong | wf-T1 | `T1-rules-distiller`, оба прохода | `distill`, `distill-fix` |
 | `distill-check` | strong | wf-T1 | `T1-rules-checker`, оба круга | `check-1`, `check-2` |
 | `retro` | strong | wf-T2 | `T2-retro` | `retro` |
 | `prep-args` | light | wf-02, wf-03, wf-04 | `node scripts/prep-args.mjs` (в wf-02 и `--check-degraded`) | `prep-args` |
 | `briefs` | light | wf-04 | `merge-strategy.mjs` + `build-briefs.mjs`, до рецензии и после нее | `merge+build-briefs`, `merge+build-briefs:review` |
 | `build` | light | wf-06b | `render-md`, `lint-page`, `build-html`, `check-html`, `check-site-js`, `report` | `build` |
-| `run` | light | wf-00, wf-04, wf-06, wf-06b, wf-07, wf-T1 | прочие node-команды: wf-00 - `import-structure`, `import-project --company-facts`; wf-04 - чтение `facts_diff`, `import-structure --check-enrich before\|after`; wf-06, wf-06b - `fix-diff` (снимок и сравнение), `dedup` + `cross-digest --empty-report`, `split-cross --merge`, `render-md`, `lint-page`; wf-07 - `validate catalog-spec`, `md-to-docx --check`; wf-T1 - `normalize` | `import-structure`, `company-facts`, `update-check`, `enrich-check:before`, `enrich-check:after`, `snap:<slug>[:2\|:cross]`, `diff:<slug>[:1\|:2\|:cross]`, `cross-pre`, `render-md`, `check:spec`, `check:tz`, `check:tz-2`, `normalize` |
+| `run` | light | wf-00, wf-04, wf-06, wf-06b, wf-07, wf-08, wf-T1 | прочие node-команды: wf-00 - `import-structure`, `import-project --company-facts`; wf-04 - чтение `facts_diff`, `import-structure --check-enrich before\|after`; wf-06, wf-06b - `fix-diff` (снимок и сравнение), `dedup` + `cross-digest --empty-report`, `split-cross --merge`, `render-md`, `lint-page`; wf-07 - `validate catalog-spec`, `md-to-docx --check`; wf-08 - `site-digest --shots`, `split-site` (раскладка, `--merge`, `--record`), `fix-diff` (снимок и сравнение), `cta-unify`; wf-T1 - `normalize` | `import-structure`, `company-facts`, `update-check`, `enrich-check:before`, `enrich-check:after`, `snap:<slug>[:2\|:cross]`, `diff:<slug>[:1\|:2\|:cross]`, `cross-pre`, `render-md`, `check:spec`, `check:tz`, `check:tz-2`, `normalize`, `site-digest`, `split-site`, `split-site:merge`, `split-site:record`, `cta-unify` |
 
 Пример: экстрактор на легкой модели, писатели блоков и судьи турнира - на явно заданных:
 ```
@@ -85,10 +94,24 @@
 - **wf-05 - только верхним уровнем.** Он сам зовет вложенный `wf-05b` (турнир первого экрана), а вложенность глубже
   одного уровня движок не допускает. Из другого воркфлоу - только с `args` от `task.mjs args write --hero single`.
 - **Аудиты не параллельно:** кросс-судья пишет общий `work/audit/cross.json`.
+- **Снятие страниц для КФ - Chrome или Edge через CDP, не браузер агентов.** `scripts/capture-pages.mjs` - мини-клиент
+  CDP на встроенном `WebSocket` Node (без npm-зависимостей и скачивания браузера), установленный Chrome или Edge с
+  `--headless=new`, свой процесс браузера на поток со своим профилем во временной папке (`site-tekst-cdp-*`, осиротевшие
+  старше часа удаляются при старте). Путь браузера - переменная `SITE_TEKST_CHROME` (если задана - только она), иначе
+  пути Chrome и Edge по умолчанию. Нет ни того, ни другого - код 0, страницы `skipped`, статус этапа `no_chrome`
+  (деградация, не ошибка). MCP-браузер агентов не трогается и параллельно с ним можно снимать. Кадры
+  (`work/competitors/shots/`, `work/audit/site-shots/`) - локальные доказательства, не в git.
+- **Платные данные отбора** - MCP Keys.so (`domains_batch`, `domain_dashboard`, `domain_competitors`) и Арсенкин
+  (`arsenkin_top`, `arsenkin_domains` для ИКС и whois) при любом tier проекта (внутренний расход, единицы вызовов на
+  прогон). MCP недоступен - источник пропускается со строкой в `pool.json` -> `errors`, отбор идет по остальным.
 - **Браузер у агентов один.** Только своя вкладка: `tabs_create`, ее tabId во всех вызовах, `tabs_close` в конце; агенты,
   которые ходят в браузер, идут последовательно (в wf-02 браузерный добор - отдельный проход по одному конкуренту, аналитик
-  каталогов - после него). Порядок снятия страницы: `scripts/fetch-page.mjs` (сам повторяет запрос и уходит в curl), браузер -
-  последним и только дословно: код `node scripts/fetch-page.mjs --dom-snippet` в `javascript_tool`, вывод - в
+  каталогов - после него). Порядок снятия страницы: `scripts/fetch-page.mjs` (сам повторяет запрос и уходит в curl); для
+  `js_only`, `antibot`, `error` - CDP: `capture-pages.mjs --url <u> --domain <d> --name <имя>`, затем
+  `fetch-page.mjs <u> <raw> --html-from work/competitors/shots/<d>/<имя>/render.html` (`status: browser`, `via: cdp`);
+  CDP получил страницу проверки - она сохраняется следом `<raw без .json>.cdp.html`, снимок не заменяется, и это
+  окончательный ответ сайта (`prep-args.mjs --check-degraded` принимает след наравне с `.browser.md`). Браузер агента -
+  только при отказе CDP (нет Chrome, таймаут, код не 0), последним и только дословно: код `node scripts/fetch-page.mjs --dom-snippet` в `javascript_tool`, вывод - в
   `<raw>.browser.md` без правок, снимок - `fetch-page.mjs --text-from`. Пересказ (нет отметки обхода) - `verbatim: false`:
   в замер и цитаты не идет. Статический снимок не меньше браузерного остается.
 - **grep:** кириллица и тире - только литералом `grep -F`; проверки стиля (буква е-с-точками, тире) - через node: grep в
@@ -135,6 +158,11 @@ Workflow wf-T1-distill-rules.js args={<base шаблона>,"rulesFile":"<пут
 - Необязательный блок `config/project.json` -> `site` (оболочка прототипа): `nav` (меню шапки вместо построенного по
   карте: slug или `{label, page|anchor}`; у лендинга - только якоря), `off` (модули, которые не выводить), `tagline`
   (строка под логотипом).
+- Необязательный блок `config/project.json` -> `competitors` (отбор лидеров и КФ, фаза 2): `selection` (`target` 5,
+  запросы и глубина выдачи, веса метрик, границы возраста, множители), `own_domains` (зеркала и старые домены клиента -
+  стоп «сайт клиента»), `aggregators_stoplist` (агрегаторы проекта сверх `config/kf-stoplist.json`), `kf` (`must_n`,
+  `recommended_n` - пороги охвата). Нет поля - умолчание скрипта. Регион, базу Keys.so и `site_kind` пишет импорт в
+  `niche` (режим `doc` - оператор).
 - Пилот и волны в конфиге не задаются. Волны считает `scripts/progress.mjs` по карте: волна 1 - главная и первая по карте
   рабочая страница каждого типа, у которого рабочих страниц 2+; волна 2 - остальные рабочие страницы. Состав волн от
   прогресса не зависит. Пилот - `--slugs` у `plan-run.mjs`.
@@ -163,7 +191,9 @@ Workflow wf-00-facts.js args={<base>,"source":"project","structureMode":"import"
 ```
 Пути берутся из `config/project.json` -> `sources`; переопределить можно в `args`: `project`, `factsSrc`, `queue`, `structure`.
 Порядок: легкий агент импорта (`node scripts/import-project.mjs`: факты, аудитория, `work/client-preferences.json`,
-`work/directions.json`, `work/competitors/seed.json`, поля конфига, `inputs/analysis.md`, копия структуры, регулярки
+`work/directions.json`, `work/competitors/seed.json`, `work/competitors/structure-competitors.json` (конкуренты и
+стоп-лист seo-base рядом со структурой, если есть), поля конфига (в том числе `niche.yandex_id`, `niche.keyso_base`,
+`niche.site_kind` для отбора фазы 2), `inputs/analysis.md`, копия структуры, регулярки
 антиобещаний через `--apply-patterns`, `import-structure.mjs`) -> снимок сайта, только если в `import-report.json` непустой
 `company_missing` (телефон, адрес, часы), и после него run-агент `import-project.mjs --company-facts` (label `company-facts`)
 -> составитель решений -> обогатитель карты.
@@ -217,7 +247,8 @@ node scripts/import-project.mjs --facts-only [--force]
   в `removed`, его новый id - в `added`) и `other_changed` (изменились ЦА, пожелания, направления, конкуренты, антиобещания
   - `--facts-only` их не переносит, нужен повтор фазы 0). `other_changed` сравнивает анализ с отпечатком прошлого импорта
   (`import-report.json` -> `analysis_fingerprint`), а не с рабочими файлами: правки стратегов в `client-preferences.json`
-  изменением не считаются. Отчет без отпечатка (задача старого kit) - по рабочим файлам, пожелания парами «текст, статус».
+  изменением не считаются. `structure-competitors` (копия конкурентов структуры) - как `competitors-seed`: повтор фазы 0
+  и отбора фазы 2; у задачи до этапа КФ раздела в отпечатке нет, и это не изменение. Отчет без отпечатка (задача старого kit) - по рабочим файлам, пожелания парами «текст, статус».
 - Дальше - фаза 4 в режиме обновления (ниже, «Фазы 2-4»); весь рецепт (брифы и перелинт, блоки, ждавшие ответа, волны,
   сборка) - шаг 2 SKILL.md скила.
 
@@ -252,8 +283,88 @@ Workflow wf-04-strategy-layouts.js args={<base>,<вывод prep-args>}
   `degraded: "no_competitors"` в `competitors.json`), отчет спрашивает заказчика о 2-3 сайтах-ориентирах; это не сбой. Не
   ответил ни один запрос (сеть, MCP, браузер) - ошибка «нет доступных конкурентов: ...», сбой среды: новый запуск wf-02 без
   `resumeFromRunId` (пустой ответ верификатора лежит в кэше, повтор из кэша вернет ту же ошибку). Возврат:
-  `degraded`, `browser_pass`, `extract_failed`.
+  `degraded`, `browser_pass`, `extract_failed`, `select`, `kf`, `kf_status`, `limits`.
+- **Анализ КФ и КНДР в фазе 2** (ADR-045; КФ - коммерческие факторы, КНДР - элементы и блоки, которые массово
+  используют лидеры; x-элемент - элемент не из словаря kit). Шаги КФ идут только без `skipKf`, без частичного разбора
+  (`extract_out`/`aggregate_out`/`extract_types`/`extract_domains`) и без деградации `no_competitors`. Словарь
+  `config/kf-elements.json` (около 130 общих элементов, 13 категорий; подсказка отрисовки, не фильтр) и стоп-лист отбора
+  `config/kf-stoplist.json` (общие агрегаторы, маркетплейсы, соцсети, СМИ, справочники) кладет `task.mjs place`; проект
+  дополняет их `overrides/config/*.json` (нишевые элементы - только там). Правило включения: этап КФ проведен, только
+  если есть `work/kf/matrix.json`; нет - типы без строк КФ, прототип без оболочки по пересечениям, таблица не строится,
+  причина - `work/kf/status.json` (`done` | `no_competitors` | `skip` | `no_chrome`; нет файла - `pre_kf`, задача до этапа).
+  1. **Select** (обычный режим; при `skipInventory` нет): run-агент `rank-competitors.mjs --check` (label `rank:check`).
+     `fresh` (в том числе `exhausted: true` - годных меньше `target`, но все источники кандидатов пройдены: `serp`,
+     `serp_msk` при регионе не 213, `keyso_batch`, `keyso`; запросов нет - выдача считается пройденной, `no_queries: true`)
+     - скаут не зовется; узкая ниша (`exhausted` у `--check` или в ответе скаута) - верификатор получает параметр `note`
+     «кандидатов меньше target: источники исчерпаны» и пишет его строкой в `method`; иначе `02-competitor-scout` собирает
+     `work/competitors/pool.json` по шагам: запросы (`--queries`: `key_phrases` (режим doc без фраз - маркерные и
+     целевые запросы из строк анализа), затем маркеры и предметы hub, category, service по карте - предмет до двоеточия,
+     2-6 слов, без слов навигации и без названия компании целиком (слова бренда подряд, с точностью до окончания); до 15) -> выдача `arsenkin_top` по региону бизнеса (мало заметных и регион не Москва - второй вызов
+     по Москве) -> Keys.so `domains_batch` (кандидаты и домены клиента одним вызовом) -> добор `domain_competitors` и
+     Keys.so для новых -> история `domain_dashboard` (до 8 по предварительному весу `--prelim`) -> ИКС и whois
+     `arsenkin_domains` (whois не ответил - бесплатный `--whois` по порту 43; домен глубже общей зоны `config/shared-sld.json`,
+     например firm.spb.ru, - без даты). Каждый источник - сырой файл `work/competitors/raw-pool/<источник>.json` и
+     `rank-competitors.mjs --merge-pool` (сводит дубли punycode и кириллицы, `www`; домены клиента - в `pool.own`, не в
+     кандидаты; источник без ошибок - в `sources_done`). Частичные `errors` - повтор только упавших источников. Затем
+     run-агент `rank-competitors.mjs` (label `rank`) -> `work/competitors/ranking.json`: стоп-лист, стоп «нет в выдаче
+     ниши» (кандидат не из анализа и не из структуры без единого попадания в ТОП-10, если выдача есть: ответили не меньше
+     3 запросов), стоп «поддомен» (общая зона родителем не бывает), надбавка затравке
+     анализа и структуры (`source_bonus` 0,25: тип бизнеса сверен анализом), SEO-вес W по метрикам
+     (доля в выдаче ниши 3, ТОП-10 1, ТОП-50 1, ТОП-10/ТОП-50 0,5 при ТОП-50 от 50, трафик 1, ИКС 1; лог-шкала от лидера),
+     тип сайта против `site_kind` проекта, возраст (`young` до 7 лет - бонус 0,15) и рост it50; `anchors` - эталоны
+     (сначала `old`); `order` по E, эталон не ниже места `target`. Параметры - `config/project.json` ->
+     `competitors.selection`. Регион и база Keys.so - `niche.yandex_id`, `niche.keyso_base` конфига (пишет импорт; нет -
+     Москва 213, msk); город без своей базы Keys.so (и не федеральный рынок) - метрики Keys.so только для разрыва
+     равенства, предупреждение «рынок оценен по выдаче без Keys.so». Верификатор при `ranking.json` своей выдачи не
+     делает: идет по `order`, пока не наберет `target` (5) годных; правило эталона - годного эталона нет среди годных -
+     проверяет следующих из `anchors` и первым годным вытесняет годного с наименьшим E; `max_domains` - только старый
+     путь без `ranking.json`. Нет ответа скаута или сбой ранжирования - строка `limits`, верификатор идет по прежнему
+     `ranking.json` или по-старому.
+  2. **Capture** (после инвентаризации, параллельно разбору блоков): run-агенты `capture-pages.mjs --domain <d> --resume
+     --max-seconds 480` по каждому годному домену и `own` (сайт заказчика) параллельно; `partial` - повтор с `--resume`,
+     всего до 3 заходов, остаток `skipped` (timeout). На страницу - `work/competitors/shots/<домен>/<имя>/`: `top.jpg`,
+     `bottom.jpg`, `body-NN.jpg` (кадры тела 1366x1600, не больше 8), `mobile.jpg` (первый экран 390x844), `kf.json`
+     (DOM-находки по зонам с доказательством и текстовый контур секций `outline`), `render.html`; сводка
+     `work/competitors/capture.json`. Монолитного скриншота нет: длинный кадр модель не читает.
+  3. **Look**: run-агент `kf-matrix.mjs --stale-observers` (label `matrix:stale`) -> план `work/kf/plan.json` (кадры, DOM и
+     текст по частям; `body_pages` - страницы, чье тело описывает часть; `limits` - кадры, не влезшие в 12 на вызов, и
+     «сайт заказчика не наблюдался: <причина>») и домены, чей `kf/<домен>.json` старше снимков или с другим набором
+     страниц. `02-kf-observer` (mode=observe) по этим доменам параллельно, больше 12 кадров - части `shell` (главная и
+     первая внутренняя: шапка, подвал, мобильная версия, тело главной) и `types` (тела внутренних страниц) по очереди ->
+     `work/competitors/kf/<домен>.json`: только видимое на кадре или подтвержденное DOM, сомнительное - «?» и
+     `ambiguous`, x-элемент - `x-<латиница>` с `name`, `kind` и подсказкой данных для слота. Нет кадров (нет Chrome,
+     `skipped`) - по тексту снимков `raw/<домен>/*.json` (`via: text`). Затем `kf-matrix.mjs --candidates` -> есть
+     x-элементы без записи в `work/kf/aliases.json` - `02-kf-normalizer` (сведение синонимов внутри зоны и scope, в том
+     числе к словарному id; значения не меняет) и снова `--candidates` -> `work/kf/candidates.json`: записи
+     `{key: "<scope>|<zone>|<id>", id, name, kind, label, zone, scope}` по доменам, у которых по ним 0. Перепроверка -
+     `02-kf-observer` mode=recheck только по доменам с непустым списком, ответ в тот же `kf/<домен>.json`:
+     `recheck: {"<scope>|<zone>|<id>": 1 | 0 | "?"}` (голый id - прежний формат, отвечает за все scope). Ноль по
+     x-элементу считается только после перепроверки; сбой - «?» и строка `limits`.
+  4. **Matrix**: run-агент `kf-matrix.mjs --shell` (label `matrix`) -> `work/kf/matrix.json` (строка - scope `site` для
+     зон header, footer, mobile, fixed или scope `<тип>` для тела; значения по доменам 1/0/«?», `own` отдельно, «уже
+     есть» - пометка; уровень по абсолютному охвату n: от 4 при `target` 5 - «обязательно», от 2 - «рекомендовано», 1 - «по
+     желанию»; N меньше `target` - «охват неполный»), `work/shell.json` (элементы scope `site` от «рекомендовано»:
+     зона, уровень, охват, `kind` slot/function/page_link, отрисовщик или `generic`, `needs`), `work/kf/status.json`.
+     Пороги - `config/project.json` -> `competitors.kf` (`must_n`, `recommended_n`).
+  5. **Aggregate**: агрегатор получает `kf=on` и берет строки своего типа `kf-coverage.mjs <type> --rows` (или `kf=off`) и
+     покрывает каждую строку «обязательно» и «рекомендовано» в `kf_coverage` файла типа: блоком (x-элемент вида block -
+     `pattern: custom` или блок, где элемент уже есть), элементом блока, `shell` (рисует оболочка) или `skip` с причиной
+     из закрытого списка; проверка - `kf-coverage.mjs <type> --dir <out>`.
+  Режимы: `skipInventory` - Select нет, снятие по доменам `competitors.json` с `--resume`; частичный разбор - ни отбора,
+  ни снятия, `work/kf/*` и `shell.json` не перезаписываются, агрегатор читает готовую матрицу; `skipKf: true` - без
+  отбора, снятия и матрицы (`kf-matrix.mjs --status skip` снимает прежние `matrix.json`, `shell.json` и `candidates.json`,
+  наблюдения `kf/*.json` остаются, следующий прогон без флага пересоберет матрицу без нового наблюдения) - тот же флаг
+  передается и в wf-03; `degraded: no_competitors` - статус `no_competitors`, матрицы и оболочки нет; лендинг - снятие и
+  матрица только по главным; нет Chrome - Capture `skipped`, Look по тексту, статус `no_chrome`. Повтор wf-02 без
+  `resumeFromRunId` платный отбор и готовое снятие не повторяет: скаут - только при `--check` stale или `"reselect":true`,
+  снятие - всегда `--resume` (`"recapture":true` - снять заново), наблюдатель - только по доменам из
+  `--stale-observers`. `"capture_seconds"` (480) - дедлайн одного вызова снятия. Null или ошибка run-агентов КФ,
+  наблюдателя, нормализатора, перепроверки, скаута - строка `limits`, фаза идет дальше.
 - Фаза 3: аудитор -> фиксер -> повторный аудит только типов с blocker/major. Открытое - `work/audit/types/<type>-round-2.json`.
+  Первым шагом аудитор запускает `kf-coverage.mjs <type> --json`: строка «обязательно» без покрытия - blocker,
+  «рекомендовано» - major (id находки `kf-<элемент>`, один между кругами); нет матрицы - код 0 со строкой «анализ КФ не
+  проводился: <причина>». `"skipKf":true` (тот же флаг, что в wf-02) - аудитор с `kf=off`, раздел «Элементы лидеров»
+  пропускается.
   Новый для kit вид блока лидеров - `pattern: custom` с `custom_name`. У лендинга обязательны «что входит», «сколько стоит
   или от чего зависит», «как работаем», финальная форма (нет - major аудитора типов).
 - Фаза 4: глобальный стратег, затем стратеги типов параллельно (каждый пишет `work/strategy.pages/<type>.json`, споры -
@@ -304,6 +415,14 @@ Workflow wf-04-strategy-layouts.js args={<base>,<вывод prep-args>}
   прижимается к опорам - пунктам фактов - предупреждением, без вопроса заказчику. Оговорка `disclaimer_text` - только в
   блоке `disclaimer_block` стратега, служебная записка в брифы не идет. Заметки для рецензии (первый экран без фактов и
   т.п.) - строками « ~ ».
+- **Заглушки КФ** (`brief.stubs[]`, вне `brief.blocks`: `{type, name, after, needs, kf_el, level}`): блок становится
+  заглушкой, только если он покрывает строку «обязательно» или «рекомендовано» (`kf_coverage[].to` типа, уровень - из
+  строки матрицы) и выпал с «нет фактов» или «нет числовых фактов»; вопрос заказчику по заглушке заменяет вопрос о
+  выпадении. Снятие стратегом (`exclude_blocks`, явный пустой `facts`, STALE, HOMED) заглушки не дает: предупреждение
+  «элемент лидеров снят стратегом ...». Без матрицы КФ-блоков нет. Заглушку читают только сборка, `report.mjs` и
+  `build-kf-xlsx.mjs`; `page-state`, `writer-inputs`, `plan-run`, `progress`, `lint-page` ее не видят. h2 у блоков вне
+  первого экрана необязателен (`0-1`); `lint-page` - minor `editorial.few-headings`, если у страницы от 5 написанных
+  блоков меньше 2 h2.
 - Пересборка брифа (правка анализа, стратегии, факта): бриф всегда собирается в памяти. Список блоков прежний - файл
   пишется, страницы с написанными блоками и измененным брифом печатаются строкой «перелинтовать» ->
   `node scripts/lint-page.mjs <slug>` по каждой (блок с фактом, которого больше нет, перестает проходить линтер и уходит
@@ -433,7 +552,7 @@ Workflow wf-07-catalog.js args={<base>,"publish":true}
 документу пометка «(устарело)», ссылка в `publish.json` -> `revisions`. Нет `texts_folder_id` - `publish.json` со
 `status: skipped` и путем docx.
 
-### Фаза 8. Сборка
+### Фаза 8. Сборка, аудит прототипа, таблица КФ/КНДР
 ```
 node scripts/render-md.mjs; node scripts/build-html.mjs
 node scripts/check-html.mjs; node scripts/check-site-js.mjs; node scripts/report.mjs
@@ -446,6 +565,21 @@ node scripts/check-html.mjs; node scripts/check-site-js.mjs; node scripts/report
   `cta_secondary`). Блоки писателя - дословно, в порядке брифа; блок без lint pass - скелет. Модули (каталог, поиск,
   корзина, кабинет, карта, мессенджеры) - только из данных проекта, `config.site.off` выключает модуль. Служебный слой (id
   блоков, вопросы читателя, опорные факты, утверждения без опоры, список страниц) скрыт: клавиша D или `?debug`.
+- **Оболочка по пересечениям лидеров** (только при `work/shell.json`; нет файла - разметка, стили и скрипт как раньше,
+  ключа `shell` в `prototype.modules.json` нет). Элемент `shell.json` получает состояние: `shown` (данные есть: телефон,
+  каналы, почта, адрес, часы, реквизиты, страница карты; слот без поля - из публикуемого факта с полем `slot: "<id
+  элемента>"`, факт оператора F8xx), `chip` (серый чип «нужны данные: <название>» на своем месте и вопрос заказчику),
+  `function` (функция интерфейса - кнопка-тост «функция вне прототипа»; поиск, корзина, кабинет при странице с нужной
+  `ui_role` - живой модуль как раньше), `page_missing` (страницы нет в карте - тост и рекомендация), `declined` (поле
+  снято заказчиком: `company.absent`, `no_phone`; модуль выключен оператором `site.off` - `reason: "off"`). Размещение:
+  шапка - новые элементы группой перед CTA (на телефоне - в мобильном меню), подвал - колонка «Информация», строки
+  контактов, строка документов, `mobile`/`fixed` - нижняя панель и плавающие кнопки. Подписи - только шаблоны
+  `ui.json` (раздел `kf`), подпись конкурента в прототип не попадает; x-элемент - `generic`. Итог - `prototype.modules.json`
+  -> `shell: {on, items: [{id, name, zone, level, coverage, niche, state}]}`. Это исключение из правила «модуля без данных
+  в файле нет» (ADR-044, ADR-045) - только для оболочки по пересечениям; ключи живых модулей (`search`, `cart`,
+  `account`) описывают только живые модули. Заглушки `brief.stubs` - секция с `data-stub="1"`, названием и чипом после
+  блока `after` (без `data-block-id`, якорь `anchor:<блок>` на нее валиден; `check-html` дословность заглушек не
+  сверяет). `work/shell.json` входит в `protoDataSha`. `SITE_TEKST_BUILT_AT` - фиксированное время сборки (тесты).
 - Кнопки CTA: действие - `action` / `secondary_action` стратега; без них - к блоку-форме или окну заявки. Карточка товара
   без `card_cta` не берет главный CTA страницы с `action` `anchor:` или `page:`. Вторая кнопка без `secondary_action` ищет
   действие по подписи (имя канала из `company.channels`, основа маршрута из `ui.json`) только при старом формате CTA - в
@@ -479,8 +613,71 @@ node scripts/check-html.mjs; node scripts/check-site-js.mjs; node scripts/report
   проверки судьей», «Проверки прототипа», «Интерфейс прототипа», «Каталог» (открытые находки аудита ТЗ по статусам и
   число вопросов раздела 8 ТЗ), «По страницам». Строка «Прототип» сводки - «устарело, пересобрать», если данные изменились
   после сборки или `check-site-js` проверял другую сборку. Последняя строка вывода - итог: страниц, готово, блоков P/T,
-  скелетов, exhausted, вопросов заказчику, правок без проверки судьей K (с проходами без сравнения), проверки прототипа.
-Результат: `work/output/prototype.html`, `work/output/report.md`, ссылка на ТЗ в `work/catalog/publish.json`.
+  скелетов, exhausted, вопросов заказчику, правок без проверки судьей K (с проходами без сравнения и блоками
+  `cta-unify`), проверки прототипа, таблица КФ/КНДР (`; таблица КФ/КНДР: <url | xlsx без публикации | нет: <причина>>`,
+  нет части - задача до этапа КФ). Разделы этапа КФ: «Шапка, подвал и элементы лидеров» (чипы и заглушки - вопросы с
+  основанием «есть у n из N лидеров», `declined` - справка без вопроса, с `reason: "off"` - «выключено оператором», страницы не из карты - рекомендации) и «Аудит
+  прототипа» (`work/audit/site.json`: сводка, исправлено, не исправлено и почему, надписи `cta-unify`, сбои шагов,
+  `meta.skips` шага `site-audited`); находки аудитора с `needs_fact` - в «Что спросить у заказчика». Без новых файлов
+  отчет прежний.
+Результат: `work/output/prototype.html`, `work/output/report.md`, ссылка на ТЗ в `work/catalog/publish.json`, таблица
+КФ/КНДР (`work/output/kf-kndr.xlsx`, ссылка в `work/output/kf-publish.json`).
+
+#### Аудит готового прототипа (wf-08)
+```
+Workflow wf-08-site-audit.js args={<base>,"maxFixPages":8}
+```
+Один круг, без пауз, после первой удачной сборки фазы 8 (скил: state `catalog-done` -> `site-audited`; порядок со снимком
+и откатом - шаг 8 SKILL.md). `task.mjs args <KKK> site-audit` (`--max-fix-pages N`, не больше 8; нет прототипа - код 2).
+- run-агент `site-digest.mjs --shots` -> `work/audit/site-digest.json` (без разбора HTML и jsdom: модель сайта -
+  `buildSite` с теми же входами, что у `build-html`; по маршруту H1, подзаголовок, кнопки с действием и ролью, блоки с h2 и
+  первой фразой, заглушки; оболочка; `cta_labels` по нормализованному действию, старый формат CTA - группа `legacy`;
+  `trust_facts`; чипы; повторы h2) и скриншоты первых экранов главной и первой страницы каждого типа (1366 и 390,
+  `capture-pages.mjs --file`, `work/audit/site-shots/`; нет Chrome - без них).
+- `08-site-auditor` (strong): то, что видно только на сайте целиком - первый экран, одно действие - одна надпись, пакет
+  доверия между страницами, повтор аргументов соседних блоков и страниц, клоны страниц одного типа, меню и подвал против
+  H1, чипы на своих местах, единый голос -> `work/audit/site.json` (`findings`, `producer: site-auditor`, `rule: site.*`, до
+  25 находок; необязательные `zone` и `cta_unify: [{action, role?, label, variants}]`).
+- run-агент `split-site.mjs` -> `work/audit/<slug>/site.json` (`split_from`): только находки с `page` и без `zone`;
+  находка на оболочку или весь сайт - только в отчет. Строка `SITE_SPLIT` - страницы с исправимыми blocker/major без
+  `needs_fact`, blocker первыми. Постраничный `site.json` не входит в находки страницы (`progress.mjs`): готовность и
+  волны не меняются, `retro-stats` его не считает.
+- По странице (не больше `maxFixPages`; `"fixPages":[slug]` - явный список вместо `SITE_SPLIT`, тот же потолок): run-агент
+  `fix-diff.mjs <slug> --snap`, фиксер `06-fixer` `mode=narrow` по постраничному `site.json`, run-агент `fix-diff.mjs
+  <slug> --mode narrow` (откат блока, который после правки не прошел линтер).
+- run-агент `split-site.mjs --merge --record "<шаги>"` - статусы обратно в общий файл, итог шагов в `run: {steps: [{name,
+  status: ok|fail|skip|partial}], errors}`.
+- run-агент `cta-unify.mjs`: `label` - только одна из `variants`, которая уже стоит на сайте у этого действия; правка по
+  месту источника подписи (`strategy.pages/<type>.json` -> `pages.<slug>.cta` или `global.cta_by_type.<type>`, вместе с
+  разрешенным `action`, запись в `disputes`), снимок, `merge-strategy.mjs`, `build-briefs.mjs <slugs>` без `--force`;
+  отказ по странице (снимок обратно) - `structure_changed`, `problems` или бриф изменился не только в CTA; затем замена
+  текста кнопок блоков, `lint-page`, блок с blocker/major - откат; после отката блок все еще не проходит - откат всей
+  страницы (`refused`). Итог - `site.json` -> `cta_unify[].status` (applied | partial | refused), `applied`, `refused`.
+- Возврат: `{fixed_pages, cta_unified, failed_steps, summary}`. Сбой шага (нет ответа агента, код не 0) - запись в `run` и
+  `failed_steps`, не исключение. Судьи после фиксера нет: правки - «Правки без проверки судьей» отчета. wf-08 не зовут
+  `wf-06b`, «Превью», `--fix` и пересборки шагов 6, 7.
+
+#### Таблица КФ/КНДР для заказчика
+```
+node scripts/build-kf-xlsx.mjs
+node scripts/build-kf-xlsx.mjs --record --status published|skipped [--file-id <id> --url <url> | --reason "<причина>"]
+```
+- Строится после итоговой сборки (state `site-audited` скила, после `--fix` и ответов заказчика), только при
+  `work/kf/matrix.json`; нет матрицы - код 0, `path: null` и `skipped` с причиной, `kf-publish.json` не пишется.
+- Выход: `work/output/kf-kndr.xlsx`, `work/output/kf-xlsx.meta.json`; stdout - `{path, drive_name, data_sha, need_publish,
+  prev_url, prev_file_id}`. `drive_name` - «КФ и КНДР - <компания>» без точек. `data_sha` - sha256 канонического
+  содержимого листов (без дат): та же таблица заново не публикуется (`need_publish: false`).
+- Листы: «Как читать» (простым языком), «Отбор конкурентов» (до 30 кандидатов и строка «ваш сайт» из `pool.json` ->
+  `own`: доля в выдаче, ТОП-10, ТОП-50, трафик, ИКС, возраст, рост, тип сайта, вес, место, итог - «в анализе», «эталон»,
+  «не взят: <причина>»), «Сравнение» (группы Шапка, Подвал, Мобильная версия, Закрепленные элементы, типы страниц карты,
+  «Для разработчика»; первая строка «Сумма элементов»; колонки: элемент, лидеры + / - / ?, ваш сайт сейчас, охват,
+  решение, в прототипе, комментарий), «Ограничения».
+- Публикация (оркестратор): `need_publish: true` - `uploadFile` с `mimeType`
+  `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` и `convertToGoogleFormat: true` в папку
+  `texts_folder_id` (`~/.claude/seo-knowledge/DRIVE.md`), неудача конверсии - повтор без нее; `--record --status
+  published --file-id --url`; прежний файл (`prev_file_id`) - `renameItem` « (устарело)». Нет папки, `TODO_*` или MCP -
+  `--record --status skipped --reason`; при действующей публикации с тем же `data_sha` запись не меняется. JSON
+  публикации руками не пишется.
 
 ### Ретро (после проекта)
 ```
@@ -508,6 +705,20 @@ Workflow wf-T2-retro.js args={<base>,"template":"<путь к шаблону>"}
 - Фаза 2, «нет доступных конкурентов: ...» - сбой среды (сеть, MCP, браузер): новый запуск wf-02 без `resumeFromRunId`
   (ответ верификатора в кэше, повтор из кэша вернет ту же ошибку); деградация без конкурентов - штатный исход, не
   ошибка.
+- Фаза 2, этап КФ (строки `limits` возврата, `work/kf/status.json`, `work/kf/plan.json` -> `limits`, `matrix.json` ->
+  `limits`): отбор - `work/competitors/pool.json` -> `errors` (источник, причина; `rank-competitors.mjs --check` покажет
+  `failed_sources`, повтор wf-02 перезапросит только их), `ranking.json` -> `warnings` («отбор без метрик», «эталон без
+  подтвержденного возраста»); снятие - `work/competitors/capture.json` (`status`, `reason` по странице: `antibot`,
+  `error`, `skipped` с `no_chrome`, `timeout`, `stale`); нет Chrome - `SITE_TEKST_CHROME` на `chrome.exe` или `msedge.exe`
+  и повтор wf-02 (снятие с `--resume`, наблюдатель - только по устаревшим доменам). Матрица не построилась - типы без
+  строк КФ, повтор wf-02 пересоберет ее без нового наблюдения. Пересобрать отбор - `"reselect":true`, переснять -
+  `"recapture":true`; этап не нужен - `"skipKf":true` в wf-02 и wf-03.
+- Фаза 3, blocker `kf.coverage`: агрегатор не покрыл строку матрицы - фиксер типов дописывает `kf_coverage` (блок, `shell`
+  или `skip` с причиной из списка); проверка `node scripts/kf-coverage.mjs <type>`.
+- Фаза 8, wf-08: сбой шага - `work/audit/site.json` -> `run` (`fail`, `errors`) и `failed_steps` возврата, сдачу не
+  останавливает; откат блока фиксером - `work/audit/<slug>/fix-diff.json`; отказ `cta-unify` - `cta_unify[].refused`.
+  Сборка после wf-08 сломалась - откат правок по снимку (скил, шаг 8). Таблица КФ/КНДР: `path: null` - этапа КФ не было
+  (причина в `skipped`); публикация не прошла - `--record --status skipped`, ссылка прежней публикации остается.
 - Фазы 5-6: заново `plan-run` и запуск - готовые блоки не переписываются, свежий аудит не повторяется. Kit обновлен
   посреди фазы 6 - без `resumeFromRunId` (фаза 6, выше).
 - Фаза 0, `project`: код 2 у импорта - гейт не согласован или нет входного файла; код 1 - выход не прошел схему или регулярки

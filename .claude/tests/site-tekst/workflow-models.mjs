@@ -4,7 +4,8 @@
 // агенты не запускаются, agent() записывает label и model и возвращает заглушку по schema вызова. Заглушки подобраны
 // так, чтобы сработали все ветки с агентами: находки major (фиксеры и вторые круги), validator не pass (второй круг
 // раскладок), реквизитов нет (снимок сайта и --company-facts), страница в находке кросса (фиксер кросса), нет строки
-// FIX_DIFF (снимок перед каждым фиксером), режим обновления wf-04 с обогатителем карты (update + enrich). Вложенный wf-05b
+// FIX_DIFF (снимок перед каждым фиксером), режим обновления wf-04 с обогатителем карты (update + enrich), x-элементы без
+// алиасов в строке KF_CANDIDATES (нормализатор и перепроверка wf-02), явный fixPages wf-08 (фиксер прототипа). Вложенный wf-05b
 // идет через подставной workflow() из того же kit. Проверки:
 //   - синтаксис: каждый файл workflows/*.js компилируется и покрыт прогоном ниже;
 //   - таблица ROLES каждого воркфлоу совпадает с решением оркестратора (LIGHT/STRONG ниже) и с таблицей RUNBOOK;
@@ -23,10 +24,13 @@ const WF = path.join(KIT, 'workflows');
 const RUNBOOK = path.join(KIT, 'docs', 'RUNBOOK.md');
 
 // ---------- решение оркестратора: умолчания ролей ----------
-const LIGHT = ['dump', 'snapshot', 'import', 'verify', 'inventory', 'catalog-analyst', 'layout', 'tz-publish', 'sample-items', 'prep-args', 'briefs', 'build', 'run'];
+// программа 05.10 §5: роли этапа КФ в wf-02 (scout, rank, capture, kf-observe, kf-normalize, kf-recheck, matrix) - light;
+// wf-08: run - light, site-audit и fixer - strong
+const LIGHT = ['dump', 'snapshot', 'import', 'verify', 'inventory', 'catalog-analyst', 'layout', 'tz-publish', 'sample-items', 'prep-args', 'briefs', 'build', 'run',
+  'scout', 'rank', 'capture', 'kf-observe', 'kf-normalize', 'kf-recheck', 'matrix'];
 const STRONG = ['facts-extract', 'facts-check', 'facts-fix', 'structure-fallback', 'sitemap-enrich', 'decisions', 'extract', 'aggregate', 'type-audit', 'type-fix',
   'strategist-global', 'strategist-type', 'strategy-review', 'writer', 'hero-writer', 'hero-select', 'hero-judge', 'judge', 'fixer', 'cross-judge', 'blind',
-  'catalog-spec', 'tz-write', 'tz-audit', 'distill', 'distill-check', 'retro'];
+  'catalog-spec', 'tz-write', 'tz-audit', 'distill', 'distill-check', 'retro', 'site-audit'];
 const TIER = Object.fromEntries([...LIGHT.map(r => [r, 'light']), ...STRONG.map(r => [r, 'strong'])]);
 // роли, умолчание которых меняется одной строкой таблицы: воркфлоу -> роль
 const ONE_LINE = { 'wf-02-competitors': 'extract', 'wf-05-write': 'writer' };
@@ -36,8 +40,10 @@ const LABELS = {
   'wf-00-facts': [[/^dump$/, 'dump'], [/^facts-extract$/, 'facts-extract'], [/^facts-check-[12]$/, 'facts-check'], [/^facts-fix$/, 'facts-fix'],
     [/^site-snapshot$/, 'snapshot'], [/^structure-fallback$/, 'structure-fallback'], [/^sitemap-enrich$/, 'sitemap-enrich'],
     [/^decisions$/, 'decisions'], [/^project-import$/, 'import'], [/^(import-structure|company-facts)$/, 'run']],
-  'wf-02-competitors': [[/^prep-args$/, 'prep-args'], [/^verify$/, 'verify'], [/^inventory:/, 'inventory'], [/^extract:/, 'extract'],
-    [/^aggregate:/, 'aggregate'], [/^catalog-analyst$/, 'catalog-analyst']],
+  'wf-02-competitors': [[/^prep-args(:prune)?$/, 'prep-args'], [/^verify(:2)?$/, 'verify'], [/^inventory:/, 'inventory'], [/^extract:/, 'extract'],
+    [/^aggregate:/, 'aggregate'], [/^catalog-analyst$/, 'catalog-analyst'],
+    [/^scout$/, 'scout'], [/^rank(:check|:order)?$/, 'rank'], [/^capture:/, 'capture'], [/^kf-observe:/, 'kf-observe'], [/^kf-normalize$/, 'kf-normalize'],
+    [/^kf-recheck:/, 'kf-recheck'], [/^matrix(:(stale|candidates(:2)?|status))?$/, 'matrix']],
   'wf-03-audit-types': [[/^prep-args$/, 'prep-args'], [/^audit:.+:[12]$/, 'type-audit'], [/^fix:/, 'type-fix']],
   'wf-04-strategy-layouts': [[/^prep-args$/, 'prep-args'], [/^strategist-global$/, 'strategist-global'], [/^strategist:/, 'strategist-type'],
     [/^strategy-review$/, 'strategy-review'], [/^merge\+build-briefs(:review)?$/, 'briefs'], [/^layout:/, 'layout'],
@@ -47,6 +53,7 @@ const LABELS = {
   'wf-06-audit': [[/^judge:/, 'judge'], [/^fix:/, 'fixer'], [/^cross-judge$/, 'cross-judge'], [/^blind:/, 'blind'],
     [/^(render-md|cross-pre)$/, 'run'], [/^(snap|diff):/, 'run']],
   'wf-06b-fix-repeats': [[/^fix:/, 'fixer'], [/^judge:/, 'judge'], [/^build$/, 'build'], [/^(snap|diff):/, 'run']],
+  'wf-08-site-audit': [[/^site-audit$/, 'site-audit'], [/^fix:/, 'fixer'], [/^(site-digest|split-site(:merge|:record)?|cta-unify|snap:.+|diff:.+)$/, 'run']],
   'wf-07-catalog': [[/^catalog-spec$/, 'catalog-spec'], [/^tz-write(-2)?$/, 'tz-write'], [/^tz-audit-[12]$/, 'tz-audit'], [/^tz-publish$/, 'tz-publish'], [/^sample-items$/, 'sample-items'],
     [/^check:(spec|tz|tz-2)$/, 'run']],
   'wf-T1-distill-rules': [[/^distill(-fix)?$/, 'distill'], [/^check-[12]$/, 'distill-check'], [/^normalize$/, 'run']],
@@ -69,18 +76,23 @@ const RUNS = {
   'wf-06-audit': [{ pages: [{ slug: 'home', type: 'home' }], sample: ['home'] }],
   'wf-06b-fix-repeats': [{ slug: 'home' }],
   'wf-07-catalog': [{}],
+  // fixPages - явный список страниц фиксера (подставные агенты не печатают SITE_SPLIT), чтобы роль fixer вызвалась
+  'wf-08-site-audit': [{ fixPages: ['home'] }],
   'wf-T1-distill-rules': [{ rulesFile: 'rules-src.md' }],
   'wf-T2-retro': [{}],
 };
 
 // ---------- заглушки по schema ----------
 const STR = { lint: 'pass', validator: 'fail', page: 'home', company_status: 'missing', status: 'ok', kept: 'd1.example', domain: 'd1.example' };
+// машинные строки run-агентов по label (остальные run-агенты - 'x', ветки без строки): кандидаты перепроверки wf-02 с
+// x-элементами без алиасов - чтобы вызвались нормализатор и перепроверка
+const TAIL = [[/^matrix:candidates/, 'KF_CANDIDATES {"x":1,"x_unaliased":1,"recheck":["d1.example"]}']];
 function stub(s, key, ctx) {
   if (!s) return 'текст';
   if (s.enum) return key === 'severity' ? 'major' : s.enum[0];
   if (s.type === 'object') return Object.fromEntries(Object.entries(s.properties || {}).map(([k, v]) => [k, stub(v, k, ctx)]));
   if (s.type === 'array') return key === 'results' && ctx.types ? ctx.types.map(t => ({ ...stub(s.items, 'item', ctx), type: t })) : [stub(s.items, key, ctx)];
-  if (s.type === 'string') return STR[key] ?? 'x';
+  if (s.type === 'string') return (key === 'stdout_tail' && (TAIL.find(([re]) => re.test(ctx.label || '')) || [])[1]) || (STR[key] ?? 'x');
   if (s.type === 'number') return 1;
   if (s.type === 'boolean') return key === 'ok';
   return null;
@@ -94,7 +106,7 @@ const compile = src => new AsyncFunction('args', 'agent', 'parallel', 'pipeline'
 async function runWf(name, args, src) {
   const calls = [], errors = [];
   const exec = (wf, a, text) => {
-    const agent = async (prompt, opts = {}) => { calls.push({ wf, label: opts.label, model: opts.model }); return stub(opts.schema, null, ctxOf(prompt)); };
+    const agent = async (prompt, opts = {}) => { calls.push({ wf, label: opts.label, model: opts.model }); return stub(opts.schema, null, { ...ctxOf(prompt), label: opts.label }); };
     const guard = async f => { try { return await f(); } catch (e) { errors.push(`${wf}: ${e.message}`); return null; } };
     const parallel = thunks => Promise.all(thunks.map(t => guard(t)));
     const pipeline = (items, ...stages) => Promise.all(items.map((it, i) => guard(async () => { let r = it; for (const st of stages) r = await st(r, it, i); return r; })));

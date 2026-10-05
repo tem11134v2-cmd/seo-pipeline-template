@@ -179,7 +179,8 @@ try {
       const blk = t => hb.blocks.find(b => b.type === t) || { elements: [] };
       const cnt = (t, k) => (blk(t).elements.find(e => e.kind === k) || {}).count;
       check('build-briefs: sub первого экрана обязателен (1)', cnt('hero', 'sub') === '1', JSON.stringify(blk('hero').elements));
-      check('build-briefs: h2 сетки карточек (grid-3) - 0-1, h2 шагов - 1', cnt('benefits', 'h2') === '0-1' && cnt('process', 'h2') === '1', `${cnt('benefits', 'h2')} ${cnt('process', 'h2')}`);
+      // программа 05.10 §3.4: h2 необязателен (0-1) у всех блоков вне первого экрана (прежде шаги держали 1)
+      check('build-briefs: h2 вне первого экрана - 0-1 (сетка карточек grid-3 и шаги)', cnt('benefits', 'h2') === '0-1' && cnt('process', 'h2') === '0-1', `${cnt('benefits', 'h2')} ${cnt('process', 'h2')}`);
       const card = blk('benefits').elements.find(e => e.kind === 'card');
       check('build-briefs: лимит текста карточки - не больше card_max * 1.2', !!card && card.chars.max <= 180, JSON.stringify(card));
       check('build-briefs: сетка без фактов первого экрана (соседний блок)', !blk('benefits').facts.some(f => ['F04', 'F05', 'F03'].includes(f)), JSON.stringify(blk('benefits').facts));

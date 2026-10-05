@@ -6,14 +6,15 @@
 // (Fxx publish no)» - технический пробел, а не вопрос заказчику (запрос P2 -> P4); 3. report.mjs: прототип устарел -
 // sha данных сборки или file_sha/proto_sha проверки скриптов не совпадают с текущими (запрос P5 -> P4); 4. .gitignore:
 // снимок фиксера pre-fix (fix-diff.mjs) не идет в git, журнал fix-diff.json идет (запрос P4 -> P8); 5. K8: пути живых
-// блоков проекта одни у place (task.mjs isOwnPart) и сборщика (site-parts loadProjectRegistry).
+// блоков проекта одни у place (task.mjs isOwnPart) и сборщика (site-parts loadProjectRegistry); 6. снятые заказчиком поля
+// (noPhone, absentOf) - один модуль scripts/absent.mjs у импорта и оболочки прототипа (программа 05.10, интеграция G).
 // Стык K11 (report.mjs -> apply-answers -> импорт) - в .claude/tests/site/run.mjs (там фикстура анализа).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { decisionsIsTemplate, isOwnPart } from '../../skills/site-tekst/task.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -127,6 +128,17 @@ try {
     check('K8: place (isOwnPart) считает своими реестр и поведения проекта, файлы kit - нет', own.every(isOwnPart) && !notOwn.some(isOwnPart), JSON.stringify([own.map(isOwnPart), notOwn.map(isOwnPart)]));
     const sp = fs.readFileSync(path.join(KIT, 'scripts', 'site-parts.mjs'), 'utf8');
     check('K8: сборщик читает реестр из html/site и поведения из html/site/behaviors', /export function loadProjectRegistry\(dir = P\('html', 'site'\)\)/.test(sp) && /path\.join\(dir, 'behaviors'\)/.test(sp) && /path\.join\(dir, 'registry\.json'\)|'registry\.json'/.test(sp));
+  }
+
+  // ================================================================== 6. снятые заказчиком поля: один модуль на импорт и
+  // оболочку прототипа (программа 05.10, пакеты A и D, интеграция G)
+  {
+    const ab = await import(pathToFileURL(path.join(KIT, 'scripts', 'absent.mjs')).href);
+    const sp = await import(pathToFileURL(path.join(KIT, 'scripts', 'site-parts.mjs')).href);
+    const src = n => fs.readFileSync(path.join(KIT, 'scripts', n), 'utf8');
+    const local = /const (noPhone|absentOf|ABSENT_FIELDS|ABSENT_KIT) =/;
+    check('absent.mjs: import-project и site-parts берут noPhone/absentOf из него, своих копий нет', /from '\.\/absent\.mjs'/.test(src('import-project.mjs')) && /from '\.\/absent\.mjs'/.test(src('site-parts.mjs')) && !local.test(src('import-project.mjs')) && !local.test(src('site-parts.mjs')));
+    check('absent.mjs: поведение прежнее (no_phone и старое phone_absent, только поля kit без повторов), site-parts реэкспортирует то же', ab.noPhone({ phone_absent: true }) && ab.noPhone({ no_phone: true }) && !ab.noPhone({}) && !ab.noPhone(null) && JSON.stringify(ab.absentOf({ absent: ['email', 'schedule', 'hours', 'email', 'inn'] })) === '["email","hours","inn"]' && JSON.stringify(ab.ABSENT_FIELDS) === '["email","hours","address","legal_name","inn","ogrn"]' && sp.noPhone === ab.noPhone && sp.absentOf === ab.absentOf);
   }
 } catch (e) {
   fail++; failures.push(`FAIL исключение: ${e.stack || e.message}`);

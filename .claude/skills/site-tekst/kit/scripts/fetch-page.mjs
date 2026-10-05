@@ -2,6 +2,12 @@
 // node scripts/fetch-page.mjs <url> <out.json> [--timeout 20000]
 // node scripts/fetch-page.mjs <url> <out.json> --text-from <file.md>   - текст, снятый браузером
 //   (заголовки строками "# ", "## ", "### "; ссылки - [текст](url); остальное - абзацы). Статус будет "browser".
+// node scripts/fetch-page.mjs <url> <out.json> --html-from <render.html>   - снимок из html, отрисованного Chrome
+//   (capture-pages.mjs, CDP): тот же разбор секций, что у статического, status "browser", verbatim: true, via: "cdp";
+//   html страницы - рядом (<out>.html, html_path). Статический снимок того же адреса (ok или js_only) не меньше
+//   отрисованного - остается он, как при --text-from. CDP получил страницу проверки (правила pageStatus) - след
+//   <out без .json>.cdp.html, снимок не заменяется (без прежнего - статус antibot); это окончательный ответ сайта:
+//   браузер агента после него не запускается.
 // node scripts/fetch-page.mjs --dom-snippet   - печатает код обхода DOM для javascript_tool браузера (DOM_SNIPPET ниже).
 // Результат: {url, final_url, fetched_at, status, flat?, verbatim?, http_status, via?, cause?, error?, html_bytes, text_chars,
 //   headings_count, title, description, sections:[{level, heading, chars, words, text, truncated?}], links:[{href,text}],
@@ -75,8 +81,8 @@ export const JS_ONLY_CHARS = 1500;
 // Страница проверки (челлендж защиты от ботов). Признак ищется в заголовке окна и в видимом тексте (без head, script,
 // style) и только на короткой странице: у заглушки мало текста. Слова captcha и cloudflare в коде страницы (виджет
 // формы, скрипт с CDN) признаком не считаются.
-const CHALLENGE = /just a moment|attention required|checking (if the site|your browser)|ddos-guard|qrator|stormwall|servicepipe|access denied|доступ (запрещен|ограничен)|вы не робот|что запросы отправляли вы|are you (a )?(robot|human)|enable javascript and cookies|проверка (браузера|безопасности)|security check|похоже, нет соединения/i;
-const CHALLENGE_TITLE = /captcha|капча/i;
+export const CHALLENGE = /just a moment|attention required|checking (if the site|your browser)|ddos-guard|qrator|stormwall|servicepipe|access denied|доступ (запрещен|ограничен)|вы не робот|что запросы отправляли вы|are you (a )?(robot|human)|enable javascript and cookies|проверка (браузера|безопасности)|security check|похоже, нет соединения/i;
+export const CHALLENGE_TITLE = /captcha|капча/i;
 // Пустая оболочка SPA: корневой контейнер приложения без содержимого (текст рисует скрипт).
 const EMPTY_SPA = /<(div|main|section)\b[^>]*\bid=["'](root|app|__next|__nuxt|__layout|q-app)["'][^>]*>\s*<\/\1>|<app-root\b[^>]*>\s*<\/app-root>/i;
 export function pageStatus({ html = '', http_status = 0, text_chars = 0, headings_count = 0, title = '' }) {
@@ -294,13 +300,63 @@ async function fetchNative(url, timeout) {
   } finally { clearTimeout(timer); }
 }
 
+// Прежний снимок того же адреса, который не меньше нового (ok или js_only), или null.
+function keepStatic(out, url, chars) {
+  let prev = null;
+  try { prev = fs.existsSync(out) ? JSON.parse(fs.readFileSync(out, 'utf8').replace(/^\ufeff/, '')) : null; } catch { prev = null; }
+  const keep = prev && prev.html_path && ['ok', 'js_only'].includes(prev.status) && [prev.url, prev.final_url].some(u => sameUrl(u, url)) && (prev.text_chars || 0) >= chars;
+  return { prev, keep: keep ? prev : null };
+}
+
+// --html-from: снимок из отрисованного html (CDP). Разбор - как у статического снимка.
+function htmlFrom(url, out, file, result) {
+  const html = fs.readFileSync(file, 'utf8').replace(/^\ufeff/, '');
+  result.status = 'browser';
+  result.verbatim = true;
+  result.via = 'cdp';
+  result.html_bytes = Buffer.byteLength(html);
+  const tm = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i); result.title = tm ? stripTags(tm[1]).trim() : '';
+  const dm = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i) || html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i);
+  result.description = dm ? dm[1].trim() : '';
+  result.sections = sectionsFromHtml(html);
+  result.text_chars = result.sections.reduce((s, x) => s + x.chars, 0);
+  result.headings_count = result.sections.filter(s => s.level > 0).length;
+  result.links = linksFromHtml(html, url);
+  result.footer_text = footerText(html);
+  const { prev, keep } = keepStatic(out, url, result.text_chars);
+  // CDP получил страницу проверки: след рядом со снимком, прежний снимок не заменяется - это окончательный ответ сайта
+  if (pageStatus({ html, http_status: 0, text_chars: result.text_chars, headings_count: result.headings_count, title: result.title }).status === 'antibot') {
+    const trace = out.replace(/\.json$/, '') + '.cdp.html';
+    fs.mkdirSync(path.dirname(trace), { recursive: true });
+    fs.writeFileSync(trace, html, 'utf8');
+    if (!prev) writeJson(out, { ...result, status: 'antibot', verbatim: false, sections: [], links: [], footer_text: '' });
+    console.log(`antibot ${url}: CDP получил страницу проверки (символов ${result.text_chars}) - след ${trace}; снимок ${prev ? 'прежний не заменен' : 'записан со статусом antibot'}; браузер агента не запускать`);
+    return;
+  }
+  if (keep) {
+    const was = keep.status;
+    if (was === 'js_only') { keep.status = 'ok'; keep.browser_smaller = true; }
+    writeJson(out, keep);
+    console.log(`${keep.status} ${url}: статический снимок не меньше отрисованного (${keep.text_chars} >= ${result.text_chars}) - оставлен статический${was === 'js_only' ? ', статус js_only -> ok' : ''}`);
+    return;
+  }
+  const htmlPath = out.replace(/\.json$/, '.html');
+  fs.mkdirSync(path.dirname(htmlPath), { recursive: true });
+  fs.writeFileSync(htmlPath, html, 'utf8');
+  result.html_path = htmlPath;
+  if (result.headings_count < 2 && result.text_chars >= JS_ONLY_CHARS) result.flat = true;
+  writeJson(out, result);
+  console.log(`browser ${url}: отрисованный html (cdp), секций ${result.sections.length}, символов ${result.text_chars}, заголовков ${result.headings_count}, ссылок ${result.links.length}${result.flat ? ' (плоская: блоки - по html_path)' : ''}`);
+}
+
 async function main() {
   const a = argv({ 'dom-snippet': 'bool' });
   if (a['dom-snippet']) { console.log(DOM_SNIPPET); return; }
   const [url, out] = a._;
-  if (!url || !out) { console.error('usage: fetch-page.mjs <url> <out.json> [--text-from file] [--timeout ms] | --dom-snippet'); process.exit(2); }
+  if (!url || !out) { console.error('usage: fetch-page.mjs <url> <out.json> [--text-from file | --html-from render.html] [--timeout ms] | --dom-snippet'); process.exit(2); }
   const timeout = Number(a.timeout || 20000);
   const result = { url, final_url: url, fetched_at: nowIso(), status: 'error', http_status: 0, html_bytes: 0, text_chars: 0, headings_count: 0, title: '', description: '', sections: [], links: [], footer_text: '', html_path: '' };
+  if (a['html-from']) { htmlFrom(url, out, a['html-from'], result); return; }
   if (a['text-from']) {
     const dom = domSnapshotCheck(fs.readFileSync(a['text-from'], 'utf8').replace(/^\ufeff/, ''));
     const md = dom.rest;

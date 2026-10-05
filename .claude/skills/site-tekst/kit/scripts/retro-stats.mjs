@@ -3,7 +3,9 @@
 // Вход: work/audit/**/*.json - любые отчеты с массивом findings (формы у производителей разные: лишнее пропускается,
 //       отсутствующие поля считаются пустыми), кроме архивов кросса cross-archive-*.json (прежние отчеты: их находки уже
 //       посчитаны или исправлены, читает их только report.mjs), журнала сравнений fix-diff.json и снимков pre-fix/
-//       (fix-diff.mjs); work/facts.json -> gaps (если есть); наличие
+//       (fix-diff.mjs), дайджеста прототипа site-digest.json и скриншотов site-shots/ (аудитор прототипа, фаза 8);
+//       постраничные копии с split_from (split-cross.mjs, split-site.mjs) - находки общего файла, считаются один раз;
+//       work/facts.json -> gaps (если есть); наличие
 //       work/pages/<slug>/blocks/<id>.json (только чтобы найти устаревшие отчеты линтера).
 // Выход: work/audit/retro-stats.json и сводка в консоль (не больше 30 строк). Код выхода 0, даже если данных нет.
 import fs from 'node:fs';
@@ -13,9 +15,9 @@ import { P, walk, exists, nowIso } from './lib.mjs';
 const AUDIT = P('work', 'audit');
 const OUT = path.join(AUDIT, 'retro-stats.json');
 // не отчеты с находками: сводки скриптов и журнал сравнений фиксера (fix-diff.json); снимки блоков до фиксера
-// (work/audit/<slug>/pre-fix/) - копии блоков
-const IGNORE = new Set(['retro-stats.json', 'cross-digest.json', 'fix-diff.json']);
-const IGNORE_DIR = /(^|[\\/])pre-fix([\\/]|$)/;
+// (work/audit/<slug>/pre-fix/) - копии блоков; дайджест прототипа и скриншоты аудитора сайта (фаза 8) - не отчеты
+const IGNORE = new Set(['retro-stats.json', 'cross-digest.json', 'fix-diff.json', 'site-digest.json']);
+const IGNORE_DIR = /(^|[\\/])(pre-fix|site-shots)([\\/]|$)/;
 const ARCHIVE_RE = /^cross-archive-.*\.json$/;
 const MACHINE = new Set(['lint', 'dedup', 'html-check', 'layout-validator']);
 const JUDGES = new Set(['page-judge', 'blind-reader', 'cross-judge']);
@@ -166,7 +168,8 @@ for (const file of files) {
   const rel = path.relative(AUDIT, file).split(path.sep).join('/');
   const r = loadReport(file);
   if (r.error) { skipped.push({ file: rel, reason: r.error }); continue; }
-  // постраничные копии кросс-судьи (split-cross.mjs) повторяют находки общего cross.json - считаем один раз
+  // постраничные копии кросс-судьи и аудитора прототипа (split-cross.mjs, split-site.mjs) повторяют находки общих
+  // cross.json и site.json - считаем один раз
   if (r.meta && r.meta.split_from) continue;
   const ctx = classify(rel, r.meta);
   reports.push({ ...ctx, meta: r.meta, findings: r.findings.map((f, i) => normFinding(f, ctx, i)) });

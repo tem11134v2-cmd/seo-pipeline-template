@@ -1179,9 +1179,10 @@ try {
     const sxp = sx.rep.pages.remont || {};
     check('№24: явные факты блока цифр все у первого экрана - блок остается, number 3-4 -> 1-4, note -> 1-4, вопроса нет', sx.r.code === 0 && sx.cnt('numbers', 'number') === '1-4' && sx.cnt('numbers', 'note') === '1-4' && !(sxp.dropped || []).length && !(sxp.dropped_repeat || []).length && !sx.rep.questions.some(q => /Блок numbers/.test(q.text)) && /remont: B0\d-numbers: number 3-4 при опорах 1 -> 1-4/.test(sx.w), sx.r.code ? sx.r.out.slice(0, 400) : JSON.stringify(sxp));
     // прижим подписей блока цифр: все элементы без своих опор с нижней границей выше новой границы number (а не только
-    // с равной); h2 '1' и элементы 0-x не трогаются; элементы с опорами (карточки, плашки) держат свою границу
+    // с равной); элементы 0-x не трогаются (h2 вне первого экрана - 0-1 по программе 05.10 §3.4, остаток правила 3
+    // редакционного стандарта); элементы с опорами (карточки, плашки) держат свою границу
     const sd2 = mk(['F01', 'F08', 'F12', 'F04'], {}, undefined, [['h2', '1'], ['number', '3-4'], ['note', '2-4'], ['text', '0-1']]);
-    check('№24: number 3-4 -> 1-4, подпись note 2-4 (граница ниже, чем у number, но выше новой) -> 1-4', sd2.r.code === 0 && sd2.cnt('numbers', 'number') === '1-4' && sd2.cnt('numbers', 'note') === '1-4' && sd2.cnt('numbers', 'h2') === '1' && sd2.cnt('numbers', 'text') === '0-1' && /note 2-4 вместе с number -> 1-4/.test(sd2.w), sd2.r.code ? sd2.r.out.slice(0, 400) : sd2.w);
+    check('№24: number 3-4 -> 1-4, подпись note 2-4 (граница ниже, чем у number, но выше новой) -> 1-4', sd2.r.code === 0 && sd2.cnt('numbers', 'number') === '1-4' && sd2.cnt('numbers', 'note') === '1-4' && sd2.cnt('numbers', 'h2') === '0-1' && sd2.cnt('numbers', 'text') === '0-1' && /note 2-4 вместе с number -> 1-4/.test(sd2.w), sd2.r.code ? sd2.r.out.slice(0, 400) : sd2.w);
     const sd3 = mk(['F01', 'F08', 'F12', 'F04'], {}, undefined, [['h2', '0-1'], ['number', '2-4'], ['note', '3-4'], ['h3', '2-4']]);
     check('№24: number 2-4 -> 1-4, подписи note 3-4 и h3 2-4 (выше number) -> 1-4', sd3.r.code === 0 && sd3.cnt('numbers', 'number') === '1-4' && sd3.cnt('numbers', 'note') === '1-4' && sd3.cnt('numbers', 'h3') === '1-4', sd3.r.code ? sd3.r.out.slice(0, 400) : sd3.w);
     // карточки в блоке цифр (pattern numbers): своя граница по опорам блока (2 единицы: F08 + F12), не ниже 2, от порядка

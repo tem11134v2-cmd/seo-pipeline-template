@@ -66,6 +66,22 @@
           "disclaimer_text": { "type": "string", "description": "оговорка-дисклеймер закреплена за этим блоком" }
         }
       }
+    },
+    "stubs": {
+      "type": "array",
+      "description": "Заглушки элементов лидеров вне blocks: блок типа из kf_coverage (строка «обязательно» или «рекомендовано») выпал без фактов. Писатели, линтер и прогресс их не видят; читают сборка прототипа (секция с чипом «нужны данные»), report.mjs и build-kf-xlsx.mjs. Вопрос заказчику по заглушке задает отчет (сборка брифов вопроса о выпадении для нее не пишет).",
+      "items": {
+        "type": "object",
+        "required": ["type", "name", "after", "needs", "kf_el", "level"],
+        "properties": {
+          "type": { "type": "string", "pattern": "^[a-z0-9-]+$", "description": "id блока типа страницы" },
+          "name": { "type": "string" },
+          "after": { "type": "string", "pattern": "^B[0-9]{2}-[a-z0-9-]+$", "description": "block_id блока брифа, после которого стоит заглушка" },
+          "needs": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "что нужно от заказчика (подпись чипа «нужны данные: ...»)" },
+          "kf_el": { "type": "string", "description": "id элемента лидеров (kf_coverage[].el)" },
+          "level": { "type": "string", "enum": ["must", "recommended"] }
+        }
+      }
     }
   },
   "definitions": {

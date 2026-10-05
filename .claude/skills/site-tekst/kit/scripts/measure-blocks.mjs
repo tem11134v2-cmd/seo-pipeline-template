@@ -1,6 +1,7 @@
 // Замер объемов секций по всем снимкам конкурентов.
 // node scripts/measure-blocks.mjs [--raw work/competitors/raw] [--out work/competitors/measurements.csv] [--if-stale]
-// Читает fetch-page JSON, тип страницы берет из work/competitors/competitors.json (pages[].url -> type).
+// Читает fetch-page JSON, тип страницы берет из work/competitors/competitors.json (pages[].url -> type); в замер идут
+// только годные конкуренты (status ok), если competitors.json есть.
 // Выход: CSV domain,type,url,status,level,heading,chars,words + сводка по типу в measurements.summary.json
 //   (pages, total_chars, section_chars, h2_count {median, n}). Плоская страница (flat: заголовков h1-h3 меньше двух при
 //   нормальном объеме текста) в h2_count и section_chars не входит: ее блоки размечены не заголовками. n - сколько
@@ -34,8 +35,14 @@ function writeAtomic(file, text) {
   catch { fs.writeFileSync(file, text, 'utf8'); try { fs.unlinkSync(tmp); } catch {} }
 }
 const typeByUrl = new Map();
+// замер - только по годным конкурентам (status ok): снимки исключенных и устаревших после пересбора отбора доменов
+// в медианы не идут
+const kept = new Set();
 if (exists(compFile)) {
-  for (const c of readJson(compFile).competitors || []) for (const pg of c.pages || []) typeByUrl.set(pg.url.replace(/\/$/, ''), pg.type);
+  for (const c of readJson(compFile).competitors || []) {
+    if (c.status === 'ok' && c.domain) kept.add(String(c.domain).replace(/^www\./, ''));
+    for (const pg of c.pages || []) typeByUrl.set(pg.url.replace(/\/$/, ''), pg.type);
+  }
 }
 const rows = [];
 const perType = {};
@@ -46,6 +53,7 @@ for (const f of walk(rawDir, '.json')) {
   if (!['ok', 'browser'].includes(d.status)) continue;
   if (d.status === 'browser' && d.verbatim !== true) { retold++; continue; }
   let domain = ''; try { domain = new URL(d.url).host; } catch {}
+  if (kept.size && !kept.has(domain.replace(/^www\./, ''))) continue;
   const type = typeByUrl.get(d.url.replace(/\/$/, '')) || d.type || 'unknown';
   const total = d.sections.reduce((s, x) => s + x.chars, 0);
   perType[type] ??= { pages: 0, total_chars: [], sections: [], h2_count: [] };
