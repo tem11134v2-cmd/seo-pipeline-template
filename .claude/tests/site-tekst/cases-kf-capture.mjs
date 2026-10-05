@@ -189,6 +189,25 @@ try {
     check('--check-degraded: antibot без следа браузера и CDP - сбой среды, null', JSON.parse(c2.stdout).degraded === null && /d2\.example: статус antibot без браузерного снимка/.test(JSON.parse(c2.stdout).why), c2.out);
   }
 
+  // prep-args --prune-stale и замер только годных: разборы и снимки доменов прежнего отбора не попадают к агрегатору
+  {
+    const S = mkProject('prune');
+    const comp = path.join(S, 'work', 'competitors');
+    wj(path.join(comp, 'competitors.json'), { verified_at: 'x', competitors: [
+      { domain: 'a.example', status: 'ok', source: 'analysis', pages: [{ type: 'home', url: 'https://a.example/', raw: 'work/competitors/raw/a.example/home.json', status: 'ok' }] },
+      { domain: 'b.example', status: 'excluded', source: 'serp', reason: 'другой профиль', pages: [{ type: 'home', url: 'https://b.example/', raw: 'work/competitors/raw/b.example/home.json', status: 'ok' }] }] });
+    for (const d of ['a.example', 'b.example', 'old.example']) {
+      wj(path.join(comp, d, 'home.blocks.json'), { domain: d, blocks: [] });
+      wj(path.join(comp, 'raw', d, 'home.json'), { url: `https://${d}/`, status: 'ok', sections: [{ level: 2, heading: 'Блок', chars: 100, words: 20, text: 'x' }, { level: 2, heading: 'Еще', chars: 50, words: 10, text: 'y' }] });
+    }
+    const pr = run(S, ['scripts/prep-args.mjs', '--prune-stale']);
+    let pj = null; try { pj = JSON.parse(pr.stdout); } catch { pj = null; }
+    check('--prune-stale: разборы не годных доменов - в _stale/, годный на месте, снимки raw не тронуты', pr.code === 0 && !!pj && JSON.stringify(pj.moved.sort()) === '["b.example","old.example"]' && fs.existsSync(path.join(comp, 'a.example', 'home.blocks.json')) && fs.existsSync(path.join(comp, '_stale', 'old.example', 'home.blocks.json')) && fs.existsSync(path.join(comp, 'raw', 'old.example', 'home.json')), pr.out);
+    const ms = run(S, ['scripts/measure-blocks.mjs']);
+    const csvText = fs.readFileSync(path.join(comp, 'measurements.csv'), 'utf8');
+    check('measure-blocks: в замере только годные конкуренты (status ok)', ms.code === 0 && csvText.includes('a.example') && !csvText.includes('b.example') && !csvText.includes('old.example'), ms.out);
+  }
+
   // ================================================================== 4. capture-pages без Chrome, кадры, служебные функции
   {
     const NOCH = { SITE_TEKST_CHROME: path.join(tmpRoot, 'нет-такого-chrome.exe'), ...(NM ? { SITE_TEKST_NODE_MODULES: NM } : {}) };
@@ -247,6 +266,7 @@ try {
     check('pageLimit: страница не дольше 150 с и не дольше дедлайна + 90 с (не меньше 30 с) - вызов с --max-seconds 480 укладывается в 600 с', CP.pageLimit(now + 480000, now) === 150000 && CP.pageLimit(now + 10000, now) === 100000 && CP.pageLimit(now - 200000, now) === 30000 && CP.pageLimit(now, now) + 480000 <= 600000 - 30000);
     const cpSrc = read('scripts/capture-pages.mjs');
     check('capture-pages: часть домена и сводка пишутся после каждой страницы (onRecord -> save), срезанная дедлайном страница - skipped timeout', cpSrc.includes('const onRecord = r => { keep.set(r.name, r); try { save();') && cpSrc.includes("if (lim < PAGE_MS) { cut = true; put({ ...base(job), status: 'skipped', reason: 'timeout', partial: true }); }"));
+    check('сетевой отказ - повтор: ERR_CONNECTION_REFUSED/RESET, не HTTP и не DNS', CP.NET_RETRY.test('сайт не ответил: net::ERR_CONNECTION_REFUSED') && CP.NET_RETRY.test('net::ERR_CONNECTION_RESET') && !CP.NET_RETRY.test('HTTP 404') && !CP.NET_RETRY.test('net::ERR_NAME_NOT_RESOLVED') && CP.NET_RETRY_MS >= 1000);
     check('findChrome: SITE_TEKST_CHROME - только она (есть - путь, нет - null)', CP.findChrome({ SITE_TEKST_CHROME: process.execPath }) === process.execPath && CP.findChrome({ SITE_TEKST_CHROME: path.join(tmpRoot, 'nope.exe') }) === null);
     const od = path.join(tmpRoot, 'orph'); fs.mkdirSync(od);
     const o1 = path.join(od, `${CP.PROFILE_PREFIX}old`), o2 = path.join(od, `${CP.PROFILE_PREFIX}new`), o3 = path.join(od, 'other-old');

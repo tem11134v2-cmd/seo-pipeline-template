@@ -163,7 +163,9 @@ if (SELECT) {
   }
   // узкая ниша: строка в method верификатора (параметр note) и в итог фазы
   if (exhausted) selectNote = EXHAUSTED
-  const rk = await run('node scripts/rank-competitors.mjs', 'rank', 'Select', 'rank')
+  // бесплатный whois (порт 43) дозаполняет даты регистрации, если whois Арсенкина не ответил: без возраста отбор теряет
+  // фактор молодости; сбой whois ранжированию не мешает
+  const rk = await run('node scripts/rank-competitors.mjs --whois; node scripts/rank-competitors.mjs', 'rank', 'Select', 'rank')
   if (!rk || !rk.ok) limit(`ранжирование кандидатов не отработало (${tail(rk)}) - верификатор идет по ranking.json, если он есть, иначе по-старому`)
   select = { fresh, exhausted, scout: scout ? { status: scout.status || '', candidates: scout.candidates, eligible: scout.eligible, sources_done: scout.sources_done || [], errors: (scout.errors || []).length, calls: scout.calls } : null, rank_ok: !!(rk && rk.ok) }
 }
@@ -171,6 +173,18 @@ if (!A.skipInventory) {
   phase('Verify')
   verify = await agent(`${pre('prompts/02-competitor-verifier.md')}${selectNote ? `\nПараметры: note=${JSON.stringify(selectNote)}.` : ''}`, { label: 'verify', phase: 'Verify', effort: 'medium', model: modelFor('verify'), schema: VERIFY })
   if (!verify) throw new Error('нет доступных конкурентов: верификатор не вернул ответ')
+  // верификатор обязан идти по ranking.order: пропуск домена выше последнего годного (например, прежний список при новом
+  // порядке) - повтор верификатора на пропущенных; проверяет скрипт, а не самоотчет агента
+  if (verify.kept.length && select && select.rank_ok) {
+    const ord = await run('node scripts/rank-competitors.mjs --verify-order', 'rank:order', 'Verify', 'rank')
+    const gap = ord && ord.ok ? (() => { try { return JSON.parse(String(ord.stdout_tail).trim().split('\n').pop()).skipped || [] } catch { return [] } })() : []
+    if (gap.length) {
+      log(`верификатор пропустил по порядку: ${gap.join(', ')} - повторная проверка`)
+      const v2 = await agent(`${pre('prompts/02-competitor-verifier.md')}\nПараметры: recheck=${JSON.stringify(gap)}${selectNote ? `; note=${JSON.stringify(selectNote)}` : ''}.`, { label: 'verify:2', phase: 'Verify', effort: 'medium', model: modelFor('verify'), schema: VERIFY })
+      if (v2 && v2.kept.length) verify = v2
+      else limit(`повторная проверка пропущенных (${gap.join(', ')}) не вернула ответ - остается первый список`)
+    }
+  }
   if (!verify.kept.length) {
     // деградация - только когда все кандидаты ответили, но недоступны; проверяет скрипт, а не самоотчет верификатора
     let why = 'верификатор не отметил degraded: no_competitors (сбой среды или пустой список)'
@@ -183,6 +197,11 @@ if (!A.skipInventory) {
     log('без конкурентов: все кандидаты ответили, но недоступны - типы собираются по анализу (degraded: no_competitors), в отчете вопрос о сайтах-ориентирах')
   } else {
     log(`конкурентов в работе: ${verify.kept.length} (${verify.kept.join(', ')})`)
+    // разборы блоков доменов не из годных (остались от прежнего отбора) - в _stale/, иначе их подхватит агрегатор
+    if (!A.extract_out) {
+      const pr = await run('node scripts/prep-args.mjs --prune-stale', 'prep-args:prune', 'Verify', 'prep-args')
+      if (pr && pr.ok && /"moved":\["/.test(pr.stdout_tail || '')) log(`устаревшие разборы убраны в work/competitors/_stale/: ${String(pr.stdout_tail).slice(0, 200)}`)
+    }
     // главную снял верификатор; info_other ищется только по названиям страниц карты
     const invTypes = types.filter(t => t !== 'home' && (t !== 'info_other' || INFO_NAMES.length))
     if (!invTypes.length) log(`инвентаризация не нужна: кроме главной искать нечего (типы: ${types.join(', ')}) - разбираем главные конкурентов`)

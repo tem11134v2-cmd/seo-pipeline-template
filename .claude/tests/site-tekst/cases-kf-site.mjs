@@ -98,6 +98,9 @@ const SHELL_SERVICES = {
     item({ id: 'x-quick-calc', name: 'Быстрый расчет', zone: 'mobile', kind: 'function', niche: true }),
     item({ id: 'up_button', name: 'Наверх', zone: 'fixed', kind: 'function', render: 'up_button' }),
     item({ id: 'callback', name: 'Обратный звонок', zone: 'fixed', kind: 'function', render: 'callback' }),
+    // часть оболочки, которую прототип рисует всегда (вид nav словаря): shown, без новой разметки и без вопроса
+    item({ id: 'logo', name: 'Логотип', zone: 'header', kind: 'slot', render: 'native' }),
+    item({ id: 'copyright', name: 'Копирайт', zone: 'footer', kind: 'slot', render: 'native' }),
   ],
 };
 const CITY_FACT = { id: 'F810', label: 'Город работы', value: 'Самара и область', wording: 'Самара и область', publish: 'yes', source_quote: 'оператор: работаем по Самаре и области', kind: 'geo', slot: 'city', source: 'оператор: 2026-10-05 ответ заказчика' };
@@ -128,6 +131,7 @@ const CITY_FACT = { id: 'F810', label: 'Город работы', value: 'Сам
   check('услуги+оболочка: modules.shell - on, why, source и элементы {id, name, zone, level, coverage, niche, state}', mods.shell && mods.shell.on === true && mods.shell.why && mods.shell.source && mods.shell.items.length === SHELL_SERVICES.items.length && mods.shell.items.every(i => ['id', 'name', 'zone', 'level', 'coverage', 'niche', 'state'].every(k => k in i)), JSON.stringify(mods.shell).slice(0, 300));
   check('услуги+оболочка: живые модули не включены - нет data-cart, data-search, секций модулей, mods.cart/search/account off', !/data-cart|data-search|search-sec|cart-sec|acc-sec/.test(mk) && mods.cart.on === false && mods.search.on === false && mods.account.on === false);
   check('услуги+оболочка: поиск, корзина, кабинет без страниц - state function, кнопки-тосты «функция вне прототипа» в шапке', ['search', 'cart', 'account'].every(id => stateOf(mods, id) === 'function') && ['search', 'cart', 'account'].every(id => new RegExp(`<button type="button" class="shell-fn" data-act="toast" data-toast="Функция вне прототипа" data-kf="${id}">`).test(hdr)));
+  check('услуги+оболочка: native (логотип, копирайт) - shown, без data-kf и без чипа', stateOf(mods, 'logo') === 'shown' && stateOf(mods, 'copyright') === 'shown' && !/data-kf="logo"|data-kf="copyright"/.test(html));
   check('услуги+оболочка: телефон и мессенджер с данными - shown, на своих местах без новой разметки', stateOf(mods, 'phone') === 'shown' && stateOf(mods, 'whatsapp') === 'shown' && !/data-kf="phone"|data-kf="whatsapp"/.test(html) && /class="hdr-phone"/.test(hdr));
   check('услуги+оболочка: слот без данных - чип «нужны данные: рейтинг на картах» в группе шапки перед CTA', stateOf(mods, 'rating') === 'chip' && /<span class="shell-hdr">[\s\S]*<span class="ph-need" data-kf="rating">нужны данные: рейтинг на картах<\/span>[\s\S]*<\/span><a class="btn btn-cta/.test(hdr));
   check('услуги+оболочка: слот из факта с полем slot - значение факта, state shown, без чипа', stateOf(mods, 'city') === 'shown' && /<span class="shell-v" data-kf="city">Самара и область<\/span>/.test(hdr) && !/class="ph-need" data-kf="city"/.test(html));
@@ -163,6 +167,26 @@ const CITY_FACT = { id: 'F810', label: 'Город работы', value: 'Сам
   const rep = rj(path.join(r.dir, 'work', 'audit', 'html-check.json'));
   const rules = rep.findings.map(f => f.rule);
   check('check-html: чип в меню - major placeholder-ui, чип без data-kf и элемент chip без чипа - minor shell-chip, declined на сайте - major shell-declined', rules.includes('html.placeholder-ui') && rules.filter(x => x === 'html.shell-chip').length === 2 && rules.includes('html.shell-declined'), rules.join(', '));
+}
+
+// ================================================================ 3б. сопоставление страниц по названию (правка по приемке Goldax)
+{
+  // страница поиска без ui_role (как у Goldax: «Поиск по каталогу») - ссылка на нее, живой модуль не включается;
+  // политика: роль legal или название - альтернативы (страница без ui_role находится по названию)
+  const SH = { generated_at: '2026-10-05T10:00:00Z', n_competitors: 5, items: [
+    item({ id: 'search', name: 'Поиск по сайту', zone: 'header', kind: 'function', render: 'search', page_match: { subject_re: 'поиск' } }),
+    item({ id: 'privacy_policy', name: 'Политика конфиденциальности', zone: 'footer', kind: 'page_link', page_match: { ui_role: 'legal', subject_re: 'политик' } }),
+  ] };
+  const r = build('svc-match', 'fixture-services', dir => {
+    wj(path.join(dir, 'work', 'shell.json'), SH);
+    const sf = path.join(dir, 'work', 'sitemap.json'); const sm = rj(sf);
+    sm.pages = sm.pages.map(p => (p.slug === 'politika' ? { ...p, ui_role: undefined } : p));
+    sm.pages.push({ slug: 'poisk', url: '/poisk', type: 'info_other', subject: 'Поиск по каталогу', level: 1, status: 'skip' });
+    wj(sf, sm);
+  });
+  const mods = modsOf(r.dir);
+  check('сопоставление: политика без ui_role legal - по названию «есть в карте», не page_missing', r.code === 0 && stateOf(mods, 'privacy_policy') === 'shown', JSON.stringify(mods.shell && mods.shell.items));
+  check('сопоставление: поиск без страницы ui_role search и без живой страницы - функция (страница skip не дает ссылки)', stateOf(mods, 'search') === 'function' && mods.search.on === false);
 }
 
 // ================================================================ 4. решения заказчика: no_phone, absent, частичные реквизиты

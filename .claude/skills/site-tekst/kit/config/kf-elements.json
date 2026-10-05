@@ -17,139 +17,2921 @@
     "Неопределено"
   ],
   "elements": [
-    {"id":"menu_main","name":"Главное меню","zones":["header"],"category":"Навигация","eeat":null,"kind":"nav","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["меню"],"multipage_only":false},
-    {"id":"burger","name":"Кнопка меню","zones":["header","mobile"],"category":"Навигация","eeat":null,"kind":"nav","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["бургер"],"multipage_only":false},
-    {"id":"catalog_link","name":"Каталог","zones":["header","footer","mobile"],"category":"Навигация","eeat":null,"kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"subject_re":"каталог"},"visible":true,"synonyms":["каталог","все товары","продукция"],"multipage_only":false},
-    {"id":"services_link","name":"Услуги","zones":["header","footer","mobile"],"category":"Навигация","eeat":null,"kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"type":"hub","subject_re":"услуг"},"visible":true,"synonyms":["услуги","наши услуги","направления"],"multipage_only":false},
-    {"id":"breadcrumbs","name":"Хлебные крошки","zones":["body"],"category":"Навигация","eeat":null,"kind":"nav","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["навигационная цепочка"],"multipage_only":true},
-    {"id":"sidebar_menu","name":"Боковое меню","zones":["body"],"category":"Навигация","eeat":null,"kind":"nav","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":[],"multipage_only":true},
-    {"id":"tags","name":"Плитка тегов","zones":["body"],"category":"Навигация","eeat":null,"kind":"nav","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["теги","подборки"],"multipage_only":true},
-    {"id":"subcategories","name":"Подкатегории","zones":["body"],"category":"Навигация","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":"cats","page_match":null,"visible":true,"synonyms":["подразделы","разделы каталога"],"multipage_only":true},
-    {"id":"footer_menu","name":"Меню в подвале","zones":["footer"],"category":"Навигация","eeat":null,"kind":"nav","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":[],"multipage_only":false},
-    {"id":"mobile_bottom_bar","name":"Нижняя панель на телефоне","zones":["mobile","fixed"],"category":"Вспомогательные элементы","eeat":null,"kind":"nav","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["таб-бар"],"multipage_only":false},
-    {"id":"sitemap_link","name":"Карта сайта","zones":["footer"],"category":"Навигация","eeat":null,"kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"subject_re":"карта сайта"},"visible":true,"synonyms":["карта сайта"],"multipage_only":true},
-    {"id":"up_button","name":"Кнопка вверх","zones":["fixed"],"category":"Вспомогательные элементы","eeat":null,"kind":"function","needs":[],"render":"up_button","block_hint":null,"page_match":null,"visible":true,"synonyms":["наверх"],"multipage_only":false},
-    {"id":"city_select","name":"Выбор города","zones":["header","mobile"],"category":"Навигация","eeat":null,"kind":"slot","needs":[],"needs_hint":"список городов, где работает компания","render":"city","block_hint":null,"page_match":null,"visible":true,"synonyms":["ваш город","выберите город","регион"],"multipage_only":false},
-    {"id":"phone","name":"Телефон","zones":["header","footer","mobile","fixed"],"category":"Контакты","eeat":"trust","kind":"slot","needs":["company.phones"],"render":"phone","block_hint":null,"page_match":null,"visible":true,"synonyms":["позвонить","номер телефона","городской номер","мобильный номер"],"multipage_only":false},
-    {"id":"phone_8800","name":"Номер 8-800","zones":["header","footer"],"category":"Контакты","eeat":"trust","kind":"slot","needs":["company.phones"],"render":"phone","block_hint":null,"page_match":null,"visible":true,"synonyms":["бесплатный звонок","8 800"],"multipage_only":false},
-    {"id":"email","name":"Почта","zones":["header","footer"],"category":"Контакты","eeat":"trust","kind":"slot","needs":["company.email"],"render":"email","block_hint":null,"page_match":null,"visible":true,"synonyms":["e-mail","электронная почта","почта на своем домене"],"multipage_only":false},
-    {"id":"address","name":"Адрес","zones":["header","footer","body"],"category":"Контакты","eeat":"trust","kind":"slot","needs":["company.address"],"render":"address","block_hint":null,"page_match":null,"visible":true,"synonyms":["адрес офиса","наш адрес"],"multipage_only":false},
-    {"id":"hours","name":"Часы работы","zones":["header","footer"],"category":"Контакты","eeat":"trust","kind":"slot","needs":["company.hours"],"render":"hours","block_hint":null,"page_match":null,"visible":true,"synonyms":["режим работы","время работы","дни работы","круглосуточно"],"multipage_only":false},
-    {"id":"messenger_whatsapp","name":"WhatsApp","zones":["header","footer","mobile","fixed"],"category":"Контакты","eeat":"trust","kind":"slot","needs":["company.channels"],"render":"messengers","block_hint":null,"page_match":null,"visible":true,"synonyms":["ватсап","вотсап"],"multipage_only":false},
-    {"id":"messenger_telegram","name":"Telegram","zones":["header","footer","mobile","fixed"],"category":"Контакты","eeat":"trust","kind":"slot","needs":["company.channels"],"render":"messengers","block_hint":null,"page_match":null,"visible":true,"synonyms":["телеграм","написать в telegram"],"multipage_only":false},
-    {"id":"messenger_viber","name":"Viber","zones":["header","footer","mobile","fixed"],"category":"Контакты","eeat":"trust","kind":"slot","needs":["company.channels"],"render":"messengers","block_hint":null,"page_match":null,"visible":true,"synonyms":["вайбер"],"multipage_only":false},
-    {"id":"messenger_max","name":"MAX","zones":["header","footer","mobile","fixed"],"category":"Контакты","eeat":"trust","kind":"slot","needs":["company.channels"],"render":"messengers","block_hint":null,"page_match":null,"visible":true,"synonyms":["мессенджер max"],"multipage_only":false},
-    {"id":"callback","name":"Обратный звонок","zones":["header","footer","mobile","fixed"],"category":"Конверсия","eeat":null,"kind":"function","needs":[],"render":"callback","block_hint":null,"page_match":null,"visible":true,"synonyms":["заказать звонок","перезвоните мне","обратный звонок"],"multipage_only":false},
-    {"id":"contacts_link","name":"Контакты","zones":["header","footer","mobile"],"category":"Контакты","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"type":"info_contacts"},"visible":true,"synonyms":["контакты","связаться с нами","как нас найти"],"multipage_only":false},
-    {"id":"map","name":"Карта проезда","zones":["footer","body"],"category":"Контакты","eeat":"trust","kind":"block","needs":["company.address"],"render":"map_link","block_hint":"map","page_match":null,"visible":true,"synonyms":["схема проезда","мы на карте"],"multipage_only":false},
-    {"id":"route","name":"Как добраться","zones":["body"],"category":"Контакты","eeat":"trust","kind":"block","needs":["company.address"],"render":null,"block_hint":"route","page_match":null,"visible":true,"synonyms":["построить маршрут","как проехать"],"multipage_only":false},
-    {"id":"stores","name":"Адреса офисов и магазинов","zones":["header","footer","body"],"category":"Контакты","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"subject_re":"адрес|магазин|офис|салон|шоурум|филиал"},"visible":true,"synonyms":["магазины","адреса","офисы","шоурум","филиалы"],"multipage_only":false},
-    {"id":"chat","name":"Онлайн-чат","zones":["fixed"],"category":"Сервисные элементы","eeat":null,"kind":"function","needs":[],"needs_hint":"кто и когда отвечает в чате","render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["чат","онлайн-консультант","напишите нам"],"multipage_only":false},
-    {"id":"ask_question","name":"Задать вопрос","zones":["body","footer"],"category":"Конверсия","eeat":null,"kind":"function","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["задать вопрос","есть вопросы"],"multipage_only":false},
-    {"id":"social_vk","name":"ВКонтакте","zones":["header","footer"],"category":"Контакты","eeat":"authority","kind":"slot","needs":["company.channels"],"render":"socials","block_hint":null,"page_match":null,"visible":true,"synonyms":["вк","vk"],"multipage_only":false},
-    {"id":"social_ok","name":"Одноклассники","zones":["header","footer"],"category":"Контакты","eeat":"authority","kind":"slot","needs":["company.channels"],"render":"socials","block_hint":null,"page_match":null,"visible":true,"synonyms":["ок"],"multipage_only":false},
-    {"id":"social_youtube","name":"YouTube","zones":["header","footer"],"category":"Контакты","eeat":"authority","kind":"slot","needs":["company.channels"],"render":"socials","block_hint":null,"page_match":null,"visible":true,"synonyms":["ютуб"],"multipage_only":false},
-    {"id":"social_rutube","name":"Rutube","zones":["header","footer"],"category":"Контакты","eeat":"authority","kind":"slot","needs":["company.channels"],"render":"socials","block_hint":null,"page_match":null,"visible":true,"synonyms":["рутуб"],"multipage_only":false},
-    {"id":"social_dzen","name":"Дзен","zones":["header","footer"],"category":"Контакты","eeat":"authority","kind":"slot","needs":["company.channels"],"render":"socials","block_hint":null,"page_match":null,"visible":true,"synonyms":["яндекс дзен"],"multipage_only":false},
-    {"id":"social_telegram","name":"Telegram-канал","zones":["header","footer"],"category":"Контакты","eeat":"authority","kind":"slot","needs":["company.channels"],"render":"socials","block_hint":null,"page_match":null,"visible":true,"synonyms":["наш канал"],"multipage_only":false},
-    {"id":"social_instagram","name":"Instagram","zones":["header","footer"],"category":"Контакты","eeat":"authority","kind":"slot","needs":["company.channels"],"render":"socials","block_hint":null,"page_match":null,"visible":true,"synonyms":["инстаграм"],"multipage_only":false},
-    {"id":"social_tiktok","name":"TikTok","zones":["header","footer"],"category":"Контакты","eeat":"authority","kind":"slot","needs":["company.channels"],"render":"socials","block_hint":null,"page_match":null,"visible":true,"synonyms":["тикток"],"multipage_only":false},
-    {"id":"review_platforms","name":"Отзывы на площадках","zones":["footer","body"],"category":"Социальное доказательство","eeat":"trust","kind":"slot","needs":[],"needs_hint":"ссылки на карточки компании на площадках отзывов и картах","render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["мы на картах","отзывы на картах"],"multipage_only":false},
-    {"id":"cta_header","name":"Кнопка заявки в шапке","zones":["header","mobile"],"category":"Конверсия","eeat":null,"kind":"function","needs":[],"render":"cta","block_hint":null,"page_match":null,"visible":true,"synonyms":["оставить заявку","записаться","рассчитать"],"multipage_only":false},
-    {"id":"fixed_cta","name":"Закрепленная кнопка действия","zones":["fixed","mobile"],"category":"Конверсия","eeat":null,"kind":"function","needs":[],"render":"cta","block_hint":null,"page_match":null,"visible":true,"synonyms":["плавающая кнопка"],"multipage_only":false},
-    {"id":"lead_form","name":"Форма заявки","zones":["body"],"category":"Конверсия","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":"cta-final","page_match":null,"visible":true,"synonyms":["форма обратной связи","оставьте заявку","получить расчет"],"multipage_only":false},
-    {"id":"footer_form","name":"Форма в подвале","zones":["footer"],"category":"Конверсия","eeat":null,"kind":"function","needs":[],"render":"cta","block_hint":null,"page_match":null,"visible":true,"synonyms":["форма захвата"],"multipage_only":false},
-    {"id":"consultation","name":"Бесплатная консультация","zones":["body"],"category":"Конверсия","eeat":"expertise","kind":"block","needs":[],"render":null,"block_hint":"consult","page_match":null,"visible":true,"synonyms":["получить консультацию","консультация специалиста"],"multipage_only":false},
-    {"id":"quiz","name":"Квиз или подбор","zones":["body"],"category":"Конверсия","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":"quiz","page_match":null,"visible":true,"synonyms":["подбор","ответьте на вопросы","тест"],"multipage_only":false},
-    {"id":"calculator","name":"Калькулятор стоимости","zones":["body"],"category":"Конверсия","eeat":null,"kind":"block","needs":[],"needs_hint":"цены и правила расчета для калькулятора","render":null,"block_hint":"calc","page_match":null,"visible":true,"synonyms":["рассчитать стоимость","калькулятор"],"multipage_only":false},
-    {"id":"subscribe","name":"Подписка на рассылку","zones":["footer","body"],"category":"Конверсия","eeat":null,"kind":"function","needs":[],"render":"subscribe","block_hint":null,"page_match":null,"visible":true,"synonyms":["подписаться","рассылка"],"multipage_only":false},
-    {"id":"popup","name":"Всплывающее окно с предложением","zones":["fixed"],"category":"Конверсия","eeat":null,"kind":"function","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["поп-ап"],"multipage_only":false},
-    {"id":"discount_offer","name":"Получить скидку","zones":["fixed","body","header"],"category":"Конверсия","eeat":null,"kind":"function","needs":[],"needs_hint":"размер и условия скидки","render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["получить скидку","скидка за подписку"],"multipage_only":false},
-    {"id":"booking","name":"Онлайн-запись","zones":["header","body"],"category":"Конверсия","eeat":null,"kind":"function","needs":[],"needs_hint":"расписание и услуги для записи","render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["записаться онлайн","онлайн-запись"],"multipage_only":false},
-    {"id":"price_request","name":"Запрос цены или прайса","zones":["body"],"category":"Конверсия","eeat":null,"kind":"function","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["узнать цену","получить прайс","запросить стоимость"],"multipage_only":false},
-    {"id":"buy_button","name":"Кнопка покупки","zones":["body"],"category":"Конверсия","eeat":null,"kind":"function","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["купить","в корзину","заказать"],"multipage_only":false},
-    {"id":"price","name":"Цена или цена «от»","zones":["body"],"category":"Коммерческая информация","eeat":"trust","kind":"block","needs":[],"render":null,"block_hint":"price","page_match":null,"visible":true,"synonyms":["стоимость","цены","от"],"multipage_only":false},
-    {"id":"price_list","name":"Прайс-лист","zones":["header","footer","body"],"category":"Коммерческая информация","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"subject_re":"прайс|цен"},"visible":true,"synonyms":["прайс","цены","стоимость"],"multipage_only":false},
-    {"id":"availability","name":"Наличие","zones":["body"],"category":"Коммерческая информация","eeat":"trust","kind":"block","needs":[],"render":null,"block_hint":"listing","page_match":null,"visible":true,"synonyms":["в наличии","под заказ"],"multipage_only":false},
-    {"id":"delivery","name":"Доставка","zones":["header","footer","body"],"category":"Коммерческая информация","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":"delivery","page_match":{"subject_re":"доставк"},"visible":true,"synonyms":["доставка","доставка и оплата"],"multipage_only":false},
-    {"id":"payment","name":"Оплата","zones":["header","footer","body"],"category":"Коммерческая информация","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":"payment","page_match":{"subject_re":"оплат"},"visible":true,"synonyms":["оплата","способы оплаты"],"multipage_only":false},
-    {"id":"payment_icons","name":"Логотипы способов оплаты","zones":["footer","body"],"category":"Коммерческая информация","eeat":"trust","kind":"slot","needs":[],"needs_hint":"способы оплаты","render":"payment_icons","block_hint":null,"page_match":null,"visible":true,"synonyms":["мир","visa","mastercard","сбп"],"multipage_only":false},
-    {"id":"installment","name":"Рассрочка или кредит","zones":["header","body"],"category":"Коммерческая информация","eeat":null,"kind":"block","needs":[],"needs_hint":"условия рассрочки или кредита","render":null,"block_hint":"installment","page_match":null,"visible":true,"synonyms":["рассрочка","кредит","лизинг"],"multipage_only":false},
-    {"id":"returns","name":"Обмен и возврат","zones":["footer","body"],"category":"Коммерческая информация","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"subject_re":"возврат|обмен"},"visible":true,"synonyms":["возврат","обмен и возврат"],"multipage_only":false},
-    {"id":"guarantee","name":"Гарантия","zones":["header","footer","body"],"category":"Коммерческая информация","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":"guarantees","page_match":{"subject_re":"гарант"},"visible":true,"synonyms":["гарантия","гарантии"],"multipage_only":false},
-    {"id":"promotions","name":"Акции и скидки","zones":["header","footer","body"],"category":"Коммерческая информация","eeat":null,"kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"subject_re":"акци|скидк|распродаж"},"visible":true,"synonyms":["акции","скидки","распродажа","спецпредложения"],"multipage_only":false},
-    {"id":"loyalty","name":"Бонусная программа","zones":["footer","body"],"category":"Коммерческая информация","eeat":null,"kind":"page_link","needs":[],"needs_hint":"условия бонусной программы","render":null,"block_hint":null,"page_match":{"subject_re":"бонус|лояльн|клубн"},"visible":true,"synonyms":["программа лояльности","бонусы","клубная карта","кэшбэк"],"multipage_only":false},
-    {"id":"gift_cards","name":"Подарочные сертификаты","zones":["footer","body"],"category":"Коммерческая информация","eeat":null,"kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"subject_re":"подарочн"},"visible":true,"synonyms":["подарочная карта"],"multipage_only":false},
-    {"id":"wholesale","name":"Оптовым и корпоративным клиентам","zones":["header","footer"],"category":"Коммерческая информация","eeat":null,"kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"subject_re":"опт|юрлиц|юридическ|корпоратив"},"visible":true,"synonyms":["оптом","юридическим лицам","для бизнеса"],"multipage_only":false},
-    {"id":"partners_link","name":"Партнерам","zones":["footer"],"category":"Коммерческая информация","eeat":null,"kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"subject_re":"партнер|дилер|сотрудничеств"},"visible":true,"synonyms":["сотрудничество","дилерам","поставщикам"],"multipage_only":false},
-    {"id":"how_to_order","name":"Как заказать","zones":["footer","body"],"category":"Коммерческая информация","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":"process","page_match":{"subject_re":"как заказать|как купить|оформ"},"visible":true,"synonyms":["как купить","как оформить заказ"],"multipage_only":false},
-    {"id":"categories_block","name":"Категории на главной","zones":["body"],"category":"Коммерческая информация","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":"cats","page_match":null,"visible":true,"synonyms":["категории","популярные разделы"],"multipage_only":false},
-    {"id":"products_block","name":"Подборки товаров","zones":["body"],"category":"Коммерческая информация","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":"listing","page_match":null,"visible":true,"synonyms":["хиты","новинки","популярное","лидеры продаж"],"multipage_only":false},
-    {"id":"filters","name":"Фильтры","zones":["body"],"category":"Сервисные элементы","eeat":null,"kind":"function","needs":[],"render":null,"block_hint":"filters","page_match":null,"visible":true,"synonyms":["подбор по параметрам","фильтр"],"multipage_only":true},
-    {"id":"sorting","name":"Сортировка","zones":["body"],"category":"Сервисные элементы","eeat":null,"kind":"function","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["сортировать"],"multipage_only":true},
-    {"id":"specs","name":"Характеристики","zones":["body"],"category":"Коммерческая информация","eeat":"expertise","kind":"block","needs":[],"render":null,"block_hint":"specs","page_match":null,"visible":true,"synonyms":["технические характеристики","параметры"],"multipage_only":false},
-    {"id":"similar","name":"Похожие и рекомендуемые","zones":["body"],"category":"Коммерческая информация","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":"listing","page_match":null,"visible":true,"synonyms":["похожие","с этим покупают","вы смотрели"],"multipage_only":false},
-    {"id":"delivery_calc","name":"Расчет доставки","zones":["body"],"category":"Коммерческая информация","eeat":null,"kind":"function","needs":[],"needs_hint":"условия и тарифы доставки","render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["рассчитать доставку"],"multipage_only":false},
-    {"id":"services_list","name":"Список услуг","zones":["body"],"category":"Коммерческая информация","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":"services","page_match":null,"visible":true,"synonyms":["наши услуги","что мы делаем"],"multipage_only":false},
-    {"id":"steps","name":"Этапы работы","zones":["body"],"category":"Коммерческая информация","eeat":"experience","kind":"block","needs":[],"render":null,"block_hint":"process","page_match":null,"visible":true,"synonyms":["как мы работаем","порядок работы","этапы"],"multipage_only":false},
-    {"id":"included","name":"Что входит","zones":["body"],"category":"Коммерческая информация","eeat":"trust","kind":"block","needs":[],"render":null,"block_hint":"list","page_match":null,"visible":true,"synonyms":["в стоимость входит","комплектация"],"multipage_only":false},
-    {"id":"benefits","name":"Преимущества","zones":["body"],"category":"Доверие","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":"benefits","page_match":null,"visible":true,"synonyms":["почему мы","почему выбирают нас"],"multipage_only":false},
-    {"id":"guarantees_block","name":"Гарантии (блок)","zones":["body"],"category":"Доверие","eeat":"trust","kind":"block","needs":[],"render":null,"block_hint":"guarantees","page_match":null,"visible":true,"synonyms":["наши гарантии"],"multipage_only":false},
-    {"id":"numbers","name":"Компания в цифрах","zones":["body"],"category":"Доверие","eeat":"authority","kind":"block","needs":[],"render":null,"block_hint":"numbers","page_match":null,"visible":true,"synonyms":["лет на рынке","в цифрах"],"multipage_only":false},
-    {"id":"certificates","name":"Сертификаты и документы","zones":["footer","body"],"category":"Доверие","eeat":"authority","kind":"page_link","needs":[],"render":"docs","block_hint":"docs","page_match":{"subject_re":"сертификат|документ"},"visible":true,"synonyms":["сертификаты","документы","разрешения"],"multipage_only":false},
-    {"id":"licenses","name":"Лицензии","zones":["footer","body"],"category":"Доверие","eeat":"authority","kind":"slot","needs":[],"needs_hint":"номера и даты лицензий","render":"licenses","block_hint":null,"page_match":null,"visible":true,"synonyms":["лицензия"],"multipage_only":false},
-    {"id":"awards","name":"Награды","zones":["body"],"category":"Доверие","eeat":"authority","kind":"block","needs":[],"render":null,"block_hint":"awards","page_match":null,"visible":true,"synonyms":["дипломы","премии"],"multipage_only":false},
-    {"id":"partners","name":"Партнеры и клиенты","zones":["body"],"category":"Доверие","eeat":"authority","kind":"block","needs":[],"render":null,"block_hint":"partners","page_match":null,"visible":true,"synonyms":["наши клиенты","нам доверяют","партнеры"],"multipage_only":false},
-    {"id":"brands","name":"Бренды","zones":["body","header"],"category":"Доверие","eeat":"authority","kind":"block","needs":[],"render":null,"block_hint":"brands","page_match":null,"visible":true,"synonyms":["производители","марки"],"multipage_only":false},
-    {"id":"company_age","name":"Год основания","zones":["footer","body"],"category":"Доверие","eeat":"authority","kind":"slot","needs":[],"needs_hint":"год основания компании","render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["с года","работаем с"],"multipage_only":false},
-    {"id":"about_link","name":"О компании","zones":["header","footer","mobile"],"category":"E-E-A-T","eeat":"authority","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"type":"info_about"},"visible":true,"synonyms":["о компании","о нас","компания"],"multipage_only":false},
-    {"id":"about_block","name":"О компании (блок)","zones":["body"],"category":"E-E-A-T","eeat":"authority","kind":"block","needs":[],"render":null,"block_hint":"about","page_match":null,"visible":true,"synonyms":["о нас","кто мы"],"multipage_only":false},
-    {"id":"team","name":"Команда и специалисты","zones":["body"],"category":"E-E-A-T","eeat":"expertise","kind":"block","needs":[],"render":null,"block_hint":"team","page_match":null,"visible":true,"synonyms":["наши специалисты","команда","сотрудники"],"multipage_only":false},
-    {"id":"team_link","name":"Команда (ссылка)","zones":["header","footer"],"category":"E-E-A-T","eeat":"expertise","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"type":"info_team"},"visible":true,"synonyms":["команда","специалисты"],"multipage_only":false},
-    {"id":"founder","name":"Руководитель","zones":["body"],"category":"E-E-A-T","eeat":"expertise","kind":"block","needs":[],"render":null,"block_hint":"founder","page_match":null,"visible":true,"synonyms":["основатель","обращение руководителя"],"multipage_only":false},
-    {"id":"cases","name":"Кейсы и портфолио","zones":["body"],"category":"E-E-A-T","eeat":"experience","kind":"block","needs":[],"render":null,"block_hint":"cases","page_match":null,"visible":true,"synonyms":["наши работы","портфолио","примеры работ","проекты"],"multipage_only":false},
-    {"id":"cases_link","name":"Портфолио (ссылка)","zones":["header","footer"],"category":"E-E-A-T","eeat":"experience","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"type":"info_cases"},"visible":true,"synonyms":["портфолио","наши работы","проекты"],"multipage_only":false},
-    {"id":"work_photos","name":"Фото работы и процесса","zones":["body"],"category":"E-E-A-T","eeat":"experience","kind":"block","needs":[],"render":null,"block_hint":"gallery","page_match":null,"visible":true,"synonyms":["фото с объектов","фото процесса"],"multipage_only":false},
-    {"id":"video","name":"Видео","zones":["body"],"category":"E-E-A-T","eeat":"experience","kind":"block","needs":[],"render":null,"block_hint":"video","page_match":null,"visible":true,"synonyms":["видеообзор","смотреть видео"],"multipage_only":false},
-    {"id":"gallery","name":"Галерея","zones":["body"],"category":"E-E-A-T","eeat":"experience","kind":"block","needs":[],"render":null,"block_hint":"gallery","page_match":null,"visible":true,"synonyms":["фотогалерея","фото"],"multipage_only":false},
-    {"id":"updated_date","name":"Дата обновления","zones":["body"],"category":"E-E-A-T","eeat":"trust","kind":"slot","needs":[],"needs_hint":"дата обновления сведений","render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["обновлено"],"multipage_only":false},
-    {"id":"press","name":"Публикации в СМИ","zones":["footer","body"],"category":"E-E-A-T","eeat":"authority","kind":"block","needs":[],"render":null,"block_hint":"press","page_match":null,"visible":true,"synonyms":["сми о нас","пресса"],"multipage_only":false},
-    {"id":"reviews","name":"Отзывы","zones":["body"],"category":"Социальное доказательство","eeat":"experience","kind":"block","needs":[],"render":null,"block_hint":"reviews","page_match":null,"visible":true,"synonyms":["отзывы клиентов","что говорят клиенты"],"multipage_only":false},
-    {"id":"reviews_link","name":"Отзывы (ссылка)","zones":["header","footer"],"category":"Социальное доказательство","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"type":"info_reviews"},"visible":true,"synonyms":["отзывы"],"multipage_only":false},
-    {"id":"rating","name":"Рейтинг","zones":["header","footer","body"],"category":"Социальное доказательство","eeat":"trust","kind":"slot","needs":[],"needs_hint":"рейтинг и площадка, где он получен","render":"rating","block_hint":null,"page_match":null,"visible":true,"synonyms":["оценка","звезды"],"multipage_only":false},
-    {"id":"reviews_count","name":"Количество отзывов","zones":["body"],"category":"Социальное доказательство","eeat":"trust","kind":"slot","needs":[],"needs_hint":"число отзывов и площадка","render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["отзывов"],"multipage_only":false},
-    {"id":"clients_logos","name":"Логотипы клиентов","zones":["body"],"category":"Социальное доказательство","eeat":"authority","kind":"block","needs":[],"render":null,"block_hint":"partners","page_match":null,"visible":true,"synonyms":["наши клиенты"],"multipage_only":false},
-    {"id":"hero_banner","name":"Баннер первого экрана","zones":["body"],"category":"Контент","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":"hero","page_match":null,"visible":true,"synonyms":["слайдер","баннер"],"multipage_only":false},
-    {"id":"faq","name":"Вопросы и ответы","zones":["body"],"category":"Контент","eeat":"expertise","kind":"block","needs":[],"render":null,"block_hint":"faq","page_match":null,"visible":true,"synonyms":["частые вопросы","faq","вопрос-ответ"],"multipage_only":false},
-    {"id":"faq_link","name":"Вопросы и ответы (ссылка)","zones":["header","footer"],"category":"Контент","eeat":null,"kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"type":"info_faq"},"visible":true,"synonyms":["вопрос-ответ","faq","частые вопросы"],"multipage_only":false},
-    {"id":"text_block","name":"Текстовый блок","zones":["body"],"category":"Контент","eeat":"expertise","kind":"block","needs":[],"render":null,"block_hint":"text","page_match":null,"visible":true,"synonyms":["описание","текст"],"multipage_only":false},
-    {"id":"blog_link","name":"Статьи и блог","zones":["header","footer"],"category":"Контент","eeat":"expertise","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"subject_re":"блог|стать|новост|обзор"},"visible":true,"synonyms":["блог","статьи","новости","полезное"],"multipage_only":false},
-    {"id":"articles_block","name":"Анонсы статей","zones":["body"],"category":"Контент","eeat":"expertise","kind":"block","needs":[],"render":null,"block_hint":"articles","page_match":null,"visible":true,"synonyms":["статьи","полезные материалы"],"multipage_only":false},
-    {"id":"guide","name":"Как выбрать","zones":["body"],"category":"Контент","eeat":"expertise","kind":"block","needs":[],"render":null,"block_hint":"guide","page_match":null,"visible":true,"synonyms":["советы по выбору","как выбрать"],"multipage_only":false},
-    {"id":"comparison_table","name":"Таблица сравнения","zones":["body"],"category":"Контент","eeat":"expertise","kind":"block","needs":[],"render":null,"block_hint":"compare","page_match":null,"visible":true,"synonyms":["сравнение","чем отличается"],"multipage_only":false},
-    {"id":"search","name":"Поиск по сайту","zones":["header","mobile"],"category":"Сервисные элементы","eeat":null,"kind":"function","needs":[],"render":"search","block_hint":null,"page_match":null,"visible":true,"synonyms":["поиск","найти"],"multipage_only":true},
-    {"id":"cart","name":"Корзина","zones":["header","mobile","fixed"],"category":"Сервисные элементы","eeat":null,"kind":"function","needs":[],"render":"cart","block_hint":null,"page_match":null,"visible":true,"synonyms":["корзина"],"multipage_only":false},
-    {"id":"favorites","name":"Избранное","zones":["header","mobile"],"category":"Сервисные элементы","eeat":null,"kind":"function","needs":[],"render":"favorites","block_hint":null,"page_match":null,"visible":true,"synonyms":["избранное","отложенные"],"multipage_only":false},
-    {"id":"compare","name":"Сравнение","zones":["header","mobile"],"category":"Сервисные элементы","eeat":null,"kind":"function","needs":[],"render":"compare","block_hint":null,"page_match":null,"visible":true,"synonyms":["сравнить","к сравнению"],"multipage_only":true},
-    {"id":"account","name":"Личный кабинет","zones":["header","mobile"],"category":"Сервисные элементы","eeat":null,"kind":"function","needs":[],"render":"account","block_hint":null,"page_match":null,"visible":true,"synonyms":["войти","вход","личный кабинет"],"multipage_only":false},
-    {"id":"app_links","name":"Мобильное приложение","zones":["footer"],"category":"Сервисные элементы","eeat":null,"kind":"function","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["app store","google play","rustore"],"multipage_only":false},
-    {"id":"vacancies","name":"Вакансии","zones":["header","footer"],"category":"Сервисные элементы","eeat":"authority","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"subject_re":"ваканс|карьер"},"visible":true,"synonyms":["вакансии","карьера","работа у нас"],"multipage_only":false},
-    {"id":"privacy_policy","name":"Политика конфиденциальности","zones":["footer"],"category":"Юридическая информация","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"ui_role":"legal","subject_re":"политик|конфиденц"},"visible":true,"synonyms":["политика конфиденциальности","политика обработки персональных данных"],"multipage_only":false},
-    {"id":"offer","name":"Публичная оферта","zones":["footer"],"category":"Юридическая информация","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"ui_role":"legal","subject_re":"оферт"},"visible":true,"synonyms":["оферта","договор оферты"],"multipage_only":false},
-    {"id":"pd_consent","name":"Согласие на обработку персональных данных","zones":["footer","body"],"category":"Юридическая информация","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"ui_role":"legal","subject_re":"соглас|персональн"},"visible":true,"synonyms":["согласие на обработку","обработка персональных данных"],"multipage_only":false},
-    {"id":"terms_of_use","name":"Пользовательское соглашение","zones":["footer"],"category":"Юридическая информация","eeat":"trust","kind":"page_link","needs":[],"render":null,"block_hint":null,"page_match":{"ui_role":"legal","subject_re":"соглашени|условия использования"},"visible":true,"synonyms":["пользовательское соглашение","условия использования"],"multipage_only":false},
-    {"id":"requisites","name":"Реквизиты (ИНН, ОГРН)","zones":["footer"],"category":"Юридическая информация","eeat":"trust","kind":"slot","needs":["company.legal_name","company.inn","company.ogrn"],"render":"legal_line","block_hint":null,"page_match":null,"visible":true,"synonyms":["реквизиты","инн","огрн"],"multipage_only":false},
-    {"id":"legal_name","name":"Наименование юрлица","zones":["footer"],"category":"Юридическая информация","eeat":"trust","kind":"slot","needs":["company.legal_name"],"render":"legal_line","block_hint":null,"page_match":null,"visible":true,"synonyms":["ооо","ип"],"multipage_only":false},
-    {"id":"copyright","name":"Копирайт","zones":["footer"],"category":"Юридическая информация","eeat":null,"kind":"slot","needs":["company.brand"],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["все права защищены"],"multipage_only":false},
-    {"id":"cookie_banner","name":"Уведомление о cookie","zones":["fixed"],"category":"Юридическая информация","eeat":"trust","kind":"function","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["cookie","файлы cookie"],"multipage_only":false},
-    {"id":"logo","name":"Логотип","zones":["header","footer","mobile"],"category":"Бренд","eeat":"authority","kind":"nav","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["лого"],"multipage_only":false},
-    {"id":"company_name","name":"Название компании","zones":["header","footer"],"category":"Бренд","eeat":"authority","kind":"slot","needs":["company.brand"],"render":null,"block_hint":null,"page_match":null,"visible":true,"synonyms":["наименование организации"],"multipage_only":false},
-    {"id":"tagline","name":"Описание деятельности","zones":["header","footer"],"category":"Бренд","eeat":null,"kind":"slot","needs":["site.tagline"],"render":"tagline","block_hint":null,"page_match":null,"visible":true,"synonyms":["дескриптор","слоган"],"multipage_only":false},
-    {"id":"schema_organization","name":"Разметка Organization","zones":["body"],"category":"Вспомогательные элементы","eeat":"trust","kind":"block","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":false,"synonyms":["Organization"],"multipage_only":false},
-    {"id":"schema_localbusiness","name":"Разметка LocalBusiness","zones":["body"],"category":"Вспомогательные элементы","eeat":"trust","kind":"block","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":false,"synonyms":["LocalBusiness"],"multipage_only":false},
-    {"id":"schema_breadcrumbs","name":"Разметка BreadcrumbList","zones":["body"],"category":"Вспомогательные элементы","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":false,"synonyms":["BreadcrumbList"],"multipage_only":true},
-    {"id":"schema_product","name":"Разметка Product и Offer","zones":["body"],"category":"Вспомогательные элементы","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":false,"synonyms":["Product","Offer"],"multipage_only":false},
-    {"id":"schema_faq","name":"Разметка FAQPage","zones":["body"],"category":"Вспомогательные элементы","eeat":null,"kind":"block","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":false,"synonyms":["FAQPage"],"multipage_only":false},
-    {"id":"schema_rating","name":"Разметка AggregateRating и Review","zones":["body"],"category":"Вспомогательные элементы","eeat":"trust","kind":"block","needs":[],"render":null,"block_hint":null,"page_match":null,"visible":false,"synonyms":["AggregateRating","Review"],"multipage_only":false}
+    {
+      "id": "menu_main",
+      "name": "Главное меню",
+      "zones": [
+        "header"
+      ],
+      "category": "Навигация",
+      "eeat": null,
+      "kind": "nav",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "меню"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "burger",
+      "name": "Кнопка меню",
+      "zones": [
+        "header",
+        "mobile"
+      ],
+      "category": "Навигация",
+      "eeat": null,
+      "kind": "nav",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "бургер"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "catalog_link",
+      "name": "Каталог",
+      "zones": [
+        "header",
+        "footer",
+        "mobile"
+      ],
+      "category": "Навигация",
+      "eeat": null,
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "каталог"
+      },
+      "visible": true,
+      "synonyms": [
+        "каталог",
+        "все товары",
+        "продукция"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "services_link",
+      "name": "Услуги",
+      "zones": [
+        "header",
+        "footer",
+        "mobile"
+      ],
+      "category": "Навигация",
+      "eeat": null,
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "type": "hub",
+        "subject_re": "услуг"
+      },
+      "visible": true,
+      "synonyms": [
+        "услуги",
+        "наши услуги",
+        "направления"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "breadcrumbs",
+      "name": "Хлебные крошки",
+      "zones": [
+        "body"
+      ],
+      "category": "Навигация",
+      "eeat": null,
+      "kind": "nav",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "навигационная цепочка"
+      ],
+      "multipage_only": true
+    },
+    {
+      "id": "sidebar_menu",
+      "name": "Боковое меню",
+      "zones": [
+        "body"
+      ],
+      "category": "Навигация",
+      "eeat": null,
+      "kind": "nav",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [],
+      "multipage_only": true
+    },
+    {
+      "id": "tags",
+      "name": "Плитка тегов",
+      "zones": [
+        "body"
+      ],
+      "category": "Навигация",
+      "eeat": null,
+      "kind": "nav",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "теги",
+        "подборки"
+      ],
+      "multipage_only": true
+    },
+    {
+      "id": "subcategories",
+      "name": "Подкатегории",
+      "zones": [
+        "body"
+      ],
+      "category": "Навигация",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "cats",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "подразделы",
+        "разделы каталога"
+      ],
+      "multipage_only": true
+    },
+    {
+      "id": "footer_menu",
+      "name": "Меню в подвале",
+      "zones": [
+        "footer"
+      ],
+      "category": "Навигация",
+      "eeat": null,
+      "kind": "nav",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [],
+      "multipage_only": false
+    },
+    {
+      "id": "mobile_bottom_bar",
+      "name": "Нижняя панель на телефоне",
+      "zones": [
+        "mobile",
+        "fixed"
+      ],
+      "category": "Вспомогательные элементы",
+      "eeat": null,
+      "kind": "nav",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "таб-бар"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "sitemap_link",
+      "name": "Карта сайта",
+      "zones": [
+        "footer"
+      ],
+      "category": "Навигация",
+      "eeat": null,
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "карта сайта"
+      },
+      "visible": true,
+      "synonyms": [
+        "карта сайта"
+      ],
+      "multipage_only": true
+    },
+    {
+      "id": "up_button",
+      "name": "Кнопка вверх",
+      "zones": [
+        "fixed"
+      ],
+      "category": "Вспомогательные элементы",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": "up_button",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "наверх"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "city_select",
+      "name": "Выбор города",
+      "zones": [
+        "header",
+        "mobile"
+      ],
+      "category": "Навигация",
+      "eeat": null,
+      "kind": "slot",
+      "needs": [],
+      "needs_hint": "список городов, где работает компания",
+      "render": "city",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "ваш город",
+        "выберите город",
+        "регион"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "phone",
+      "name": "Телефон",
+      "zones": [
+        "header",
+        "footer",
+        "mobile",
+        "fixed"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [
+        "company.phones"
+      ],
+      "render": "phone",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "позвонить",
+        "номер телефона",
+        "городской номер",
+        "мобильный номер"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "phone_8800",
+      "name": "Номер 8-800",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [
+        "company.phones"
+      ],
+      "render": "phone",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "бесплатный звонок",
+        "8 800"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "email",
+      "name": "Почта",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [
+        "company.email"
+      ],
+      "render": "email",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "e-mail",
+        "электронная почта",
+        "почта на своем домене"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "address",
+      "name": "Адрес",
+      "zones": [
+        "header",
+        "footer",
+        "body"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [
+        "company.address"
+      ],
+      "render": "address",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "адрес офиса",
+        "наш адрес"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "hours",
+      "name": "Часы работы",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [
+        "company.hours"
+      ],
+      "render": "hours",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "режим работы",
+        "время работы",
+        "дни работы",
+        "круглосуточно"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "messenger_whatsapp",
+      "name": "WhatsApp",
+      "zones": [
+        "header",
+        "footer",
+        "mobile",
+        "fixed"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "messengers",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "ватсап",
+        "вотсап"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "messenger_telegram",
+      "name": "Telegram",
+      "zones": [
+        "header",
+        "footer",
+        "mobile",
+        "fixed"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "messengers",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "телеграм",
+        "написать в telegram"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "messenger_viber",
+      "name": "Viber",
+      "zones": [
+        "header",
+        "footer",
+        "mobile",
+        "fixed"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "messengers",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "вайбер"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "messenger_max",
+      "name": "MAX",
+      "zones": [
+        "header",
+        "footer",
+        "mobile",
+        "fixed"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "messengers",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "мессенджер max"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "callback",
+      "name": "Обратный звонок",
+      "zones": [
+        "header",
+        "footer",
+        "mobile",
+        "fixed"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": "callback",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "заказать звонок",
+        "перезвоните мне",
+        "обратный звонок"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "contacts_link",
+      "name": "Контакты",
+      "zones": [
+        "header",
+        "footer",
+        "mobile"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "type": "info_contacts"
+      },
+      "visible": true,
+      "synonyms": [
+        "контакты",
+        "связаться с нами",
+        "как нас найти"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "map",
+      "name": "Карта проезда",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "block",
+      "needs": [
+        "company.address"
+      ],
+      "render": "map_link",
+      "block_hint": "map",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "схема проезда",
+        "мы на карте"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "route",
+      "name": "Как добраться",
+      "zones": [
+        "body"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "block",
+      "needs": [
+        "company.address"
+      ],
+      "render": null,
+      "block_hint": "route",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "построить маршрут",
+        "как проехать"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "stores",
+      "name": "Адреса офисов и магазинов",
+      "zones": [
+        "header",
+        "footer",
+        "body"
+      ],
+      "category": "Контакты",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "адрес|магазин|офис|салон|шоурум|филиал"
+      },
+      "visible": true,
+      "synonyms": [
+        "магазины",
+        "адреса",
+        "офисы",
+        "шоурум",
+        "филиалы"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "chat",
+      "name": "Онлайн-чат",
+      "zones": [
+        "fixed"
+      ],
+      "category": "Сервисные элементы",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "needs_hint": "кто и когда отвечает в чате",
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "чат",
+        "онлайн-консультант",
+        "напишите нам"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "ask_question",
+      "name": "Задать вопрос",
+      "zones": [
+        "body",
+        "footer"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "задать вопрос",
+        "есть вопросы"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "social_vk",
+      "name": "ВКонтакте",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контакты",
+      "eeat": "authority",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "socials",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "вк",
+        "vk"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "social_ok",
+      "name": "Одноклассники",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контакты",
+      "eeat": "authority",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "socials",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "ок"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "social_youtube",
+      "name": "YouTube",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контакты",
+      "eeat": "authority",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "socials",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "ютуб"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "social_rutube",
+      "name": "Rutube",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контакты",
+      "eeat": "authority",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "socials",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "рутуб"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "social_dzen",
+      "name": "Дзен",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контакты",
+      "eeat": "authority",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "socials",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "яндекс дзен"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "social_telegram",
+      "name": "Telegram-канал",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контакты",
+      "eeat": "authority",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "socials",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "наш канал"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "social_instagram",
+      "name": "Instagram",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контакты",
+      "eeat": "authority",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "socials",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "инстаграм"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "social_tiktok",
+      "name": "TikTok",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контакты",
+      "eeat": "authority",
+      "kind": "slot",
+      "needs": [
+        "company.channels"
+      ],
+      "render": "socials",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "тикток"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "review_platforms",
+      "name": "Отзывы на площадках",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Социальное доказательство",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [],
+      "needs_hint": "ссылки на карточки компании на площадках отзывов и картах",
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "мы на картах",
+        "отзывы на картах"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "cta_header",
+      "name": "Кнопка заявки в шапке",
+      "zones": [
+        "header",
+        "mobile"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": "cta",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "оставить заявку",
+        "записаться",
+        "рассчитать"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "fixed_cta",
+      "name": "Закрепленная кнопка действия",
+      "zones": [
+        "fixed",
+        "mobile"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": "cta",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "плавающая кнопка"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "lead_form",
+      "name": "Форма заявки",
+      "zones": [
+        "body"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "cta-final",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "форма обратной связи",
+        "оставьте заявку",
+        "получить расчет"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "footer_form",
+      "name": "Форма в подвале",
+      "zones": [
+        "footer"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": "cta",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "форма захвата"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "consultation",
+      "name": "Бесплатная консультация",
+      "zones": [
+        "body"
+      ],
+      "category": "Конверсия",
+      "eeat": "expertise",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "consult",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "получить консультацию",
+        "консультация специалиста"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "quiz",
+      "name": "Квиз или подбор",
+      "zones": [
+        "body"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "quiz",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "подбор",
+        "ответьте на вопросы",
+        "тест"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "calculator",
+      "name": "Калькулятор стоимости",
+      "zones": [
+        "body"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "needs_hint": "цены и правила расчета для калькулятора",
+      "render": null,
+      "block_hint": "calc",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "рассчитать стоимость",
+        "калькулятор"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "subscribe",
+      "name": "Подписка на рассылку",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": "subscribe",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "подписаться",
+        "рассылка"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "popup",
+      "name": "Всплывающее окно с предложением",
+      "zones": [
+        "fixed"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "поп-ап"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "discount_offer",
+      "name": "Получить скидку",
+      "zones": [
+        "fixed",
+        "body",
+        "header"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "needs_hint": "размер и условия скидки",
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "получить скидку",
+        "скидка за подписку"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "booking",
+      "name": "Онлайн-запись",
+      "zones": [
+        "header",
+        "body"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "needs_hint": "расписание и услуги для записи",
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "записаться онлайн",
+        "онлайн-запись"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "price_request",
+      "name": "Запрос цены или прайса",
+      "zones": [
+        "body"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "узнать цену",
+        "получить прайс",
+        "запросить стоимость"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "buy_button",
+      "name": "Кнопка покупки",
+      "zones": [
+        "body"
+      ],
+      "category": "Конверсия",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "купить",
+        "в корзину",
+        "заказать"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "price",
+      "name": "Цена или цена «от»",
+      "zones": [
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "trust",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "price",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "стоимость",
+        "цены",
+        "от"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "price_list",
+      "name": "Прайс-лист",
+      "zones": [
+        "header",
+        "footer",
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "прайс|цен"
+      },
+      "visible": true,
+      "synonyms": [
+        "прайс",
+        "цены",
+        "стоимость"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "availability",
+      "name": "Наличие",
+      "zones": [
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "trust",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "listing",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "в наличии",
+        "под заказ"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "delivery",
+      "name": "Доставка",
+      "zones": [
+        "header",
+        "footer",
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": "delivery",
+      "page_match": {
+        "subject_re": "доставк"
+      },
+      "visible": true,
+      "synonyms": [
+        "доставка",
+        "доставка и оплата"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "payment",
+      "name": "Оплата",
+      "zones": [
+        "header",
+        "footer",
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": "payment",
+      "page_match": {
+        "subject_re": "оплат"
+      },
+      "visible": true,
+      "synonyms": [
+        "оплата",
+        "способы оплаты"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "payment_icons",
+      "name": "Логотипы способов оплаты",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [],
+      "needs_hint": "способы оплаты",
+      "render": "payment_icons",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "мир",
+        "visa",
+        "mastercard",
+        "сбп"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "installment",
+      "name": "Рассрочка или кредит",
+      "zones": [
+        "header",
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "needs_hint": "условия рассрочки или кредита",
+      "render": null,
+      "block_hint": "installment",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "рассрочка",
+        "кредит",
+        "лизинг"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "returns",
+      "name": "Обмен и возврат",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "возврат|обмен"
+      },
+      "visible": true,
+      "synonyms": [
+        "возврат",
+        "обмен и возврат"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "guarantee",
+      "name": "Гарантия",
+      "zones": [
+        "header",
+        "footer",
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": "guarantees",
+      "page_match": {
+        "subject_re": "гарант"
+      },
+      "visible": true,
+      "synonyms": [
+        "гарантия",
+        "гарантии"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "promotions",
+      "name": "Акции и скидки",
+      "zones": [
+        "header",
+        "footer",
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": null,
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "акци|скидк|распродаж"
+      },
+      "visible": true,
+      "synonyms": [
+        "акции",
+        "скидки",
+        "распродажа",
+        "спецпредложения"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "loyalty",
+      "name": "Бонусная программа",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": null,
+      "kind": "page_link",
+      "needs": [],
+      "needs_hint": "условия бонусной программы",
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "бонус|лояльн|клубн"
+      },
+      "visible": true,
+      "synonyms": [
+        "программа лояльности",
+        "бонусы",
+        "клубная карта",
+        "кэшбэк"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "gift_cards",
+      "name": "Подарочные сертификаты",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": null,
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "подарочн"
+      },
+      "visible": true,
+      "synonyms": [
+        "подарочная карта"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "wholesale",
+      "name": "Оптовым и корпоративным клиентам",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": null,
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "опт|юрлиц|юридическ|корпоратив"
+      },
+      "visible": true,
+      "synonyms": [
+        "оптом",
+        "юридическим лицам",
+        "для бизнеса"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "partners_link",
+      "name": "Партнерам",
+      "zones": [
+        "footer"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": null,
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "партнер|дилер|сотрудничеств"
+      },
+      "visible": true,
+      "synonyms": [
+        "сотрудничество",
+        "дилерам",
+        "поставщикам"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "how_to_order",
+      "name": "Как заказать",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": "process",
+      "page_match": {
+        "subject_re": "как заказать|как купить|оформ"
+      },
+      "visible": true,
+      "synonyms": [
+        "как купить",
+        "как оформить заказ"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "categories_block",
+      "name": "Категории на главной",
+      "zones": [
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "cats",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "категории",
+        "популярные разделы"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "products_block",
+      "name": "Подборки товаров",
+      "zones": [
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "listing",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "хиты",
+        "новинки",
+        "популярное",
+        "лидеры продаж"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "filters",
+      "name": "Фильтры",
+      "zones": [
+        "body"
+      ],
+      "category": "Сервисные элементы",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": null,
+      "block_hint": "filters",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "подбор по параметрам",
+        "фильтр"
+      ],
+      "multipage_only": true
+    },
+    {
+      "id": "sorting",
+      "name": "Сортировка",
+      "zones": [
+        "body"
+      ],
+      "category": "Сервисные элементы",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "сортировать"
+      ],
+      "multipage_only": true
+    },
+    {
+      "id": "specs",
+      "name": "Характеристики",
+      "zones": [
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "expertise",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "specs",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "технические характеристики",
+        "параметры"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "similar",
+      "name": "Похожие и рекомендуемые",
+      "zones": [
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "listing",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "похожие",
+        "с этим покупают",
+        "вы смотрели"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "delivery_calc",
+      "name": "Расчет доставки",
+      "zones": [
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "needs_hint": "условия и тарифы доставки",
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "рассчитать доставку"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "services_list",
+      "name": "Список услуг",
+      "zones": [
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "services",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "наши услуги",
+        "что мы делаем"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "steps",
+      "name": "Этапы работы",
+      "zones": [
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "experience",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "process",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "как мы работаем",
+        "порядок работы",
+        "этапы"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "included",
+      "name": "Что входит",
+      "zones": [
+        "body"
+      ],
+      "category": "Коммерческая информация",
+      "eeat": "trust",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "list",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "в стоимость входит",
+        "комплектация"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "benefits",
+      "name": "Преимущества",
+      "zones": [
+        "body"
+      ],
+      "category": "Доверие",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "benefits",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "почему мы",
+        "почему выбирают нас"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "guarantees_block",
+      "name": "Гарантии (блок)",
+      "zones": [
+        "body"
+      ],
+      "category": "Доверие",
+      "eeat": "trust",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "guarantees",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "наши гарантии"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "numbers",
+      "name": "Компания в цифрах",
+      "zones": [
+        "body"
+      ],
+      "category": "Доверие",
+      "eeat": "authority",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "numbers",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "лет на рынке",
+        "в цифрах"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "certificates",
+      "name": "Сертификаты и документы",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Доверие",
+      "eeat": "authority",
+      "kind": "page_link",
+      "needs": [],
+      "render": "docs",
+      "block_hint": "docs",
+      "page_match": {
+        "subject_re": "сертификат|документ"
+      },
+      "visible": true,
+      "synonyms": [
+        "сертификаты",
+        "документы",
+        "разрешения"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "licenses",
+      "name": "Лицензии",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Доверие",
+      "eeat": "authority",
+      "kind": "slot",
+      "needs": [],
+      "needs_hint": "номера и даты лицензий",
+      "render": "licenses",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "лицензия"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "awards",
+      "name": "Награды",
+      "zones": [
+        "body"
+      ],
+      "category": "Доверие",
+      "eeat": "authority",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "awards",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "дипломы",
+        "премии"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "partners",
+      "name": "Партнеры и клиенты",
+      "zones": [
+        "body"
+      ],
+      "category": "Доверие",
+      "eeat": "authority",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "partners",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "наши клиенты",
+        "нам доверяют",
+        "партнеры"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "brands",
+      "name": "Бренды",
+      "zones": [
+        "body",
+        "header"
+      ],
+      "category": "Доверие",
+      "eeat": "authority",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "brands",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "производители",
+        "марки"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "company_age",
+      "name": "Год основания",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Доверие",
+      "eeat": "authority",
+      "kind": "slot",
+      "needs": [],
+      "needs_hint": "год основания компании",
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "с года",
+        "работаем с"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "about_link",
+      "name": "О компании",
+      "zones": [
+        "header",
+        "footer",
+        "mobile"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "authority",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "type": "info_about"
+      },
+      "visible": true,
+      "synonyms": [
+        "о компании",
+        "о нас",
+        "компания"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "about_block",
+      "name": "О компании (блок)",
+      "zones": [
+        "body"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "authority",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "about",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "о нас",
+        "кто мы"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "team",
+      "name": "Команда и специалисты",
+      "zones": [
+        "body"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "expertise",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "team",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "наши специалисты",
+        "команда",
+        "сотрудники"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "team_link",
+      "name": "Команда (ссылка)",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "expertise",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "type": "info_team"
+      },
+      "visible": true,
+      "synonyms": [
+        "команда",
+        "специалисты"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "founder",
+      "name": "Руководитель",
+      "zones": [
+        "body"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "expertise",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "founder",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "основатель",
+        "обращение руководителя"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "cases",
+      "name": "Кейсы и портфолио",
+      "zones": [
+        "body"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "experience",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "cases",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "наши работы",
+        "портфолио",
+        "примеры работ",
+        "проекты"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "cases_link",
+      "name": "Портфолио (ссылка)",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "experience",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "type": "info_cases"
+      },
+      "visible": true,
+      "synonyms": [
+        "портфолио",
+        "наши работы",
+        "проекты"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "work_photos",
+      "name": "Фото работы и процесса",
+      "zones": [
+        "body"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "experience",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "gallery",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "фото с объектов",
+        "фото процесса"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "video",
+      "name": "Видео",
+      "zones": [
+        "body"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "experience",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "video",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "видеообзор",
+        "смотреть видео"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "gallery",
+      "name": "Галерея",
+      "zones": [
+        "body"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "experience",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "gallery",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "фотогалерея",
+        "фото"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "updated_date",
+      "name": "Дата обновления",
+      "zones": [
+        "body"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [],
+      "needs_hint": "дата обновления сведений",
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "обновлено"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "press",
+      "name": "Публикации в СМИ",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "E-E-A-T",
+      "eeat": "authority",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "press",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "сми о нас",
+        "пресса"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "reviews",
+      "name": "Отзывы",
+      "zones": [
+        "body"
+      ],
+      "category": "Социальное доказательство",
+      "eeat": "experience",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "reviews",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "отзывы клиентов",
+        "что говорят клиенты"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "reviews_link",
+      "name": "Отзывы (ссылка)",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Социальное доказательство",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "type": "info_reviews"
+      },
+      "visible": true,
+      "synonyms": [
+        "отзывы"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "rating",
+      "name": "Рейтинг",
+      "zones": [
+        "header",
+        "footer",
+        "body"
+      ],
+      "category": "Социальное доказательство",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [],
+      "needs_hint": "рейтинг и площадка, где он получен",
+      "render": "rating",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "оценка",
+        "звезды"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "reviews_count",
+      "name": "Количество отзывов",
+      "zones": [
+        "body"
+      ],
+      "category": "Социальное доказательство",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [],
+      "needs_hint": "число отзывов и площадка",
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "отзывов"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "clients_logos",
+      "name": "Логотипы клиентов",
+      "zones": [
+        "body"
+      ],
+      "category": "Социальное доказательство",
+      "eeat": "authority",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "partners",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "наши клиенты"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "hero_banner",
+      "name": "Баннер первого экрана",
+      "zones": [
+        "body"
+      ],
+      "category": "Контент",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "hero",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "слайдер",
+        "баннер"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "faq",
+      "name": "Вопросы и ответы",
+      "zones": [
+        "body"
+      ],
+      "category": "Контент",
+      "eeat": "expertise",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "faq",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "частые вопросы",
+        "faq",
+        "вопрос-ответ"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "faq_link",
+      "name": "Вопросы и ответы (ссылка)",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контент",
+      "eeat": null,
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "type": "info_faq"
+      },
+      "visible": true,
+      "synonyms": [
+        "вопрос-ответ",
+        "faq",
+        "частые вопросы"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "text_block",
+      "name": "Текстовый блок",
+      "zones": [
+        "body"
+      ],
+      "category": "Контент",
+      "eeat": "expertise",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "text",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "описание",
+        "текст"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "blog_link",
+      "name": "Статьи и блог",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Контент",
+      "eeat": "expertise",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "блог|стать|новост|обзор"
+      },
+      "visible": true,
+      "synonyms": [
+        "блог",
+        "статьи",
+        "новости",
+        "полезное"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "articles_block",
+      "name": "Анонсы статей",
+      "zones": [
+        "body"
+      ],
+      "category": "Контент",
+      "eeat": "expertise",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "articles",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "статьи",
+        "полезные материалы"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "guide",
+      "name": "Как выбрать",
+      "zones": [
+        "body"
+      ],
+      "category": "Контент",
+      "eeat": "expertise",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "guide",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "советы по выбору",
+        "как выбрать"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "comparison_table",
+      "name": "Таблица сравнения",
+      "zones": [
+        "body"
+      ],
+      "category": "Контент",
+      "eeat": "expertise",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": "compare",
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "сравнение",
+        "чем отличается"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "search",
+      "name": "Поиск по сайту",
+      "zones": [
+        "header",
+        "mobile"
+      ],
+      "category": "Сервисные элементы",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": "search",
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "поиск"
+      },
+      "visible": true,
+      "synonyms": [
+        "поиск",
+        "найти"
+      ],
+      "multipage_only": true
+    },
+    {
+      "id": "cart",
+      "name": "Корзина",
+      "zones": [
+        "header",
+        "mobile",
+        "fixed"
+      ],
+      "category": "Сервисные элементы",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": "cart",
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "корзин"
+      },
+      "visible": true,
+      "synonyms": [
+        "корзина"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "favorites",
+      "name": "Избранное",
+      "zones": [
+        "header",
+        "mobile"
+      ],
+      "category": "Сервисные элементы",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": "favorites",
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "избранн"
+      },
+      "visible": true,
+      "synonyms": [
+        "избранное",
+        "отложенные"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "compare",
+      "name": "Сравнение",
+      "zones": [
+        "header",
+        "mobile"
+      ],
+      "category": "Сервисные элементы",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": "compare",
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "сравнен"
+      },
+      "visible": true,
+      "synonyms": [
+        "сравнить",
+        "к сравнению"
+      ],
+      "multipage_only": true
+    },
+    {
+      "id": "account",
+      "name": "Личный кабинет",
+      "zones": [
+        "header",
+        "mobile"
+      ],
+      "category": "Сервисные элементы",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": "account",
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "кабинет"
+      },
+      "visible": true,
+      "synonyms": [
+        "войти",
+        "вход",
+        "личный кабинет"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "app_links",
+      "name": "Мобильное приложение",
+      "zones": [
+        "footer"
+      ],
+      "category": "Сервисные элементы",
+      "eeat": null,
+      "kind": "function",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "app store",
+        "google play",
+        "rustore"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "vacancies",
+      "name": "Вакансии",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Сервисные элементы",
+      "eeat": "authority",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "subject_re": "ваканс|карьер"
+      },
+      "visible": true,
+      "synonyms": [
+        "вакансии",
+        "карьера",
+        "работа у нас"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "privacy_policy",
+      "name": "Политика конфиденциальности",
+      "zones": [
+        "footer"
+      ],
+      "category": "Юридическая информация",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "ui_role": "legal",
+        "subject_re": "политик|конфиденц"
+      },
+      "visible": true,
+      "synonyms": [
+        "политика конфиденциальности",
+        "политика обработки персональных данных"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "offer",
+      "name": "Публичная оферта",
+      "zones": [
+        "footer"
+      ],
+      "category": "Юридическая информация",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "ui_role": "legal",
+        "subject_re": "оферт"
+      },
+      "visible": true,
+      "synonyms": [
+        "оферта",
+        "договор оферты"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "pd_consent",
+      "name": "Согласие на обработку персональных данных",
+      "zones": [
+        "footer",
+        "body"
+      ],
+      "category": "Юридическая информация",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "ui_role": "legal",
+        "subject_re": "соглас|персональн"
+      },
+      "visible": true,
+      "synonyms": [
+        "согласие на обработку",
+        "обработка персональных данных"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "terms_of_use",
+      "name": "Пользовательское соглашение",
+      "zones": [
+        "footer"
+      ],
+      "category": "Юридическая информация",
+      "eeat": "trust",
+      "kind": "page_link",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": {
+        "ui_role": "legal",
+        "subject_re": "соглашени|условия использования"
+      },
+      "visible": true,
+      "synonyms": [
+        "пользовательское соглашение",
+        "условия использования"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "requisites",
+      "name": "Реквизиты (ИНН, ОГРН)",
+      "zones": [
+        "footer"
+      ],
+      "category": "Юридическая информация",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [
+        "company.legal_name",
+        "company.inn",
+        "company.ogrn"
+      ],
+      "render": "legal_line",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "реквизиты",
+        "инн",
+        "огрн"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "legal_name",
+      "name": "Наименование юрлица",
+      "zones": [
+        "footer"
+      ],
+      "category": "Юридическая информация",
+      "eeat": "trust",
+      "kind": "slot",
+      "needs": [
+        "company.legal_name"
+      ],
+      "render": "legal_line",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "ооо",
+        "ип"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "copyright",
+      "name": "Копирайт",
+      "zones": [
+        "footer"
+      ],
+      "category": "Юридическая информация",
+      "eeat": null,
+      "kind": "nav",
+      "needs": [],
+      "render": "native",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "все права защищены"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "cookie_banner",
+      "name": "Уведомление о cookie",
+      "zones": [
+        "fixed"
+      ],
+      "category": "Юридическая информация",
+      "eeat": "trust",
+      "kind": "function",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "cookie",
+        "файлы cookie"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "logo",
+      "name": "Логотип",
+      "zones": [
+        "header",
+        "footer",
+        "mobile"
+      ],
+      "category": "Бренд",
+      "eeat": "authority",
+      "kind": "nav",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "лого"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "company_name",
+      "name": "Название компании",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Бренд",
+      "eeat": "authority",
+      "kind": "slot",
+      "needs": [
+        "company.brand"
+      ],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "наименование организации"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "tagline",
+      "name": "Описание деятельности",
+      "zones": [
+        "header",
+        "footer"
+      ],
+      "category": "Бренд",
+      "eeat": null,
+      "kind": "slot",
+      "needs": [
+        "site.tagline"
+      ],
+      "render": "tagline",
+      "block_hint": null,
+      "page_match": null,
+      "visible": true,
+      "synonyms": [
+        "дескриптор",
+        "слоган"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "schema_organization",
+      "name": "Разметка Organization",
+      "zones": [
+        "body"
+      ],
+      "category": "Вспомогательные элементы",
+      "eeat": "trust",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": false,
+      "synonyms": [
+        "Organization"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "schema_localbusiness",
+      "name": "Разметка LocalBusiness",
+      "zones": [
+        "body"
+      ],
+      "category": "Вспомогательные элементы",
+      "eeat": "trust",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": false,
+      "synonyms": [
+        "LocalBusiness"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "schema_breadcrumbs",
+      "name": "Разметка BreadcrumbList",
+      "zones": [
+        "body"
+      ],
+      "category": "Вспомогательные элементы",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": false,
+      "synonyms": [
+        "BreadcrumbList"
+      ],
+      "multipage_only": true
+    },
+    {
+      "id": "schema_product",
+      "name": "Разметка Product и Offer",
+      "zones": [
+        "body"
+      ],
+      "category": "Вспомогательные элементы",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": false,
+      "synonyms": [
+        "Product",
+        "Offer"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "schema_faq",
+      "name": "Разметка FAQPage",
+      "zones": [
+        "body"
+      ],
+      "category": "Вспомогательные элементы",
+      "eeat": null,
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": false,
+      "synonyms": [
+        "FAQPage"
+      ],
+      "multipage_only": false
+    },
+    {
+      "id": "schema_rating",
+      "name": "Разметка AggregateRating и Review",
+      "zones": [
+        "body"
+      ],
+      "category": "Вспомогательные элементы",
+      "eeat": "trust",
+      "kind": "block",
+      "needs": [],
+      "render": null,
+      "block_hint": null,
+      "page_match": null,
+      "visible": false,
+      "synonyms": [
+        "AggregateRating",
+        "Review"
+      ],
+      "multipage_only": false
+    }
   ]
 }

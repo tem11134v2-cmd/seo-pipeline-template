@@ -297,14 +297,17 @@ Workflow wf-04-strategy-layouts.js args={<base>,<вывод prep-args>}
      `serp_msk` при регионе не 213, `keyso_batch`, `keyso`; запросов нет - выдача считается пройденной, `no_queries: true`)
      - скаут не зовется; узкая ниша (`exhausted` у `--check` или в ответе скаута) - верификатор получает параметр `note`
      «кандидатов меньше target: источники исчерпаны» и пишет его строкой в `method`; иначе `02-competitor-scout` собирает
-     `work/competitors/pool.json` по шагам: запросы (`--queries`: `key_phrases`, затем маркеры и предметы hub, category,
-     service по карте, до 15) -> выдача `arsenkin_top` по региону бизнеса (мало заметных и регион не Москва - второй вызов
+     `work/competitors/pool.json` по шагам: запросы (`--queries`: `key_phrases` (режим doc без фраз - маркерные и
+     целевые запросы из строк анализа), затем маркеры и предметы hub, category, service по карте - предмет до двоеточия,
+     2-6 слов, без слов навигации и названия компании; до 15) -> выдача `arsenkin_top` по региону бизнеса (мало заметных и регион не Москва - второй вызов
      по Москве) -> Keys.so `domains_batch` (кандидаты и домены клиента одним вызовом) -> добор `domain_competitors` и
      Keys.so для новых -> история `domain_dashboard` (до 8 по предварительному весу `--prelim`) -> ИКС и whois
      `arsenkin_domains`. Каждый источник - сырой файл `work/competitors/raw-pool/<источник>.json` и
      `rank-competitors.mjs --merge-pool` (сводит дубли punycode и кириллицы, `www`; домены клиента - в `pool.own`, не в
      кандидаты; источник без ошибок - в `sources_done`). Частичные `errors` - повтор только упавших источников. Затем
-     run-агент `rank-competitors.mjs` (label `rank`) -> `work/competitors/ranking.json`: стоп-лист, SEO-вес W по метрикам
+     run-агент `rank-competitors.mjs` (label `rank`) -> `work/competitors/ranking.json`: стоп-лист, стоп «нет в выдаче
+     ниши» (кандидат не из анализа и не из структуры без единого попадания в ТОП-10 по запросам), надбавка затравке
+     анализа и структуры (`source_bonus` 0,25: тип бизнеса сверен анализом), SEO-вес W по метрикам
      (доля в выдаче ниши 3, ТОП-10 1, ТОП-50 1, ТОП-10/ТОП-50 0,5 при ТОП-50 от 50, трафик 1, ИКС 1; лог-шкала от лидера),
      тип сайта против `site_kind` проекта, возраст (`young` до 7 лет - бонус 0,15) и рост it50; `anchors` - эталоны
      (сначала `old`); `order` по E, эталон не ниже места `target`. Параметры - `config/project.json` ->

@@ -106,6 +106,11 @@ try {
     check('охват неполный: N < target - пометка в строке и в limits', rowOf(m, 'delivery_calc', 'body', 'info_other:Доставка').notes.includes('охват неполный: 2 из 5') && m.limits.some(l => /охват неполный \(info_other:Доставка\): 2 из 5/.test(l)), JSON.stringify(rowOf(m, 'delivery_calc')));
     check('невидимые элементы словаря (Schema.org) в матрице с visible false', rowOf(m, 'schema_organization', 'body', 'home')?.visible === false);
     const sh = rj(path.join(M, 'work', 'shell.json'));
+    {
+      const nm = { generated_at: 'x', domains: [], rows: [{ scope: 'site', zone: 'header', id: 'logo', name: 'Логотип', kind: 'nav', level: 'recommended', n: 3, N: 5, render: null }, { scope: 'site', zone: 'header', id: 'x-nav', name: 'Меню регионов', kind: 'nav', level: 'recommended', n: 2, N: 5, x: true }] };
+      const ns = KM.shellOf(nm);
+      check('shellOf: вид nav (логотип, меню; и x-элемент) - render native, не чип', ns.items.every(i => i.render === 'native'), JSON.stringify(ns.items));
+    }
     check('shell.json: только scope site уровня не ниже recommended, coverage n/N, render словаря', !sh.items.some(i => i.id === 'messenger_viber' || i.id === 'social_vk' || i.id === 'reviews') && sh.items.find(i => i.id === 'phone' && i.zone === 'header')?.coverage === '5/5' && sh.items.find(i => i.id === 'phone').render === 'phone' && sh.items.find(i => i.id === 'requisites')?.render === 'legal_line' && sh.n_competitors === 5, JSON.stringify(sh.items.map(i => [i.id, i.zone, i.level])));
     const st = rj(path.join(M, 'work', 'kf', 'status.json'));
     check('status.json: done, счетчики', st.status === 'done' && st.rows === m.rows.length && st.must >= 2, JSON.stringify(st));
@@ -316,6 +321,8 @@ try {
       if (l === 'scout') return { candidates: 12, errors: [], method: 'm', ...(o.scoutExhausted ? { status: 'fresh', exhausted: true, eligible: 3, sources_done: ['serp', 'keyso_batch', 'keyso'] } : {}) };
       if (l === 'rank') return { ok: true, exit_code: 0, stdout_tail: 'ranking.json: 12' };
       if (l === 'verify') return o.verify || verify(['d1.example', 'd2.example']);
+      if (l === 'rank:order') return { ok: true, exit_code: 0, stdout_tail: JSON.stringify({ ok: !o.gap, skipped: o.gap || [], checked: true }) };
+      if (l === 'verify:2') return o.verify2 === undefined ? verify(['d1.example', 'd3.example']) : o.verify2;
       if (l.startsWith('inventory:')) return { domain: domOf(l), pages: [{ type: 'service', url: `https://${domOf(l)}/s`, status: 'ok', raw: `work/competitors/raw/${domOf(l)}/service-1.json` }], browser: [], types_missing: [] };
       if (l.startsWith('capture:')) return o.capture ? o.capture(l, p) : out('KF_CAPTURE', { domain: domOf(l), chrome: o.chrome !== false, ok: 2, antibot: 0, error: 0, skipped: 0, partial: false });
       if (l === 'matrix:stale') return out('KF_STALE', { domains: o.stale || [{ domain: 'd1.example', role: 'competitor', parts: ['all'] }, { domain: 'd2.example', role: 'competitor', parts: ['shell', 'types'] }, { domain: 'own', role: 'own', parts: ['all'] }] });
@@ -357,6 +364,12 @@ try {
     check('wf-02 узкая ниша: fresh + exhausted - скаут не зовется, верификатор получает note, select.exhausted', !n2e.e && !labels(n2e).includes('scout') && /Параметры: note="кандидатов меньше target: источники исчерпаны"/.test(n2e.calls.find(c => c.label === 'verify').prompt) && n2e.r.select.exhausted === true && n2e.logs.some(m => /источники исчерпаны - скаут не зовется/.test(m)), labels(n2e).join(', ') + JSON.stringify(n2e.r && n2e.r.select));
     const n2s = await runWf({ ...baseArgs, ...types2 }, full({ scoutExhausted: true }));
     check('wf-02 узкая ниша по ответу скаута (exhausted) - note верификатору, sources_done в итоге', !n2s.e && labels(n2s).includes('scout') && /note=/.test(n2s.calls.find(c => c.label === 'verify').prompt) && n2s.r.select.exhausted === true && n2s.r.select.scout.sources_done.length === 3, JSON.stringify(n2s.r && n2s.r.select));
+    // сверка с порядком отбора: пропуск выше последнего годного - повтор верификатора с recheck, итог - второй список
+    check('wf-02: после верификатора сверка с ranking.order (rank:order), пропусков нет - без повтора', idx(n2, /^rank:order$/) === idx(n2, /^verify$/) + 1 && !labels(n2).includes('verify:2'), labels(n2).join(', '));
+    const ng = await runWf({ ...baseArgs, ...types2 }, full({ fresh: true, gap: ['d3.example'] }));
+    check('wf-02: верификатор пропустил по порядку - verify:2 с recheck, дальше по второму списку', !ng.e && ng.calls.find(c => c.label === 'verify:2').prompt.includes('Параметры: recheck=["d3.example"]') && labels(ng).includes('inventory:d3.example') && !labels(ng).includes('inventory:d2.example') && ng.logs.some(m => /пропустил по порядку: d3.example/.test(m)), labels(ng).join(', '));
+    const ng2 = await runWf({ ...baseArgs, ...types2 }, full({ fresh: true, gap: ['d3.example'], verify2: null }));
+    check('wf-02: повтор верификатора без ответа - первый список и строка limits, не ошибка', !ng2.e && labels(ng2).includes('inventory:d2.example') && ng2.r.limits.some(m => /повторная проверка пропущенных/.test(m)), JSON.stringify(ng2.r && ng2.r.limits));
     const n3 = await runWf({ ...baseArgs, ...types2, reselect: true }, full({ fresh: true }));
     check('wf-02 reselect: без --check, скаут зовется', !labels(n3).includes('rank:check') && labels(n3).includes('scout'), labels(n3).join(', '));
     const n4 = await runWf({ ...baseArgs, ...types2, recapture: true }, full());
@@ -411,8 +424,8 @@ try {
     const roles = new Function(`return (${SRC.slice(SRC.indexOf('{', i0), SRC.indexOf('\n}', i0) + 2)})`)();
     const NEWROLES = { scout: 'light', rank: 'light', capture: 'light', 'kf-observe': 'light', 'kf-normalize': 'light', 'kf-recheck': 'light', matrix: 'light' };
     check('wf-02: роли раздела 5 в таблице ROLES (все light), прежние без изменений', Object.entries(NEWROLES).every(([k, v]) => roles[k] === v) && roles.extract === 'strong' && roles.aggregate === 'strong' && roles.verify === 'light', JSON.stringify(roles));
-    const LABELS = [[/^prep-args$/, 'prep-args'], [/^verify$/, 'verify'], [/^inventory:/, 'inventory'], [/^extract:/, 'extract'], [/^aggregate:/, 'aggregate'], [/^catalog-analyst$/, 'catalog-analyst'],
-      [/^scout$/, 'scout'], [/^rank(:check)?$/, 'rank'], [/^capture:/, 'capture'], [/^kf-observe:/, 'kf-observe'], [/^kf-normalize$/, 'kf-normalize'], [/^kf-recheck:/, 'kf-recheck'], [/^matrix(:(stale|candidates(:2)?|status))?$/, 'matrix']];
+    const LABELS = [[/^prep-args(:prune)?$/, 'prep-args'], [/^verify(:2)?$/, 'verify'], [/^inventory:/, 'inventory'], [/^extract:/, 'extract'], [/^aggregate:/, 'aggregate'], [/^catalog-analyst$/, 'catalog-analyst'],
+      [/^scout$/, 'scout'], [/^rank(:check|:order)?$/, 'rank'], [/^capture:/, 'capture'], [/^kf-observe:/, 'kf-observe'], [/^kf-normalize$/, 'kf-normalize'], [/^kf-recheck:/, 'kf-recheck'], [/^matrix(:(stale|candidates(:2)?|status))?$/, 'matrix']];
     const roleOf = l => (LABELS.find(([re]) => re.test(l)) || [])[1];
     const all = [...n1.calls, ...n5.calls, ...n10.calls, ...n11.calls];
     const off = all.filter(c => !roleOf(c.label) || c.model !== (roles[roleOf(c.label)] === 'light' ? 'LIGHT' : 'STRONG')).map(c => `${c.label}=${c.model}`);

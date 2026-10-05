@@ -233,7 +233,8 @@ export function shellOf(matrix) {
   const comp = (matrix.domains || []).filter(d => d.role === 'competitor' && d.observed).length;
   const items = matrix.rows.filter(r => r.scope === 'site' && r.visible !== false && levelAtLeast(r.level, 'recommended')).map(r => ({
     id: r.id, name: r.name, zone: r.zone, level: r.level, coverage: `${r.n}/${r.N}`, kind: ['slot', 'function', 'page_link'].includes(r.kind) ? r.kind : 'slot',
-    render: r.x ? 'generic' : r.render || 'generic', needs: r.x ? [] : r.needs || [], needs_hint: r.needs_hint || '', page_match: r.x ? null : r.page_match ?? null, niche: !!r.x, own: r.own ?? null,
+    // вид nav (логотип, меню, бургер, крошки) - часть оболочки прототипа всегда: render native, не чип
+    render: r.kind === 'nav' ? 'native' : r.x ? 'generic' : r.render || 'generic', needs: r.x ? [] : r.needs || [], needs_hint: r.needs_hint || '', page_match: r.x ? null : r.page_match ?? null, niche: !!r.x, own: r.own ?? null,
   }));
   return { generated_at: matrix.generated_at, n_competitors: comp, items };
 }

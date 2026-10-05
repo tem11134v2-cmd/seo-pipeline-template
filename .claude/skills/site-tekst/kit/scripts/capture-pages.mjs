@@ -3,7 +3,7 @@
 // временной папке (префикс site-tekst-cdp-, осиротевшие профили старше часа удаляются при старте). MCP-браузер агентов не
 // трогается. Браузер: переменная SITE_TEKST_CHROME (только она, если задана), иначе пути Chrome и Edge по умолчанию.
 //
-// node scripts/capture-pages.mjs --domain <d> [--resume] [--concurrency 2] [--max-seconds 480]
+// node scripts/capture-pages.mjs --domain <d> [--resume] [--concurrency 1] [--max-seconds 480]
 //   страницы домена из work/competitors/competitors.json (конкурент status ok, страницы ok/browser/js_only/antibot, главная
 //   всегда); --domain own - главная config.site_url (сайт заказчика, role own).
 // node scripts/capture-pages.mjs --url <u> --domain <d> --name <имя снимка>   - одна страница (верификатор, классификатор:
@@ -18,7 +18,7 @@
 //   files: [{file, y0, y1}], partial, limits}]}: слияние вызовов по доменам (shots/<домен>/capture.part.json) под замком.
 //   Домены не из competitors.json (устаревшие после пересбора) - skipped, причина stale.
 // Статусы: ok | antibot (страница проверки: правила pageStatus fetch-page.mjs по коду и видимому тексту, ожидание проверки до
-//   12 с) | error (сайт не ответил, HTTP 400+, таймаут) | skipped (нет Chrome - no_chrome; дедлайн - timeout; stale).
+//   12 с; сетевой отказ ERR_CONNECTION_* - один повтор в конце очереди после паузы SITE_TEKST_CAPTURE_RETRY_MS, 20 с) | error (сайт не ответил, HTTP 400+, таймаут) | skipped (нет Chrome - no_chrome; дедлайн - timeout; stale).
 // --resume: готовое (ok, antibot с файлами) не переснимается; переснимаются error, skipped и новые страницы.
 // --max-seconds: по дедлайну новые страницы не берутся, текущие доснимаются не дольше дедлайна + 90 с (иначе skipped,
 //   timeout), браузеры закрываются; остаток - skipped (timeout, partial: true), код 0. Часть домена и сводка пишутся после
@@ -378,6 +378,8 @@ const done = (r, job) => r && r.url === job.url && ['ok', 'antibot'].includes(r.
 // время одной страницы: не больше PAGE_MS и не дольше дедлайна + DEADLINE_GRACE_MS (но не меньше PAGE_MIN_MS) -
 // вызов с --max-seconds 480 укладывается в 600 с Bash run-агента
 export const PAGE_MS = 150000, PAGE_MIN_MS = 30000, DEADLINE_GRACE_MS = 90000;
+export const NET_RETRY = /ERR_CONNECTION_(REFUSED|RESET|CLOSED|TIMED_OUT)|ERR_EMPTY_RESPONSE|ERR_NETWORK_CHANGED/;
+export const NET_RETRY_MS = Number(process.env.SITE_TEKST_CAPTURE_RETRY_MS) || 20000;
 export const pageLimit = (deadline, now = Date.now()) => Math.min(PAGE_MS, Math.max(PAGE_MIN_MS, deadline + DEADLINE_GRACE_MS - now));
 async function runJobs(jobs, chrome, { concurrency, deadline, links, onRecord = () => {} }) {
   const out = new Map();
@@ -405,6 +407,14 @@ async function runJobs(jobs, chrome, { concurrency, deadline, links, onRecord = 
           // срезано дедлайном - skipped (timeout, повтор с --resume), иначе - ошибка страницы
           if (lim < PAGE_MS) { cut = true; put({ ...base(job), status: 'skipped', reason: 'timeout', partial: true }); } else put({ ...base(job), status: 'error', reason: `таймаут страницы (${PAGE_MS / 1000} с)` });
           try { await b.close(); } catch { /* */ } b = null; continue;
+        }
+        // сетевой отказ (защита сайта режет частые запросы после статического снимка): один повтор в конце очереди после
+        // паузы, если дедлайн позволяет
+        if (rec.status === 'error' && NET_RETRY.test(rec.reason || '') && !job._retried && Date.now() + NET_RETRY_MS + PAGE_MIN_MS < deadline) {
+          job._retried = true;
+          await sleep(NET_RETRY_MS);
+          queue.push(job);
+          continue;
         }
         put(rec);
       }
@@ -474,8 +484,8 @@ async function main() {
     return;
   }
   const domain = a.domain ? String(a.domain).trim().toLowerCase() : '';
-  if (!domain || (a.url && !a.name)) { console.error('usage: capture-pages.mjs --domain <d> [--resume] [--concurrency 2] [--max-seconds 480] | --url <u> --domain <d> --name <имя> | --file <html> --routes "#/,#/x" --out <папка>'); process.exit(2); }
-  const concurrency = Math.max(1, Number(a.concurrency) || 2);
+  if (!domain || (a.url && !a.name)) { console.error('usage: capture-pages.mjs --domain <d> [--resume] [--concurrency 1] [--max-seconds 480] | --url <u> --domain <d> --name <имя> | --file <html> --routes "#/,#/x" --out <папка>'); process.exit(2); }
+  const concurrency = Math.max(1, Number(a.concurrency) || 1);
   const deadline = t0 + Math.max(1, Number(a['max-seconds'] || 480)) * 1000;
   let jobs, note = '';
   if (a.url) {

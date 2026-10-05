@@ -60,6 +60,7 @@ function mkProject(name, patchCfg) {
 const W = (dir, ...p) => path.join(dir, 'work', ...p);
 const RANK = 'scripts/rank-competitors.mjs';
 const PRM = R.paramsOf({});
+const r2x = x => Math.round(x * 100) / 100;
 const cand = (domain, o = {}) => ({ domain, domain_unicode: domain, sources: ['analysis'], serp: null, keyso: null, keyso_status: 'none', history: null, iks: null, created: null, ...o });
 const poolOf = (candidates, region = { keyso_base: 'msk', yandex_id: 213, city_not_in_keyso: false }) => ({ generated_at: '2026-10-05 10:00:00', input_sha: 'abcdef0123456789', region, queries: [], candidates, rejected: [], errors: [] });
 const ctxOf = (o = {}) => ({ params: PRM, own: [], stoplist: [], structure: null, siteKind: '', warnings: [], region: { keyso_base: 'msk', yandex_id: 213 }, ...o });
@@ -82,11 +83,25 @@ try {
       { slug: 's1', url: '/s1', type: 'service', subject: 'Каталог', level: 0, status: 'planned' },
     ] });
     const a = run(dir, [RANK, '--queries']), b = run(dir, [RANK, '--queries']);
-    const want = ['ремонт техники на дому', 'каталог техники', 'услуга два цена', 'раздел один купить', 'Каталог', 'Услуга два', 'Раздел один'];
-    check('--queries: фразы, маркеры по уровню и порядку карты, затем subject; без product, шаблонов, skip и дублей', a.code === 0 && JSON.stringify(a.json?.queries) === JSON.stringify(want), a.out);
+    // subject «Каталог» - слово навигации, не запрос ниши: в выдачу не идет (NAV_WORDS)
+    const want = ['ремонт техники на дому', 'каталог техники', 'услуга два цена', 'раздел один купить', 'Услуга два', 'Раздел один'];
+    check('--queries: фразы, маркеры по уровню и порядку карты, затем subject (без слов навигации); без product, шаблонов, skip и дублей', a.code === 0 && JSON.stringify(a.json?.queries) === JSON.stringify(want), a.out);
     check('--queries: детерминированы', a.stdout === b.stdout);
     check('--queries: регион по умолчанию - Москва 213, msk', a.json?.region?.yandex_id === 213 && a.json.region.keyso_base === 'msk' && a.json.target === 5, JSON.stringify(a.json?.region));
     check('computeQueries: предел serp_queries_max', R.computeQueries({ sources: { key_phrases: ['а1', 'а2', 'а3', 'а4'] } }, null, 2).length === 2);
+    {
+      // запасной вход doc: фраз нет - маркерные и целевые запросы из строк анализа; subject - до двоеточия, без бренда, до 6 слов
+      const text = '**Маркерные запросы для расширения:** ремонт техники на дому, мастер по ремонту \\(выезд\\), ремонт\n**Целевые запросы:** срочный ремонт холодильника; Альфа сервис ремонт\nпрочая строка: а, б';
+      check('analysisQueries: дословно, 2-6 слов, без пометок в скобках, без одиночных слов', JSON.stringify(R.analysisQueries(text)) === JSON.stringify(['ремонт техники на дому', 'мастер по ремонту', 'срочный ремонт холодильника', 'альфа сервис ремонт']), JSON.stringify(R.analysisQueries(text)));
+      const sm = { pages: [
+        { slug: 'a', type: 'service', subject: 'Ремонт стиральных машин: все услуги по ремонту', level: 1, status: 'planned' },
+        { slug: 'b', type: 'service', subject: 'Курсы мастеров Альфасервиса', level: 1, status: 'planned' },
+        { slug: 'c', type: 'service', subject: 'Очень длинное название страницы из восьми слов подряд тут', level: 1, status: 'planned' },
+      ] };
+      const q = R.computeQueries({ company: 'Альфасервис', sources: { mode: 'doc', key_phrases: [] } }, sm, 15, text);
+      check('computeQueries doc: сначала запросы анализа, subject до двоеточия, без бренда и длинных', JSON.stringify(q) === JSON.stringify(['ремонт техники на дому', 'мастер по ремонту', 'срочный ремонт холодильника', 'альфа сервис ремонт', 'Ремонт стиральных машин']), JSON.stringify(q));
+      check('computeQueries: при key_phrases запросы анализа не берутся', !R.computeQueries({ sources: { key_phrases: ['фраза один'] } }, null, 15, text).includes('ремонт техники на дому'));
+    }
     const e = mkProject('queries-empty');
     const r = run(e, [RANK, '--queries']);
     check('--queries без фраз и карты: код 0, queries []', r.code === 0 && Array.isArray(r.json?.queries) && r.json.queries.length === 0, r.out);
@@ -119,10 +134,11 @@ try {
     // тип сайта
     const p3 = poolOf([cand('big.example', { iks: 100, keyso: { pages: 800, dr: 30 }, keyso_status: 'ok' }), cand('tiny.example', { iks: 100, keyso: { pages: 3 }, keyso_status: 'ok' }), cand('none.example', { iks: 100 })]);
     const k3 = R.rankPool(p3, ctxOf({ siteKind: 'multipage' }));
-    check('тип сайта: совпадение x1,15, несовпадение x0,85, unknown x1', byDom(k3, 'big.example').site_type === 'multipage_leader' && byDom(k3, 'big.example').effective === 115 && byDom(k3, 'tiny.example').site_type === 'landing' && byDom(k3, 'tiny.example').effective === 85 && byDom(k3, 'none.example').site_type === 'unknown' && byDom(k3, 'none.example').effective === 100, JSON.stringify(k3.candidates.map(c => [c.domain, c.site_type, c.effective])));
+    // кандидаты фикстуры - затравка анализа: везде еще x1,25 (source_bonus)
+    check('тип сайта: совпадение x1,15, несовпадение x0,85, unknown x1 (и x1,25 затравки)', byDom(k3, 'big.example').site_type === 'multipage_leader' && byDom(k3, 'big.example').effective === 143.75 && byDom(k3, 'tiny.example').site_type === 'landing' && byDom(k3, 'tiny.example').effective === 106.25 && byDom(k3, 'none.example').site_type === 'unknown' && byDom(k3, 'none.example').effective === 125, JSON.stringify(k3.candidates.map(c => [c.domain, c.site_type, c.effective])));
     check('тип сайта по таблице seo-base: 500+ и DR 25+, 50-499, 6-49, до 5; без DR при 500+ - medium', R.siteTypeOf({ pages: 500, dr: 25 }) === 'multipage_leader' && R.siteTypeOf({ pages: 600 }) === 'medium' && R.siteTypeOf({ pages: 50 }) === 'medium' && R.siteTypeOf({ pages: 6 }) === 'small' && R.siteTypeOf({ pages: 5 }) === 'landing' && R.siteTypeOf(null) === 'unknown');
     const k3l = R.rankPool(p3, ctxOf({ siteKind: 'landing' }));
-    check('лендинг: landing/small совпадают', byDom(k3l, 'tiny.example').effective === 115 && byDom(k3l, 'big.example').effective === 85);
+    check('лендинг: landing/small совпадают', byDom(k3l, 'tiny.example').effective === 143.75 && byDom(k3l, 'big.example').effective === 106.25);
 
     // Goldax 05.10: top50, трафик, whois, ИКС (у nota-gold и fuzailov ИКС нет)
     const G = [['nota-gold.ru', 32973, 138200, '2010-10-22', null], ['fuzailov.ru', 2565, 6541, '2023-08-02', null], ['bendes.ru', 4073, 3810, '2013-05-20', 300], ['mkastom.ru', 1011, 579, '2023-03-24', 50], ['rings-master.ru', 171, 128, '2017-06-11', 260]];
@@ -152,7 +168,13 @@ try {
     check('без метрик: W null, порядок по источникам (analysis+serp, analysis, structure, keyso, serp), предупреждение', kn.candidates.every(c => c.weight === null && c.effective === null) && JSON.stringify(kn.order) === JSON.stringify(['as.example', 'a.example', 'st.example', 'k.example', 's.example']) && kn.warnings.some(w => /отбор без метрик/.test(w)), JSON.stringify([kn.order, kn.warnings]));
     // рост it50
     const kr = R.rankPool(poolOf([cand('up.example', { iks: 100, history: { it50_now: 130, it50_12m: 100 } }), cand('flat.example', { iks: 100, history: { it50_now: 110, it50_12m: 100 } }), cand('down.example', { iks: 100, history: { it50_now: 70, it50_12m: 100 } })]), ctxOf());
-    check('рост it50 от 20% - x1,05, падение - x0,95, иначе flat', byDom(kr, 'up.example').growth === 'up' && byDom(kr, 'up.example').effective === 105 && byDom(kr, 'flat.example').growth === 'flat' && byDom(kr, 'flat.example').effective === 100 && byDom(kr, 'down.example').effective === 95);
+    check('рост it50 от 20% - x1,05, падение - x0,95, иначе flat (и x1,25 затравки)', byDom(kr, 'up.example').growth === 'up' && byDom(kr, 'up.example').effective === 131.25 && byDom(kr, 'flat.example').growth === 'flat' && byDom(kr, 'flat.example').effective === 125 && byDom(kr, 'down.example').effective === 118.75);
+    // затравка анализа и структуры x1,25; кандидат Keys.so без попаданий в ТОП-10 выдачи ниши - стоп, затравка - нет
+    {
+      const pq = { ...poolOf([cand('seed.example', { iks: 100 }), cand('serp.example', { sources: ['serp'], iks: 100, serp: { top1: 0, top3: 0, top5: 1, top10: 2, queries: 4, share: 0.5 } }), cand('ks.example', { sources: ['keyso'], iks: 900, serp: { top1: 0, top3: 0, top5: 0, top10: 0, queries: 4, share: 0 } }), cand('seed0.example', { iks: 50, serp: { top1: 0, top3: 0, top5: 0, top10: 0, queries: 4, share: 0 } })]), queries: ['а б', 'в г', 'д е', 'ж з'] };
+      const kq = R.rankPool(pq, ctxOf());
+      check('нет в выдаче ниши: кандидат Keys.so - стоп, затравка анализа без попаданий - в работе; затравка x1,25', /нет в выдаче ниши/.test(byDom(kq, 'ks.example').stop) && !byDom(kq, 'seed0.example').stop && byDom(kq, 'seed.example').effective === r2x(byDom(kq, 'seed.example').weight * 1.25) && byDom(kq, 'serp.example').effective === byDom(kq, 'serp.example').weight, JSON.stringify(kq.candidates.map(c => [c.domain, c.stop, c.weight, c.effective])));
+    }
     // регион вне баз Keys.so: метрики Keys.so не в W, предупреждение, равенство - по трафику
     const pnk = poolOf([cand('a.example', { serp: { top10: 2, share: 0.2 }, keyso: { top10: 10, top50: 100, traffic: 50 }, keyso_status: 'ok' }), cand('b.example', { serp: { top10: 2, share: 0.2 }, keyso: { top10: 900, top50: 9000, traffic: 9000 }, keyso_status: 'ok' })], { keyso_base: 'msk', yandex_id: 15, city_not_in_keyso: true });
     const knk = R.rankPool(pnk, ctxOf());
@@ -247,7 +269,8 @@ try {
     check('--check: нет pool - stale, код 0', c0.code === 0 && c0.json?.status === 'stale' && /нет work\/competitors\/pool.json/.test(c0.json.reason), c0.out);
     const c1 = run(dir, [RANK, '--check']);
     check('--check: годных меньше target - stale', c1.json?.status === 'stale' && /годных кандидатов \d+ из 5/.test(c1.json.reason), c1.out);
-    wj(path.join(dir, 'more.json'), { source: 'keyso', candidates: ['e1', 'e2', 'e3'].map(x => ({ domain: `${x}.example`, keyso: { top50: 100 } })) });
+    // кандидаты Keys.so без попаданий в выдачу ниши - стоп («нет в выдаче ниши»): годных добираем затравкой
+    wj(path.join(dir, 'more.json'), { source: 'analysis', candidates: ['e1', 'e2', 'e3'].map(x => ({ domain: `${x}.example`, keyso: { top50: 100 } })) });
     run(dir, [RANK, '--merge-pool', 'more.json']);
     const c2 = run(dir, [RANK, '--check']);
     check('--check: схема, input_sha, без ошибок, годных >= target - fresh', c2.json?.status === 'fresh' && c2.json.eligible >= 5, c2.out);
@@ -439,6 +462,43 @@ try {
       const t = read(f);
       check(`${f}: кавычки - только «елочки» в тексте (без „ “ ”)`, ![0x201e, 0x201c, 0x201d].some(c => t.includes(String.fromCharCode(c))));
     }
+  }
+  // сверка верификатора с порядком отбора
+  {
+    const rk = { order: ['a.ru', 'b.ru', 'c.ru', 'd.ru', 'e.ru'] };
+    const cp = list => ({ competitors: list.map(([domain, status]) => ({ domain, status })) });
+    check('orderGaps: пропуски выше последнего годного (не годен и не исключен) - пропущены; ниже - не в счет', JSON.stringify(R.orderGaps(rk, cp([['a.ru', 'closed'], ['c.ru', 'ok'], ['e.ru', 'ok']]))) === '["b.ru","d.ru"]' && JSON.stringify(R.orderGaps(rk, cp([['a.ru', 'ok'], ['b.ru', 'excluded'], ['c.ru', 'ok']]))) === '[]' && JSON.stringify(R.orderGaps(rk, cp([]))) === '[]');
+  }
+  // ---------------------------------------------------------------- бесплатный whois (порт 43)
+  {
+    const NL = String.fromCharCode(10);
+    check('parseCreated: created и Creation Date, дата YYYY-MM-DD; нет поля - null', R.parseCreated(`domain: X.RU${NL}created:       2023-03-24T15:05:09Z${NL}`) === '2023-03-24' && R.parseCreated('   Creation Date: 2012-12-18T11:06:56Z') === '2012-12-18' && R.parseCreated('No entries found') === null);
+    check('whoisServerOf: .ru и .рф - tcinet, .com - verisign, неизвестная зона - null, переменная окружения сильнее', R.whoisServerOf('a.ru', {}) === 'whois.tcinet.ru' && R.whoisServerOf('xn--80a.xn--p1ai', {}) === 'whois.tcinet.ru' && R.whoisServerOf('a.com', {}) === 'whois.verisign-grs.com' && R.whoisServerOf('a.art', {}) === null && R.whoisServerOf('a.art', { SITE_TEKST_WHOIS_SERVER: '127.0.0.1:43' }) === '127.0.0.1:43');
+    // поддельный whois-сервер - отдельный процесс (spawnSync блокирует цикл событий теста)
+    const srvFile = path.join(tmpRoot, 'whois-srv.mjs');
+    fs.writeFileSync(srvFile, [
+      "import net from 'node:net';",
+      "const ok = new Set(['alpha.ru', 'sub-parent.ru']);",
+      "const s = net.createServer(c => { let b = ''; c.on('data', d => { b += d; if (b.includes(String.fromCharCode(10))) { const q = b.trim(); c.end(ok.has(q) ? 'domain: ' + q + String.fromCharCode(10) + 'created: 2023-03-24T15:05:09Z' + String.fromCharCode(10) : 'No entries found'); } }); });",
+      "s.listen(0, '127.0.0.1', () => console.log('PORT ' + s.address().port));",
+    ].join(NL));
+    const { spawn } = await import('node:child_process');
+    const srv = spawn(process.execPath, [srvFile], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const port = await new Promise(res => { let o = ''; srv.stdout.on('data', d => { o += d; const m = o.match(/PORT (\d+)/); if (m) res(Number(m[1])); }); setTimeout(() => res(0), 5000); });
+    try {
+      const dir = mkProject('whois');
+      wj(path.join(dir, 'raw.json'), { source: 'analysis', candidates: [{ domain: 'alpha.ru' }, { domain: 'beta.ru' }, { domain: 'msk.sub-parent.ru' }] });
+      run(dir, [RANK, '--merge-pool', 'raw.json']);
+      const env = { ...process.env, SITE_TEKST_WHOIS_SERVER: `127.0.0.1:${port}`, SITE_TEKST_WHOIS_DELAY_MS: '0' };
+      const r = spawnSync(process.execPath, [RANK, '--whois'], { cwd: dir, encoding: 'utf8', timeout: 60000, env });
+      let j = null; try { j = JSON.parse(r.stdout); } catch { j = null; }
+      const pool = rj(W(dir, 'competitors', 'pool.json'));
+      const cr = d => (pool.candidates.find(c => c.domain === d) || {}).created || null;
+      check('--whois: даты из whois (поддомен - по основному домену), не ответивший - в failed, whois в sources_done', port > 0 && r.status === 0 && !!j && j.filled === 2 && cr('alpha.ru') === '2023-03-24' && cr('msk.sub-parent.ru') === '2023-03-24' && cr('beta.ru') === null && j.failed.includes('beta.ru') && (pool.sources_done || []).includes('whois'), (r.stdout || '') + (r.stderr || ''));
+      const r2 = spawnSync(process.execPath, [RANK, '--whois'], { cwd: dir, encoding: 'utf8', timeout: 60000, env });
+      let j2 = null; try { j2 = JSON.parse(r2.stdout); } catch { j2 = null; }
+      check('--whois повторно: заполненные не спрашиваются (только beta.ru)', !!j2 && j2.filled === 0 && JSON.stringify(j2.failed) === '["beta.ru"]', r2.stdout);
+    } finally { srv.kill(); }
   }
 } catch (e) {
   fail++; failures.push(`FAIL исключение: ${e.stack || e.message}`);

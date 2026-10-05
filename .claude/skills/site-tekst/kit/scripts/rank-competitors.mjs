@@ -3,8 +3,10 @@
 //
 // node scripts/rank-competitors.mjs --queries
 //   stdout - {queries, region, own, target, serp_depth}: запросы выдачи ниши детерминированно - sources.key_phrases, затем
-//   маркеры (key_phrase/marker) страниц hub, category, service карты по уровню и порядку, затем их subject; без product,
-//   шаблонов и status skip; без дублей; до serp_queries_max. Пустой список - код 0, queries: [].
+//   маркеры (key_phrase/marker) страниц hub, category, service карты по уровню и порядку, затем их subject (часть до
+//   двоеточия, без слов навигации, без названия компании, от 2 до 6 слов: одно слово - неоднозначный запрос); без
+//   product, шаблонов и status skip; без дублей; до serp_queries_max. Режим doc без key_phrases - сначала маркерные и целевые запросы из строк анализа (analysisQueries).
+//   Пустой список - код 0, queries: [].
 // node scripts/rank-competitors.mjs --merge-pool <raw.json>
 //   Сливает часть, собранную скаутом по одному источнику, в work/competitors/pool.json и проверяет его схемой kf-pool.
 //   raw: {source: analysis|serp|serp_msk|structure|keyso|data|keyso_batch|history|iks|whois, results?: [{query, urls: []}],
@@ -29,6 +31,15 @@
 //   схему, input_sha совпадает, errors пуст и годных (без стопа) не меньше target; годных меньше, но пройдены все
 //   источники кандидатов (exhaustSources: serp, serp_msk при регионе не 213, keyso_batch, keyso) - fresh, exhausted: true.
 //   Запросов нет (--queries пуст) - serp и serp_msk считаются пройденными, их ошибки не в счет; в ответе no_queries: true.
+// node scripts/rank-competitors.mjs --whois
+//   Дата регистрации кандидатам без created (без стопа, до keyso_batch_max): whois-сервер зоны на порту 43 (.ru, .su, .рф -
+//   whois.tcinet.ru; .com, .net - verisign; .org - pir), последовательно, пауза SITE_TEKST_WHOIS_DELAY_MS (1200), общий
+//   предел 2 минуты; слияние как источник whois (прежние ошибки whois снимаются). Бесплатный запасной путь к whois
+//   Арсенкина: wf-02 зовет его перед ранжированием. stdout - {whois, filled, failed}, код 0 (2 - нет pool).
+// node scripts/rank-competitors.mjs --verify-order
+//   Сверка competitors.json верификатора с ranking.order: домены порядка выше последнего годного, которых в файле нет
+//   (ни годен, ни исключен), - skipped. stdout {ok, skipped, checked}, код 0. wf-02 при skipped зовет верификатор
+//   повторно с параметром recheck.
 // Общие флаги: --pool <файл> (work/competitors/pool.json), --out <файл> (work/competitors/ranking.json).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -58,7 +69,7 @@ const KEYSO_METRICS = ['top10', 'top50', 'ratio', 'traffic'];
 export const DEFAULTS = {
   target: 5, serp_queries_max: 15, serp_depth: 10, serp_share_min: 0.1, keyso_batch_max: 40, history_max: 8,
   weights: { share: 3, top10: 1, top50: 1, ratio: 0.5, traffic: 1, iks: 1 }, ratio_min_top50: 50, coverage_min: 0.5,
-  young_years: 7, old_years: 12, young_bonus: 0.15, growth_bonus: 0.05, growth_threshold: 0.2,
+  young_years: 7, old_years: 12, young_bonus: 0.15, growth_bonus: 0.05, growth_threshold: 0.2, source_bonus: 0.25,
   site_type_bonus: 0.15, site_type_penalty: 0.15,
 };
 export function paramsOf(cfg) {
@@ -76,15 +87,46 @@ export function paramsOf(cfg) {
 const readSafe = f => { try { return exists(f) ? readJson(f) : null; } catch { return null; } };
 const lowKey = s => T(s).toLowerCase().replace(/\s+/g, ' ');
 
-export function computeQueries(cfg, sitemap, max = DEFAULTS.serp_queries_max) {
+const NAV_WORDS = new Set(['каталог', 'услуги', 'главная', 'о компании', 'о нас', 'контакты', 'магазин', 'товары', 'продукция',
+  'цены', 'прайс', 'прайс-лист', 'блог', 'статьи', 'новости', 'акции', 'отзывы', 'доставка', 'оплата', 'доставка и оплата',
+  'корзина', 'поиск', 'личный кабинет', 'портфолио', 'работы', 'наши работы', 'вакансии', 'вопросы и ответы', 'faq', 'все услуги']);
+// Режим doc без key_phrases (запасной вход): маркерные и целевые запросы из строк анализа вида «Маркерные запросы ...:
+// а, б, в» - дословно, по 2-6 слов, до 10; сам скрипт ничего не придумывает.
+export function analysisQueries(text) {
+  const out = [];
+  for (const line of String(text || '').split(/\r?\n/)) {
+    if (!/(маркерн|целев)[а-я]*\s+запрос/i.test(line)) continue;
+    const i = line.indexOf(':');
+    if (i < 0) continue;
+    for (let q of line.slice(i + 1).split(/[,;]/)) {
+      q = q.replace(/\\/g, '').replace(/[*_`«»"]/g, '').replace(/\s*\(.*?\)\s*/g, ' ').replace(/[.\s]+$/, '').trim();
+      const words = q.split(/\s+/).filter(Boolean);
+      if (words.length >= 2 && words.length <= 6 && /[а-я]/i.test(q)) out.push(q.toLowerCase());
+    }
+  }
+  return [...new Set(out)].slice(0, 10);
+}
+export function computeQueries(cfg, sitemap, max = DEFAULTS.serp_queries_max, analysisText = '') {
   const out = [], seen = new Set();
   const add = q => { const t = T(q); const k = lowKey(t); if (t.length >= 2 && !seen.has(k)) { seen.add(k); out.push(t); } };
-  arr(cfg && cfg.sources && cfg.sources.key_phrases).forEach(add);
+  const phrases = arr(cfg && cfg.sources && cfg.sources.key_phrases);
+  phrases.forEach(add);
+  if (!phrases.length && analysisText) analysisQueries(analysisText).forEach(add);
   const pages = arr(sitemap && sitemap.pages).map((p, i) => ({ p, i }))
     .filter(({ p }) => p && ['hub', 'category', 'service'].includes(p.type) && p.status !== 'skip' && !p.template)
     .sort((a, b) => (Number(a.p.level) || 0) - (Number(b.p.level) || 0) || a.i - b.i);
   pages.forEach(({ p }) => add(p.key_phrase || p.marker || ''));
-  pages.forEach(({ p }) => add(p.subject || ''));
+  // subject - название страницы, а не запрос: общие слова навигации («Каталог», «Услуги») запросом ниши не бывают;
+  // длинное название - часть до двоеточия; с названием компании (бренд выдаст сайт клиента) и вне 2-6 слов - не берем
+  const brand = lowKey(T(cfg && (cfg.company || cfg.slug) || '')).split(/[\s-]+/).filter(w => w.length >= 4).map(w => w.slice(0, Math.max(4, w.length - 2)));
+  pages.forEach(({ p }) => {
+    const s = T(p.subject || '').split(/:\s/)[0].replace(/[.!?]+$/, '').trim();
+    const k = lowKey(s);
+    const n = s ? s.split(/\s+/).length : 0;
+    // одно слово (название раздела) - неоднозначный запрос: выдача смешивает соседние категории
+    if (!s || NAV_WORDS.has(k) || n < 2 || n > 6 || brand.some(b => k.includes(b))) return;
+    add(s);
+  });
   return out.slice(0, Math.max(0, max));
 }
 
@@ -135,7 +177,12 @@ export function taskContext() {
   const proj = arr(cfg.competitors && cfg.competitors.aggregators_stoplist).map(normDomain).filter(Boolean).map(d => ({ domain: d, kind: 'project' }));
   const seed = readSafe(P('work', 'competitors', 'seed.json'));
   const structure = structureOf();
-  const queries = computeQueries(cfg, sitemap, params.serp_queries_max);
+  let analysisText = '';
+  if ((cfg.sources && cfg.sources.mode) === 'doc' && !arr(cfg.sources && cfg.sources.key_phrases).length) {
+    const af = P(T(cfg.sources && cfg.sources.analysis_dump) || 'inputs/analysis.md');
+    try { analysisText = exists(af) ? fs.readFileSync(af, 'utf8') : ''; } catch { analysisText = ''; }
+  }
+  const queries = computeQueries(cfg, sitemap, params.serp_queries_max, analysisText);
   const region = regionOf(cfg);
   const own = ownDomainsOf(cfg);
   const seedCore = seed ? { domains: arr(seed.domains).map(d => normDomain(d && d.domain)).filter(Boolean).sort(), rejected: arr(seed.rejected).map(T) } : null;
@@ -293,6 +340,10 @@ function stopOf(c, ctx, pool) {
   }
   const parent = arr(pool.candidates).find(o => o.domain !== c.domain && isSub(c.domain, o.domain));
   if (parent) return { stop: `поддомен: основной домен ${parent.domain} в списке` };
+  // сила по курсу - присутствие в выдаче ниши: кандидат Keys.so без единого попадания в ТОП-10 выдачи ниши - не конкурент
+  // по нише, даже если домен большой (энциклопедии, соседние категории); затравку анализа и структуры не трогаем
+  const vetted = arr(c.sources).some(x => x === 'analysis' || x === 'structure');
+  if (!vetted && arr(pool.queries).length && !(c.serp && num(c.serp.top10) > 0)) return { stop: 'нет в выдаче ниши: ни одного попадания в ТОП-10 по запросам' };
   return { stop: '' };
 }
 
@@ -408,7 +459,11 @@ export function rankPool(pool, ctx, opts = {}) {
     if (age_class === 'young') reasons.push(`молодой домен (${age_years} лет)`);
     const grMul = growth === 'up' ? 1 + prm.growth_bonus : growth === 'down' ? 1 - prm.growth_bonus : 1;
     if (growth === 'up' || growth === 'down') reasons.push(growth === 'up' ? 'рост it50' : 'падение it50');
-    const E = w.W == null ? null : w.W * typeMul * ageMul * grMul;
+    // затравка анализа и структуры - тип бизнеса уже сверен анализом (прямые конкуренты), выдача - только силой
+    const vetted = arr(c.sources).some(v => v === 'analysis' || v === 'structure');
+    const srcMul = vetted ? 1 + prm.source_bonus : 1;
+    if (vetted) reasons.push('из анализа или структуры: тип бизнеса сверен');
+    const E = w.W == null ? null : w.W * typeMul * ageMul * grMul * srcMul;
     return { domain: c.domain, domain_unicode: c.domain_unicode, sources: c.sources, stop: '', weight: w.W == null ? null : r1(w.W), effective: E == null ? null : r2(E), coverage: r2(w.coverage), age_years, age_class, growth, site_type, metrics_used: w.used, reason: reasons.join('; '), _idx: x.idx, _c: c, _W: w.W, _E: E };
   });
   const ok = rows.filter(r => !r.stop);
@@ -555,5 +610,82 @@ function main() {
   process.exit(0);
 }
 
+// ---------------------------------------------------------------- бесплатный whois (порт 43)
+// Дата регистрации для кандидатов без created: whois Арсенкина мог упасть (лимит запросов), а без возраста отбор теряет
+// фактор молодости. Скрипт спрашивает whois-сервер зоны напрямую, последовательно, с паузой; зона без сервера - пропуск.
+export const WHOIS_SERVERS = { ru: 'whois.tcinet.ru', su: 'whois.tcinet.ru', 'xn--p1ai': 'whois.tcinet.ru', com: 'whois.verisign-grs.com', net: 'whois.verisign-grs.com', org: 'whois.pir.org' };
+export const whoisServerOf = (domain, env = process.env) => T(env.SITE_TEKST_WHOIS_SERVER) || WHOIS_SERVERS[String(domain).split('.').pop()] || null;
+export function parseCreated(text) {
+  const m = String(text || '').match(/(?:^|\n)\s*(?:created|creation date|registered on|registration time)\s*:\s*(\d{4}-\d{2}-\d{2})/i);
+  return m ? m[1] : null;
+}
+async function whoisQuery(server, domain, ms = 10000) {
+  const { default: net } = await import('node:net');
+  const [host, port] = server.includes(':') ? [server.split(':')[0], Number(server.split(':')[1])] : [server, 43];
+  return new Promise(resolve => {
+    let buf = '';
+    const s = net.connect(port, host);
+    const t = setTimeout(() => { s.destroy(); resolve(''); }, ms);
+    s.on('connect', () => s.write(`${domain}\r\n`));
+    s.on('data', d => { buf += d.toString('utf8'); });
+    s.on('end', () => { clearTimeout(t); resolve(buf); });
+    s.on('error', () => { clearTimeout(t); resolve(''); });
+  });
+}
+async function whoisMode(poolFile, ctx, print) {
+  const pool = readSafe(poolFile);
+  if (!pool) { console.error('нет work/competitors/pool.json - whois не нужен'); process.exit(2); }
+  if (pool.input_sha !== ctx.input_sha) { print({ whois: 'pool устарел (входы изменились) - пропуск', filled: 0 }); process.exit(0); }
+  const stopped = new Set(rankPool(pool, ctx).candidates.filter(c => c.stop).map(c => c.domain));
+  const list = arr(pool.candidates).filter(c => c && c.domain && !c.created && !stopped.has(c.domain)).slice(0, ctx.params.keyso_batch_max);
+  const delay = Number(process.env.SITE_TEKST_WHOIS_DELAY_MS ?? 1200);
+  const deadline = Date.now() + 120000;
+  const got = [], failed = [];
+  for (const c of list) {
+    if (Date.now() > deadline) { failed.push(`${c.domain} (дедлайн)`); continue; }
+    const srv = whoisServerOf(c.domain);
+    if (!srv) { failed.push(`${c.domain} (зона без whois)`); continue; }
+    // поддомен (msk.example.ru) - whois основного домена: регистрируется он
+    const created = parseCreated(await whoisQuery(srv, String(c.domain).split('.').slice(-2).join('.')));
+    if (created) got.push({ domain: c.domain, created }); else failed.push(c.domain);
+    if (delay > 0) await new Promise(r => setTimeout(r, delay));
+  }
+  if (!list.length) { print({ whois: 'даты есть у всех кандидатов', filled: 0 }); process.exit(0); }
+  if (!got.length) { print({ whois: 'whois не ответил', filled: 0, failed }); process.exit(0); }
+  // слияние как у источника whois: прежние ошибки whois снимаются, источник - в sources_done
+  const res = mergePool({ ...pool, candidates: arr(pool.candidates), errors: arr(pool.errors), own: arr(pool.own), rejected: arr(pool.rejected) }, { source: 'whois', candidates: got, method: 'whois port 43' }, ctx);
+  const errs = poolSchemaErrors(res.pool);
+  if (errs.length) { console.error('pool.json не прошел схему kf-pool, не записан:\n' + errs.slice(0, 10).join('\n')); process.exit(1); }
+  writeJson(poolFile, res.pool);
+  print({ whois: 'port 43', filled: got.length, failed });
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------- сверка верификатора с порядком отбора
+// Верификатор идет строго по ranking.order: каждый домен порядка выше последнего годного должен быть в competitors.json
+// (годен или исключен с причиной). Пропущенный - шорткат агента (например, переиспользован прежний список при новом
+// порядке); wf-02 зовет верификатор повторно на них. Стоп-домены ранжирования не в счет.
+export function orderGaps(ranking, competitors) {
+  const order = arr(ranking && ranking.order);
+  const list = arr(competitors && competitors.competitors);
+  const seen = new Set(list.map(c => c && c.domain).filter(Boolean));
+  const keptIdx = list.filter(c => c && c.status === 'ok').map(c => order.indexOf(c.domain)).filter(i => i >= 0);
+  if (!keptIdx.length) return [];
+  const last = Math.max(...keptIdx);
+  return order.slice(0, last).filter(d => !seen.has(d));
+}
+
 const real = f => { try { return fs.realpathSync.native(path.resolve(f)).toLowerCase(); } catch { return ''; } };
-if (process.argv[1] && real(process.argv[1]) === real(fileURLToPath(import.meta.url))) main();
+if (process.argv[1] && real(process.argv[1]) === real(fileURLToPath(import.meta.url))) {
+  if (process.argv.includes('--verify-order')) {
+    const rk = readSafe(P('work', 'competitors', 'ranking.json'));
+    const cp = readSafe(P('work', 'competitors', 'competitors.json'));
+    const skipped = rk && cp ? orderGaps(rk, cp) : [];
+    console.log(JSON.stringify({ ok: !skipped.length, skipped, checked: !!(rk && cp) }));
+    process.exit(0);
+  }
+  if (process.argv.includes('--whois')) {
+    const a = argv({ whois: 'bool' });
+    whoisMode(P(a.pool || path.join('work', 'competitors', 'pool.json')), taskContext(), o => console.log(JSON.stringify(o)));
+  } else main();
+}

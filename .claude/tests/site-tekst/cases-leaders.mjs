@@ -399,8 +399,8 @@ srv.listen(0, '127.0.0.1', () => console.log('PORT ' + srv.address().port));
     const i0 = SRC.indexOf('const ROLES = {');
     const roles = new Function(`return (${SRC.slice(SRC.indexOf('{', i0), SRC.indexOf('\n}', i0) + 2)})`)();
     check('wf-02: таблица ROLES - прежние роли и роли этапа КФ (light)', canon(roles) === canon({ 'prep-args': 'light', verify: 'light', inventory: 'light', 'catalog-analyst': 'light', aggregate: 'strong', extract: 'strong', scout: 'light', rank: 'light', capture: 'light', 'kf-observe': 'light', 'kf-normalize': 'light', 'kf-recheck': 'light', matrix: 'light' }), JSON.stringify(roles));
-    const LABELS = [[/^prep-args$/, 'prep-args'], [/^verify$/, 'verify'], [/^inventory:/, 'inventory'], [/^extract:/, 'extract'], [/^aggregate:/, 'aggregate'], [/^catalog-analyst$/, 'catalog-analyst'],
-      [/^scout$/, 'scout'], [/^rank(:check)?$/, 'rank'], [/^capture:/, 'capture'], [/^kf-observe:/, 'kf-observe'], [/^kf-normalize$/, 'kf-normalize'], [/^kf-recheck:/, 'kf-recheck'], [/^matrix(:(stale|candidates(:2)?|status))?$/, 'matrix']];
+    const LABELS = [[/^prep-args(:prune)?$/, 'prep-args'], [/^verify(:2)?$/, 'verify'], [/^inventory:/, 'inventory'], [/^extract:/, 'extract'], [/^aggregate:/, 'aggregate'], [/^catalog-analyst$/, 'catalog-analyst'],
+      [/^scout$/, 'scout'], [/^rank(:check|:order)?$/, 'rank'], [/^capture:/, 'capture'], [/^kf-observe:/, 'kf-observe'], [/^kf-normalize$/, 'kf-normalize'], [/^kf-recheck:/, 'kf-recheck'], [/^matrix(:(stale|candidates(:2)?|status))?$/, 'matrix']];
     const all = [...land.calls, ...named.calls, ...viaPrep.calls, ...bq.calls, ...d1.calls];
     const roleOf = l => (LABELS.find(([re]) => re.test(l)) || [])[1];
     const off = all.filter(c => !roleOf(c.label) || c.model !== (roles[roleOf(c.label)] === 'light' ? 'LIGHT' : 'STRONG')).map(c => `${c.label}=${c.model}`);

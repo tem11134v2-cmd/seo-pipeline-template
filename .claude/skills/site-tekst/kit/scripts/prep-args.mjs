@@ -18,10 +18,34 @@
 //   (status browser, текста меньше JS_ONLY_CHARS fetch-page). Браузерный снимок с текстом - сайт доступен. Кандидатов нет,
 //   сайт не ответил (error, в том числе при сохраненной браузером странице ошибки), статус js_only или antibot без
 //   браузерного снимка - это сбой среды или пустой вход: degraded null, фазу останавливают, --resume повторит.
+import fs from 'node:fs';
+import path from 'node:path';
 import { argv, P, readJson, exists, loadSitemap } from './lib.mjs';
 import { JS_ONLY_CHARS } from './fetch-page.mjs';
 
-const a = argv({ snapshots: 'bool', 'check-degraded': 'bool' });
+const a = argv({ snapshots: 'bool', 'check-degraded': 'bool', 'prune-stale': 'bool' });
+
+// --prune-stale (wf-02 после верификатора): разборы блоков work/competitors/<домен>/ доменов, которых нет среди годных
+// (status ok) в competitors.json, - в work/competitors/_stale/<домен>/ (остаются после пересбора отбора и попали бы в
+// агрегатор). Снимки raw/ не трогаются (доказательная база; замер берет только годных). stdout {moved}, код 0.
+if (a['prune-stale']) {
+  const f = P('work', 'competitors', 'competitors.json');
+  const kept = new Set(exists(f) ? (readJson(f).competitors || []).filter(c => c.status === 'ok').map(c => c.domain) : []);
+  const moved = [];
+  const base = P('work', 'competitors');
+  if (kept.size && fs.existsSync(base)) for (const d of fs.readdirSync(base, { withFileTypes: true })) {
+    if (!d.isDirectory() || ['raw', 'raw-pool', 'shots', 'kf', '_stale'].includes(d.name) || kept.has(d.name)) continue;
+    const dir = path.join(base, d.name);
+    if (!fs.readdirSync(dir).some(x => x.endsWith('.blocks.json'))) continue;
+    const to = path.join(base, '_stale', d.name);
+    fs.rmSync(to, { recursive: true, force: true });
+    fs.mkdirSync(path.dirname(to), { recursive: true });
+    fs.renameSync(dir, to);
+    moved.push(d.name);
+  }
+  console.log(JSON.stringify({ moved }));
+  process.exit(0);
+}
 
 if (a['check-degraded']) {
   const done = why => { console.log(JSON.stringify({ degraded: why ? null : 'no_competitors', why: why || 'все кандидаты ответили, но недоступны' })); process.exit(0); };

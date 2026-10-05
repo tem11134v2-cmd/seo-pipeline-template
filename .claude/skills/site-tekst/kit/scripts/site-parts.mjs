@@ -593,6 +593,9 @@ const SHELL_RENDERS = {
   licenses: 'slot', tagline: 'slot', rating: 'slot', payment_icons: 'slot', city: 'slot', docs: 'page_link',
   callback: 'function', cta: 'function', up_button: 'function', subscribe: 'function',
   search: 'function', cart: 'function', account: 'function', favorites: 'function', compare: 'function',
+  // native - часть оболочки, которую прототип рисует всегда (логотип, меню, бургер, колонки подвала, крошки, копирайт):
+  // показано, без новой разметки и без вопроса
+  native: 'slot',
 };
 const MSG_KEYS = new Set(['whatsapp', 'telegram', 'max', 'viber']);
 const SOC_KEYS = new Set(['vk', 'youtube', 'instagram', 'dzen', 'ok']);
@@ -622,7 +625,9 @@ function matchPage(S, pm) {
   let re = null;
   if (pm.subject_re) { try { re = new RegExp(String(pm.subject_re), 'i'); } catch { return null; } }
   if (!pm.type && !pm.ui_role && !re) return null;
-  const ok = p => p && p.slug && (!pm.type || p.type === pm.type) && (!pm.ui_role || p.ui_role === pm.ui_role) && (!re || re.test(String(p.subject || '')) || re.test(String(p.nav_label || '')));
+  // роль и название - альтернативы: страница политики без ui_role legal находится по названию (тип - обязательное условие)
+  const reOk = p => !!re && (re.test(String(p.subject || '')) || re.test(String(p.nav_label || '')));
+  const ok = p => p && p.slug && (!pm.type || p.type === pm.type) && (pm.ui_role && re ? p.ui_role === pm.ui_role || reOk(p) : (!pm.ui_role || p.ui_role === pm.ui_role) && (!re || reOk(p)));
   const hits = (S.allPages || []).filter(ok);
   const live = hits.map(p => S.bySlug.get(p.slug)).find(Boolean);
   if (live) return { x: live };
@@ -693,10 +698,16 @@ function shellState(S, it, raw, { absent, noPh, slot }) {
     case 'tagline': if (S.tagline) { it.value = S.tagline; return 'shown'; } return fromFact();
     case 'rating': case 'payment_icons': case 'city': return fromFact();
     case 'docs': if (it.match) return pageState(S, it, raw); return 'shown';
-    case 'callback': case 'cta': case 'up_button': return 'shown';
+    case 'callback': case 'cta': case 'up_button': case 'native': return 'shown';
     case 'subscribe': return 'function';
-    case 'search': case 'cart': case 'account': { const x = S[LIVE_PAGE[it.render]]; if (x) { it.page = x; return 'shown'; } return 'function'; }
-    case 'favorites': case 'compare': { const x = S.pages.find(p => p.p.ui_role === it.render); if (x) { it.page = x; return 'shown'; } return 'function'; }
+    case 'search': case 'cart': case 'account': case 'favorites': case 'compare': {
+      const x = it.render in LIVE_PAGE ? S[LIVE_PAGE[it.render]] : S.pages.find(p => p.p.ui_role === it.render);
+      if (x) { it.page = x; return 'shown'; }
+      // страница есть в карте без ui_role (поиск, корзина, кабинет по названию) - ссылка на нее, живой модуль не включается
+      const m = matchPage(S, raw.page_match);
+      if (m && m.x) { it.page = m.x; return 'shown'; }
+      return 'function';
+    }
     default: break;
   }
   if (it.kind === 'function') return 'function';
@@ -736,11 +747,12 @@ function shellExisting(S, it, menu) {
   const c = S.contacts;
   const r = it.render;
   const msgs = !S.off.has('messengers') && it.channels.some(ch => ch.href);
+  if (r === 'native') return true;
   if (it.zone === 'header' || it.zone === 'fixed') {
     // шапка закреплена (sticky): ее элементы видны и при прокрутке
     if (r === 'phone') return !!c.phones[0];
     if (r === 'messengers' || r === 'socials') return msgs;
-    if (r === 'search' || r === 'cart' || r === 'account') return true;
+    if (r in LIVE_PAGE) return !!S[LIVE_PAGE[r]];
     if (r === 'cta') return !!S.homeCta.main;
     if (r === 'tagline') return !!S.tagline;
     if (it.zone === 'header' && (r === 'address' || r === 'hours')) {
@@ -765,7 +777,7 @@ function shellExisting(S, it, menu) {
   const inMnav = S.off.has('mbar') && !S.landing && !!(menu && menu.items && menu.items.length);
   if (r === 'phone') return !!c.phones[0] && (!S.off.has('mbar') || inMnav);
   if (r === 'cta') return !!S.homeCta.main && (!S.off.has('mbar') || inMnav);
-  if (r === 'search' || r === 'cart' || r === 'account') return true;
+  if (r in LIVE_PAGE) return !!S[LIVE_PAGE[r]];
   return false;
 }
 const SHELL_ICON = { phone: 'phone', email: 'mail', address: 'pin', map_link: 'pin', hours: 'clock', messengers: 'chat', socials: 'chat', callback: 'phone', up_button: 'chev', cta: 'lead' };

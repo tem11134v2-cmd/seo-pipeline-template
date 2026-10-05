@@ -22,7 +22,7 @@
           "kind": { "type": "string", "enum": ["slot", "function", "page_link", "block", "nav"] },
           "needs": { "type": "array", "items": { "type": "string" } },
           "needs_hint": { "type": "string", "maxLength": 160 },
-          "render": { "enum": ["phone", "messengers", "socials", "email", "address", "hours", "map_link", "legal_line", "licenses", "docs", "callback", "cta", "up_button", "subscribe", "tagline", "rating", "payment_icons", "city", "search", "cart", "account", "favorites", "compare", null] },
+          "render": { "enum": ["phone", "messengers", "socials", "email", "address", "hours", "map_link", "legal_line", "licenses", "docs", "callback", "cta", "up_button", "subscribe", "tagline", "rating", "payment_icons", "city", "search", "cart", "account", "favorites", "compare", "native", null] },
           "block_hint": { "_doc": "id блока типа страницы или null" },
           "page_match": { "_doc": "{type?, ui_role?, subject_re?} или null: страница карты, на которую ведет ссылка" },
           "visible": { "type": "boolean" },
