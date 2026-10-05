@@ -8,7 +8,11 @@
 //            судей и слепого читателя (все круги round-*, blind, human) и кросса (живые отчеты и архивы cross-archive-*.json,
 //            статус из самого свежего), прочие отказы фиксеров «нет факта» (retro-stats.mjs, раздел no_fact), выпавшие без
 //            фактов блоки и вопросы work/briefs-report.json, сайты-ориентиры при разборе без конкурентов; без повторов, у
-//            каждого вопроса страницы и блоки;
+//            каждого вопроса страницы и блоки. Сырые строки сводятся без LLM: пометки писателей и фиксеров (не вопросы:
+//            «удален», «не добавляем», lint, handoff_note, факт есть, но не в брифе) - подразделом «Пометки писателей (для
+//            оператора)»; повторы сливаются по ссылке на открытый вопрос анализа (gN), по id факта и по похожему тексту
+//            (вопросы анализа первыми, затем слитые по числу мест); все сырые строки и куда они ушли - в
+//            work/output/report-questions.json;
 //   Не подтверждено или снято - факты publish: no и технические пробелы (для оператора); факты оператора F8xx строками
 //            листа ответов анализа (F8NN: <что> = <значение> << <фраза>; без F8NN - «+:»);
 //   Спорное: решения агента - decisions.md §8 (только формат v2), work/audit/strategy-review.json, disputes стратегов типов;
@@ -33,7 +37,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
-import { P, readJson, exists, writeText, loadConfig, loadSitemap, loadBlocks, blockPlainText, PLACEHOLDER_RE, nowIso } from './lib.mjs';
+import { P, readJson, exists, writeText, writeJson, loadConfig, loadSitemap, loadBlocks, blockPlainText, PLACEHOLDER_RE, nowIso, cyr } from './lib.mjs';
 import { pageProgress, pageFindings, waves, isOpenStatus, isSerious, isCrossArchive, archiveStamp, blockKey, ARCHIVE_PREFIX } from './progress.mjs';
 import { protoDataSha } from './render-blocks.mjs';
 import { kfStage, kfTableLine, zoneRu, stateRu, scopeType, elName } from './build-kf-xlsx.mjs';
@@ -317,6 +321,139 @@ const appliedOf = list => (Array.isArray(list) ? list : []).flatMap(a => {
 });
 const cuApplied = [...new Set([...cuItems.flatMap(x => appliedOf(x && x.applied)), ...(cu && !Array.isArray(cu) ? appliedOf(cu.applied) : [])])];
 
+// ---------------------------------------------------------------- вопросы: пометки писателей и слияние повторов
+// Сырые строки Q (точный повтор текста слит в addQ) -> вопросы заказчику и пометки для оператора. Без LLM; лучше не слить,
+// чем слить разное. Скобки при разборе не читаются: в них пометки писателя к вопросу («F26 снят на гейте», «в do_not_say»).
+const lowQ = s => clean(s).toLowerCase().replace(/\u0451/g, 'е');
+// скобки снимаются изнутри наружу; хвост без закрывающей (обрезка clip) - тоже скобка; keep - оставить текст скобки
+function unparen(s, keep = () => false) {
+  let t = s, prev;
+  do { prev = t; t = t.replace(/\(([^()]*)\)/g, (_, p) => (keep(p) ? ` ${p} ` : ' ')); } while (t !== prev);
+  return t.replace(/\(([^()]*)$/, (_, p) => (keep(p) ? ` ${p} ` : ' ')).replace(/\s+/g, ' ').trim();
+}
+// поручение судьи «Текст не трогать. Запросить у заказчика факт: X; после факта ...» - вопрос X; у вопроса снимаются хвосты
+// писателя «- нет факта (...)» и «- запросить у заказчика»
+const askOf = s => { const m = clean(s).match(/запросить\s+у\s+заказчика(?:\s+факт)?\s*:\s*(.+)/i); return m ? m[1].split(/(?<=[;.])\s+/)[0].replace(/[;.]+$/, '') : clean(s); };
+const tidyQ = s => s.replace(/(?:\s*[-:,]\s*|\s+)нет\s+факта(?:\s+F\d{2,3})?(?:\s*\([^()]*\))?\s*\.?$/i, '').replace(/\s*[-,]\s*запросить\s+у\s+заказчика(?![а-я]).*$/i, '').replace(/[\s;,:]+$/, '') || s;
+// Пометка - строка писателя, судьи или фиксера, которая ни о чем не спрашивает: одни id; id факта в начале строки (механика
+// брифа); отчет о своей правке («удален», «текст не меняли», «не добавляем», «ждет подтверждения»); служебное (lint,
+// handoff_note, §, decisions, срез брифа); правка-поручение («Добавить, что ...»); «для страницы ... нет факта»; «нет факта
+// Fxx» при факте с publish yes (факт есть, но не в брифе страницы - это стратегу). gaps, unknowns, [[нужно]], briefs-report,
+// сайты-ориентиры, чипы и заглушки КФ - всегда вопросы.
+const ALWAYS_ASK = new Set(['gaps', 'competitors', 'unknowns', 'placeholder', 'briefs', 'shell', 'stub']);
+const NOTE_RE = [
+  /^[\s,;.и]*(?:[fagjb]\d+[a-z]?(?:-[a-z0-9-]+)?[\s,;.и]*)+$/i,
+  /^f\d/i,
+  cyr('\\b(?:удален|убран|очищен|заменен|перенесен|сохранен|оставлен|разгружен|добавлен|записан)[аоы]?\\b|\\b(?:ушел|ушла|ушло)\\b'),
+  cyr('\\bне\\s+(?:добавля|называ|обеща|публику|объясня|меня|трога|пиш|став)'),
+  cyr('\\bжд(?:ет|ут)\\s+(?:подтвержд|ответ)'),
+  /(?<![a-z])(?:lint|decisions)(?![a-z])|fact\.unknown|[a-z]+_[a-z]+|judge-r\d|§\s*\d/i,
+  cyr('\\bсрез[а-я]*\\s+брифа|\\bнет\\s+в\\s+брифе|\\bбриф\\s+правит'),
+  cyr('^(?:добавить|убрать|удалить|заменить|переписать|перенести|сократить|оставить|снять)\\b'),
+  cyr('\\bдля\\s+(?:этой\\s+)?страниц[а-я]*\\s+[^,.;]*нет\\s+факта'),
+];
+const pubYes = new Set(facts.filter(f => f.publish === 'yes').map(f => lowQ(f.id)));
+const isNote = q => ![...q.src].some(s => ALWAYS_ASK.has(s)) && (NOTE_RE.some(re => re.test(q.core)) || [...q.core.matchAll(/нет\s+(?:факта\s+)?(f\d+)/g)].some(m => pubYes.has(m[1])));
+// основы слов: служебные слова, id, номера и механика (do_not_say, task) - мимо; окончание снимается по списку
+const STOP_Q = new Set(('и или а но в во на по с со к ко у о об от до из за для при без над под про через после ли же бы не ни нет да ' +
+  'что чем где когда как какой какая какое какие каких каким кто сколько можно нужно нужна нужен нужны есть это этот эта эти ' +
+  'его ее их она он они оно все весь вся так также только уже еще тоже будет быть был была были вы вас вам ваш ваша ваши мы нас наш ' +
+  'свой свои своих том числе сейчас тогда если ру запросить спросить уточнить снят снята сняты гейте task lint blocker fact unknown the and').split(' '));
+const STOP_STEM = new Set(['страниц', 'блок', 'факт', 'бриф', 'заказчик', 'сайт', 'вопрос', 'запрос', 'гейт']);
+const ENDS = ['иями', 'ями', 'ами', 'остью', 'ости', 'ость', 'ениям', 'ениях', 'ению', 'ения', 'ение', 'ений', 'ого', 'его', 'ому', 'ему', 'ыми', 'ими',
+  'ых', 'их', 'ой', 'ей', 'ий', 'ый', 'ая', 'яя', 'ое', 'ее', 'ые', 'ие', 'ую', 'юю', 'ом', 'ем', 'ам', 'ям', 'ах', 'ях', 'ов', 'ев', 'ия', 'ию', 'ья', 'ье', 'ьи',
+  'а', 'я', 'ы', 'и', 'у', 'ю', 'е', 'о', 'ь'];
+const stemOf = w => { const e = /[а-я]/.test(w) && ENDS.find(x => w.endsWith(x) && w.length - x.length >= 3); return e ? w.slice(0, -e.length) : w; };
+// скобки с пометкой писателя (id, do_not_say, «снят», бриф, факт) в основы не идут, перечни в скобках («металл, размер») идут
+const TECH_PAREN = /[a-z]+_[a-z]+|[fagjb]\d|снят|бриф|факт|task|lint/i;
+function stemsOf(s) {
+  const t = unparen(lowQ(s), p => !TECH_PAREN.test(p)).replace(/(?<![a-z0-9])b\d{2}[a-z]?(?:-[a-z0-9-]+)?/g, ' ').replace(/[a-z]+(?:_[a-z]+)+/g, ' ');
+  const out = new Set();
+  for (const w of t.split(/[^a-zа-я0-9]+/)) {
+    if (w.length < 3 || STOP_Q.has(w) || /^[fagjb]?\d+$/.test(w)) continue;
+    const st = stemOf(w);
+    if (!STOP_STEM.has(st)) out.add(st);
+  }
+  return out;
+}
+// грань вопроса: цена, срок, оплата, адрес, размер, гарантия. Строки, у которых грани есть, но общих нет, не сливаются
+// («цена доставки» и «срок доставки» - разные вопросы), в одной группе таких пар нет
+const FACETS = [['price', /^(?:цен|стоим|стоит|стоя|прайс|платн|бесплатн|доплат|дорог|дешев)/], ['time', /^(?:срок|врем|недел|дн[еийя]|ждат|долг)/],
+  ['pay', /^(?:оплат|оплач|предоплат|рассрочк)/], ['addr', /^(?:адрес|метро)/], ['size', /^размер/], ['warranty', /^гарант/]];
+const isFacet = w => FACETS.some(([, re]) => re.test(w));
+const facetsOf = st => new Set(FACETS.filter(([, re]) => [...st].some(w => re.test(w))).map(([k]) => k));
+const clash = (a, b) => a.fc.size > 0 && b.fc.size > 0 && ![...a.fc].some(k => b.fc.has(k));
+// похожий текст: общих основ не меньше 2, среди них редкая (не больше чем в 10% строк, но не меньше 5 строк) и не только
+// грани (одна «цена» - не повод); у обеих строк есть свои основы - общих основ предмета (без граней) не меньше 2: «сколько
+// стоит доставка заказа» и «сколько стоит изделие на заказ» - разные вопросы. Дальше - Jaccard >= 0.5, или короткая строка
+// (от 3 основ) в длинной на 75% с двумя редкими (целиком - с одной), или 3 редкие общие и половина короткой. Двух основ
+// короткой строки мало для вложения («срок изготовления» есть и в вопросе о работах для витрины). Возврат - число общих
+// основ (0 - не похожи)
+function alike(a, b) {
+  if (clash(a, b)) return 0;
+  const inter = [...a.st].filter(s => b.st.has(s)), r = inter.filter(rareQ).length, subj = inter.filter(s => !isFacet(s)).length;
+  const small = Math.min(a.st.size, b.st.size), union = a.st.size + b.st.size - inter.length, part = inter.length / small;
+  if (inter.length < 2 || !r || !subj || (inter.length < small && subj < 2)) return 0;
+  return inter.length / union >= 0.5 || (small >= 3 && (part === 1 || (part >= 0.75 && r >= 2))) || (r >= 3 && part >= 0.5) ? inter.length : 0;
+}
+// строки об одном факте: общий id факта (или gN без строки анализа) и хотя бы одна общая основа
+const sameFact = (a, b) => !clash(a, b) && [...a.ids].some(x => b.ids.has(x)) && [...a.st].some(s => b.st.has(s));
+const ANALYSIS_ID = /^(?:открытый вопрос анализа|журнал гейта) \(([gj]\d+)\):/;
+const REF_RE = /(?<![\p{L}\d_])([gj]\d{1,3})(?![\p{L}\d_])/gu;
+const FACT_RE = /(?<![\p{L}\d_])(F\d{2,3})(?![\p{L}\d_])/gu;
+const rawQ = [...Q.values()].map((q, i) => { const ask = askOf(q.text); return { ...q, i, ask, core: unparen(lowQ(ask)) }; });
+const qNotes = rawQ.filter(isNote);
+const qItems = rawQ.filter(q => !qNotes.includes(q)).map(q => {
+  const st = stemsOf(q.ask);
+  const aid = q.src.has('gaps') ? (q.text.match(ANALYSIS_ID) || [])[1] || '' : '';
+  const refs = new Set([...q.ask.matchAll(REF_RE)].map(m => m[1]).filter(x => x !== aid));
+  const ids = new Set([...[...q.ask.matchAll(FACT_RE)].map(m => m[1].toLowerCase()), ...refs]);
+  return { ...q, st, fc: facetsOf(st), aid, refs, ids, anchor: q.src.has('gaps'), frozen: q.src.has('shell') || q.src.has('stub') };
+});
+// якоря - строки gaps (вопросы анализа): строка с одной ссылкой gN (jN) идет в строку анализа с этим id, строка без ссылок -
+// в самый похожий якорь; чипы и заглушки КФ не сливаются (своя формулировка и основание)
+const anchors = qItems.filter(x => x.anchor);
+const loose = qItems.filter(x => !x.anchor && !x.frozen);
+const dfQ = {};
+for (const x of [...anchors, ...loose]) for (const s of x.st) dfQ[s] = (dfQ[s] || 0) + 1;
+const rareMax = Math.max(5, Math.ceil(0.1 * (anchors.length + loose.length)));
+function rareQ(s) { return (dfQ[s] || 0) <= rareMax; }
+const byAid = new Map(anchors.filter(a => a.aid).map(a => [a.aid, a]));
+for (const x of loose) {
+  if (x.refs.size === 1 && byAid.has([...x.refs][0])) { x.to = byAid.get([...x.refs][0]); continue; }
+  if (x.refs.size) continue;
+  let n = 0;
+  for (const a of anchors) { const k = alike(x, a); if (k > n) { n = k; x.to = a; } }
+}
+// прочие - одиночное связывание по похожему тексту или общему факту; группа без пар с разными гранями
+const rest = loose.filter(x => !x.to);
+rest.forEach(x => { x.grp = [x]; });
+for (let i = 0; i < rest.length; i++) for (let j = i + 1; j < rest.length; j++) {
+  const a = rest[i], b = rest[j];
+  if (a.grp === b.grp || !(alike(a, b) || sameFact(a, b)) || a.grp.some(m => b.grp.some(o => clash(m, o)))) continue;
+  const g = [...a.grp, ...b.grp].sort((x, y) => x.i - y.i);
+  g.forEach(m => { m.grp = g; });
+}
+// формулировка группы: строка анализа, иначе строка без ссылок на другие вопросы анализа (gN - сборная строка), самая
+// типичная и полная - больше общих основ со строками группы, меньше id, скобок и механики; при равенстве длиннее, раньше
+const techOf = x => (x.ask.match(/[FAgjB]\d+|[a-z]+_[a-z]+|\(/g) || []).length;
+const repScore = (x, g) => g.reduce((n, m) => n + [...x.st].filter(s => m.st.has(s)).length, 0) - techOf(x);
+const pickRep = g => g.find(x => x.anchor) || [...g].sort((x, y) => (x.refs.size > 0) - (y.refs.size > 0) || repScore(y, g) - repScore(x, g) || y.ask.length - x.ask.length || x.i - y.i)[0];
+const asks = [...anchors.map(a => [a, ...loose.filter(x => x.to === a)]), ...new Set(rest.map(x => x.grp)), ...qItems.filter(x => x.frozen).map(x => [x])].map(g => {
+  const rep = pickRep(g);
+  const places = [...new Set(g.flatMap(m => [...m.places]))];
+  return {
+    text: rep.anchor || rep.frozen ? rep.text : tidyQ(rep.ask), rep, members: g, site: rep.anchor, first: Math.min(...g.map(m => m.i)),
+    // страница без блока лишняя, если у той же страницы в группе есть блок
+    places: places.filter(p => p.includes('/') || !places.some(o => o.startsWith(`${p}/`))),
+    basis: [...new Set(g.flatMap(m => [...m.basis]))],
+  };
+});
+// порядок: вопросы анализа - как в анализе, затем слитые по числу мест, затем остальные в порядке сбора
+const askRank = q => (q.site ? 0 : q.members.length > 1 ? 1 : 2);
+asks.sort((a, b) => askRank(a) - askRank(b) || (askRank(a) === 1 ? b.places.length - a.places.length : 0) || a.first - b.first);
+const qMerged = Q.size - qNotes.length - asks.length;
+
 // ---------------------------------------------------------------- сводка
 const N = { pages: live.length, ready: 0, done: 0, blocked: 0, work: 0, nobrief: 0, closed: 0, pass: 0, total: 0, exhausted: 0 };
 const open = { blocker: 0, major: 0, minor: 0 };
@@ -383,7 +520,9 @@ L.push(`- Блоков прошли линтер: ${N.pass} из ${N.total}; с�
 if (noCompetitors || noCompTypes.length) L.push(`- Разбор лидеров: ${noCompetitors ? 'без конкурентов (сайты лидеров недоступны), ' : ''}типы собраны по анализу без снимков лидеров: ${noCompTypes.length ? listMore(noCompTypes, 10) : '-'}`);
 if (unchecked.length) L.push(`- Правки фиксеров без проверки судьей: новых или измененных предложений ${U.sentences} в ${U.blocks.size} блоках, страниц ${U.pages.size}${U.noSnap ? `, проходов без сравнения ${U.noSnap}` : ''}${U.restored ? `, откатов ${U.restored}` : ''} (раздел «Правки без проверки судьей»)`);
 if (cuApplied.length) L.push(`- Единые надписи кнопок без проверки судьей (аудит прототипа, cta-unify): блоков ${cuApplied.length} (раздел «Правки без проверки судьей»)`);
-L.push(`- Пометок «нужны данные» в текстах: ${placeholders}; вопросов заказчику: ${Q.size}`);
+// вопросов заказчику - после слияния повторов; сколько сырых строк слито и сколько ушло в пометки для оператора
+const qFold = qMerged || qNotes.length ? ` (строк было ${Q.size}: слито повторов ${qMerged}, пометок писателей для оператора ${qNotes.length})` : '';
+L.push(`- Пометок «нужны данные» в текстах: ${placeholders}; вопросов заказчику: ${asks.length}${qFold}`);
 L.push(`- Открытых находок аудита (blocker/major/minor): ${open.blocker}/${open.major}/${open.minor}; страниц с major, закрытыми фиксером без правки: ${N.closed}`);
 if (imp) L.push(`- Импорт: предупреждений ${(imp.warnings || []).length}, антиобещаний без регулярки ${((imp.anti && imp.anti.pending) || []).length}${((imp.anti && imp.anti.pending) || []).length ? ` (${listMore(imp.anti.pending, 6)})` : ''}`);
 // --facts-only: в анализе изменилось не только факты (ЦА, пожелания, направления, конкуренты) - нужен повтор фазы 0
@@ -424,8 +563,16 @@ L.push('');
 
 // ---------------------------------------------------------------- что спросить
 L.push('## Что спросить у заказчика');
-if (!Q.size) L.push('- вопросов нет');
-for (const q of Q.values()) L.push(`- ${q.text} (${q.places.size ? listMore([...q.places]) : 'весь сайт'}${q.basis.size ? `; основание: ${[...q.basis].join(', ')}` : ''})`);
+if (!asks.length) L.push('- вопросов нет');
+// вопрос анализа - на весь сайт, места слитых строк - блоки, которые ждут ответа (шаг 2 SKILL.md)
+const whereQ = q => (q.site ? `весь сайт${q.places.length ? `; ждут ответа: ${listMore(q.places, 12)}` : ''}` : q.places.length ? listMore(q.places, 12) : 'весь сайт');
+for (const q of asks) L.push(`- ${q.text} (${whereQ(q)}${q.basis.length ? `; основание: ${q.basis.join(', ')}` : ''})`);
+if (qNotes.length) {
+  L.push('');
+  L.push('### Пометки писателей (для оператора)');
+  L.push('Не вопросы заказчику: что писатели, судьи и фиксеры сделали без факта или чего нет в брифе страницы. Нужное - в бриф или в вопросы; все сырые строки и куда слиты повторы - work/output/report-questions.json.');
+  for (const n of qNotes) L.push(`- ${n.text} (${n.places.size ? listMore([...n.places], 12) : 'весь сайт'})`);
+}
 L.push('');
 
 // ---------------------------------------------------------------- не подтверждено
@@ -689,7 +836,19 @@ for (const p of live) {
   L.push(`| ${p.url} | ${p.type} | ${W.of[p.slug]} | ${pr.status} | ${pr.passed}/${pr.blocks_total} | ${pr.exhausted.length || ''} | ${audit} | ${ph || ''} |`);
 }
 writeText(P('work', 'output', 'report.md'), L.join('\n') + '\n');
-// итог сдачи (SKILL.md) берет числа из этой строки: блоки pass/total, скелеты, вопросы, правки без проверки судьей, каталог,
-// таблица КФ/КНДР (только если этап КФ был: есть work/kf/matrix.json или status.json)
+// все сырые строки раздела «Что спросить у заказчика»: вопрос, его места и слитые в него строки; пометки писателей
+const srcList = m => [...m.src];
+writeJson(P('work', 'output', 'report-questions.json'), {
+  generated_at: nowIso(), raw: Q.size, merged: qMerged,
+  questions: asks.map(q => ({
+    text: q.text, ...(q.text !== q.rep.text ? { text_raw: q.rep.text } : {}), places: q.places, basis: q.basis, sources: [...new Set(q.members.flatMap(srcList))],
+    merged: q.members.filter(m => m !== q.rep).map(m => ({ text: m.text, places: [...m.places], sources: srcList(m) })),
+  })),
+  notes: qNotes.map(n => ({ text: n.text, places: [...n.places], sources: srcList(n) })),
+});
+// итог сдачи (SKILL.md) берет числа из этой строки: блоки pass/total, скелеты, вопросы (после слияния повторов; в скобках
+// слито и пометки писателей), правки без проверки судьей, каталог, таблица КФ/КНДР (только если этап КФ был: есть
+// work/kf/matrix.json или status.json)
 const catalogNote = tzAudit || tzQuestions != null ? `; каталог: ТЗ открыто blocker/major ${tzOpen.blocker}/${tzOpen.major}, вопросов раздела 8 ${tzQuestions ?? '-'}` : '';
-console.log(`отчет: work/output/report.md (страниц ${N.pages}, готово ${N.ready}, блоков ${N.pass}/${N.total}, скелетов ${skeletons}, exhausted ${N.exhausted}, пометок ${placeholders}, вопросов заказчику ${Q.size}, правок без проверки судьей ${U.sentences + U.noSnap + cuApplied.length}${catalogNote}; прототип: ${hc ? hc.verdict : 'не проверен'}, скрипты: ${js ? (js.verdict === 'skip' ? 'SKIP' : js.verdict) : 'не проверены'}${kfLine ? `; таблица КФ/КНДР: ${kfLine}` : ''})`);
+const qNote = qMerged || qNotes.length ? ` [слито повторов ${qMerged}, пометок писателей ${qNotes.length}]` : '';
+console.log(`отчет: work/output/report.md (страниц ${N.pages}, готово ${N.ready}, блоков ${N.pass}/${N.total}, скелетов ${skeletons}, exhausted ${N.exhausted}, пометок ${placeholders}, вопросов заказчику ${asks.length}${qNote}, правок без проверки судьей ${U.sentences + U.noSnap + cuApplied.length}${catalogNote}; прототип: ${hc ? hc.verdict : 'не проверен'}, скрипты: ${js ? (js.verdict === 'skip' ? 'SKIP' : js.verdict) : 'не проверены'}${kfLine ? `; таблица КФ/КНДР: ${kfLine}` : ''})`);
