@@ -152,6 +152,9 @@ function scopeDomains(doms, scope, includeOwn = false) {
 // перепроверка x-элемента: сначала ответ по ключу строки (scope|zone|id), затем голый id (прежний формат)
 const hasRecheck = (rec, key, id) => key in rec.recheck || id in rec.recheck;
 const xValue = (rec, key, id) => { const v = key in rec.recheck ? rec.recheck[key] : rec.recheck[id]; return v === 1 || v === 0 ? v : '?'; };
+// оболочка домена без кадров (текст снимков: снятие не удалось, антибот): отсутствие элемента шапки, подвала, мобильной
+// версии и закрепленных - «?», а не 0: этих зон без кадров не видно (тело страницы текст снимка показывает)
+const unseenShell = (rec, scope, zone) => zone !== 'body' && !rec.pages.some(p => p.captured && (scope === 'site' || p.scope === scope));
 
 export function buildMatrix(inp) {
   const dictIds = new Set(inp.dict.elements.map(e => e.id));
@@ -174,7 +177,7 @@ export function buildMatrix(inp) {
     for (const d of nset) {
       const rec = doms[d];
       let v = rec.vals.get(key);
-      if (v == null) { v = x ? xValue(rec, key, id) : 0; if (x && v === '?' && !hasRecheck(rec, key, id)) (noRecheck[d] ||= new Set()).add(id); }
+      if (v == null) { v = x ? xValue(rec, key, id) : unseenShell(rec, scope, zone) ? '?' : 0; if (x && v === '?' && !hasRecheck(rec, key, id)) (noRecheck[d] ||= new Set()).add(id); }
       values[d] = v;
       if (v === 1) n++;
     }

@@ -270,6 +270,14 @@ try {
     run(T, ['scripts/kf-matrix.mjs', '--shell']);
     const ts = rj(path.join(T, 'work', 'kf', 'status.json'));
     check('нет Chrome: матрица по тексту, status no_chrome и строка ограничения', ts.status === 'no_chrome' && matrixOf(T).mode === 'text' && matrixOf(T).limits.some(l => /без кадров/.test(l)), JSON.stringify(ts));
+    // смешанный режим: домен без кадров (антибот) - отсутствие элемента оболочки «?», а не 0; тело - 0 по тексту снимка
+    const MX = mkProject('mixed', { domains: ['d1.example', 'd2.example', 'd3.example'] });
+    for (const d of ['d1.example', 'd2.example']) observe(MX, d, { header: [E('phone'), E('cart')], mobile: [E('burger')], body: { home: [E('reviews')] } });
+    observe(MX, 'd3.example', { header: [E('phone', { present: '?', via: 'text' })], body: { home: [] }, captured: false });
+    run(MX, ['scripts/kf-matrix.mjs', '--shell']);
+    const mx = matrixOf(MX);
+    const vx = (id, zone) => (rowOf(mx, id, zone) || { values: {} }).values['d3.example'];
+    check('смешанный режим: у домена без кадров шапка и мобильная версия - «?», тело главной - 0', vx('cart', 'header') === '?' && vx('burger', 'mobile') === '?' && vx('reviews', 'body') === 0, JSON.stringify(['cart', 'burger', 'reviews'].map(id => rowOf(mx, id))));
 
     // --status
     const Q = mkProject('status');

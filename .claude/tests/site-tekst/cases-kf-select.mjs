@@ -101,6 +101,39 @@ try {
       const q = R.computeQueries({ company: 'Альфасервис', sources: { mode: 'doc', key_phrases: [] } }, sm, 15, text);
       check('computeQueries doc: сначала запросы анализа, subject до двоеточия, без бренда и длинных', JSON.stringify(q) === JSON.stringify(['ремонт техники на дому', 'мастер по ремонту', 'срочный ремонт холодильника', 'альфа сервис ремонт', 'Ремонт стиральных машин']), JSON.stringify(q));
       check('computeQueries: при key_phrases запросы анализа не берутся', !R.computeQueries({ sources: { key_phrases: ['фраза один'] } }, null, 15, text).includes('ремонт техники на дому'));
+      // бренд из общих слов ниши: отсекается только название со всеми словами бренда
+      const smB = { pages: [
+        { slug: 'a', type: 'service', subject: 'Пластиковые окна', level: 1, status: 'planned' },
+        { slug: 'b', type: 'service', subject: 'Окна ПВХ с установкой', level: 1, status: 'planned' },
+        { slug: 'c', type: 'hub', subject: 'Окна Плюс: о компании', level: 1, status: 'planned' },
+      ] };
+      const qB = R.computeQueries({ company: 'ООО «Окна Плюс»', sources: { key_phrases: [] } }, smB, 15);
+      check('computeQueries: бренд «Окна Плюс» не отсекает запросы ниши со словом «окна», название с брендом целиком - отсекает', JSON.stringify(qB) === JSON.stringify(['Пластиковые окна', 'Окна ПВХ с установкой']), JSON.stringify(qB));
+      // короткое слово и число в бренде - тоже слова бренда; начало слова ниши («кварт» в «квартир») - не бренд
+      const q24 = R.computeQueries({ company: 'Окна 24', sources: { key_phrases: [] } }, smB, 15);
+      check('computeQueries: бренд «Окна 24» не отсекает «Пластиковые окна»', q24.includes('Пластиковые окна') && q24.includes('Окна ПВХ с установкой'), JSON.stringify(q24));
+      const smK = { pages: [
+        { slug: 'a', type: 'service', subject: 'Ремонт квартир под ключ', level: 1, status: 'planned' },
+        { slug: 'b', type: 'hub', subject: 'Кварта Ремонт: о нас', level: 1, status: 'planned' },
+        { slug: 'c', type: 'service', subject: 'Дизайн квартиры от Кварты Ремонта', level: 1, status: 'planned' },
+      ] };
+      const qK = R.computeQueries({ company: 'Кварта Ремонт', sources: { key_phrases: [] } }, smK, 15);
+      check('computeQueries: бренд «Кварта Ремонт» - «Ремонт квартир под ключ» остается, название с брендом в любом падеже - нет', JSON.stringify(qK) === JSON.stringify(['Ремонт квартир под ключ']), JSON.stringify(qK));
+      check('hasBrand: слова подряд с точностью до окончания, форма собственности не в счет', R.hasBrand(['курсы', 'мастеров', 'альфасервиса'], ['альфасервис']) && !R.hasBrand(['ремонт', 'квартир'], ['кварта']) && !R.hasBrand(['пластиковые', 'окна'], ['окна', '24']) && !R.hasBrand(['любые'], []));
+      // прилагательные и -ие/-ия в косвенных падежах, псевдоним в скобках (контрольный круг проверки, данные kadrovy)
+      const W = s => s.toLowerCase().split(' ');
+      const brandHit = (name, subj) => R.brandVariants(name).some(b => R.hasBrand(W(subj), b));
+      const bh = [
+        ['Кадровый Элемент', 'курсы военной подготовки кадрового элемента', true],
+        ['Кадровый Элемент', 'подбор кадров для бизнеса', false],
+        ['Первый Приятный Интегратор', 'внедрение битрикс24 от первого приятного интегратора', true],
+        ['Ландшафтные решения Татьяны Суховской', 'проекты ландшафтных решений татьяны суховской', true],
+        ['Мастера Трафика (Traffic Masters)', 'traffic masters кейсы', true],
+        ['Мастера Трафика (Traffic Masters)', 'мастера трафика о компании', true],
+        ['ООО «Зеленый сад»', 'саженцы из питомника зеленого сада', true],
+        ['ООО «Зеленый сад»', 'садовые работы', false],
+      ].filter(([n, s, want]) => brandHit(n, s) !== want);
+      check('brandVariants + hasBrand: падежи прилагательных, -ие/-ия, псевдоним в скобках; общие слова - не бренд', !bh.length, JSON.stringify(bh));
     }
     const e = mkProject('queries-empty');
     const r = run(e, [RANK, '--queries']);
@@ -174,6 +207,15 @@ try {
       const pq = { ...poolOf([cand('seed.example', { iks: 100 }), cand('serp.example', { sources: ['serp'], iks: 100, serp: { top1: 0, top3: 0, top5: 1, top10: 2, queries: 4, share: 0.5 } }), cand('ks.example', { sources: ['keyso'], iks: 900, serp: { top1: 0, top3: 0, top5: 0, top10: 0, queries: 4, share: 0 } }), cand('seed0.example', { iks: 50, serp: { top1: 0, top3: 0, top5: 0, top10: 0, queries: 4, share: 0 } })]), queries: ['а б', 'в г', 'д е', 'ж з'] };
       const kq = R.rankPool(pq, ctxOf());
       check('нет в выдаче ниши: кандидат Keys.so - стоп, затравка анализа без попаданий - в работе; затравка x1,25', /нет в выдаче ниши/.test(byDom(kq, 'ks.example').stop) && !byDom(kq, 'seed0.example').stop && byDom(kq, 'seed.example').effective === r2x(byDom(kq, 'seed.example').weight * 1.25) && byDom(kq, 'serp.example').effective === byDom(kq, 'serp.example').weight, JSON.stringify(kq.candidates.map(c => [c.domain, c.stop, c.weight, c.effective])));
+      // выдача не пришла (serp null) или ответило меньше 3 запросов - стопа нет: кандидаты Keys.so идут по метрикам
+      const ks = (d, serp) => cand(d, { sources: ['keyso'], iks: 500, ...(serp ? { serp } : {}) });
+      const kNo = R.rankPool({ ...poolOf([ks('k1.example'), ks('k2.example'), ks('k3.example')]), queries: ['а б', 'в г'] }, ctxOf());
+      check('нет в выдаче ниши: выдачи нет (сбой Арсенкина) - стопа нет, кандидаты Keys.so в порядке', kNo.order.length === 3 && kNo.candidates.every(c => !c.stop), JSON.stringify(kNo.candidates.map(c => [c.domain, c.stop])));
+      const z = q => ({ top1: 0, top3: 0, top5: 0, top10: 0, queries: q, share: 0 });
+      const kPart = R.rankPool({ ...poolOf([ks('p1.example', z(1)), ks('p3.example', z(3))]), queries: ['а б', 'в г', 'д е', 'ж з'] }, ctxOf());
+      check('нет в выдаче ниши: ответил 1 запрос из 4 - стопа нет; 3 запроса - стоп', !byDom(kPart, 'p1.example').stop && /нет в выдаче ниши/.test(byDom(kPart, 'p3.example').stop), JSON.stringify(kPart.candidates.map(c => [c.domain, c.stop])));
+      const kTwo = R.rankPool({ ...poolOf([ks('t2.example', z(2))]), queries: ['а б', 'в г'] }, ctxOf());
+      check('нет в выдаче ниши: в пуле 2 запроса и оба ответили - стоп', /нет в выдаче ниши/.test(byDom(kTwo, 't2.example').stop), JSON.stringify(kTwo.candidates.map(c => [c.domain, c.stop])));
     }
     // регион вне баз Keys.so: метрики Keys.so не в W, предупреждение, равенство - по трафику
     const pnk = poolOf([cand('a.example', { serp: { top10: 2, share: 0.2 }, keyso: { top10: 10, top50: 100, traffic: 50 }, keyso_status: 'ok' }), cand('b.example', { serp: { top10: 2, share: 0.2 }, keyso: { top10: 900, top50: 9000, traffic: 9000 }, keyso_status: 'ok' })], { keyso_base: 'msk', yandex_id: 15, city_not_in_keyso: true });
@@ -468,17 +510,44 @@ try {
     const rk = { order: ['a.ru', 'b.ru', 'c.ru', 'd.ru', 'e.ru'] };
     const cp = list => ({ competitors: list.map(([domain, status]) => ({ domain, status })) });
     check('orderGaps: пропуски выше последнего годного (не годен и не исключен) - пропущены; ниже - не в счет', JSON.stringify(R.orderGaps(rk, cp([['a.ru', 'closed'], ['c.ru', 'ok'], ['e.ru', 'ok']]))) === '["b.ru","d.ru"]' && JSON.stringify(R.orderGaps(rk, cp([['a.ru', 'ok'], ['b.ru', 'excluded'], ['c.ru', 'ok']]))) === '[]' && JSON.stringify(R.orderGaps(rk, cp([]))) === '[]');
+    // замена эталоном (п.4 промта): первый эталон исключен, второй взят глубоко из порядка, годный не эталон «вытеснен
+    // эталоном» - окно не растягивается
+    const rkA = { order: ['x.ru', 'a.ru', 'b.ru', 'c.ru', 'd.ru', 'e.ru', 'f.ru', 'z.ru'], anchors: ['x.ru', 'z.ru'] };
+    const cpR = list => ({ competitors: list.map(([domain, status, reason]) => ({ domain, status, ...(reason ? { reason } : {}) })) });
+    const gA = R.orderGaps(rkA, cpR([['x.ru', 'excluded', 'другой профиль'], ['a.ru', 'ok'], ['b.ru', 'ok'], ['c.ru', 'ok'], ['d.ru', 'ok'], ['e.ru', 'excluded', 'вытеснен эталоном'], ['z.ru', 'ok']]));
+    check('orderGaps: эталон на замену глубоко в порядке - пропусков нет (f.ru не в счет)', JSON.stringify(gA) === '[]', JSON.stringify(gA));
+    const gB = R.orderGaps(rkA, cpR([['x.ru', 'excluded', 'другой профиль'], ['a.ru', 'ok'], ['c.ru', 'ok'], ['d.ru', 'ok'], ['e.ru', 'excluded', 'вытеснен эталоном'], ['z.ru', 'ok']]));
+    check('orderGaps: с эталоном на замену пропуск выше последнего годного не эталона - пропущен', JSON.stringify(gB) === '["b.ru"]', JSON.stringify(gB));
+    const gC = R.orderGaps(rkA, cpR([['x.ru', 'excluded', 'другой профиль'], ['a.ru', 'ok'], ['b.ru', 'ok'], ['c.ru', 'ok'], ['d.ru', 'ok'], ['z.ru', 'ok']]));
+    check('orderGaps: без пометки «вытеснен эталоном» эталон в окне - пропуски до него видны', JSON.stringify(gC) === '["e.ru","f.ru"]', JSON.stringify(gC));
+    // anchors как их строит rankPool: все давние и средние (или все без возраста) - прежний список верификатора виден
+    const dated = (d, y) => cand(d, { iks: 100, created: `${y}-01-01` });
+    const rkP = R.rankPool(poolOf([dated('y1.ru', 2024), dated('o1.ru', 2004), dated('y2.ru', 2023), dated('o2.ru', 2005), dated('o3.ru', 2006), dated('o4.ru', 2007), dated('o5.ru', 2008), dated('o6.ru', 2009)]), ctxOf());
+    const reused = R.orderGaps(rkP, cp([['o1.ru', 'ok'], ['o2.ru', 'ok'], ['o3.ru', 'ok'], ['o4.ru', 'ok'], ['o5.ru', 'ok']]));
+    check('orderGaps: anchors - все давние (rankPool); прежняя пятерка давних без проверки молодых - пропуски y1, y2', rkP.anchors.length >= 5 && reused.includes('y1.ru') && reused.includes('y2.ru'), JSON.stringify([rkP.order, rkP.anchors, reused]));
+    const rkU = { order: ['a.ru', 'b.ru', 'c.ru', 'd.ru', 'e.ru', 'f.ru', 'g.ru'], anchors: ['a.ru', 'b.ru', 'c.ru', 'd.ru', 'e.ru', 'f.ru', 'g.ru'] };
+    const gU = R.orderGaps(rkU, cp([['a.ru', 'ok'], ['b.ru', 'ok'], ['c.ru', 'ok'], ['f.ru', 'ok'], ['g.ru', 'ok']]));
+    check('orderGaps: все без возраста (anchors - весь порядок) - пропуски видны', JSON.stringify(gU) === '["d.ru","e.ru"]', JSON.stringify(gU));
   }
   // ---------------------------------------------------------------- бесплатный whois (порт 43)
   {
     const NL = String.fromCharCode(10);
     check('parseCreated: created и Creation Date, дата YYYY-MM-DD; нет поля - null', R.parseCreated(`domain: X.RU${NL}created:       2023-03-24T15:05:09Z${NL}`) === '2023-03-24' && R.parseCreated('   Creation Date: 2012-12-18T11:06:56Z') === '2012-12-18' && R.parseCreated('No entries found') === null);
     check('whoisServerOf: .ru и .рф - tcinet, .com - verisign, неизвестная зона - null, переменная окружения сильнее', R.whoisServerOf('a.ru', {}) === 'whois.tcinet.ru' && R.whoisServerOf('xn--80a.xn--p1ai', {}) === 'whois.tcinet.ru' && R.whoisServerOf('a.com', {}) === 'whois.verisign-grs.com' && R.whoisServerOf('a.art', {}) === null && R.whoisServerOf('a.art', { SITE_TEKST_WHOIS_SERVER: '127.0.0.1:43' }) === '127.0.0.1:43');
+    check('registrableOf: поддомен - основной домен, третий уровень в общей зоне (spb.ru, com.ru, ru.com) - null', R.registrableOf('msk.example.ru') === 'example.ru' && R.registrableOf('example.ru') === 'example.ru' && R.registrableOf('firm.spb.ru') === null && R.registrableOf('shop.com.ru') === null && R.registrableOf('a.ru.com') === null && R.registrableOf('xn--80a.xn--p1ai') === 'xn--80a.xn--p1ai' && R.registrableOf('ru') === null);
+    check('registrableOf: сама общая зона (spb.ru, marine.ru) - обычный домен; зоны из config/shared-sld.json (armenia.su, ru.net, com.ua)', R.registrableOf('spb.ru') === 'spb.ru' && R.registrableOf('marine.ru') === 'marine.ru' && R.registrableOf('x.armenia.su') === null && R.registrableOf('x.ru.net') === null && R.registrableOf('shop.com.ua') === null && R.SHARED_SLD.size > 500);
+    check('registrableOf: поддомен конструктора сайтов (local_zones: tb.ru, nethouse.ru, tilda.ws) - null, сам конструктор - домен', R.registrableOf('nomads.tb.ru') === null && R.registrableOf('shop.nethouse.ru') === null && R.registrableOf('x.tilda.ws') === null && R.registrableOf('tb.ru') === 'tb.ru');
+    {
+      // стоп «поддомен» и стоп-лист: общая зона родителем сайтов в ней не бывает
+      const pz = poolOf([cand('spb.ru', { iks: 50 }), cand('okna-remont.spb.ru', { iks: 300 }), cand('firma.spb.ru', { iks: 200 }), cand('msk.big.ru', { iks: 90 }), cand('big.ru', { iks: 900 })]);
+      const kz = R.rankPool(pz, ctxOf({ stoplist: [{ domain: 'spb.ru', kind: 'stop' }] }));
+      check('стоп «поддомен»: сайты в общей зоне spb.ru - не поддомены; стоп-лист spb.ru стопит только сам spb.ru; обычный поддомен - стоп', !byDom(kz, 'okna-remont.spb.ru').stop && !byDom(kz, 'firma.spb.ru').stop && /стоп-лист/.test(byDom(kz, 'spb.ru').stop) && /поддомен/.test(byDom(kz, 'msk.big.ru').stop), JSON.stringify(kz.candidates.map(c => [c.domain, c.stop])));
+    }
     // поддельный whois-сервер - отдельный процесс (spawnSync блокирует цикл событий теста)
     const srvFile = path.join(tmpRoot, 'whois-srv.mjs');
     fs.writeFileSync(srvFile, [
       "import net from 'node:net';",
-      "const ok = new Set(['alpha.ru', 'sub-parent.ru']);",
+      "const ok = new Set(['alpha.ru', 'sub-parent.ru', 'spb.ru']);",
       "const s = net.createServer(c => { let b = ''; c.on('data', d => { b += d; if (b.includes(String.fromCharCode(10))) { const q = b.trim(); c.end(ok.has(q) ? 'domain: ' + q + String.fromCharCode(10) + 'created: 2023-03-24T15:05:09Z' + String.fromCharCode(10) : 'No entries found'); } }); });",
       "s.listen(0, '127.0.0.1', () => console.log('PORT ' + s.address().port));",
     ].join(NL));
@@ -487,17 +556,17 @@ try {
     const port = await new Promise(res => { let o = ''; srv.stdout.on('data', d => { o += d; const m = o.match(/PORT (\d+)/); if (m) res(Number(m[1])); }); setTimeout(() => res(0), 5000); });
     try {
       const dir = mkProject('whois');
-      wj(path.join(dir, 'raw.json'), { source: 'analysis', candidates: [{ domain: 'alpha.ru' }, { domain: 'beta.ru' }, { domain: 'msk.sub-parent.ru' }] });
+      wj(path.join(dir, 'raw.json'), { source: 'analysis', candidates: [{ domain: 'alpha.ru' }, { domain: 'beta.ru' }, { domain: 'msk.sub-parent.ru' }, { domain: 'firm.spb.ru' }] });
       run(dir, [RANK, '--merge-pool', 'raw.json']);
       const env = { ...process.env, SITE_TEKST_WHOIS_SERVER: `127.0.0.1:${port}`, SITE_TEKST_WHOIS_DELAY_MS: '0' };
       const r = spawnSync(process.execPath, [RANK, '--whois'], { cwd: dir, encoding: 'utf8', timeout: 60000, env });
       let j = null; try { j = JSON.parse(r.stdout); } catch { j = null; }
       const pool = rj(W(dir, 'competitors', 'pool.json'));
       const cr = d => (pool.candidates.find(c => c.domain === d) || {}).created || null;
-      check('--whois: даты из whois (поддомен - по основному домену), не ответивший - в failed, whois в sources_done', port > 0 && r.status === 0 && !!j && j.filled === 2 && cr('alpha.ru') === '2023-03-24' && cr('msk.sub-parent.ru') === '2023-03-24' && cr('beta.ru') === null && j.failed.includes('beta.ru') && (pool.sources_done || []).includes('whois'), (r.stdout || '') + (r.stderr || ''));
+      check('--whois: даты из whois (поддомен - по основному домену), не ответивший - в failed, третий уровень в spb.ru - без даты зоны, whois в sources_done', port > 0 && r.status === 0 && !!j && j.filled === 2 && cr('alpha.ru') === '2023-03-24' && cr('msk.sub-parent.ru') === '2023-03-24' && cr('beta.ru') === null && cr('firm.spb.ru') === null && j.failed.includes('beta.ru') && j.failed.some(x => x.startsWith('firm.spb.ru (домен третьего уровня')) && (pool.sources_done || []).includes('whois'), (r.stdout || '') + (r.stderr || ''));
       const r2 = spawnSync(process.execPath, [RANK, '--whois'], { cwd: dir, encoding: 'utf8', timeout: 60000, env });
       let j2 = null; try { j2 = JSON.parse(r2.stdout); } catch { j2 = null; }
-      check('--whois повторно: заполненные не спрашиваются (только beta.ru)', !!j2 && j2.filled === 0 && JSON.stringify(j2.failed) === '["beta.ru"]', r2.stdout);
+      check('--whois повторно: заполненные не спрашиваются (только beta.ru и firm.spb.ru)', !!j2 && j2.filled === 0 && j2.failed.length === 2 && j2.failed.includes('beta.ru') && j2.failed.some(x => x.startsWith('firm.spb.ru ')), r2.stdout);
     } finally { srv.kill(); }
   }
 } catch (e) {

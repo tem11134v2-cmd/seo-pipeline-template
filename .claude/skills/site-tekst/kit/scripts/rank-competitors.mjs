@@ -106,6 +106,27 @@ export function analysisQueries(text) {
   }
   return [...new Set(out)].slice(0, 10);
 }
+const LEGAL_FORMS = new Set(['ооо', 'ип', 'ао', 'зао', 'пао', 'оао', 'ано', 'нко', 'гк', 'llc', 'ltd', 'inc']);
+// окончания слова бренда в названии страницы («Альфасервиса», «Кадрового», «решений»), но не другое слово с тем же
+// началом («квартир» при бренде «Кварта»)
+const ENDINGS = new Set(['', 'а', 'я', 'о', 'е', 'ы', 'и', 'у', 'ю', 'ь', 'й', 'ой', 'ей', 'ом', 'ем', 'ам', 'ям', 'ах', 'ях', 'ами', 'ями', 'ов', 'ев', 'ий', 'ый', 'ая', 'яя', 'ое', 'ее', 'ые', 'ие', 'ых', 'их', 'ым', 'им', 'ую', 'юю', 'ою', 'ею', 'ого', 'его', 'ому', 'ему', 'ыми', 'ими']);
+// прилагательное и существительное на -ие/-ия меняют два последних знака («Кадровый» - «Кадрового», «решение» - «решений»)
+const ADJ_END = /(?:ый|ий|ой|ая|яя|ое|ее|ые|ие|ия)$/;
+const wordsOf = s => lowKey(s).replace(/\u0451/g, '\u0435').split(/[^a-z0-9\u0430-\u044f]+/).filter(Boolean);
+const sameWord = (w, b) => {
+  if (w === b) return true;
+  if (!/^[\u0430-\u044f]{3,}$/.test(b)) return false;
+  const stem = ADJ_END.test(b) && b.length >= 5 ? b.slice(0, -2) : /[аяоеыиьй]$/.test(b) ? b.slice(0, -1) : b;
+  return w.startsWith(stem) && ENDINGS.has(w.slice(stem.length));
+};
+// название страницы содержит бренд: все слова бренда подряд
+export const hasBrand = (words, brand) => brand.length > 0 && words.some((_, i) => brand.every((b, j) => i + j < words.length && sameWord(words[i + j], b)));
+// варианты бренда: название без части в скобках и сама часть в скобках («Мастера Трафика (Traffic Masters)»)
+export const brandVariants = name => {
+  const raw = String(name || '');
+  return [raw.replace(/\([^)]*\)/g, ' '), ...(raw.match(/\(([^)]*)\)/g) || []).map(x => x.slice(1, -1))]
+    .map(v => wordsOf(v).filter(w => !LEGAL_FORMS.has(w))).filter(v => v.length);
+};
 export function computeQueries(cfg, sitemap, max = DEFAULTS.serp_queries_max, analysisText = '') {
   const out = [], seen = new Set();
   const add = q => { const t = T(q); const k = lowKey(t); if (t.length >= 2 && !seen.has(k)) { seen.add(k); out.push(t); } };
@@ -118,13 +139,16 @@ export function computeQueries(cfg, sitemap, max = DEFAULTS.serp_queries_max, an
   pages.forEach(({ p }) => add(p.key_phrase || p.marker || ''));
   // subject - название страницы, а не запрос: общие слова навигации («Каталог», «Услуги») запросом ниши не бывают;
   // длинное название - часть до двоеточия; с названием компании (бренд выдаст сайт клиента) и вне 2-6 слов - не берем
-  const brand = lowKey(T(cfg && (cfg.company || cfg.slug) || '')).split(/[\s-]+/).filter(w => w.length >= 4).map(w => w.slice(0, Math.max(4, w.length - 2)));
+  // бренд - название компании целиком: его слова подряд и в своем порядке, без формы собственности, слово - с точностью до
+  // окончания. В названии бывают общие слова ниши («Окна 24», «Кварта Ремонт»): по одному слову или по началу слова
+  // отсекались бы запросы ниши («Пластиковые окна», «Ремонт квартир»)
+  const brands = brandVariants(T(cfg && (cfg.company || cfg.slug) || ''));
   pages.forEach(({ p }) => {
     const s = T(p.subject || '').split(/:\s/)[0].replace(/[.!?]+$/, '').trim();
     const k = lowKey(s);
     const n = s ? s.split(/\s+/).length : 0;
     // одно слово (название раздела) - неоднозначный запрос: выдача смешивает соседние категории
-    if (!s || NAV_WORDS.has(k) || n < 2 || n > 6 || brand.some(b => k.includes(b))) return;
+    if (!s || NAV_WORDS.has(k) || n < 2 || n > 6 || brands.some(b => hasBrand(wordsOf(s), b))) return;
     add(s);
   });
   return out.slice(0, Math.max(0, max));
@@ -162,6 +186,30 @@ export function loadStoplist() {
   warn.push('нет config/kf-stoplist.json - стоп-лист только проектный');
   return { list, warn };
 }
+
+// Общие зоны второго уровня (config/shared-sld.json: двухметочные публичные суффиксы .ru, .su, .рф, .com, .net, .org и зон
+// СНГ, включая хостинги): домен третьего уровня в такой зоне (firm.spb.ru, shop.com.ua) - самостоятельный сайт, а не
+// поддомен. whois зоны его не знает (tcinet и nic.ru проверены 05.10) и отдал бы дату самой зоны; стоп «поддомен» и
+// стоп-лист по зоне его не задевают. Нет файла - малый встроенный список.
+const SLD_FALLBACK = ['com.ru', 'net.ru', 'org.ru', 'pp.ru', 'msk.ru', 'spb.ru', 'msk.su', 'spb.su', 'ru.com', 'ru.net', 'com.ua', 'com.kz', 'com.by'];
+export const SHARED_SLD = (() => {
+  for (const f of [P('config', 'shared-sld.json'), path.join(HERE, '..', 'config', 'shared-sld.json')]) {
+    const s = readSafe(f);
+    if (s && arr(s.zones).length) return new Set([...arr(s.zones), ...arr(s.local_zones)].map(z => String(z).toLowerCase()));
+  }
+  return new Set(SLD_FALLBACK);
+})();
+// домен для whois: основной (последние две метки); домен глубже общей зоны - null (возраст не определить); сама зона
+// (spb.ru, marine.ru) - обычная регистрация второго уровня
+export function registrableOf(domain) {
+  const parts = String(domain || '').toLowerCase().split('.').filter(Boolean);
+  if (parts.length < 2) return null;
+  const sld = parts.slice(-2).join('.');
+  if (parts.length > 2 && SHARED_SLD.has(sld)) return null;
+  return sld;
+}
+// родитель для стопа «поддомен» и стоп-листа: общая зона родителем сайтов в ней не бывает
+const parentOk = base => !SHARED_SLD.has(String(base || '').toLowerCase());
 
 function structureOf() {
   const s = readSafe(P('work', 'competitors', 'structure-competitors.json'));
@@ -328,7 +376,7 @@ export function newPool(ctx) {
 function stopOf(c, ctx, pool) {
   const own = ctx.own.find(o => sameOrSub(c.domain, o));
   if (own) return { stop: 'сайт клиента' };
-  const s = ctx.stoplist.find(x => sameOrSub(c.domain, x.domain));
+  const s = ctx.stoplist.find(x => c.domain === x.domain || (parentOk(x.domain) && sameOrSub(c.domain, x.domain)));
   if (s) return { stop: `стоп-лист: ${s.domain}${s.kind && s.kind !== 'stop' ? ` (${s.kind})` : ''}` };
   if (ctx.structure) {
     const ex = [...ctx.structure.excluded, ...ctx.structure.stop_list].find(x => normDomain(x && x.domain) === c.domain);
@@ -338,12 +386,15 @@ function stopOf(c, ctx, pool) {
       return { stop: `исключен структурой: ${why}` };
     }
   }
-  const parent = arr(pool.candidates).find(o => o.domain !== c.domain && isSub(c.domain, o.domain));
+  const parent = arr(pool.candidates).find(o => o.domain !== c.domain && parentOk(o.domain) && isSub(c.domain, o.domain));
   if (parent) return { stop: `поддомен: основной домен ${parent.domain} в списке` };
   // сила по курсу - присутствие в выдаче ниши: кандидат Keys.so без единого попадания в ТОП-10 выдачи ниши - не конкурент
   // по нише, даже если домен большой (энциклопедии, соседние категории); затравку анализа и структуры не трогаем
+  // Стоп - только по выдаче, которая есть: c.serp null (выдача не пришла) или ответило меньше 3 запросов (не больше числа
+  // запросов пула) - стопа нет, кандидат идет по метрикам Keys.so
   const vetted = arr(c.sources).some(x => x === 'analysis' || x === 'structure');
-  if (!vetted && arr(pool.queries).length && !(c.serp && num(c.serp.top10) > 0)) return { stop: 'нет в выдаче ниши: ни одного попадания в ТОП-10 по запросам' };
+  const serpN = num(c.serp && c.serp.queries) || 0;
+  if (!vetted && serpN > 0 && serpN >= Math.min(3, arr(pool.queries).length || 1) && !(num(c.serp.top10) > 0)) return { stop: 'нет в выдаче ниши: ни одного попадания в ТОП-10 по запросам' };
   return { stop: '' };
 }
 
@@ -645,8 +696,11 @@ async function whoisMode(poolFile, ctx, print) {
     if (Date.now() > deadline) { failed.push(`${c.domain} (дедлайн)`); continue; }
     const srv = whoisServerOf(c.domain);
     if (!srv) { failed.push(`${c.domain} (зона без whois)`); continue; }
-    // поддомен (msk.example.ru) - whois основного домена: регистрируется он
-    const created = parseCreated(await whoisQuery(srv, String(c.domain).split('.').slice(-2).join('.')));
+    // поддомен (msk.example.ru) - whois основного домена: регистрируется он; домен третьего уровня в общей зоне
+    // (firm.spb.ru) - не поддомен, а whois зоны его не знает: пропуск, дата зоны была бы чужой
+    const reg = registrableOf(c.domain);
+    if (!reg) { failed.push(`${c.domain} (домен третьего уровня в общей зоне: whois зоны его не знает)`); continue; }
+    const created = parseCreated(await whoisQuery(srv, reg));
     if (created) got.push({ domain: c.domain, created }); else failed.push(c.domain);
     if (delay > 0) await new Promise(r => setTimeout(r, delay));
   }
@@ -665,11 +719,21 @@ async function whoisMode(poolFile, ctx, print) {
 // Верификатор идет строго по ranking.order: каждый домен порядка выше последнего годного должен быть в competitors.json
 // (годен или исключен с причиной). Пропущенный - шорткат агента (например, переиспользован прежний список при новом
 // порядке); wf-02 зовет верификатор повторно на них. Стоп-домены ранжирования не в счет.
+// Эталон, взятый на замену (п.4 промта верификатора: среди годных эталона нет - следующий из anchors, годный не эталон
+// «вытеснен эталоном»), окно не растягивает: домены между пятеркой и ним верификатор по правилу не проверяет. anchors -
+// все давние и средние сайты, поэтому из окна выходит только он: единственный годный эталон, ниже всех годных не
+// эталонов, при пометке «вытеснен эталоном» в файле.
 export function orderGaps(ranking, competitors) {
   const order = arr(ranking && ranking.order);
+  const anchors = new Set(arr(ranking && ranking.anchors));
   const list = arr(competitors && competitors.competitors);
   const seen = new Set(list.map(c => c && c.domain).filter(Boolean));
-  const keptIdx = list.filter(c => c && c.status === 'ok').map(c => order.indexOf(c.domain)).filter(i => i >= 0);
+  const kept = list.filter(c => c && c.status === 'ok').map(c => ({ d: c.domain, i: order.indexOf(c.domain) })).filter(x => x.i >= 0);
+  const keptAnchors = kept.filter(x => anchors.has(x.d));
+  const plainMax = Math.max(-1, ...kept.filter(x => !anchors.has(x.d)).map(x => x.i));
+  const displaced = list.some(c => c && c.status !== 'ok' && /вытеснен эталоном/i.test(String(c.reason || '')));
+  const swapped = displaced && keptAnchors.length === 1 && keptAnchors[0].i > plainMax ? keptAnchors[0].d : null;
+  const keptIdx = kept.filter(x => x.d !== swapped).map(x => x.i);
   if (!keptIdx.length) return [];
   const last = Math.max(...keptIdx);
   return order.slice(0, last).filter(d => !seen.has(d));

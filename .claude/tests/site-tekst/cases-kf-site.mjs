@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { validate } from '../../skills/site-tekst/kit/scripts/lib.mjs';
 import { TPL, FIXTURES, goldenFile, goldenHeadFile, buildProject, normalizeBody, normalizeHead } from './fixtures/site-golden/golden.mjs';
 
@@ -187,16 +187,67 @@ const CITY_FACT = { id: 'F810', label: 'Город работы', value: 'Сам
   const mods = modsOf(r.dir);
   check('сопоставление: политика без ui_role legal - по названию «есть в карте», не page_missing', r.code === 0 && stateOf(mods, 'privacy_policy') === 'shown', JSON.stringify(mods.shell && mods.shell.items));
   check('сопоставление: поиск без страницы ui_role search и без живой страницы - функция (страница skip не дает ссылки)', stateOf(mods, 'search') === 'function' && mods.search.on === false);
-  // shell.json - снимок фазы 2 без page_match у поиска: сборка берет подсказку из словаря задачи; живая страница
-  // «Поиск по каталогу» без ui_role - ссылка на нее, живой модуль поиска не включается
+  // shell.json - снимок фазы 2 без page_match у поиска: сборка берет подсказку из словаря задачи; живая информационная
+  // страница «Поиск по каталогу» без ui_role - ссылка на нее, живой модуль поиска не включается
   const r2 = build('svc-match-live', 'fixture-services', dir => {
     wj(path.join(dir, 'work', 'shell.json'), { ...SH, items: [item({ id: 'search', name: 'Поиск по сайту', zone: 'header', kind: 'function', render: 'search' })] });
     const sf = path.join(dir, 'work', 'sitemap.json'); const sm = rj(sf);
-    sm.pages = sm.pages.map(p => (p.slug === 'uslugi-elektrika' ? { ...p, subject: 'Поиск по каталогу' } : p));
+    sm.pages = sm.pages.map(p => (p.slug === 'o-kompanii' ? { ...p, subject: 'Поиск по каталогу' } : p));
     wj(sf, sm);
   });
   const m2 = modsOf(r2.dir);
   check('сопоставление: page_match из словаря задачи, живая страница поиска без ui_role - shown и ссылка, модуль поиска выключен', r2.code === 0 && stateOf(m2, 'search') === 'shown' && m2.search.on === false && /<a class="shell-v" href="#\/[^"]*" data-kf="search">/.test(r2.html), JSON.stringify(m2.shell && m2.shell.items) + r2.out.slice(0, 300));
+  // услуга с тем же словом в названии - не страница оболочки («Поиск персонала», «Гарантийный ремонт»); название - с
+  // начала слова («Оценка» - не «цены»); снимок shell.json со старым page_match уступает словарю задачи
+  const r3 = build('svc-match-service', 'fixture-services', dir => {
+    wj(path.join(dir, 'work', 'shell.json'), { ...SH, items: [
+      item({ id: 'search', name: 'Поиск по сайту', zone: 'header', kind: 'function', render: 'search', page_match: { subject_re: 'поиск' } }),
+      item({ id: 'guarantee', name: 'Гарантия', zone: 'footer', kind: 'page_link' }),
+      item({ id: 'price_list', name: 'Цены', zone: 'footer', kind: 'page_link', page_match: { subject_re: 'прайс|цен' } }),
+    ] });
+    const sf = path.join(dir, 'work', 'sitemap.json'); const sm = rj(sf);
+    const ren = { 'uslugi-elektrika': 'Поиск персонала', 'uslugi-dizajn-proekt': 'Гарантийный ремонт', 'o-kompanii': 'Оценка квартиры' };
+    sm.pages = sm.pages.map(p => (ren[p.slug] ? { ...p, subject: ren[p.slug] } : p));
+    wj(sf, sm);
+  });
+  const m3 = modsOf(r3.dir);
+  check('сопоставление: услуга «Поиск персонала» - не страница поиска (функция), «Гарантийный ремонт» - не страница гарантии, «Оценка» - не цены', r3.code === 0 && stateOf(m3, 'search') === 'function' && stateOf(m3, 'guarantee') === 'page_missing' && stateOf(m3, 'price_list') === 'page_missing', JSON.stringify(m3.shell && m3.shell.items) + r3.out.slice(0, 300));
+  // matchPage напрямую: список типов (каталог - раздел или категория), без type - только разделы и информационные
+  const SP = await import(pathToFileURL(path.join(TPL, 'scripts', 'site-parts.mjs')).href);
+  const pg = (slug, type, subject) => ({ slug, type, subject, status: 'planned' });
+  const all = [pg('kat', 'category', 'Каталог колец'), pg('info', 'info_other', 'Цены на работы'), pg('svc', 'service', 'Цены на ремонт')];
+  const S0 = { allPages: all, bySlug: new Map(all.map(p => [p.slug, { slug: p.slug }])) };
+  const hit = pm => { const m = SP.matchPage(S0, pm); return m && m.x ? m.x.slug : null; };
+  check('matchPage: type списком - категория находится; без type категория и услуга не находятся, информационная - да', hit({ type: ['hub', 'category'], subject_re: 'каталог' }) === 'kat' && hit({ subject_re: 'каталог' }) === null && hit({ subject_re: 'цен' }) === 'info' && hit({ type: 'service', subject_re: 'цен' }) === 'svc', JSON.stringify([hit({ type: ['hub', 'category'], subject_re: 'каталог' }), hit({ subject_re: 'каталог' }), hit({ subject_re: 'цен' }), hit({ type: 'service', subject_re: 'цен' })]));
+  // правила словаря kit на картах разных ниш (находки проверки 05.10)
+  const DICT = rj(path.join(TPL, 'config', 'kf-elements.json'));
+  const pmOf = id => DICT.elements.find(e => e.id === id).page_match;
+  const on = (pages, id) => { const S = { allPages: pages, bySlug: new Map(pages.filter(p => p.status !== 'skip').map(p => [p.slug, { slug: p.slug }])) }; const m = SP.matchPage(S, pmOf(id)); return m ? (m.x ? m.x.slug : `skip:${m.skip.slug}`) : null; };
+  const YO = String.fromCharCode(0x451);
+  const cases = [
+    ['search: раздел «Поиск персонала» - не страница поиска', on([pg('h', 'hub', 'Поиск персонала')], 'search'), null],
+    ['search: «Поиск по каталогу» - страница поиска', on([pg('p', 'info_other', 'Поиск по каталогу')], 'search'), 'p'],
+    ['account: «Рентген-кабинет» - нет, «Личный кабинет» - да', [on([pg('r', 'info_other', 'Рентген-кабинет')], 'account'), on([pg('l', 'info_other', 'Личный кабинет')], 'account')].join(','), ',l'],
+    ['price_list: услуга «Цены и тарифы на перевозки» - да (с начала названия), «Оценка» и «Сервисный центр» - нет', [on([pg('s', 'service', 'Цены и тарифы на перевозки')], 'price_list'), on([pg('o', 'service', 'Оценка квартиры'), pg('c', 'info_other', 'Сервисный центр')], 'price_list')].join(','), 's,'],
+    ['price_list: совпадение с начала названия раньше порядка карты', on([pg('a', 'info_other', 'Ремонт и наши цены'), pg('b', 'info_other', 'Цены')], 'price_list'), 'b'],
+    ['vacancies: категория «Вакансии / Каталог специальностей» - да', on([pg('v', 'category', 'Вакансии / Каталог специальностей')], 'vacancies'), 'v'],
+    ['wholesale: «Оптом» - да, «Оптика» - нет', [on([pg('w', 'info_other', 'Оптом')], 'wholesale'), on([pg('x', 'info_other', 'Оптика')], 'wholesale')].join(','), 'w,'],
+    ['gift_cards: «Подарочные наборы» - нет, «Подарочные сертификаты» - да', [on([pg('n', 'category', 'Подарочные наборы')], 'gift_cards'), on([pg('g', 'category', 'Подарочные сертификаты')], 'gift_cards')].join(','), ',g'],
+    ['certificates: «Подарочные сертификаты» - не документы компании', on([pg('g', 'info_other', 'Подарочные сертификаты')], 'certificates'), null],
+    ['partners_link: «Партнерам» с е с точками - находится', on([pg('pt', 'info_other', `Партн${YO}рам`)], 'partners_link'), 'pt'],
+    ['blog_link: раздел «Статьи» - да, раздел «Обзорная площадка» - нет', [on([pg('st', 'hub', 'Статьи')], 'blog_link'), on([pg('ob', 'hub', 'Обзорная площадка')], 'blog_link')].join(','), 'st,'],
+    ['privacy_policy: в карте только оферта (роль legal) - политики нет', on([{ ...pg('of', 'info_other', 'Публичная оферта'), ui_role: 'legal', status: 'skip' }], 'privacy_policy'), null],
+    ['offer: оферта с ролью legal и status skip - «есть в карте»', on([{ ...pg('of', 'info_other', 'Публичная оферта'), ui_role: 'legal', status: 'skip' }], 'offer'), 'skip:of'],
+    ['pd_consent: «Пользовательское соглашение» - не согласие на обработку', on([{ ...pg('tu', 'info_other', 'Пользовательское соглашение'), ui_role: 'legal' }], 'pd_consent'), null],
+    // контрольный круг проверки: реальные названия карт клиентов
+    ['certificates: калькулятор лицензий и документооборот - не сертификаты; «Сертификаты и лицензии» - да', [on([pg('k', 'info_other', 'Калькулятор стоимости внедрения / лицензий')], 'certificates'), on([pg('d', 'info_other', 'Документооборот и оплата (ЭДО, постоплата)')], 'certificates'), on([pg('s', 'info_other', 'Сертификаты и лицензии')], 'certificates')].join(','), ',,s'],
+    ['partners_link: «как мы выбираем партнеров» с е с точками - не страница партнеров', on([pg('o', 'info_other', `О проекте / как мы выбираем партн${YO}ров`)], 'partners_link'), null],
+    ['partners_link: «Оптовым покупателям и дилерам» - страница дилеров', on([pg('d', 'info_other', 'Оптовым покупателям и дилерам')], 'partners_link'), 'd'],
+    ['price_list: раздел «Услуги и цены» и информационная «Оплата и цены» - да', [on([pg('h', 'hub', 'Услуги и цены')], 'price_list'), on([pg('i', 'info_other', 'Оплата и цены')], 'price_list')].join(','), 'h,i'],
+    ['price_list: «Цены» раньше «Ремонт: цены» (начало названия)', on([pg('a', 'info_other', 'Ремонт: цены'), pg('b', 'info_other', 'Цены')], 'price_list'), 'b'],
+  ];
+  const bad = cases.filter(([, got, want]) => got !== want);
+  check('matchPage по словарю kit: тип, начало слова и названия, роль legal не заменяет название, е с точками', !bad.length, bad.map(([n, got]) => `${n}: ${got}`).join(' | '));
 }
 
 // ================================================================ 4. решения заказчика: no_phone, absent, частичные реквизиты

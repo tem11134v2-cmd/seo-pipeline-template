@@ -75,7 +75,7 @@ export const KIT = path.join(HERE, 'kit');
 export const KIT_DIRS = ['workflows', 'prompts', 'scripts', 'schemas', 'html', 'rules'];
 // Словарь элементов лидеров и стоп-лист отбора (анализ КФ и КНДР, программа 05.10): проект дополняет их через
 // overrides/config/kf-elements.json (слияние JSON по ключам) - нишевые элементы живут только в проекте.
-export const KIT_FILES = ['CLAUDE.md', 'config/house_style.md', 'config/kf-elements.json', 'config/kf-stoplist.json'];
+export const KIT_FILES = ['CLAUDE.md', 'config/house_style.md', 'config/kf-elements.json', 'config/kf-stoplist.json', 'config/shared-sld.json'];
 // Лежит в папке kit-правил, но это решение проекта (данные задачи, в git).
 export const KEEP = new Set(['rules/decisions.md']);
 // Файлы kit, которые в папку задачи не кладутся: старый путь обновления автономной копии kit. В проектах SEO-шаблона kit

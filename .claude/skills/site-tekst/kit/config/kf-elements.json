@@ -1,5 +1,5 @@
 {
-  "_doc": "Словарь КФ и КНДР kit (/site-tekst, фаза 2): устойчивые id и подсказки отрисовки, без ниши. Подсказка, не фильтр: элемент не из словаря наблюдатель пишет как x-<латиница> и он идет тем же путем. Проект пополняет словарь через overrides/config/kf-elements.json. Поля: zones - где элемент бывает; kind - slot (данные компании), function (действие интерфейса), page_link (ссылка на страницу), block (блок тела), nav (навигация; в оболочке как slot); needs - поля company/site для слота; needs_hint - что спросить у заказчика; render - готовый отрисовщик оболочки (нет - generic); block_hint - id блока типа для покрытия; page_match - страница карты для ссылки (type, ui_role, subject_re); visible false - не видно посетителю (Schema.org), в таблице группа «Для разработчика»; synonyms - подписи для поиска ссылок в DOM; multipage_only - на лендинге не выше «рекомендовано».",
+  "_doc": "Словарь КФ и КНДР kit (/site-tekst, фаза 2): устойчивые id и подсказки отрисовки, без ниши. Подсказка, не фильтр: элемент не из словаря наблюдатель пишет как x-<латиница> и он идет тем же путем. Проект пополняет словарь через overrides/config/kf-elements.json. Поля: zones - где элемент бывает; kind - slot (данные компании), function (действие интерфейса), page_link (ссылка на страницу), block (блок тела), nav (навигация; в оболочке как slot); needs - поля company/site для слота; needs_hint - что спросить у заказчика; render - готовый отрисовщик оболочки (нет - generic); block_hint - id блока типа для покрытия; page_match - страница карты для ссылки, правило или список правил по порядку (type - тип или список типов, без type - информационные страницы info_*; ui_role - страница с этой ролью проходит при любом типе, но при subject_re название обязательно; subject_re - с начала слова, е и е с точками не различаются, совпадение с начала названия - первым); visible false - не видно посетителю (Schema.org), в таблице группа «Для разработчика»; synonyms - подписи для поиска ссылок в DOM; multipage_only - на лендинге не выше «рекомендовано».",
   "version": 1,
   "categories": [
     "Навигация",
@@ -71,6 +71,10 @@
       "render": null,
       "block_hint": null,
       "page_match": {
+        "type": [
+          "hub",
+          "category"
+        ],
         "subject_re": "каталог"
       },
       "visible": true,
@@ -613,7 +617,7 @@
       "render": null,
       "block_hint": null,
       "page_match": {
-        "subject_re": "адрес|магазин|офис|салон|шоурум|филиал"
+        "subject_re": "адреса|магазины|офисы|салоны|шоурум|филиал|где купить|точки продаж"
       },
       "visible": true,
       "synonyms": [
@@ -1173,9 +1177,28 @@
       "needs": [],
       "render": null,
       "block_hint": null,
-      "page_match": {
-        "subject_re": "прайс|цен"
-      },
+      "page_match": [
+        {
+          "type": [
+            "info_about",
+            "info_contacts",
+            "info_team",
+            "info_reviews",
+            "info_cases",
+            "info_faq",
+            "info_other",
+            "hub"
+          ],
+          "subject_re": "прайс|цены|цена|стоимост|тариф"
+        },
+        {
+          "type": [
+            "service",
+            "category"
+          ],
+          "subject_re": "^(?:прайс|цены|цена|стоимост|тариф)"
+        }
+      ],
       "visible": true,
       "synonyms": [
         "прайс",
@@ -1361,6 +1384,11 @@
       "render": null,
       "block_hint": null,
       "page_match": {
+        "type": [
+          "hub",
+          "category",
+          "info_other"
+        ],
         "subject_re": "акци|скидк|распродаж"
       },
       "visible": true,
@@ -1412,7 +1440,12 @@
       "render": null,
       "block_hint": null,
       "page_match": {
-        "subject_re": "подарочн"
+        "type": [
+          "hub",
+          "category",
+          "info_other"
+        ],
+        "subject_re": "подарочн[а-я]* (?:сертификат|карт)"
       },
       "visible": true,
       "synonyms": [
@@ -1434,7 +1467,7 @@
       "render": null,
       "block_hint": null,
       "page_match": {
-        "subject_re": "опт|юрлиц|юридическ|корпоратив"
+        "subject_re": "опт(?:ов|ом|(?![а-я]))|юрлиц|юридическим лицам|корпоративным клиент|для бизнеса"
       },
       "visible": true,
       "synonyms": [
@@ -1457,7 +1490,7 @@
       "render": null,
       "block_hint": null,
       "page_match": {
-        "subject_re": "партнер|дилер|сотрудничеств"
+        "subject_re": "^(?:партнерам|дилерам|сотрудничество|стать (?:партнером|дилером))|(?:и|,|/) *(?:партнерам|дилерам)(?![а-я])|партнерск[а-я]* программ|для (?:партнеров|дилеров)|условия сотрудничества"
       },
       "visible": true,
       "synonyms": [
@@ -1481,7 +1514,7 @@
       "render": null,
       "block_hint": "process",
       "page_match": {
-        "subject_re": "как заказать|как купить|оформ"
+        "subject_re": "как заказать|как купить|как оформить|оформлени[ея] заказ"
       },
       "visible": true,
       "synonyms": [
@@ -1766,7 +1799,7 @@
       "render": "docs",
       "block_hint": "docs",
       "page_match": {
-        "subject_re": "сертификат|документ"
+        "subject_re": "(?<!подарочн[а-я]* )сертификат(?:ы|ов)?(?![а-я])|лицензи[яи](?![а-я])|документ(?:ы|ация)?(?![а-я])"
       },
       "visible": true,
       "synonyms": [
@@ -2340,7 +2373,11 @@
       "render": null,
       "block_hint": null,
       "page_match": {
-        "subject_re": "блог|стать|новост|обзор"
+        "type": [
+          "hub",
+          "info_other"
+        ],
+        "subject_re": "блог|статьи|новости|обзоры|журнал"
       },
       "visible": true,
       "synonyms": [
@@ -2425,7 +2462,7 @@
       "render": "search",
       "block_hint": null,
       "page_match": {
-        "subject_re": "поиск"
+        "subject_re": "поиск(?! (?:персонала|сотрудник|работ|кандидат))"
       },
       "visible": true,
       "synonyms": [
@@ -2517,7 +2554,7 @@
       "render": "account",
       "block_hint": null,
       "page_match": {
-        "subject_re": "кабинет"
+        "subject_re": "личный кабинет|кабинет (?:клиента|покупателя|пользователя)|^кабинет$"
       },
       "visible": true,
       "synonyms": [
@@ -2562,7 +2599,18 @@
       "render": null,
       "block_hint": null,
       "page_match": {
-        "subject_re": "ваканс|карьер"
+        "type": [
+          "info_about",
+          "info_contacts",
+          "info_team",
+          "info_reviews",
+          "info_cases",
+          "info_faq",
+          "info_other",
+          "hub",
+          "category"
+        ],
+        "subject_re": "^(?:наши |открытые )?(?:ваканс|карьер)|работа у нас|работа в компании"
       },
       "visible": true,
       "synonyms": [
@@ -2633,7 +2681,7 @@
       "block_hint": null,
       "page_match": {
         "ui_role": "legal",
-        "subject_re": "соглас|персональн"
+        "subject_re": "согласи|персональн|обработк"
       },
       "visible": true,
       "synonyms": [

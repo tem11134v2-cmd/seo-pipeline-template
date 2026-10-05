@@ -24,7 +24,7 @@
           "needs_hint": { "type": "string", "maxLength": 160 },
           "render": { "enum": ["phone", "messengers", "socials", "email", "address", "hours", "map_link", "legal_line", "licenses", "docs", "callback", "cta", "up_button", "subscribe", "tagline", "rating", "payment_icons", "city", "search", "cart", "account", "favorites", "compare", "native", null] },
           "block_hint": { "_doc": "id блока типа страницы или null" },
-          "page_match": { "_doc": "{type?, ui_role?, subject_re?} или null: страница карты, на которую ведет ссылка" },
+          "page_match": { "_doc": "{type?, ui_role?, subject_re?}, список таких правил (по порядку) или null: страница карты, на которую ведет ссылка; type - тип или список типов (без type - info_*), subject_re - с начала слова" },
           "visible": { "type": "boolean" },
           "synonyms": { "type": "array", "items": { "type": "string" } },
           "multipage_only": { "type": "boolean" }

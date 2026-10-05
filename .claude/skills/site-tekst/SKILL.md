@@ -69,8 +69,8 @@ texts/KKK-<slug>/                         данные задачи - в git
                                           (прототип, отчет, kf-kndr.xlsx, kf-publish.json)
     копия kit - НЕ в git (.gitignore):    CLAUDE.md, workflows/, prompts/, scripts/, schemas/, html/,
                                           rules/* кроме decisions.md, config/house_style.md, config/kf-elements.json,
-                                          config/kf-stoplist.json, .kit.json (манифест); кадры work/competitors/shots/
-                                          и work/audit/site-shots/ - тоже не в git
+                                          config/kf-stoplist.json, config/shared-sld.json, .kit.json (манифест); кадры
+                                          work/competitors/shots/ и work/audit/site-shots/ - тоже не в git
 ```
 
 Копия kit - кеш: `task.mjs place` кладет ее при каждом старте и `--resume` (исправления kit доходят до старых задач);

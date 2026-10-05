@@ -621,15 +621,34 @@ export function shellName(s) {
 const lowerFirst = s => (/^[\u0410-\u042F\u0401][\u0430-\u044F\u0451-]*(\s|$)/.test(s) ? s.charAt(0).toLowerCase() + s.slice(1) : s);
 const legalVal = (c, k) => (k === 'legal_name' ? c.legal.name : c.legal[k]);
 // страница карты по page_match ({type?, ui_role?, subject_re?}): рабочая - { x }, со status skip - { skip }, нет - null
-function matchPage(S, pm) {
+// без type - информационные страницы (info_*): ссылка оболочки (доставка, гарантия, поиск, кабинет) не ведет на раздел,
+// услугу, товар или категорию с тем же словом в названии («Гарантийный ремонт», «Поиск персонала», «Кабинеты руководителя»);
+// элемент, которому подходят раздел, категория или услуга (каталог, акции, цены, вакансии), называет типы списком
+const PAGE_MATCH_TYPES = ['info_about', 'info_contacts', 'info_team', 'info_reviews', 'info_cases', 'info_faq', 'info_other'];
+const noYo = v => String(v ?? '').replace(/\u0451/g, '\u0435').replace(/\u0401/g, '\u0415');
+export function matchPage(S, pm) {
+  // список правил - по порядку, первое с рабочей страницей; иначе первое «есть в карте» (цены: информационная страница
+  // со словом в названии, затем услуга или категория с ним в начале названия)
+  if (Array.isArray(pm)) {
+    let skip = null;
+    for (const one of pm) { const m = matchPage(S, one); if (m && m.x) return m; if (m && m.skip && !skip) skip = m; }
+    return skip;
+  }
   if (!pm || typeof pm !== 'object') return null;
   let re = null;
-  if (pm.subject_re) { try { re = new RegExp(String(pm.subject_re), 'i'); } catch { return null; } }
-  if (!pm.type && !pm.ui_role && !re) return null;
-  // роль и название - альтернативы: страница политики без ui_role legal находится по названию (тип - обязательное условие)
-  const reOk = p => !!re && (re.test(String(p.subject || '')) || re.test(String(p.nav_label || '')));
-  const ok = p => p && p.slug && (!pm.type || p.type === pm.type) && (pm.ui_role && re ? p.ui_role === pm.ui_role || reOk(p) : (!pm.ui_role || p.ui_role === pm.ui_role) && (!re || reOk(p)));
-  const hits = (S.allPages || []).filter(ok);
+  // название - с начала слова («цен» - «Цены», но не «Оценка»), е и е с точками не различаются
+  if (pm.subject_re) { try { re = new RegExp(`(?<![a-z0-9\u0430-\u044f\u0451])(?:${noYo(pm.subject_re)})`, 'i'); } catch { return null; } }
+  const types = (Array.isArray(pm.type) ? pm.type : pm.type ? [pm.type] : []).map(String);
+  if (!types.length && !pm.ui_role && !re) return null;
+  const typeOk = p => (types.length ? types.includes(p.type) : PAGE_MATCH_TYPES.includes(p.type));
+  const texts = p => [p.subject, p.nav_label].filter(Boolean).map(noYo);
+  const reOk = p => !!re && texts(p).some(t => re.test(t));
+  // роль элемента (ui_role) снимает условие типа, но не названия: при subject_re название обязательно - оферта не
+  // становится политикой конфиденциальности; без subject_re нужна сама роль
+  const ok = p => p && p.slug && (pm.ui_role && p.ui_role === pm.ui_role ? true : typeOk(p)) && (re ? reOk(p) : !pm.ui_role || p.ui_role === pm.ui_role);
+  // совпадение с начала названия - раньше («Цены» раньше «Ремонт: цены»), дальше порядок карты
+  const atStart = p => !!re && texts(p).some(t => { const m = re.exec(t); return !!m && m.index === 0; });
+  const hits = (S.allPages || []).filter(ok).map((p, i) => ({ p, i, k: atStart(p) ? 0 : 1 })).sort((x, y) => x.k - y.k || x.i - y.i).map(x => x.p);
   const live = hits.map(p => S.bySlug.get(p.slug)).find(Boolean);
   if (live) return { x: live };
   const skip = hits.find(p => p.status === 'skip');

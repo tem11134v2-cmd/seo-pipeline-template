@@ -35,6 +35,7 @@ texts/*/html/
 texts/*/config/house_style.md
 texts/*/config/kf-elements.json
 texts/*/config/kf-stoplist.json
+texts/*/config/shared-sld.json
 # кадры снятия страниц (capture-pages.mjs): локальные доказательства анализа КФ и аудита прототипа, не в git
 texts/*/work/competitors/shots/
 texts/*/work/audit/site-shots/
