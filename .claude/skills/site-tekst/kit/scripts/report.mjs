@@ -183,11 +183,12 @@ for (const f of crossLatest(f => [f.page, blockKey(f.block_id), f.rule, qKey(f.q
   addQ(factText(f), place(f.page, f.block_id), 'cross-judge');
   markDirect(f.page, f);
 }
-// retro-stats no_fact - отказы фиксеров «нет факта» по находкам без needs_fact (с needs_fact уже взяты выше)
+// retro-stats no_fact - отказы фиксеров «нет факта» по находкам без needs_fact (с needs_fact уже взяты выше); отказ по
+// правке заказчика (producer human) - вопрос заказчику, а не отчет фиксера о своей правке (источник human, не fixer)
 for (const x of retro && retro.no_fact ? [...(retro.no_fact.rejected || []), ...(retro.no_fact.partial || [])] : []) {
   const b = blockKey(x.block), q = qKey(x.quote).slice(0, 60);
   if (direct.has(`${x.page}|${b}|${x.id}`) || (q && direct.has(`${x.page}|${b}|q:${q}`))) continue;
-  addQ(x.missing, place(String(x.page || '').includes(':') ? '' : x.page, x.block), 'fixer');
+  addQ(x.missing, place(String(x.page || '').includes(':') ? '' : x.page, x.block), x.producer === 'human' ? 'human' : 'fixer');
 }
 // заглушки элементов лидеров (brief.stubs, программа 05.10 §3.4): вопрос по заглушке заменяет вопрос о выпадении блока
 // (у одного блока страницы - один вопрос), поэтому выпадение и вопросы briefs-report по типам-заглушкам пропускаются
@@ -425,8 +426,12 @@ function knownOf(s) {
   const all = t.match(/(?<![a-zа-я0-9])f\d{2,3}(?![a-zа-я0-9])/g) || [];
   const bare = [...t.matchAll(/\((f\d{2,3}(?:\s*(?:,|и)\s*f\d{2,3})*)\)/g)].flatMap(m => m[1].match(/f\d+/g));
   if (!bare.length || !all.every(id => pubYes.has(id))) return [];
-  const st = stemsOf(t);
-  return bare.some(id => [...stemsOfFact(id)].some(x => x[0] !== '#' && st.has(x))) ? [...new Set(bare)] : [];
+  // каждая часть строки - про известный факт: вторая просьба без факта («... (F28) и рекомендация толщины ...») оставляет
+  // строку вопросом со своим блоком; основы части и факта сравниваются по началу (5 знаков): «лабораторным» - «лабораторный»
+  const pre = x => x.slice(0, 5);
+  const known = st => bare.some(id => [...stemsOfFact(id)].some(x => x[0] !== '#' && [...st].some(y => y[0] !== '#' && pre(y) === pre(x))));
+  const parts = partsOf(s);
+  return parts.length && parts.every(p => known(p.st)) ? [...new Set(bare)] : [];
 }
 function noteOf(q) {
   if ([...q.src].some(s => ALWAYS_ASK.has(s))) return null;

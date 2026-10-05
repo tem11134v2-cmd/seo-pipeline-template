@@ -101,14 +101,14 @@ function mkProject(name, { empty = false } = {}) {
 
 // ---------- проекты ревью: страницы и блоки из ключей needs («p1/B01-hero»), unknowns брифа, находки судьи (round-1) и слепого
 // читателя (blind.json); результат - строки вопросов (с уточнениями и без), пометки, сводка, консоль, report-questions.json ----------
-function runCase(name, { gaps = [], needs = {}, unknowns = {}, judge = {}, blind = {}, facts = [] }) {
+function runCase(name, { gaps = [], needs = {}, unknowns = {}, judge = {}, blind = {}, facts = [], human = {} }) {
   const dir = path.join(tmpRoot, name);
   for (const d of ['scripts', 'rules', 'schemas', 'config']) fs.cpSync(path.join(TPL, d), path.join(dir, d), { recursive: true });
   const cfg = rj(path.join(dir, 'config', 'project.json'));
   cfg.company = 'Тест'; cfg.slug = 'test';
   wj(path.join(dir, 'config', 'project.json'), cfg);
   const pages = {};
-  const keys = [...Object.keys(needs), ...Object.keys(unknowns).map(s => `${s}/B01-hero`), ...[...Object.entries(judge), ...Object.entries(blind)].flatMap(([s, l]) => l.map(([b]) => `${s}/${b}`))];
+  const keys = [...Object.keys(needs), ...Object.keys(unknowns).map(s => `${s}/B01-hero`), ...[...Object.entries(judge), ...Object.entries(blind), ...Object.entries(human)].flatMap(([s, l]) => l.map(([b]) => `${s}/${b}`))];
   for (const k of keys) { const [slug, block] = k.split('/'); (pages[slug] = pages[slug] || new Set()).add(block); }
   const slugs = Object.keys(pages).sort();
   wj(path.join(dir, 'work', 'sitemap.json'), { source: 'test', page_types: ['service'], pages: slugs.map((slug, i) => ({ slug, url: i ? `/${slug}` : '/', type: 'service', subject: slug, parent: i ? '/' : '', level: i ? 1 : 0, segment: 'S1', status: 'briefed' })) });
@@ -123,6 +123,9 @@ function runCase(name, { gaps = [], needs = {}, unknowns = {}, judge = {}, blind
   const finding = ([block_id, proposal], i) => ({ id: `j${i + 1}`, block_id, severity: 'minor', rule: 'fact', problem: 'нет факта', proposal, needs_fact: true, status: 'open' });
   for (const [slug, list] of Object.entries(judge)) wj(path.join(dir, 'work', 'audit', slug, 'round-1.json'), { producer: 'page-judge', findings: list.map(finding) });
   for (const [slug, list] of Object.entries(blind)) wj(path.join(dir, 'work', 'audit', slug, 'blind.json'), { findings: list.map(finding) });
+  // правки заказчика (human), отклоненные фиксером «нет факта»: строка retro-stats no_fact с producer human
+  for (const [slug, list] of Object.entries(human)) wj(path.join(dir, 'work', 'audit', slug, 'human-20260929-client.json'), { scope: 'page', producer: 'human', round: 1, created_at: '2026-09-29T10:00:00Z', verdict: 'fail', summary: 'правки заказчика',
+    findings: list.map(([block_id, quote, problem, resolution], i) => ({ id: `client-${slug}-${i + 1}`, page: slug, block_id, severity: 'major', category: 'fact', rule: 'human.fix', quote, problem, proposal: problem, status: 'wontfix', resolution })) });
   wj(path.join(dir, 'work', 'facts.json'), { facts, gaps });
   const r = run(dir, ['scripts/report.mjs']);
   const md = r.code === 0 ? fs.readFileSync(path.join(dir, 'work', 'output', 'report.md'), 'utf8') : '';
@@ -275,6 +278,19 @@ try {
   check('одинаковый после снятия хвоста текст («цена - нет факта F99» и «(F98)») - одна строка; «цена доставки» и «цена изделия» - разные',
     C.lines.filter(l => /^- цена /.test(l)).length === 3 && C.lines.includes('- цена (p3/B01-hero, p3/B02-x)') && C.lines.includes('- цена доставки (p1/B02-x)') && C.lines.includes('- цена изделия (p2/B03-y)')
     && C.top.length === 11 && /вопросов заказчику 11 \[слито повторов 6, пометок писателей 0\]/.test(C.stdout), C.ask + C.stdout);
+
+  // ================================================================ 10. контрольный круг: правка заказчика и просьба из двух частей
+  const F28 = { id: 'F28', label: 'Лабораторный и натуральный камень', value: 'при одном бюджете лабораторный камень заметно крупнее натурального', publish: 'yes', kind: 'claim' };
+  const H = runCase('human-known', {
+    facts: [F28],
+    human: { p1: [['B07-faq', 'Срок ремонта, срочные работы', 'Заказчик просит в FAQ вопросы про срок ремонта и срочные работы', 'нет факта: сроки ремонта не называем (decisions §1 F06, A27), срочность F22 - только про изготовление цепи. Вопрос заказчику']] },
+    judge: { p2: [['B07-faq', 'Спросить у заказчика: разница лабораторного и натурального камня на один бюджет (F28) и рекомендация толщины от 1,3 мм фактом брифа'], ['B08-x', 'Спросить у заказчика: выбор между лабораторным и натуральным камнем на один бюджет (F28)']] },
+  });
+  const inQ = re => H.lines.some(l => re.test(l)), inN = re => H.notes.some(l => re.test(l));
+  check('правка заказчика, отклоненная «нет факта» (retro-stats producer human), - вопрос заказчику, не пометка фиксера', inQ(/сроки ремонта/) && !inN(/сроки ремонта/), H.ask);
+  check('просьба из двух частей с известным фактом (F28) и второй частью без факта - вопрос со своим блоком; только про F28 - пометка known', inQ(/толщины от 1,3 мм.*p2\/B07-faq/) && inN(/выбор между лабораторным.*факт есть: F28/), H.ask);
+  const YO2 = [0x451, 0x401, 0x2014, 0x2013].map(c => String.fromCharCode(c));
+  check('сценарий 10: без е с точками и длинных тире', !YO2.some(ch => H.ask.includes(ch)));
   check('без е с точками и длинных тире в разделах проектов ревью', ![A.ask, B.ask, C.ask].some(t => /[\u0451\u0401\u2014\u2013]/.test(t)));
 } catch (e) {
   fail++; failures.push(`FAIL исключение: ${e.stack || e.message}`);
