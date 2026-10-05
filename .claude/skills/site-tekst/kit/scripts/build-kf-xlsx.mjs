@@ -27,6 +27,9 @@ export const META_REL = 'work/output/kf-xlsx.meta.json';
 export const PUBLISH_REL = 'work/output/kf-publish.json';
 const rjs = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '')); } catch { return null; } };
 const clean = s => String(s ?? '').replace(/\s+/g, ' ').trim();
+// имя элемента для заказчика: без служебной пометки вида в скобках в конце («Отзывы (ссылка)»); пояснение
+// («Реквизиты (ИНН, ОГРН)») остается
+export const elName = s => clean(s).replace(/\s*\((ссылка|блок|кнопка|иконка|меню|раздел|страница|форма|виджет)\)$/i, '');
 const arr = v => (Array.isArray(v) ? v : []);
 const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
@@ -313,7 +316,7 @@ function sheetCompare(d) {
     note.push(...arr(r.notes).map(clean).filter(Boolean));
     if (r.needs_hint && /нужны данные/.test(proto)) note.push(`нужно от вас: ${clean(r.needs_hint)}`);
     const decision = `${LEVEL_RU[r.level] || r.level || '-'}${r.already ? '; уже есть' : ''}`;
-    const cells = [clean(r.name || r.id), ...vals, ...ownCell, `${num(r.n) ?? 0} из ${num(r.N) ?? 0}`, decision, proto, note.join('; ')];
+    const cells = [elName(r.name || r.id), ...vals, ...ownCell, `${num(r.n) ?? 0} из ${num(r.N) ?? 0}`, decision, proto, note.join('; ')];
     const italic = cells.map((c, i) => (c === '?' ? i : -1)).filter(i => i >= 0);
     return { kind: 'row', cells, fill: r.level === 'must' ? 'prio_high' : r.level === 'recommended' ? 'prio_medium' : null, already: !!r.already, decisionCol: 1 + comps.length + (own ? 1 : 0) + 1, italic };
   };
@@ -353,7 +356,7 @@ function sheetLimits(d) {
     if (scopes.size && (!hit.length || hit.every(s => !num(s.N)))) add(`тип «${TYPE_RU[t] || t}»: у лидеров страниц этого типа не снято`, 'сравнение по типу не проводилось');
   }
   const q = arr(d.matrix.rows).filter(r => Object.values(r.values || {}).includes('?'));
-  if (q.length) add(`«?» - не удалось проверить уверенно: строк ${q.length}`, q.slice(0, 10).map(r => clean(r.name || r.id)).join(', ') + (q.length > 10 ? ` и еще ${q.length - 10}` : ''));
+  if (q.length) add(`«?» - не удалось проверить уверенно: строк ${q.length}`, q.slice(0, 10).map(r => elName(r.name || r.id)).join(', ') + (q.length > 10 ? ` и еще ${q.length - 10}` : ''));
   const A = analysisOf(d);
   if (d.comp && A.anchorsPlanned && !A.anchorGood) add('эталон (сильный давний сайт) в сравнение не попал', clean(d.comp.method).slice(0, 200));
   for (const w of arr(d.ranking && d.ranking.warnings)) add(w, 'отбор');

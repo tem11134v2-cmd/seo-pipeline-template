@@ -611,7 +611,8 @@ export { noPhone, absentOf };
 const tv = (S, key, vars = {}) => String(((S.ui && S.ui.kf) || {})[key] ?? key).replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
 // название элемента для подписей: без кавычек и хвостовой пунктуации, до 40 знаков по слову, с прописной
 export function shellName(s) {
-  let n = String(s ?? '').replace(/[«»"“”„']/g, '').replace(/\s+/g, ' ').trim().replace(/[\s.,;:!?-]+$/, '');
+  // служебная пометка словаря или наблюдателя в скобках в конце («Отзывы (ссылка)», «Гарантии (блок)») - не подпись
+  let n = String(s ?? '').replace(/[«»"“”„']/g, '').replace(/\s+/g, ' ').trim().replace(/\s*\([^()]*\)$/, '').replace(/[\s.,;:!?-]+$/, '');
   if (n.length > 40) n = cutWords(n, 40);
   return n ? n.charAt(0).toUpperCase() + n.slice(1) : '';
 }
@@ -829,21 +830,23 @@ export function shellZoneHtml(S, menu, zone, where, filter = () => true) {
   return S.shell.items.filter(it => it.zone === zone && filter(it) && !shellExisting(S, it, menu)).map(it => shellItemHtml(S, it, where)).join('');
 }
 const hdrPlace = it => it.state === 'chip' && (it.render === 'phone' || it.render === 'messengers');
+// страница лидеров из шапки, которой нет в карте, - не кнопкой в шапке (шум и тупик), а в колонке «Информация» подвала
+const hdrMoved = it => it.zone === 'header' && it.kind === 'page_link' && it.state === 'page_missing';
 // шапка: чип телефона и мессенджеров - на месте телефона и значков, прочие - группой перед CTA
 export function shellHeader(S, menu) {
   const one = r => S.shell.items.filter(it => it.zone === 'header' && it.render === r && hdrPlace(it)).map(it => shellItemHtml(S, it, 'hdr')).join('');
-  const group = shellZoneHtml(S, menu, 'header', 'hdr', it => !hdrPlace(it));
+  const group = shellZoneHtml(S, menu, 'header', 'hdr', it => !hdrPlace(it) && !hdrMoved(it));
   return { phone: one('phone'), msgs: one('messengers'), group: group ? `<span class="shell-hdr">${group}</span>` : '' };
 }
 // телефон: новые элементы шапки - в мобильном меню (многостраничник) или полосой под шапкой (лендинг)
 // нижняя панель выключена (off mbar) - туда же элементы зоны mobile
 const mobExtra = (S, menu) => (S.off.has('mbar') ? shellZoneHtml(S, menu, 'mobile', 'mob') : '');
 export function shellMnav(S, menu) {
-  const h = shellZoneHtml(S, menu, 'header', 'mob') + mobExtra(S, menu);
+  const h = shellZoneHtml(S, menu, 'header', 'mob', it => !hdrMoved(it)) + mobExtra(S, menu);
   return h ? `<div class="mnav-shell">${h}</div>` : '';
 }
 export function shellStrip(S, menu) {
-  const h = shellZoneHtml(S, menu, 'header', 'mob') + mobExtra(S, menu);
+  const h = shellZoneHtml(S, menu, 'header', 'mob', it => !hdrMoved(it)) + mobExtra(S, menu);
   return h ? `<div class="shell-strip">${h}</div>` : '';
 }
 // подвал: { rows (строки контактов), docs (строка документов), col (колонка «Информация») }
@@ -851,7 +854,9 @@ export function shellFooter(S, menu) {
   const rows = S.shell.items.filter(it => it.zone === 'footer' && it.kind === 'slot' && !shellExisting(S, it, menu))
     .map(it => { const h = shellItemHtml(S, it, 'fc'); return h ? `<div class="fc-row fc-kf">${icon(SHELL_ICON[it.render] || 'info')}<span>${h}</span></div>` : ''; }).join('');
   const docs = shellZoneHtml(S, menu, 'footer', 'fdoc', it => it.kind === 'function');
-  const links = S.shell.items.filter(it => it.zone === 'footer' && it.kind === 'page_link' && !shellExisting(S, it, menu)).map(it => shellItemHtml(S, it, 'fcol')).filter(Boolean);
+  const seenId = new Set();
+  const links = S.shell.items.filter(it => (it.zone === 'footer' || hdrMoved(it)) && it.kind === 'page_link' && !shellExisting(S, it, menu))
+    .filter(it => (seenId.has(it.id) ? false : (seenId.add(it.id), true))).map(it => shellItemHtml(S, it, 'fcol')).filter(Boolean);
   const col = links.length ? `<div class="fcol"><div class="fcol-h">${esc(tv(S, 'footer_info'))}</div><ul>${links.map(l => `<li>${l}</li>`).join('')}</ul></div>` : '';
   return { rows, docs, col };
 }

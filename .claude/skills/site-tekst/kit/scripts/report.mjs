@@ -36,7 +36,7 @@ import crypto from 'node:crypto';
 import { P, readJson, exists, writeText, loadConfig, loadSitemap, loadBlocks, blockPlainText, PLACEHOLDER_RE, nowIso } from './lib.mjs';
 import { pageProgress, pageFindings, waves, isOpenStatus, isSerious, isCrossArchive, archiveStamp, blockKey, ARCHIVE_PREFIX } from './progress.mjs';
 import { protoDataSha } from './render-blocks.mjs';
-import { kfStage, kfTableLine, zoneRu, stateRu, scopeType } from './build-kf-xlsx.mjs';
+import { kfStage, kfTableLine, zoneRu, stateRu, scopeType, elName } from './build-kf-xlsx.mjs';
 
 const ROOT = process.cwd();
 const rjs = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '')); } catch { return null; } };
@@ -237,7 +237,7 @@ const FACT_SLOT = new Set(['rating', 'payment_icons', 'city', 'generic', '']);
 const byId = (list, pick) => {
   const m = new Map();
   for (const it of list) {
-    const e = m.get(it.id) || { id: it.id, name: clean(it.name || it.id), zones: [], c: null };
+    const e = m.get(it.id) || { id: it.id, name: elName(it.name || it.id), zones: [], c: null };
     if (!e.zones.includes(it.zone)) e.zones.push(it.zone);
     const c = cov(it.coverage);
     if (c && (!e.c || c.n > e.c.n)) e.c = c;

@@ -44,6 +44,13 @@ const lintRules = opt(P('rules', 'lint.json')) || {};
 // оболочка по пересечениям лидеров: файла нет (этап КФ не проводился, старая задача) - прототип как раньше
 let shellSpec = opt(P('work', 'shell.json'));
 if (shellSpec && !Array.isArray(shellSpec.items)) { warn('work/shell.json: нет массива items - оболочка по пересечениям лидеров не строится'); shellSpec = null; }
+// shell.json - снимок фазы 2: элементу словаря без page_match подсказка берется из текущего словаря задачи
+// (config/kf-elements.json), чтобы правка словаря работала без пересчета матрицы; нишевые x-элементы не трогаются
+if (shellSpec) {
+  const dict = opt(P('config', 'kf-elements.json'));
+  const pmById = new Map(((dict && Array.isArray(dict.elements)) ? dict.elements : []).filter(e => e && e.id && e.page_match).map(e => [e.id, e.page_match]));
+  for (const it of shellSpec.items) if (it && !it.niche && !it.page_match && pmById.has(it.id)) it.page_match = pmById.get(it.id);
+}
 const HTML_DIR = P('html', 'site');
 for (const f of ['shell.html', 'site.css', 'ui.json', 'icons.svg']) if (!exists(path.join(HTML_DIR, f))) fail(`нет html/site/${f} (kit не разложен в папку задачи: task.mjs place)`);
 const ui = loadUi(path.join(HTML_DIR, 'ui.json'));

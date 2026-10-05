@@ -239,6 +239,7 @@ try {
     fs.writeFileSync(mf, m0);
     const lib2 = await import(pathToFileURL(path.join(TPL, 'scripts', 'build-kf-xlsx.mjs')).href);
     check('canonical: ключи отсортированы', lib2.canonical({ b: 1, a: [{ d: 2, c: 3 }] }) === '{"a":[{"c":3,"d":2}],"b":1}');
+    check('elName: служебная пометка в скобках снимается, пояснение остается', lib2.elName('Отзывы (ссылка)') === 'Отзывы' && lib2.elName(' Гарантии  (Блок) ') === 'Гарантии' && lib2.elName('Реквизиты (ИНН, ОГРН)') === 'Реквизиты (ИНН, ОГРН)', [lib2.elName('Отзывы (ссылка)'), lib2.elName(' Гарантии  (Блок) '), lib2.elName('Реквизиты (ИНН, ОГРН)')].join(' | '));
 
     // ================================================================ 4. --record
     run(D, ['scripts/build-kf-xlsx.mjs']);

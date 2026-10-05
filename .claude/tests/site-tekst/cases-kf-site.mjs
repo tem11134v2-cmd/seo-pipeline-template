@@ -137,11 +137,11 @@ const CITY_FACT = { id: 'F810', label: 'Город работы', value: 'Сам
   check('услуги+оболочка: слот из факта с полем slot - значение факта, state shown, без чипа', stateOf(mods, 'city') === 'shown' && /<span class="shell-v" data-kf="city">Самара и область<\/span>/.test(hdr) && !/class="ph-need" data-kf="city"/.test(html));
   check('услуги+оболочка: x-элемент function - кнопка-тост с нормализованным названием (без кавычек)', stateOf(mods, 'x-online-booking') === 'function' && /data-kf="x-online-booking">Онлайн-запись<\/button>/.test(hdr));
   check('услуги+оболочка: юридическая страница карты (status skip) - «есть в карте» (shown), тост «Документ вне прототипа»', stateOf(mods, 'x-requisites-doc') === 'shown' && /data-act="toast" data-toast="Документ вне прототипа" data-kf="x-requisites-doc">Политика обработки данных<\/button>/.test(hdr));
-  check('услуги+оболочка: нет страницы в карте - page_missing, кнопка-тост «Страница вне прототипа»', stateOf(mods, 'x-price-list') === 'page_missing' && /data-toast="Страница вне прототипа" data-kf="x-price-list">Прайс-лист<\/button>/.test(hdr));
+  check('услуги+оболочка: нет страницы в карте - page_missing; из шапки - не кнопкой в шапке, а в колонке «Информация» подвала (правка по приемке)', stateOf(mods, 'x-price-list') === 'page_missing' && !/data-kf="x-price-list"/.test(hdr) && /data-toast="Страница вне прототипа" data-kf="x-price-list">Прайс-лист<\/button>/.test(ftr));
   check('услуги+оболочка: подвал - почта и реквизиты уже есть (shown, без новой разметки)', stateOf(mods, 'email', 'footer') === 'shown' && stateOf(mods, 'legal_line') === 'shown' && !/data-kf="email"|data-kf="legal_line"/.test(ftr));
   check('услуги+оболочка: x-элемент generic slot - чип data-kf="x-warranty-card" в строках контактов подвала', stateOf(mods, 'x-warranty-card') === 'chip' && /<div class="fc-row fc-kf">[\s\S]{0,400}?<span class="ph-need" data-kf="x-warranty-card">нужны данные: гарантийный талон<\/span>/.test(ftr) && mods.shell.items.find(i => i.id === 'x-warranty-card').niche === true);
   check('услуги+оболочка: функция подвала - кнопка-тост в строке документов', stateOf(mods, 'subscribe') === 'function' && /<p class="ftr-docs">[\s\S]*data-kf="subscribe">Подписка на новости<\/button>[\s\S]*<span class="sp">/.test(ftr));
-  check('услуги+оболочка: страница вне карты в подвале - колонка «Информация» с кнопкой-тостом; страница из карты уже в подвале', /<div class="fcol"><div class="fcol-h">Информация<\/div><ul><li><button type="button" class="linkbtn" data-act="toast" data-toast="Страница вне прототипа" data-kf="x-reviews-page">Отзывы<\/button><\/li><\/ul><\/div>/.test(ftr) && stateOf(mods, 'x-about-page') === 'shown' && !/data-kf="x-about-page"/.test(ftr));
+  check('услуги+оболочка: страница вне карты в подвале - колонка «Информация» с кнопкой-тостом; страница из карты уже в подвале', /<div class="fcol"><div class="fcol-h">Информация<\/div><ul><li>[\s\S]*?data-kf="x-reviews-page">Отзывы<\/button><\/li>[\s\S]*?<\/ul><\/div>/.test(ftr) && stateOf(mods, 'x-about-page') === 'shown' && !/data-kf="x-about-page"/.test(ftr));
   check('услуги+оболочка: зона mobile - в нижней панели (mbar) кнопкой-тостом', /<div class="mbar">[\s\S]*data-kf="x-quick-calc">Быстрый расчет<\/button>[\s\S]*<\/div>/.test(between(html, '<div class="mbar">', '</div>')));
   const fab = between(html, '<div class="shell-fab">', '</div>');
   check('услуги+оболочка: закрепленные - плавающие кнопки: «наверх» (data-act up) и обратный звонок (окно заявки)', /data-act="up" aria-label="Наверх"/.test(fab) && /data-act="lead" data-title="Обратный звонок" data-kf="callback"/.test(fab) && stateOf(mods, 'up_button') === 'shown');
@@ -187,6 +187,16 @@ const CITY_FACT = { id: 'F810', label: 'Город работы', value: 'Сам
   const mods = modsOf(r.dir);
   check('сопоставление: политика без ui_role legal - по названию «есть в карте», не page_missing', r.code === 0 && stateOf(mods, 'privacy_policy') === 'shown', JSON.stringify(mods.shell && mods.shell.items));
   check('сопоставление: поиск без страницы ui_role search и без живой страницы - функция (страница skip не дает ссылки)', stateOf(mods, 'search') === 'function' && mods.search.on === false);
+  // shell.json - снимок фазы 2 без page_match у поиска: сборка берет подсказку из словаря задачи; живая страница
+  // «Поиск по каталогу» без ui_role - ссылка на нее, живой модуль поиска не включается
+  const r2 = build('svc-match-live', 'fixture-services', dir => {
+    wj(path.join(dir, 'work', 'shell.json'), { ...SH, items: [item({ id: 'search', name: 'Поиск по сайту', zone: 'header', kind: 'function', render: 'search' })] });
+    const sf = path.join(dir, 'work', 'sitemap.json'); const sm = rj(sf);
+    sm.pages = sm.pages.map(p => (p.slug === 'uslugi-elektrika' ? { ...p, subject: 'Поиск по каталогу' } : p));
+    wj(sf, sm);
+  });
+  const m2 = modsOf(r2.dir);
+  check('сопоставление: page_match из словаря задачи, живая страница поиска без ui_role - shown и ссылка, модуль поиска выключен', r2.code === 0 && stateOf(m2, 'search') === 'shown' && m2.search.on === false && /<a class="shell-v" href="#\/[^"]*" data-kf="search">/.test(r2.html), JSON.stringify(m2.shell && m2.shell.items) + r2.out.slice(0, 300));
 }
 
 // ================================================================ 4. решения заказчика: no_phone, absent, частичные реквизиты
