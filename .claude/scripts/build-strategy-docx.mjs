@@ -598,8 +598,10 @@ function nicheCardBlock(nc, { m12 = null } = {}) {
   const tiles = [];
   const demand = numOrNull(vol.demand_exact);
   if (demand > 0) {
-    tiles.push({ value: `~${fmtInt(demand)}`, tone: "info",
-      label: `${plural(Math.round(demand), QUERY_FORMS)} в месяц - ищут по главным запросам ниши, точная частота; с длинными запросами - в разы больше` });
+    // округление как на первой странице (~9 200, а не ~9 205): «~» с точным числом читается как опечатка
+    const demandShown = demand >= 1000 ? Math.round(demand / 100) * 100 : demand >= 100 ? Math.round(demand / 10) * 10 : Math.round(demand);
+    tiles.push({ value: `~${fmtInt(demandShown)}`, tone: "info",
+      label: `${plural(Math.round(demandShown), QUERY_FORMS)} в месяц - ищут по главным запросам ниши, точная частота; с длинными запросами - в разы больше` });
   }
   const leaderT = numOrNull(vol.leader && vol.leader.traffic);
   const med = numOrNull(vol.median_top3_traffic);
@@ -634,7 +636,7 @@ function nicheCardBlock(nc, { m12 = null } = {}) {
     if (pg != null) why.push(`${fmtInt(pg)} ${plural(Math.round(pg), PAGE_FORMS)} под спрос`);
     if (vis != null) why.push(`${fmtInt(vis)} ${plural(Math.round(vis), QUERY_FORMS)} в ТОП-10 Яндекса`);
     if (dr != null) why.push(`ссылочный вес около ${fmtInt(dr)}`);
-    const basis = why.length ? `у сайтов топ-3 в среднем ${joinRu(why)}` : comp.basis ? String(comp.basis) : "";
+    const basis = why.length ? `у сайтов топ-3 (по медиане) ${joinRu(why)}` : comp.basis ? String(comp.basis) : "";
     const kids = [run(`${NBSP}Конкуренция: ${lvl.label}${NBSP}`, { size: SZ.body, bold: true, color: C.white, bg: lvl.color })];
     if (basis) kids.push(run(`   ${basis}`, { size: SZ.small, color: C.muted }));
     out.push(para(kids, { after: 120, line: 252 }));
