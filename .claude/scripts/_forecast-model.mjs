@@ -18,7 +18,7 @@
 // Конверсия визит -> обращение по умолчанию 5% для услуг: в кейсах медиана 9,1% (Q1 7,2%, цели Метрики,
 // включая клики по телефону и мессенджерам), берем с запасом. ROMI - от валовой прибыли (выручка x маржа).
 
-export const MODEL_VERSION = "v2.3";
+export const MODEL_VERSION = "v2.4";
 export const TARIFF_KEYS = ["start", "growth", "max"];
 export const HORIZON = 24;
 

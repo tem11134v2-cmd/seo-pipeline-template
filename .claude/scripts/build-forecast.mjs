@@ -372,7 +372,7 @@ const out = {
     pf_mult_max: CAL.pf_mult_max,
     vpp: CAL.vpp[econ.business_type],
     kp_conv_mult: CAL.kp_conv_mult,
-    source: "кейсы cases.timur-seo.ru (13) + портфель Monstro/Метрика (ПФ, 13 сайтов) + практика владельца, модель v2.3",
+    source: "кейсы cases.timur-seo.ru (13) + портфель Monstro/Метрика (ПФ, 13 сайтов) + практика владельца, модель v2.4 (уровень - экспертная оценка forecast_m12)",
   },
 };
 
