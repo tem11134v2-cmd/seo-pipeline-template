@@ -10,4 +10,6 @@
 форме. Готовые `brief.json`, блоки и `lint-*.json` (pass): сборка без build-briefs и линтера.
 
 Сборка: скопировать `config/` и `work/` поверх папки проекта kit, затем `node scripts/build-html.mjs`,
-`node scripts/check-html.mjs` (код 0), `node scripts/check-site-js.mjs` (pass). Тест - `.claude/tests/site-tekst/cases-site.mjs`.
+`node scripts/check-html.mjs` (код 0), `node scripts/check-site-js.mjs` (pass). Тесты - `.claude/tests/site-tekst/cases-site.mjs`, `cases-kf-site.mjs` (оболочка КФ поверх фикстуры; без `work/shell.json` сборка
+сверяется с эталоном `fixtures/site-golden/fixture-services.*.html` - после намеренной правки фикстуры эталон обновляет
+`node .claude/tests/site-tekst/fixtures/site-golden/golden.mjs`) и `cases-site-audit.mjs` (дайджест и аудит прототипа).

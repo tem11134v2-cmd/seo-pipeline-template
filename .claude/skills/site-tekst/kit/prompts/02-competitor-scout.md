@@ -14,11 +14,11 @@
   «arsenkin domains». Нет инструмента или ошибка - источник пропускается, в `errors` строка «<источник>: <причина>».
 
 ## Шаги
-0. `node scripts/rank-competitors.mjs --check`. `fresh` - ничего не делай, верни ответ. Непустой `failed_sources` при
-   совпавших входах - повтори только эти источники.
+0. `node scripts/rank-competitors.mjs --check`. `fresh` - ничего не делай, если нет `reason="args.reselect"`.
+   Непустой `failed_sources` - повтори только их.
 1. `node scripts/rank-competitors.mjs --queries` -> `queries`, `region` (`yandex_id`, `keyso_base`).
 2. Выдача, `source: "serp"`: `arsenkin_top` одним вызовом по всем `queries`, `se: [{"type": 2, "region": <yandex_id>}]`,
-   `depth: 10`; в `results` - адреса ТОП каждого запроса по порядку. `queries` пуст - `errors` «serp: нет запросов».
+   `depth: <serp_depth>`; в `results` - адреса ТОП каждого запроса по порядку. `queries` пуст - `errors` «serp: нет запросов».
    Строки `rejected` из `work/competitors/seed.json` - найди домен по названию в этой выдаче: нашел - в `candidates` с
    `"sources": ["analysis"]` и `name`, нет - в `rejected`. Нет `seed.json` (режим doc) - домены раздела конкурентов
    `inputs/analysis.md` (grep по «конкурент»), `source: "analysis"`.

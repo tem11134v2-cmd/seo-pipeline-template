@@ -6,8 +6,8 @@
 
 1. `node scripts/init-project.mjs smoke <пустая папка>` из корня шаблона.
 2. Скопировать `examples/smoke-fixtures/work` и `examples/smoke-fixtures/rules` в проект (поверх), в `config/project.json` задать `company`.
-3. `node scripts/build-briefs.mjs` - брифов 2, срезов для писателей 8, проблем 0, предупреждений 3 (count: у `home/B03-process`
-   шаги 3-5 при одном факте процесса - нижняя граница снижена до 2, у `home/B04-not-promise` пункты 3-5 при одной опоре - до 1;
+3. `node scripts/build-briefs.mjs` - брифов 2, срезов для писателей 8, проблем 0, предупреждений 4 (count: у `home/B02-benefits`
+   карточки 3-4 при двух опорах и у `home/B03-process` шаги 3-5 при одном факте процесса - нижняя граница снижена до 2, у `home/B04-not-promise` пункты 3-5 при одной опоре - до 1;
    objections: у `okna-rehau` короткий набор без слота для O1). Вопросов заказчику от count нет.
    Повторный запуск без изменений данных - `брифов собрано: 0, без изменений: 2`, файлы брифов не переписываются.
    Итог по страницам - `work/briefs-report.json`.

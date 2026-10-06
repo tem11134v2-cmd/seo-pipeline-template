@@ -46,10 +46,10 @@
    Статус `error` в файл не пишется. Годных нет, и каждый кандидат ответил (HTTP 400+, страница проверки, пустая
    страница) - деградация: `"degraded": "no_competitors"` в файле и ответе. Сбой среды (сайты, браузер, инструмент) - `degraded`
    не ставь, причину - в `method`.
-5. `work/competitors/competitors.json` по `schemas/competitors.schema.json` (`pages` - одна главная). С `ranking.json` у
-   конкурента еще `rank`, `weight`, `age_years`, `age_class`, `growth`, `site_type`, `anchor` из `candidates[]`; `source` по
-   `sources`: `analysis` и выдача (`serp` или `serp_msk`) - `both`, иначе первый по порядку `analysis`, `serp` (`serp_msk`
-   пиши `serp`), `structure`, `keyso`.
+5. `work/competitors/competitors.json` по `schemas/competitors.schema.json` (`pages` - одна главная; в файл - и исключенные,
+   с `reason` как в `excluded`). С `ranking.json` у конкурента еще `rank`, `weight`, `age_years`, `age_class`,
+   `growth`, `site_type`, `anchor` из `candidates[]`; `source` по `sources`: `analysis` и выдача (`serp` или `serp_msk`) -
+   `both`, иначе первый по порядку `analysis`, `serp` (`serp_msk` пиши `serp`), `structure`, `keyso`.
    `node scripts/validate.mjs competitors work/competitors/competitors.json`.
 
 ## Формат результата

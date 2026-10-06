@@ -16,4 +16,6 @@
 
 Действия кнопок (K7): главная кнопка хаба и категорий - `action: "anchor:listing"` (к выдаче), заявка у категорий -
 вторая кнопка (`secondary_action: "lead"`), на главной вторая кнопка «Смотреть каталог» - `page:katalog`, у товара -
-`lead`. Тест - `.claude/tests/site-tekst/cases-site.mjs`.
+`lead`. Тесты - `.claude/tests/site-tekst/cases-site.mjs` и `cases-kf-site.mjs` (оболочка КФ магазина; без `work/shell.json` сборка
+сверяется с эталоном `fixtures/site-golden/fixture-shop.*.html` - после намеренной правки фикстуры эталон обновляет
+`node .claude/tests/site-tekst/fixtures/site-golden/golden.mjs`).
