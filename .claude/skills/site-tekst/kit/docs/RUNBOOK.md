@@ -41,8 +41,8 @@
 | `decisions` | strong | wf-00 | `01-decisions-drafter` (оба режима) | `decisions` |
 | `sitemap-enrich` | strong | wf-00, wf-04 | `01-sitemap-enricher` (wf-04 - `mode=facts`, режим обновления) | `sitemap-enrich` |
 | `scout` | light | wf-02 | `02-competitor-scout`: выдача и Keys.so, сам зовет `rank-competitors.mjs --queries`, `--prelim`, `--merge-pool` | `scout` |
-| `rank` | light | wf-02 | run-агент: `rank-competitors.mjs --check`, затем `rank-competitors.mjs` -> `ranking.json` | `rank:check`, `rank` |
-| `verify` | light | wf-02 | `02-competitor-verifier` | `verify` |
+| `rank` | light | wf-02 | run-агент: `rank-competitors.mjs --check`, затем `rank-competitors.mjs --whois; rank-competitors.mjs` -> `ranking.json`, после верификатора `rank-competitors.mjs --verify-order` | `rank:check`, `rank`, `rank:order` |
+| `verify` | light | wf-02 | `02-competitor-verifier` (повтор с параметром `recheck` по пропущенным доменам `order`) | `verify`, `verify:2` |
 | `capture` | light | wf-02 | run-агент: `capture-pages.mjs --domain <d> --resume` по домену и `own` (partial - повтор, до 3 заходов) | `capture:<домен>`, `capture:<домен>:2`, `capture:<домен>:3` |
 | `kf-observe` | light | wf-02 | `02-kf-observer` mode=observe (больше 12 кадров - части `shell` и `types`) | `kf-observe:<домен>`, `kf-observe:<домен>:<часть>` |
 | `kf-normalize` | light | wf-02 | `02-kf-normalizer` (есть x-элементы без записи в `aliases.json`) | `kf-normalize` |
@@ -75,7 +75,7 @@
 | `distill` | strong | wf-T1 | `T1-rules-distiller`, оба прохода | `distill`, `distill-fix` |
 | `distill-check` | strong | wf-T1 | `T1-rules-checker`, оба круга | `check-1`, `check-2` |
 | `retro` | strong | wf-T2 | `T2-retro` | `retro` |
-| `prep-args` | light | wf-02, wf-03, wf-04 | `node scripts/prep-args.mjs` (в wf-02 и `--check-degraded`) | `prep-args` |
+| `prep-args` | light | wf-02, wf-03, wf-04 | `node scripts/prep-args.mjs` (в wf-02 еще `--check-degraded` и `--prune-stale`) | `prep-args`, `prep-args:prune` (wf-02) |
 | `briefs` | light | wf-04 | `merge-strategy.mjs` + `build-briefs.mjs`, до рецензии и после нее | `merge+build-briefs`, `merge+build-briefs:review` |
 | `build` | light | wf-06b | `render-md`, `lint-page`, `build-html`, `check-html`, `check-site-js`, `report` | `build` |
 | `run` | light | wf-00, wf-04, wf-06, wf-06b, wf-07, wf-08, wf-T1 | прочие node-команды: wf-00 - `import-structure`, `import-project --company-facts`; wf-04 - чтение `facts_diff`, `import-structure --check-enrich before\|after`; wf-06, wf-06b - `fix-diff` (снимок и сравнение), `dedup` + `cross-digest --empty-report`, `split-cross --merge`, `render-md`, `lint-page`; wf-07 - `validate catalog-spec`, `md-to-docx --check`; wf-08 - `site-digest --shots`, `split-site` (раскладка, `--merge`, `--record`), `fix-diff` (снимок и сравнение), `cta-unify`; wf-T1 - `normalize` | `import-structure`, `company-facts`, `update-check`, `enrich-check:before`, `enrich-check:after`, `snap:<slug>[:2\|:cross]`, `diff:<slug>[:1\|:2\|:cross]`, `cross-pre`, `render-md`, `check:spec`, `check:tz`, `check:tz-2`, `normalize`, `site-digest`, `split-site`, `split-site:merge`, `split-site:record`, `cta-unify` |
@@ -289,7 +289,9 @@ Workflow wf-04-strategy-layouts.js args={<base>,<вывод prep-args>}
   (`extract_out`/`aggregate_out`/`extract_types`/`extract_domains`) и без деградации `no_competitors`. Словарь
   `config/kf-elements.json` (около 130 общих элементов, 13 категорий; подсказка отрисовки, не фильтр) и стоп-лист отбора
   `config/kf-stoplist.json` (общие агрегаторы, маркетплейсы, соцсети, СМИ, справочники) кладет `task.mjs place`; проект
-  дополняет их `overrides/config/*.json` (нишевые элементы - только там). Правило включения: этап КФ проведен, только
+  дополняет словарь через `overrides/config/kf-elements.json` (нишевые элементы - только там, с полным массивом
+  `elements`: массив правки заменяет массив kit целиком), стоп-лист - через `competitors.aggregators_stoplist` конфига
+  (дописывается к списку kit). Правило включения: этап КФ проведен, только
   если есть `work/kf/matrix.json`; нет - типы без строк КФ, прототип без оболочки по пересечениям, таблица не строится,
   причина - `work/kf/status.json` (`done` | `no_competitors` | `skip` | `no_chrome`; нет файла - `pre_kf`, задача до этапа).
   1. **Select** (обычный режим; при `skipInventory` нет): run-агент `rank-competitors.mjs --check` (label `rank:check`).
@@ -302,12 +304,13 @@ Workflow wf-04-strategy-layouts.js args={<base>,<вывод prep-args>}
      2-6 слов, без слов навигации и без названия компании целиком (слова бренда подряд, с точностью до окончания); до 15) -> выдача `arsenkin_top` по региону бизнеса (мало заметных и регион не Москва - второй вызов
      по Москве) -> Keys.so `domains_batch` (кандидаты и домены клиента одним вызовом) -> добор `domain_competitors` и
      Keys.so для новых -> история `domain_dashboard` (до 8 по предварительному весу `--prelim`) -> ИКС и whois
-     `arsenkin_domains` (whois не ответил - бесплатный `--whois` по порту 43; домен глубже общей зоны `config/shared-sld.json`,
-     например firm.spb.ru, - без даты). Каждый источник - сырой файл `work/competitors/raw-pool/<источник>.json` и
+     `arsenkin_domains`. Каждый источник - сырой файл `work/competitors/raw-pool/<источник>.json` и
      `rank-competitors.mjs --merge-pool` (сводит дубли punycode и кириллицы, `www`; домены клиента - в `pool.own`, не в
      кандидаты; источник без ошибок - в `sources_done`). Частичные `errors` - повтор только упавших источников. Затем
-     run-агент `rank-competitors.mjs` (label `rank`) -> `work/competitors/ranking.json`: стоп-лист, стоп «нет в выдаче
-     ниши» (кандидат не из анализа и не из структуры без единого попадания в ТОП-10, если выдача есть: ответили не меньше
+     (в том числе без скаута) run-агент `rank-competitors.mjs --whois; rank-competitors.mjs` (label `rank`; `--whois` -
+     бесплатный whois по порту 43 дозаполняет даты регистрации кандидатам без `created`, если whois Арсенкина не ответил;
+     домен глубже общей зоны `config/shared-sld.json`, например firm.spb.ru, - без даты; сбой whois ранжированию не
+     мешает) -> `work/competitors/ranking.json`: стоп-лист, стоп «нет в выдаче ниши» (кандидат не из анализа и не из структуры без единого попадания в ТОП-10, если выдача есть: ответили не меньше
      3 запросов), стоп «поддомен» (общая зона родителем не бывает), надбавка затравке
      анализа и структуры (`source_bonus` 0,25: тип бизнеса сверен анализом), SEO-вес W по метрикам
      (доля в выдаче ниши 3, ТОП-10 1, ТОП-50 1, ТОП-10/ТОП-50 0,5 при ТОП-50 от 50, трафик 1, ИКС 1; лог-шкала от лидера),
@@ -319,7 +322,12 @@ Workflow wf-04-strategy-layouts.js args={<base>,<вывод prep-args>}
      делает: идет по `order`, пока не наберет `target` (5) годных; правило эталона - годного эталона нет среди годных -
      проверяет следующих из `anchors` и первым годным вытесняет годного с наименьшим E; `max_domains` - только старый
      путь без `ranking.json`. Нет ответа скаута или сбой ранжирования - строка `limits`, верификатор идет по прежнему
-     `ranking.json` или по-старому.
+     `ranking.json` или по-старому. После верификатора (годные есть, ранжирование отработало) run-агент
+     `rank-competitors.mjs --verify-order` (label `rank:order`): домены `order` выше последнего годного, которых нет в
+     `competitors.json`, - повторный вызов верификатора с параметром `recheck` (label `verify:2`; пустой ответ - остается
+     первый список и строка `limits`). Затем, кроме частичного разбора с `extract_out`, run-агент
+     `prep-args.mjs --prune-stale` (label `prep-args:prune`): разборы блоков доменов не из годных (остались от прежнего
+     отбора) - в `work/competitors/_stale/`, снимки `raw/` не трогаются.
   2. **Capture** (после инвентаризации, параллельно разбору блоков): run-агенты `capture-pages.mjs --domain <d> --resume
      --max-seconds 480` по каждому годному домену и `own` (сайт заказчика) параллельно; `partial` - повтор с `--resume`,
      всего до 3 заходов, остаток `skipped` (timeout). На страницу - `work/competitors/shots/<домен>/<имя>/`: `top.jpg`,
@@ -419,8 +427,8 @@ Workflow wf-04-strategy-layouts.js args={<base>,<вывод prep-args>}
   заглушкой, только если он покрывает строку «обязательно» или «рекомендовано» (`kf_coverage[].to` типа, уровень - из
   строки матрицы) и выпал с «нет фактов» или «нет числовых фактов»; вопрос заказчику по заглушке заменяет вопрос о
   выпадении. Снятие стратегом (`exclude_blocks`, явный пустой `facts`, STALE, HOMED) заглушки не дает: предупреждение
-  «элемент лидеров снят стратегом ...». Без матрицы КФ-блоков нет. Заглушку читают только сборка, `report.mjs` и
-  `build-kf-xlsx.mjs`; `page-state`, `writer-inputs`, `plan-run`, `progress`, `lint-page` ее не видят. h2 у блоков вне
+  «элемент лидеров снят стратегом ...». Без матрицы КФ-блоков нет. Заглушку читают только сборка, `site-digest.mjs` (дайджест аудитора прототипа wf-08),
+  `report.mjs` и `build-kf-xlsx.mjs`; `page-state`, `writer-inputs`, `plan-run`, `progress`, `lint-page` ее не видят. h2 у блоков вне
   первого экрана необязателен (`0-1`); `lint-page` - minor `editorial.few-headings`, если у страницы от 5 написанных
   блоков меньше 2 h2.
 - Пересборка брифа (правка анализа, стратегии, факта): бриф всегда собирается в памяти. Список блоков прежний - файл
@@ -570,10 +578,15 @@ node scripts/check-html.mjs; node scripts/check-site-js.mjs; node scripts/report
   каналы, почта, адрес, часы, реквизиты, страница карты; слот без поля - из публикуемого факта с полем `slot: "<id
   элемента>"`, факт оператора F8xx), `chip` (серый чип «нужны данные: <название>» на своем месте и вопрос заказчику),
   `function` (функция интерфейса - кнопка-тост «функция вне прототипа»; поиск, корзина, кабинет при странице с нужной
-  `ui_role` - живой модуль как раньше), `page_missing` (страницы нет в карте - тост и рекомендация), `declined` (поле
-  снято заказчиком: `company.absent`, `no_phone`; модуль выключен оператором `site.off` - `reason: "off"`). Размещение:
-  шапка - новые элементы группой перед CTA (на телефоне - в мобильном меню), подвал - колонка «Информация», строки
-  контактов, строка документов, `mobile`/`fixed` - нижняя панель и плавающие кнопки. Подписи - только шаблоны
+  `ui_role` - живой модуль как раньше; поиск, корзина, кабинет, избранное, сравнение без такой страницы, но со страницей
+  карты по `page_match` - `shown` со ссылкой на нее, живой модуль не включается), `page_missing` (страницы нет в карте -
+  тост и рекомендация), `declined` (поле снято заказчиком: `company.absent`, `no_phone`; модуль выключен оператором
+  `site.off` - `reason: "off"`); элемент вида `nav` (логотип, меню, бургер, колонки подвала, крошки, копирайт; в
+  `shell.json` - `render: native`) - всегда `shown`, без новой разметки и без вопроса. Размещение:
+  шапка - чип телефона и мессенджеров на месте телефона и значков, прочие новые элементы группой перед CTA (на телефоне -
+  в мобильном меню, у лендинга - полосой под шапкой); ссылка шапки на страницу вне карты (`page_missing`) - не в шапке и
+  не в мобильном меню, а в колонке «Информация» подвала, без дублей; подвал - колонка «Информация», строки контактов,
+  строка документов, `mobile`/`fixed` - нижняя панель и плавающие кнопки. Подписи - только шаблоны
   `ui.json` (раздел `kf`), подпись конкурента в прототип не попадает; x-элемент - `generic`. Итог - `prototype.modules.json`
   -> `shell: {on, items: [{id, name, zone, level, coverage, niche, state}]}`. Это исключение из правила «модуля без данных
   в файле нет» (ADR-044, ADR-045) - только для оболочки по пересечениям; ключи живых модулей (`search`, `cart`,

@@ -25,13 +25,16 @@ export const meta = {
 //   capture_seconds?: 480 - дедлайн одного вызова capture-pages.mjs.
 // Select (обычный режим): run-агент rank-competitors.mjs --check (fresh - скаут не зовется, иначе 02-competitor-scout сам
 //   собирает pool.json; fresh с exhausted или exhausted скаута - узкая ниша, верификатор получает note «кандидатов
-//   меньше target: источники исчерпаны» строкой в method), run-агент rank-competitors.mjs -> ranking.json; верификатор берет кандидатов по ranking.order.
+//   меньше target: источники исчерпаны» строкой в method), run-агент rank-competitors.mjs --whois (бесплатный whois
+//   дозаполняет возраст) и rank-competitors.mjs -> ranking.json; верификатор берет кандидатов по ranking.order, затем
+//   run-агент rank-competitors.mjs --verify-order (пропуск выше последнего годного - повтор верификатора с recheck, метка
+//   verify:2) и run-агент prep-args.mjs --prune-stale (разборы блоков не годных доменов - в work/competitors/_stale/).
 // Capture/Look (после инвентаризации, параллельно разбору блоков): run-агенты capture-pages.mjs --domain <d> --resume по
 //   доменам и own (partial - повтор с --resume не больше 2 раз), kf-matrix.mjs --stale-observers (план и домены, чьи
 //   kf-файлы старше снимков), 02-kf-observer по домену (больше 12 кадров - части shell и types), kf-matrix.mjs
 //   --candidates, 02-kf-normalizer (есть x-элементы без записи в aliases.json), снова --candidates, 02-kf-observer
 //   mode=recheck по доменам с кандидатами. Matrix: kf-matrix.mjs --shell -> work/kf/matrix.json, work/shell.json,
-//   work/kf/status.json. Агрегатор получает kf=on (строки --compact своего типа) или kf=off.
+//   work/kf/status.json. Агрегатор получает kf=on (строки своего типа - kf-coverage.mjs <type> --rows) или kf=off.
 // Режимы: skipInventory - Select нет, снятие по доменам снимков (--resume); extract_out/aggregate_out/extract_types/
 //   extract_domains (частичный разбор) - ни отбора, ни снятия, work/kf/* не трогается, агрегатор читает готовую матрицу;
 //   skipKf - status skip без матрицы; degraded: no_competitors - status no_competitors без матрицы. Сбой или null run-агентов КФ,
@@ -325,7 +328,7 @@ if (!A.skipAggregate) {
   if (packs.length) log(`мелкие типы пакетами: ${packs.map(g => g.join('+')).join(' | ')}`)
   const noData = g => A.skipInventory ? [] : g.filter(t => missingTypes.includes(t))
   const degParam = degraded ? `; degraded=${degraded}` : ''
-  // kf=on: агрегатор берет строки КФ своего типа (kf-matrix.mjs --compact; нет матрицы - пусто), kf=off - без них
+  // kf=on: агрегатор берет строки КФ своего типа (kf-coverage.mjs <type> --rows; нет матрицы - []), kf=off - без них
   const kfParam = `; kf=${KF_ON ? 'on' : 'off'}`
   agg = (await parallel(groups.map(g => () => agent(`${pre('prompts/02-type-aggregator.md')}\nПараметры: types=${JSON.stringify(g)}; no_data=${JSON.stringify(noData(g))}${degParam}; blocks_dir=${EXTRACT_OUT}; out=${AGG_OUT}${kfParam}.`, { label: `aggregate:${g.join('+')}`, phase: 'Aggregate', effort: 'high', model: modelFor('aggregate'), schema: AGG })))).filter(Boolean).flatMap(r => r.results || [])
   const lost = types.filter(t => !agg.find(r => r.type === t))

@@ -1,5 +1,5 @@
 {
-  "_doc": "Стоп-лист отбора конкурентов фазы 2 (scripts/rank-competitors.mjs): общие агрегаторы, классифайды, маркетплейсы, соцсети, СМИ, карты и справочники - у них другая модель, их структура не годится как норма. Домен стопает и свои поддомены (yandex.ru - market.yandex.ru, uslugi.yandex.ru). Только общие площадки, без нишевых доменов, не больше 40 записей. Проектные добавки - config/project.json -> competitors.aggregators_stoplist или overrides/config/kf-stoplist.json задачи. kind: aggregator | marketplace | social | media | maps | directory.",
+  "_doc": "Стоп-лист отбора конкурентов фазы 2 (scripts/rank-competitors.mjs): общие агрегаторы, классифайды, маркетплейсы, соцсети, СМИ, карты и справочники - у них другая модель, их структура не годится как норма. Домен стопает и свои поддомены (yandex.ru - market.yandex.ru, uslugi.yandex.ru). Только общие площадки, без нишевых доменов, не больше 40 записей. Проектные добавки - config/project.json -> competitors.aggregators_stoplist (дописываются к списку kit). overrides/config/kf-stoplist.json задачи сливается по RFC 7396: массив domains правки заменяет список kit целиком, поэтому добавки через него - только с полным списком kit. kind: aggregator | marketplace | social | media | maps | directory.",
   "version": 1,
   "domains": [
     { "domain": "avito.ru", "kind": "aggregator" },
