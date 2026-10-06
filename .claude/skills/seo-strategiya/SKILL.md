@@ -415,6 +415,7 @@ forecast.json niche (уровень разрыва, отношение «в N р
 ```
 
 После завершения - прочитать `verify_report.json` (точечно `verdict` + `counters`, не весь файл; нет `counters.minor_fixable` - посчитать minor с непустым `fix_hint` без `owner` или с `owner: "writer"`):
+- `verdict == pass`, но `counters.important > 0` - считать `needs-fix` (верификатор ошибся с вердиктом).
 - `verdict == pass` - оба гейта пройдены. Есть minor писателя с `fix_hint` (`counters.minor_fixable > 0`) или строки `ЖАРГОН (warning)` / `СТРУКТУРА (warning)` с пометкой `(strategy-writer)` из последнего 6.5а - шаг 6.5в (круг «только minor»). Иначе - обновление state ниже и шаг 7.
 - `verdict == needs-fix` / `fail` - пере-делегировать `strategy-writer` с issues писателя из отчета (без `owner` `forecast` / `data`; общий бюджет повторов 6.5а+6.5б = максимум 2), затем повторить 6.5а (verify-strategy.mjs) и 6.5б. После 2 повторов без pass - стоп с показом issues пользователю (docx не собираем).
 - Issues с `owner` `forecast` / `data` (`counters.not_prose`) писателю не идут и verdict не меняют - запомнить для финальной сводки («Замечания проверки к прогнозу и данным»).

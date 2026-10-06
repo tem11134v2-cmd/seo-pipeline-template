@@ -314,7 +314,7 @@ try {
 const out = {
   model_version: MODEL_VERSION,
   horizon_months: HORIZON,
-  recommended: "growth",
+  recommended: planKey,
   recommended_offer: recommendedOffer,
   plan_tariff: planKey,
   launch_month: pt.launch_month,

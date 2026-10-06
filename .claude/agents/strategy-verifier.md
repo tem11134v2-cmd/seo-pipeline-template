@@ -252,7 +252,7 @@ model: opus
 
 ## Вердикт
 
-- `pass` - нет critical / important среди issues писателя.
+- `pass` - нет critical / important среди issues писателя. Важное замечание (important) при verdict `pass` недопустимо: если нашел important - это `needs-fix`, даже если дефект в данных, а не в тексте (тогда в fix_hint - кому чинить: growth-strategist / оркестратор).
 - `needs-fix` - есть critical / important у писателя, но структура цела (лечится ре-делегацией strategy-writer).
 - `fail` - структурный дефект: content пуст, битый или не v2; нет раздела `situation` / `competitors` / `plan` /
   `forecast`; нет обязательного маркера (`money_lost`, `plan_timeline`, `forecast_chart`, `forecast_table`); в plan

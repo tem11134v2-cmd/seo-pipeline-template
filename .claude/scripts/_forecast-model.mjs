@@ -87,6 +87,9 @@ export const CAL = {
   // Качество текстов новых страниц: есть KP (тексты в прототипе) или FQ (n-граммы) - 1,0;
   // только структура (тексты пишет клиент) - 0,75.
   content_q_with_texts: 1.0,
+  // KP (тексты) + FQ (n-граммы и FAQ) вместе: FAQ добирает недостающие ключи и на новых страницах (приемка 06.10: без
+  // этого Рост = Старт + FQ у нового сайта не отличался от Старта и проваливал гейт).
+  content_q_kp_fq: 1.1,
   content_q_structure_only: 0.75,
 
   // Бусты на весь коммерческий трафик (множители с лагом). Источники: кейсы техаудита (lp-teh),
@@ -366,7 +369,7 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
   const existRamp = hasPF ? { lag: CAL.pf_ramp.lag, tau: CAL.pf_ramp.tau / synergy } : CAL.nopf_ramp;
 
   // 2) Новые страницы (только при SY).
-  const contentQ = hasTexts ? CAL.content_q_with_texts : CAL.content_q_structure_only;
+  const contentQ = ids.has("KP") && ids.has("FQ") ? CAL.content_q_kp_fq : hasTexts ? CAL.content_q_with_texts : CAL.content_q_structure_only;
   const newLevel = hasSY
     ? plannedNew * vppNew * contentQ * (hasPF ? 1 : CAL.nopf_level_factor[comp])
     : 0;
@@ -395,7 +398,9 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
         if (!(id === "MT" ? hasMT : ids.has(id))) continue;
         let b = CAL.boosts[id];
         if (id === "FA" && techCritical) b = { ...b, mult: CAL.fa_critical_mult };
-        const k = boostAt(m, b, id === "BS" ? 0 : implShift, f);
+        // ссылки у нового сайта закупаются с месяца запуска - их лаг отсчитывается от него
+        const shift = id === "BS" ? 0 : (id === "LB" || id === "LA") ? implShift + Math.max(0, launch - 1) : implShift;
+        const k = boostAt(m, b, shift, f);
         if (id === "LB" || id === "LA") boostAll *= k; else boostPage *= k;
         parts[id] = k;
       }

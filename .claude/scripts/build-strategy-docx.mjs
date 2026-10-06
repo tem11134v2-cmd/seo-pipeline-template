@@ -618,7 +618,7 @@ function nicheCardBlock(nc, { m12 = null } = {}) {
     share = med > 0 ? Math.round((m12 / med) * 100) : null;
   }
   if (reach > 0 && tiles.length) { // без спроса и трафика топа плитка «что взять» не про нишу - не выводим
-    const shareTxt = share == null ? "" : share < 1 ? " - меньше 1% от уровня топ-3" : ` - ${fmtInt(share)}% от уровня топ-3`;
+    const shareTxt = share == null ? "" : share < 1 ? " - меньше 1% от уровня топ-3" : share >= 100 || vol.above_top3 ? " - на уровне топ-3" : ` - ${fmtInt(share)}% от уровня топ-3`;
     tiles.push({ value: `~${fmtInt(reach)}`, tone: "success",
       label: `${plural(Math.round(reach), TRAFFIC_FORMS)} из поиска в месяц к 12-му месяцу по плану работ${shareTxt}` });
   }
@@ -633,7 +633,7 @@ function nicheCardBlock(nc, { m12 = null } = {}) {
     const pg = fTop("pages"), vis = fTop("visibility"), dr = fTop("links");
     if (pg != null) why.push(`${fmtInt(pg)} ${plural(Math.round(pg), PAGE_FORMS)} под спрос`);
     if (vis != null) why.push(`${fmtInt(vis)} ${plural(Math.round(vis), QUERY_FORMS)} в ТОП-10 Яндекса`);
-    if (dr != null) why.push(`ссылочный вес DR около ${fmtInt(dr)}`);
+    if (dr != null) why.push(`ссылочный вес около ${fmtInt(dr)}`);
     const basis = why.length ? `у сайтов топ-3 в среднем ${joinRu(why)}` : comp.basis ? String(comp.basis) : "";
     const kids = [run(`${NBSP}Конкуренция: ${lvl.label}${NBSP}`, { size: SZ.body, bold: true, color: C.white, bg: lvl.color })];
     if (basis) kids.push(run(`   ${basis}`, { size: SZ.small, color: C.muted }));
