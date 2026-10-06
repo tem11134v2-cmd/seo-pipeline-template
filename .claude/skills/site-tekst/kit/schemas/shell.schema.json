@@ -1,6 +1,6 @@
 {
   "$id": "shell",
-  "_doc": "work/shell.json (scripts/kf-matrix.mjs --shell): оболочка прототипа по пересечениям лидеров - строки scope site матрицы уровня не ниже «рекомендовано». kind: slot - данные компании (нет данных - чип и вопрос), function - действие интерфейса (данных не требует), page_link - ссылка на страницу карты по page_match; block и nav матрицы - как slot. render - готовый отрисовщик или generic (x-элемент - всегда generic, needs пустой, niche true). Наличие данных файл не хранит: его считает сборка по фактам на момент сборки.",
+  "_doc": "work/shell.json (scripts/kf-matrix.mjs --shell): оболочка прототипа по пересечениям лидеров - строки scope site матрицы уровня не ниже «рекомендовано». kind: slot - данные компании (нет данных - чип и вопрос), function - действие интерфейса (данных не требует), page_link - ссылка на страницу карты по page_match; block матрицы - как slot; nav (логотип, меню, бургер, копирайт, в том числе x-элемент вида nav) - kind slot с render native: прототип рисует его всегда (state shown), без чипа и вопроса. render - готовый отрисовщик, native или generic (x-элемент, кроме вида nav, - generic; у x-элемента needs пустой, niche true). Наличие данных файл не хранит: его считает сборка по фактам на момент сборки.",
   "type": "object",
   "required": ["generated_at", "n_competitors", "items"],
   "properties": {

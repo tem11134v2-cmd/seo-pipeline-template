@@ -1,6 +1,6 @@
 {
   "$id": "kf-status",
-  "_doc": "work/kf/status.json (scripts/kf-matrix.mjs): итог этапа КФ и КНДР фазы 2. done - матрица построена по кадрам; no_chrome - матрица построена по тексту снимков (нет Chrome и Edge); no_competitors - деградация «без конкурентов», матрицы нет; skip - этап пропущен (args.skipKf). Этап считается проведенным, только если есть work/kf/matrix.json; нет файла status.json - pre_kf (задача начата до этапа).",
+  "_doc": "work/kf/status.json (scripts/kf-matrix.mjs): итог этапа КФ и КНДР фазы 2. done - матрица построена (по кадрам, у доменов без кадров - по тексту снимков; режим - поле mode в matrix.json: frames, mixed, text); no_chrome - матрица построена по тексту снимков (нет Chrome и Edge); no_competitors - деградация «без конкурентов», матрицы нет; skip - этап пропущен (args.skipKf). Этап считается проведенным, только если есть work/kf/matrix.json; нет файла status.json - pre_kf (задача начата до этапа).",
   "type": "object",
   "required": ["status", "generated_at"],
   "properties": {

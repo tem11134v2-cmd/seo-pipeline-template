@@ -83,6 +83,6 @@
       }
     },
     "other_changed": { "type": "array", "items": { "type": "string" } },
-    "analysis_fingerprint": { "type": "object", "additionalProperties": { "type": "string" }, "_doc": "хеши того, что пришло из анализа помимо фактов, по разделам: audience, client-preferences, directions, competitors-seed, anti_promises, company. Пишет полный импорт; --facts-only сравнивает с ним анализ (other_changed) и переносит хеш раздела, который не применил" }
+    "analysis_fingerprint": { "type": "object", "additionalProperties": { "type": "string" }, "_doc": "хеши того, что пришло из анализа помимо фактов, по разделам: audience, client-preferences, directions, competitors-seed, anti_promises, company и structure-competitors (только если есть копия work/competitors/structure-competitors.json). Пишет полный импорт; --facts-only сравнивает с ним анализ (other_changed) и переносит хеш раздела, который не применил" }
   }
 }
