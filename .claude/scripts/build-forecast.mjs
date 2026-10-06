@@ -30,6 +30,7 @@ import {
   computeAll, economicsChecks, resolveEconomics, applyClientEconomics, recommendOffer, lostNowCalc,
 } from "./_forecast-model.mjs";
 import { SERVICES, RETIRED_IDS, canonicalId } from "./_services.mjs";
+import { nicheCard } from "./_niche.mjs";
 
 const args = process.argv.slice(2);
 const dirArg = args.find((a) => !a.startsWith("--"));
@@ -295,6 +296,21 @@ const assumptionsNote = econ.model === "one_step"
     `${econ.avg_check_source === "client" ? "" : " (оценка)"}, маржинальность ${fmtPct(econ.margin)}%. `;
 
 
+// «Объем и конкурентность ниши» (v2.2): рынок, сила конкурентов по факторам и работы, закрывающие разрывы. Читает уже
+// собранные competitors.json и metrics.json (нефатально: нет файла - строки без данных пропускаются).
+let niche = null;
+try {
+  const competitorsJson = readJson("competitors.json", false) || {};
+  const metricsJson = readJson("metrics.json", false) || {};
+  niche = nicheCard({
+    fi, competitors: competitorsJson, metrics: metricsJson,
+    planIds: new Set(pt.ids), maxIds: new Set((res.max && res.max.ids) || []),
+    planM12: pt.months[11].traffic, cap: pt.cap,
+  });
+} catch (e) {
+  console.warn(`[build-forecast] niche: пропущен (${e.message})`);
+}
+
 const out = {
   model_version: MODEL_VERSION,
   horizon_months: HORIZON,
@@ -327,6 +343,7 @@ const out = {
     revenue_month: rnd(t0 * econ.conversion_rate * econ.close_rate * econ.avg_check * econ.ltv_factor),
   },
   lost_now: lostNow,
+  niche,
   plan_series: planSeries,
   tariffs: Object.fromEntries(Object.entries(res).map(([k, r]) => [k, tariffOut(r)])),
   checks,
