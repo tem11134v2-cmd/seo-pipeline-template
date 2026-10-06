@@ -1,6 +1,6 @@
 # SEO Pipeline Template
 
-Шаблон проекта SEO-конвейера на Claude Code Desktop. Покрывает: исследование сайта клиента, сбор тем для блога, написание статей с JM-анализом и контролем N-грамм, сборка HTML, Тильда-фиксы, аудит и правки, **формирование SEO-стратегий с тарифами** (стратегия .docx + смета .xlsx), **предпроектный анализ** (`/site-analiz`: контракт `project.json` + два документа заказчику), **структуру сайта** по анализу (A6.xlsx -> клиенту -> A6.md), **тексты сайта** (`/site-tekst`: тексты уровня лидеров ниши + прототип одним html), метатеги, FAQ и техаудит.
+Шаблон проекта SEO-конвейера на Claude Code Desktop. Покрывает: исследование сайта клиента, сбор тем для блога, написание статей с JM-анализом и контролем N-грамм, сборка HTML, Тильда-фиксы, аудит и правки, **формирование SEO-стратегий** (стратегия .docx без цен и тарифов + смета .xlsx: тарифы, разработка сайта, окупаемость по прогнозу), **предпроектный анализ** (`/site-analiz`: контракт `project.json` + два документа заказчику), **структуру сайта** по анализу (A6.xlsx -> клиенту -> A6.md), **тексты сайта** (`/site-tekst`: тексты уровня лидеров ниши + прототип одним html), метатеги, FAQ и техаудит.
 
 Архитектура — **worktree-first multi-task**: каждая задача в отдельной git worktree, единственная команда в основной папке — `/handoff-process` (применяет накопленные результаты). Подробности — в [docs/adr/](docs/adr/).
 
@@ -10,7 +10,7 @@
 
 ```
 ОДИНОЧКА - стратегия (пресейл/КП, самодостаточна)
-  /seo-strategiya URL   -> SEO_Strategy.docx + Smeta.xlsx (КП клиенту)
+  /seo-strategiya URL   -> SEO_Strategy.docx (без цен и тарифов) + Smeta.xlsx (тарифы, разработка, окупаемость)
 
 ОДИНОЧКА - технический аудит (тех-здоровье сайта под Яндекс, самодостаточен; нужны доступы Вебмастер+Метрика)
   /seo-tehaudit <domain> -> A12.md + A12.docx (проблемы по приоритетам + чеклист разработчику)
@@ -34,7 +34,7 @@
 Связи - только ВНУТРИ трека, между треками их НЕТ:
 - `/seo-struktura` и `/site-tekst` читают `sites/NNN/project.json` от `/site-analiz` и только после гейта заказчика (внутри трека «Сайт»); состав страниц у текстов - `structure_data.json` структуры (seo) или анализа (basic)
 - `/seo-temi` и `/seo-statya` читают `ЗАКАЗЧИК.md` от `/seo-shablon` (внутри информационного); `/seo-statya` ещё `topics.xlsx + template.html`
-- `/seo-strategiya` ни от чего не зависит (читает `ЗАКАЗЧИК.md` если есть, иначе спрашивает нишу/регион напрямую)
+- `/seo-strategiya` ни от чего не зависит (предпродажный: `ЗАКАЗЧИК.md` не требует, нишу и регион спрашивает сам и сверяет со сканом сайта)
 - `/seo-tehaudit` самодостаточен (домен + доступы Вебмастер/Метрика; `ЗАКАЗЧИК.md` не требуется); результат - чеклист для разработчика
 
 Заметки:
@@ -225,7 +225,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── fix-article/SKILL.md                 (worktree, точечная правка)
 │   │   ├── rewrite-section/SKILL.md             (worktree, переписать один H2)
 │   │   ├── share-article/SKILL.md               (worktree, загрузка Article.docx в Drive)
-│   │   ├── seo-strategiya/SKILL.md              (worktree, стратегия + тарифы; MCP_MAP.md, strategy_data_schema.json)
+│   │   ├── seo-strategiya/SKILL.md              (worktree, стратегия + смета: тарифы, прогноз, окупаемость; MCP_MAP.md, strategy_data_schema.json v4.0)
 │   │   ├── share-strategy/SKILL.md              (worktree, загрузка .docx + .xlsx в Drive)
 │   │   ├── site-analiz/SKILL.md                 (worktree, предпроектный анализ: project.schema.json, pages.yml, шаблоны документов)
 │   │   ├── seo-struktura/SKILL.md               (worktree, структура сайта по sites/NNN; MCP_MAP.md)
@@ -253,7 +253,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   ├── git-hooks/                           ← git hooks (НЕ Claude Code)
 │   │   └── pre-commit                       (whitelist путей в worktree)
 │   │
-│   ├── scripts/                             ← обертки + 48 .mjs + site/ (6)
+│   ├── scripts/                             ← обертки + 51 .mjs + site/ (6)
 │   │   ├── _node.cmd / _node.sh             (обёртки, ищут node)
 │   │   ├── _client.mjs                      (общий helper)
 │   │   ├── finalize-setup.mjs               (git init + первый коммит)
@@ -268,8 +268,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── verify-markers.mjs               (проверка сохранности меток)
 │   │   ├── build-article-docx.mjs           (article + фото → Article_<slug>.docx)
 │   │   ├── tilda-split.mjs                  (output.html → head + t123)
-│   │   ├── build-strategy-docx.mjs          (strategy_content.json → SEO_Strategy.docx)
-│   │   ├── build-smeta-xlsx.mjs             (tariffs.json → Smeta.xlsx)
+│   │   ├── build-forecast.mjs               (forecast_inputs + tariffs.json → forecast.json, прогноз по тарифам)
+│   │   ├── build-strategy-docx.mjs          (seo-strategiya_content.json + forecast.json → SEO_Strategy_<slug>.docx)
+│   │   ├── build-smeta-xlsx.mjs             (tariffs.json + forecast.json → Smeta_<slug>.xlsx, 6 листов)
 │   │   ├── select-top10.mjs                 (semantic_pack.json → top10 + cannibalization)
 │   │   ├── build-structure-xlsx.mjs         (master_list+top10 → A6_<slug>.xlsx)
 │   │   ├── import-structure.mjs             (client_filled.xlsx → structure_data.json)
@@ -280,7 +281,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │   │   ├── merge-onpage.mjs                 (onpage_*.json шарды → onpage.json)
 │   │   ├── validate-project-input.mjs       (вход /seo-struktura: sites/NNN/project.json + тир-гейт)
 │   │   ├── site/                            (6 скриптов /site-analiz: _contract, apply-answers, build-doc, build-project, queue, verify-data)
-│   │   └── ...                              (всего 48 .mjs - полный список в таблице «Node-скрипты» ниже)
+│   │   └── ...                              (всего 51 .mjs - полный список в таблице «Node-скрипты» ниже)
 │   │
 │   ├── handoff-requests/                    ← запросы worktree → main
 │   │   ├── .gitkeep
@@ -340,7 +341,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │       ├── 041-v9-site-analiz-single-entry-and-site-tekst.md
 │       ├── 042-v7-and-site-proto-retirement.md
 │       ├── 043-anti-ai-formulas-as-lint.md
-│       └── 044-site-tekst-no-gates-and-site-prototype.md
+│       ├── 044-site-tekst-no-gates-and-site-prototype.md
+│       ├── 045-kf-kndr-in-site-tekst.md
+│       └── 046-strategy-v2.md
 │
 ├── ЗАКАЗЧИК.md                              ← создаётся через /seo-shablon + /handoff-process
 ├── template.html                            ← аналогично
@@ -359,14 +362,16 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 │
 ├── strategies/NNN-domain-slug/              ← рабочие папки стратегий
 │   ├── meta.json                            (state machine)
-│   ├── inputs.json                          (домен, ниша, регион, доступы)
+│   ├── inputs.json                          (домен, ниша, регион, доступы, адрес для Карт, разработка у нас, экономика клиента)
 │   ├── scan.json + metrics.json             (от strategy-scanner)
-│   ├── competitors.json + serp.json         (от competitor-analyst)
-│   ├── growth-points.json + strategy_data.json (от growth-strategist)
-│   ├── tariffs.json                         (от tariff-architect)
-│   ├── strategy_content.json                (от strategy-writer)
-│   ├── SEO_Strategy_<domain>.docx           (финал для клиента, без цен)
-│   ├── Smeta_<domain>.xlsx                  (финал внутренний, с ценами)
+│   ├── competitors.json + serp.json         (от competitor-analyst, с трафиком конкурентов)
+│   ├── growth-points.json + seo-strategiya_data.json (от growth-strategist; forecast_inputs - входы прогноза)
+│   ├── tariffs.json                         (от tariff-architect: 3 тарифа, promos, site_dev)
+│   ├── forecast.json                        (от build-forecast.mjs: трафик, деньги, ROMI по каждому тарифу)
+│   ├── seo-strategiya_content.json          (от strategy-writer, format v2: 4 раздела без цен и тарифов)
+│   ├── verify_report.json                   (от strategy-verifier)
+│   ├── SEO_Strategy_<slug>.docx             (финал для клиента, без цен и тарифов)
+│   ├── Smeta_<slug>.xlsx                    (финал с ценами: сравнение тарифов, 3 тарифа, разработка сайта, окупаемость)
 │   └── share.json                           (ссылки Drive: Doc + Sheet)
 │
 ├── sites/NNN-slug/                          ← предпроектный анализ /site-analiz (единственный вход структуры и текстов)
@@ -454,8 +459,8 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 ├── SVG-ICONS.md                             (набор инлайн SVG, без CDN)
 ├── TEMPLATE-MASTER.html                     (эталонный шаблон вёрстки)
 ├── CLIENT-TEMPLATE.md                       (образец ЗАКАЗЧИК.md)
-├── TARIFFS.md                               (каталог услуг для /seo-strategiya)
-├── RULES.md                                 (правила связок тарифов для /seo-strategiya)
+├── TARIFFS.md                               (каталог услуг для /seo-strategiya: 17 услуг + разработка сайта, акции)
+├── RULES.md                                 (правила связок, акций, разработки и экономического гейта для /seo-strategiya)
 └── DRIVE.md                                 (ID Drive-папок для всех /share-*)
 ```
 
@@ -482,7 +487,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `/fix-article NNN "..."` | worktree | Точечная правка готовой статьи |
 | `/rewrite-section NNN idx "..."` | worktree | Переписать один H2-раздел статьи заново |
 | `/share-article NNN [--redo]` | worktree | Утилита: перезалить Article.docx в Drive после правок, или догрузить если Drive был недоступен |
-| `/seo-strategiya <URL> [--resume]` | worktree | Полный цикл SEO-стратегии: скан → конкуренты → точки роста → 3 тарифа → стратегия .docx + смета .xlsx → **автозагрузка в Google Drive с конверсией в Google Doc/Sheet** |
+| `/seo-strategiya <URL> [--resume]` | worktree | Полный цикл SEO-стратегии: скан → конкуренты → точки роста → 3 тарифа → прогноз и экономика по каждому тарифу (`build-forecast.mjs`, экономический гейт) → стратегия .docx (4 раздела тезисами, без цен и тарифов) + смета .xlsx (сравнение тарифов, Старт/Рост/Максимум, разработка сайта, окупаемость) → **автозагрузка в Google Drive с конверсией в Google Doc/Sheet** |
 | `/share-strategy NNN [--redo]` | worktree | Утилита: перезалить в Drive после правок локальных файлов, либо догрузить если Drive был недоступен при первом прогоне `/seo-strategiya` |
 | `/site-analiz [<слаг>] [--tier basic\|seo] [--type ...] [--kind landing\|multipage] [--answers <файл>]` | worktree | Предпроектный анализ - единственный вход для структуры и текстов: три вопроса оператору -> фактура с дословными цитатами -> смыслы и 3-5 лидеров -> контракт `project.json` -> при basic состав страниц -> два документа заказчику -> гейт ответов |
 | `/seo-struktura NNN [--resume] [--review\|--auto] [--import <xlsx>]` | worktree | Структура сайта по `sites/NNN/project.json` (tier seo): SEO-база (`seo-base`) -> мастер-список -> маркеры -> JM semantic_pack -> топ-10 + каннибализация -> A6.xlsx -> клиент -> A6.md + `structure_data.json` |
@@ -522,12 +527,12 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `article-verifier` | Финальная независимая вычитка собранной статьи: article.md + output.html + report.md против ТЗ, свип е-с-точками/тире, сверка меток фото → verify_report.json, ничего не чинит (для /seo-statya, шаг 10c) |
 | `fast-writer` | Пишет всю fast-статью (`--fast`) одним проходом: интро + H2 x N + заключение + метатеги (для /seo-statya --fast) |
 | `article-fixer` | Точечная правка статьи (по запросу из `/fix-article`) |
-| `strategy-scanner` | Скан сайта + первичные метрики клиента (для /seo-strategiya) |
-| `competitor-analyst` | Конкуренты, типизация, выдача, вердикт (для /seo-strategiya) |
-| `growth-strategist` | Точки роста + сборка strategy_data.json (для /seo-strategiya) |
-| `tariff-architect` | Подбор трёх тарифов из TARIFFS.md по правилам RULES.md |
-| `strategy-writer` | Проза для 6 разделов стратегии в strategy_content.json |
-| `strategy-verifier` | Финальная независимая вычитка strategy_content.json: нет цен в прозе тарифов, цифры против data/scan/metrics/competitors/serp, согласованность тарифов → verify_report.json, ничего не чинит (для /seo-strategiya, шаги 6.5а/6.5б) |
+| `strategy-scanner` | Скан сайта + первичные метрики клиента: коммерческие страницы, адрес и карточка в Яндекс Картах, трафик, позиции, возраст сайта (для /seo-strategiya) |
+| `competitor-analyst` | Конкуренты с метриками пакетом (`domains_batch`: ТОП, трафик, DR), типизация, выдача, вердикт (для /seo-strategiya) |
+| `growth-strategist` | Точки роста, спрос ниши одним пакетным Wordstat, входы прогноза `forecast_inputs` + сборка seo-strategiya_data.json v4.0; кривые и деньги не считает (для /seo-strategiya) |
+| `tariff-architect` | Три тарифа из TARIFFS.md по правилам RULES.md (тариф выше включает тариф ниже), акции, блок разработки сайта `site_dev`; круг пересборки по экономическому гейту |
+| `strategy-writer` | Текст стратегии в seo-strategiya_content.json (format v2): обложка, «Коротко», 4 раздела тезисными блоками без цен, тарифов и денег (деньги рисует сборщик по маркерам) |
+| `strategy-verifier` | Финальная независимая вычитка seo-strategiya_content.json: числа против data/scan/metrics/competitors/serp и forecast.json, работы плана = состав рекомендованного тарифа, нет цен, тарифов и денег в прозе → verify_report.json, ничего не чинит (для /seo-strategiya, шаг 6.5б) |
 | `site-intake` | Фактура анализа: бриф, созвон, документы, старый сайт -> `parts/facts.json` (источник у каждой строки, `publish: no` при засеве) + `parts/facts-src.json` (дословные цитаты) (для /site-analiz, шаг 1) |
 | `site-market` | Смыслы и разведка: 2-4 сегмента с болями и возражениями, профиль ниши, оффер, лексикон, 3-5 главных лидеров -> `parts/market.json` (для /site-analiz, шаг 2) |
 | `pages-planner` | Состав страниц без SEO: `project.json` -> `sites/NNN/structure_data.json` в формате /seo-struktura (для /site-analiz, шаг 3b, tier basic) |
@@ -552,7 +557,7 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `solution-writer` | Пишет решение по вопросу заказчика в выбранном формате (answer/recommendation/doc), клиентские части без SEO-жаргона → solution.md (+ answer_client.md) (для /custom-question) |
 | `solution-verifier` | Независимая вычитка решения: факт-чек по файлам проекта, простота языка, полнота ответа, честность блока «Что я не проверял» → verify_report.json (для /custom-question) |
 
-### 48 Node-скриптов в `.claude/scripts` + 6 в `.claude/scripts/site`
+### 51 Node-скрипт в `.claude/scripts` + 6 в `.claude/scripts/site`
 
 | Скрипт | Делает |
 |---|---|
@@ -578,9 +583,10 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `build-articles-xlsx.mjs` | серийный финал `/seo-statya` (Block C): manifest.json → сводная xlsx метатегов батча статей с подсветкой превышений |
 | `tilda-split.mjs` | output.html → tilda/head.html + tilda/t123.html (с !important фиксами) |
 | `preview-server.mjs` | минимальный статический HTTP-сервер для скриншот-самопроверки шаблона (Chrome MCP не открывает file://) |
-| `build-strategy-docx.mjs` | strategy_content.json + tariffs.json + inputs.json → SEO_Strategy_<domain>.docx |
-| `build-smeta-xlsx.mjs` | tariffs.json + inputs.json → Smeta_<domain>.xlsx (3 вкладки + формулы SUM) |
-| `verify-strategy.mjs` | механическая финальная проверка стратегии перед docx: цены в прозе тарифов, стоп-паттерны воды, тире/буква Ё, объём (для /seo-strategiya, шаг 6.5а) |
+| `build-forecast.mjs` | шаг «Прогноз и экономика» /seo-strategiya (state `forecast-done`): `forecast_inputs` + tariffs.json + inputs.json → forecast.json (кривая трафика, обращения, выручка, затраты с акциями, ROMI 12/24 мес и окупаемость по каждому тарифу, потери клиента сейчас); exit 0 / 2 (неполный forecast_inputs) / 3 (правила тарифов до расчета или экономический гейт) / 1 |
+| `build-strategy-docx.mjs` | seo-strategiya_content.json (format v2) + forecast.json + tariffs.json + inputs.json → SEO_Strategy_<slug>.docx (обложка, KPI, 4 раздела, маркеры денег и прогноза); контент без format v2 - старый рендер 6 разделов |
+| `build-smeta-xlsx.mjs` | tariffs.json + forecast.json + forecast_inputs + inputs.json → Smeta_<slug>.xlsx (6 листов: Сравнение тарифов, Старт, Рост, Максимум, Разработка сайта, Окупаемость - формулы от ячеек параметров); без forecast.json - старые листы с «Декомпозицией и окупаемостью» |
+| `verify-strategy.mjs` | механическая финальная проверка стратегии перед docx: v2 - структура и маркеры, деньги и тарифы в прозе, стоп-паттерны воды, тире/буква Ё, объем, сверка forecast.json с пересчетом модели (ПРОГНОЗ чинит оркестратор перезапуском build-forecast); легаси - старые проверки (для /seo-strategiya, шаг 6.5а) |
 | `_slug.mjs` | единый источник транслита + построения slug/URL + валидации URL для /seo-struktura; импортируют build-structure-xlsx, select-top10, import-structure, verify-structure |
 | `select-top10.mjs` | semantic_pack.json → top10.json + cannibalization.json (детекция конфликтов) |
 | `build-structure-xlsx.mjs` | master_list + top10 + cannibalization + competitors → A6_<slug>.xlsx (4 листа) |
@@ -601,7 +607,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | `verify-faq.mjs` | проверка SEO-блока: Schema валидна, объёмы FAQ, стоп-формулы, тире, normalized_keywords (exit 0/2) |
 | `build-faq-docx.mjs` | faq_blocks → FAQ_<slug>.docx (клиенту) |
 | `sync-from-template.mjs` | движок синка машинерии шаблона на клиентский проект: dry-run отчёт +/~/-, версия, миграции, само-коммит (для /sync-from-template и /sync-all) |
-| `_forecast-money.mjs` | единый источник денежной математики прогноза и окупаемости стратегии; импортируют build-smeta-xlsx, verify-strategy, build-strategy-docx |
+| `_forecast-model.mjs` | модель прогноза стратегии v2.2: кривая трафика по составу тарифа (калибровка - кейсы агентства + портфель ПФ Monstro/Метрика + практика владельца: ПФ ускоряет выход в топ, Карты `YM` «Продвижение в Яндекс Картах» усиливают ПФ в 1,5 раза), мягкий потолок по спросу и конкурентам, запуск нового сайта, цикл сделки и LTV, деньги с прироста, затраты с акциями, ROMI 12/24 мес, экономические проверки; импортируют build-forecast, build-smeta-xlsx, verify-strategy, build-strategy-docx |
+| `_services.mjs` | каталог услуг для скриптов стратегии: названия, короткие клиентские строки, сроки, цены, легаси-ID, цена разработки сайта по формуле калькулятора (`devPrice`), состав и опции разработки |
+| `_forecast-money.mjs` | легаси: денежная математика старых смет (forecast_scenarios / decomposition); нужен только для пересборки стратегий до v2, не меняется |
 | `verify-fast-style.mjs` | механическая проверка тела fast-статьи (`--fast`) на букву е-с-точками и длинное/среднее тире (exit 0/2) |
 | `validate-project-input.mjs` | вход `/seo-struktura` (шаг 1a): `sites/NNN/project.json` по схеме анализа, тир-гейт по `queue.json.tier` без обхода, `keyso_base` / `region_yandex` / `domain` для `inputs.json` (exit 0/1/2); регион и базу из него берет и `/seo-tehaudit --from-analysis` |
 
@@ -737,6 +745,9 @@ git clone https://github.com/tem11134v2-cmd/seo-pipeline-template.git ~/seo-proj
 | [041](docs/adr/041-v9-site-analiz-single-entry-and-site-tekst.md) | Конвейер v9: `/site-analiz` - единственный вход (`sites/NNN`, `project.json`), единый формат состава страниц `structure_data.json`, `/seo-struktura` по `project.json`, новый скил `/site-tekst` (kit, копия как кеш, гейты); v8 задним числом | Принято |
 | [042](docs/adr/042-v7-and-site-proto-retirement.md) | Вывод из эксплуатации `/seo-analiz`, `/share-analysis`, `/seo-tekst`, `/seo-tekst-fix`, `/share-tekst`, слоя письма v8 `site-proto`; куда переехали ассеты и планировщик; синк проектов с незавершенными задачами v7 закрыт до их закрытия | Принято |
 | [043](docs/adr/043-anti-ai-formulas-as-lint.md) | Слой против ИИ-формул в текстах `/site-tekst` - линтер формы с бюджетами на страницу, заголовки только предупреждением, без гуманизации | Принято |
+| [044](docs/adr/044-site-tekst-no-gates-and-site-prototype.md) | `/site-tekst` без гейтов 1-4: автопереходы, ручная пауза `--stop` и автостоп по аномалии; один прототип-сайт со служебным слоем, модули из данных | Принято |
+| [045](docs/adr/045-kf-kndr-in-site-tekst.md) | Анализ КФ и КНДР лидеров в фазе 2 `/site-tekst`: отбор по метрикам, снятие страниц через CDP, матрица с абсолютными порогами, оболочка прототипа по пересечениям, аудитор готового прототипа, таблица КФ/КНДР для заказчика | Принято |
+| [046](docs/adr/046-strategy-v2.md) | `/seo-strategiya` v2: новая линейка услуг (PA/SY/KP/FQ, YM «Продвижение в Яндекс Картах», акции, разработка сайта отдельным блоком), прогноз трафика и денег по составу каждого тарифа (`build-forecast.mjs`, state `forecast-done`; модель v2.2 - калибровка по кейсам, портфелю ПФ и практике владельца), экономический гейт, стратегия без тарифов и денег в прозе, смета из 6 листов; легаси-пути для старых стратегий | Принято |
 
 ---
 
