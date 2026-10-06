@@ -8,6 +8,10 @@
 //     обложка-баннер + «Главное за одну минуту» (3 KPI из forecast.json + «Коротко») + 4 раздела тезисными блоками
 //     (situation / competitors / plan / forecast). Ни цен, ни тарифов. Все деньги (потери, выручка прогноза) рендерит
 //     сборщик из forecast.json по блокам-маркерам; писатель денег не пишет. Дизайн-система - docs/design-strategy-docx.md.
+//     v2.1 (боевой прогон 06.10): план работ, график, драйверы, таблица прогноза и KPI роста - по forecast.plan_tariff;
+//     новый сайт (launch_month > 1) или рекомендованная разработка - строка «Разработка и запуск сайта», ежемесячные
+//     полосы с месяца запуска; потери - по lost_now.basis (competitors | plan), базовая конверсия; в таблице прогноза
+//     нет абсолютной выручки; жесткий разрыв страницы - только после первой страницы.
 //   легаси (без format): старый рендер 6 разделов (tariff / special / decomposition_table ...) - для пересборки
 //     старых стратегий без изменений (renderLegacy ниже).
 //
@@ -20,8 +24,8 @@
 //   <strategy_dir>/seo-strategiya_content.json - контент от strategy-writer
 //   <strategy_dir>/inputs.json                 - домен, slug, регион, дата
 //   <strategy_dir>/forecast.json               - v2: обязателен (build-forecast.mjs) - KPI, потери, график, таблица
-//   <strategy_dir>/tariffs.json                - v2: состав рекомендованного варианта для плана работ по месяцам;
-//                                                легаси: тариф Рост для decomposition_table
+//   <strategy_dir>/tariffs.json                - v2: состав тарифа плана (forecast.plan_tariff) для плана работ по
+//                                                месяцам, site_dev.recommended; легаси: тариф Рост для decomposition_table
 //   <strategy_dir>/seo-strategiya_data.json    - легаси: forecast_scenarios для decomposition_table
 // Выход:
 //   <strategy_dir>/SEO_Strategy_<slug|domain>.docx
@@ -38,7 +42,7 @@ import {
 } from "docx";
 import { TARIFF_SCALE, interpCheckpoints, computeScenarioTariff } from "./_forecast-money.mjs";
 import { tariffServiceIds } from "./_forecast-model.mjs";
-import { timelineFor } from "./_services.mjs";
+import { timelineFor, devTimelineRow } from "./_services.mjs";
 
 const LOG = "[build-strategy-docx]";
 const strategyDirArg = process.argv[2];
@@ -99,7 +103,8 @@ function getTariffData(tariffsObj, key) {
 // v2: ДИЗАЙН-СИСТЕМА (рецепты проверены конверсией docx -> Google Docs, см. docs/design-strategy-docx.md)
 // Правила: таблицы только DXA + columnWidths + FIXED; между двумя таблицами всегда абзац (иначе Docs склеит);
 // никаких Textbox / SVG / плавающих фигур / табуляций с лидером / characterSpacing / allCaps; прописные - буквами;
-// заголовки - HeadingLevel (навигация в Docs); разрывы - явным PageBreak.
+// заголовки - HeadingLevel (навигация в Docs); разрыв страницы - только pageBreakBefore первого раздела, дальше
+// разделы потоком (keepNext у заголовков, неразрывные блоки - keepTogether).
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 
 const C = {
@@ -164,8 +169,9 @@ function para(content, o = {}) {
     keepNext: o.keepNext, numbering: o.numbering, border: o.border, shading: o.shading, indent: o.indent,
   });
 }
-// пустой абзац минимальной высоты (ячейки-заливки, зазоры, разделитель между таблицами)
-const tiny = () => new Paragraph({ spacing: { before: 0, after: 0, line: 240 }, run: { size: 2 }, children: [] });
+// пустой абзац минимальной высоты (ячейки-заливки, зазоры, разделитель между таблицами);
+// keep - keepNext (строки таблицы, которую нельзя рвать между страницами)
+const tiny = (keep) => new Paragraph({ spacing: { before: 0, after: 0, line: 240 }, run: { size: 2 }, keepNext: keep || undefined, children: [] });
 const spacer = (after = 120) => new Paragraph({ spacing: { before: 0, after, line: 240 }, run: { size: 2 }, children: [] });
 
 function cell(children, o = {}) {
@@ -209,7 +215,9 @@ function toNum(v) {
 }
 const fmtInt = (n) => Math.round(toNum(n)).toLocaleString("ru-RU");
 const dec1 = (x) => (Math.round(x * 10) / 10).toLocaleString("ru-RU", { maximumFractionDigits: 1 });
-// обращения/продажи: до 10 - с одним знаком (2,5), дальше целые
+// обращения/продажи: до 10 - с одним знаком (2,5), дальше целые. dispCount - то же число, что видит читатель
+// (по нему согласуем слово: «155 обращений», а не «155 обращения» от 155,1).
+const dispCount = (n) => { const x = toNum(n); return Math.abs(x) < 10 ? Math.round(x * 10) / 10 : Math.round(x); };
 const fmtCount = (n) => { const x = toNum(n); return Math.abs(x) < 10 ? dec1(x) : fmtInt(x); };
 // деньги: «1,2 млн ₽», «450 тыс ₽», «900 ₽»
 function fmtRub(n) {
@@ -238,6 +246,16 @@ function plural(n, forms) {
   if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return forms[1];
   return forms[2];
 }
+// родительный падеж после «до», «около», «не меньше»: pluralGen(21, ["перехода", "переходов"]) -> «перехода»;
+// дробное - единственное («около 5,2 обращения»)
+function pluralGen(n, forms) {
+  const x = Math.abs(Math.round(toNum(n) * 10) / 10);
+  if (x % 1 !== 0) return forms[0];
+  return x % 10 === 1 && x % 100 !== 11 ? forms[0] : forms[1];
+}
+const TRAFFIC_FORMS = ["переход", "перехода", "переходов"];
+const TRAFFIC_GEN = ["перехода", "переходов"];
+const SALES_FORMS = ["продажа", "продажи", "продаж"];
 
 // ─── Нумерация: маркеры-символы (переживают конверсию, цвет маркера сохраняется) ───
 const bulletLevel = (text, color, size) => ({
@@ -282,14 +300,19 @@ function cover({ kicker, title, subtitle, meta }) {
 }
 
 // ─── 2. Заголовки ───
-// Раздел всегда с новой страницы: pageBreakBefore у самого заголовка, а не отдельный абзац с PageBreak -
-// иначе раздел, заполнивший страницу ровно, дает пустую страницу (абзац-разрыв переезжает и рвет еще раз).
-// Предыдущий элемент никогда не несет keepNext (таблица, заметка, список) - связка, ломающая Docs, не возникает.
-function sectionTitle(num, title) {
+// Разрыв страницы - только после первой страницы (обложка + «Главное за одну минуту»): pageBreakBefore у первого
+// H1. Остальные разделы идут потоком: жесткий разрыв перед каждым разделом в Google Docs давал почти пустые
+// страницы (приемка Drive 06.10). Вместо него - разделитель (синяя линейка сверху + отбивка) и keepNext: заголовок
+// не остается внизу страницы без текста. Предыдущий элемент перед H1 не несет keepNext (таблица, заметка,
+// список) - связка «pageBreakBefore + keepNext у предыдущего», ломающая Docs, не возникает.
+function sectionTitle(num, title, { pageBreak = false } = {}) {
   return new Paragraph({
-    heading: HeadingLevel.HEADING_1, keepNext: true, pageBreakBefore: true,
-    spacing: { before: 120, after: 200 },
-    border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: C.line, space: 6 } },
+    heading: HeadingLevel.HEADING_1, keepNext: true, pageBreakBefore: pageBreak || undefined,
+    spacing: { before: pageBreak ? 120 : 520, after: 200 },
+    border: {
+      top: pageBreak ? undefined : { style: BorderStyle.SINGLE, size: 18, color: C.blue, space: 14 },
+      bottom: { style: BorderStyle.SINGLE, size: 8, color: C.line, space: 6 },
+    },
     children: [run(String(num).padStart(2, "0") + "  ", { font: FONT.head, size: SZ.h1, bold: true, color: C.blue }),
       run(title, { font: FONT.head, size: SZ.h1, bold: true, color: C.navy })],
   });
@@ -400,9 +423,23 @@ function statusMatrix({ firstHeader, sites, rows, you }) {
   return grid(ws, [head, ...body]);
 }
 
-// ─── 7. Деньги, которые вы теряете: крупная сумма + цепочка шагов со стрелками ───
+// ─── 6a. Неразрывный блок: одноячеечная таблица без границ, строка cantSplit - блок целиком переезжает на
+// следующую страницу, а не рвется (план работ, график, таблица прогноза, деньги). Вложенные таблицы и cantSplit
+// переживают Docs (п. 1 дизайн-дока); между вложенными таблицами - абзац, ячейка заканчивается абзацем.
+// Блок должен быть заметно меньше страницы (иначе Word порвет строку все равно).
+function keepTogether(children) {
+  const kids = [];
+  for (const el of children.flat().filter(Boolean)) {
+    if (el instanceof Table && kids[kids.length - 1] instanceof Table) kids.push(spacer(0));
+    kids.push(el);
+  }
+  if (!kids.length || kids[kids.length - 1] instanceof Table) kids.push(tiny());
+  return grid([W], [new TableRow({ cantSplit: true, children: [cell(kids, { w: W, margins: { top: 0, bottom: 0, left: 0, right: 0 } })] })]);
+}
+
+// ─── 7. Деньги, которые вы теряете: заголовок + крупная сумма + цепочка шагов со стрелками ───
 function moneyBlock({ amount, caption, steps, disclaimer }) {
-  const out = [callout({ tone: "loss", kicker: "ДЕНЬГИ, КОТОРЫЕ ВЫ ТЕРЯЕТЕ", title: amount, body: caption, big: true }), spacer(120)];
+  const out = [h3("Деньги, которые вы теряете"), callout({ tone: "loss", title: amount, body: caption, big: true }), spacer(120)];
   const arrowW = 420, n = steps.length, cw = Math.floor((W - arrowW * (n - 1)) / n);
   const ws = [];
   steps.forEach((_, i) => { ws.push(cw); if (i < n - 1) ws.push(arrowW); });
@@ -457,7 +494,8 @@ const chartBaseLevel = (values, base, levels = CHART_LEVELS) => (base > 0 ? Math
 function columnChart(values, labels, { base = 0, levels = CHART_LEVELS, rowH = 180, valueFmt = fmtK } = {}) {
   const n = values.length, ws = cols(Array(n).fill(1));
   const max = Math.max(1, ...values);
-  const lev = values.map((v) => Math.max(1, Math.round((v / max) * (levels - 1))));
+  // нулевой месяц (новый сайт до запуска) - без столбика, только подпись «0» внизу
+  const lev = values.map((v) => (v > 0 ? Math.max(1, Math.round((v / max) * (levels - 1))) : 0));
   const baseLev = chartBaseLevel(values, base, levels);
   const z = { top: 0, bottom: 0, left: 0, right: 0 };
   const rows = [];
@@ -488,27 +526,30 @@ function growthCard({ n, title, problem, solution, effect }) {
 
 // ─── 11. План работ по месяцам (Гант таблицей): разовые - короткая полоса + «нед. N-M», ежемесячные - полосой ───
 // phases: [{name, from, to, tag, inside?: bool, color, textColor}]
+// Таблица не рвется между страницами: строки cantSplit, абзацы всех строк кроме последней - keepNext (Word держит
+// таблицу целиком); маркер дополнительно оборачивает ее в keepTogether (Docs keepNext в таблицах не держит).
 function timeline(phases, months = 12) {
   const labelW = 2600, ws = [labelW, ...cols(Array(months).fill(1), W - labelW)];
   const z = { top: 60, bottom: 60, left: 60, right: 60 };
   const headB = { top: NONE, left: NONE, right: NONE, bottom: line(8, C.navy) };
-  const head = new TableRow({ tableHeader: true, children: [
-    cell(para(run("Работы", { size: SZ.small, bold: true, color: C.muted }), { after: 0 }), { w: labelW, margins: { ...z, left: 0 }, borders: headB }),
-    ...Array.from({ length: months }, (_, i) => cell(para(run(`${i + 1}`, { size: SZ.small, bold: true, color: C.muted }), { after: 0, align: AlignmentType.CENTER }), { w: ws[i + 1], margins: z, borders: headB })),
+  const head = new TableRow({ tableHeader: true, cantSplit: true, children: [
+    cell(para(run("Работы", { size: SZ.small, bold: true, color: C.muted }), { after: 0, keepNext: true }), { w: labelW, margins: { ...z, left: 0 }, borders: headB }),
+    ...Array.from({ length: months }, (_, i) => cell(para(run(`${i + 1}`, { size: SZ.small, bold: true, color: C.muted }), { after: 0, align: AlignmentType.CENTER, keepNext: true }), { w: ws[i + 1], margins: z, borders: headB })),
   ] });
-  const rows = phases.map((p) => {
-    const cells = [cell(para(run(p.name, { size: SZ.table }), { after: 0, line: 252 }), { w: labelW, margins: { ...z, left: 0 }, valign: VerticalAlignTable.CENTER })];
-    for (let m = 1; m < p.from; m++) cells.push(cell(tiny(), { w: ws[m], margins: z }));
+  const rows = phases.map((p, pi) => {
+    const keep = pi < phases.length - 1 || undefined;
+    const cells = [cell(para(run(p.name, { size: SZ.table }), { after: 0, line: 252, keepNext: keep }), { w: labelW, margins: { ...z, left: 0 }, valign: VerticalAlignTable.CENTER })];
+    for (let m = 1; m < p.from; m++) cells.push(cell(tiny(keep), { w: ws[m], margins: z }));
     const span = p.to - p.from + 1;
     const tagRun = run(p.tag || "", { size: 14, bold: true, color: p.textColor || C.white });
-    cells.push(cell(p.inside ? para(tagRun, { after: 0, align: AlignmentType.CENTER, line: 240 }) : tiny(),
+    cells.push(cell(p.inside ? para(tagRun, { after: 0, align: AlignmentType.CENTER, line: 240, keepNext: keep }) : tiny(keep),
       { span, fill: p.color || C.blue, margins: z, valign: VerticalAlignTable.CENTER }));
     if (p.to < months) {
       if (!p.inside && p.tag) {
-        cells.push(cell(para(run(p.tag, { size: 14, bold: true, color: C.muted }), { after: 0, line: 240 }),
+        cells.push(cell(para(run(p.tag, { size: 14, bold: true, color: C.muted }), { after: 0, line: 240, keepNext: keep }),
           { span: months - p.to, margins: { ...z, left: 100 }, valign: VerticalAlignTable.CENTER }));
       } else {
-        for (let m = p.to + 1; m <= months; m++) cells.push(cell(tiny(), { w: ws[m], margins: z }));
+        for (let m = p.to + 1; m <= months; m++) cells.push(cell(tiny(keep), { w: ws[m], margins: z }));
       }
     }
     return new TableRow({ cantSplit: true, height: { value: 380, rule: HeightRule.ATLEAST }, children: cells });
@@ -549,20 +590,38 @@ function buildV2() {
     console.error(`${LOG} content v2 требует forecast.json в ${strategyDir} - сначала build-forecast.mjs (шаг forecast-done)`);
     process.exit(1);
   }
-  const recKey = forecast.recommended || "growth";
-  const rec = (forecast.tariffs || {})[recKey];
-  if (!rec) {
-    console.error(`${LOG} в forecast.json нет tariffs.${recKey} - пересобери build-forecast.mjs`);
-    process.exit(1);
+  // Тариф плана (v2.1): план работ, график, драйверы, таблица прогноза и KPI роста - по forecast.plan_tariff
+  // (= recommended_offer, при проваленном экономическом гейте - лучший тариф; нет - Рост). Старый forecast.json
+  // без plan_tariff - recommended_offer, иначе Рост. Поле recommended ("growth") для плана больше не берется.
+  const fTariffs = forecast.tariffs || {};
+  let recKey = forecast.plan_tariff || forecast.recommended_offer || "growth";
+  if (!fTariffs[recKey]) {
+    if (recKey !== "growth" && fTariffs.growth) {
+      warn(`в forecast.json нет tariffs.${recKey} (plan_tariff) - план и прогноз по Росту`);
+      recKey = "growth";
+    } else {
+      console.error(`${LOG} в forecast.json нет tariffs.${recKey} - пересобери build-forecast.mjs`);
+      process.exit(1);
+    }
   }
+  const rec = fTariffs[recKey];
   const fin = forecast.inputs || {};
   const econ = fin.economics || {};
   const oneStep = econ.model === "one_step";
   const t0 = toNum(fin.t0 ?? (forecast.baseline || {}).traffic_month);
   const lost = forecast.lost_now || {};
-  const base = forecast.baseline || {};
   const series = Array.isArray(forecast.plan_series) ? forecast.plan_series : [];
-  const leadWord = oneStep ? "заказов" : "обращений";
+  // месяц, с которого сайт в поиске и идут ежемесячные работы (новый сайт - 2-3; v2.0 без поля - 1)
+  const launch = Math.max(1, Math.round(toNum(forecast.launch_month ?? rec.launch_month) || 1));
+  const siteDevRec = !!(tariffs.site_dev && tariffs.site_dev.recommended === true);
+  const salesLag = Math.max(0, Math.round(toNum(econ.sales_lag_months)));
+  const ltv = toNum(econ.ltv_factor) > 1 ? toNum(econ.ltv_factor) : 1;
+  const LEAD_FORMS = oneStep ? ["заказ", "заказа", "заказов"] : ["обращение", "обращения", "обращений"];
+  const LEAD_GEN = oneStep ? ["заказа", "заказов"] : ["обращения", "обращений"];
+  const leadsWord = (n) => plural(dispCount(n), LEAD_FORMS);
+  // «Деньги, которые вы теряете» (v2.1): basis competitors - разрыв с конкурентами из топа, plan - с уровнем
+  // плана к 12 мес; оба по базовой конверсии. Иное (v2.0: строка-описание) - старая семантика «прирост по плану».
+  const lostBasis = lost.basis === "competitors" || lost.basis === "plan" ? lost.basis : null;
 
   const tp = content.title_page || {};
   const dom = tp.domain || domain;
@@ -570,76 +629,109 @@ function buildV2() {
   const author = tp.author || "TIMUR SEO";
   const markersDone = [];
 
-  // Строка допущений (из forecast.json inputs.economics) - мелким шрифтом под деньгами.
+  // Строка допущений (из forecast.json inputs.economics) - мелким шрифтом под деньгами и таблицей прогноза.
+  // Источник чека: client - без пометки, site - по ценам сайта, иначе - оценка.
+  const checkSource = econ.avg_check_source === "client" ? "" : econ.avg_check_source === "site" ? " (по ценам на вашем сайте)" : " (оценка)";
   const econNote = () => {
     const parts = [`конверсия из перехода в ${oneStep ? "заказ" : "обращение"} ${pct(econ.conversion_rate)}`];
     if (!oneStep) parts.push(`из обращения в продажу ${pct(econ.close_rate)}`);
-    parts.push(`средний чек ${fmtInt(econ.avg_check)}${NBSP}₽${econ.avg_check_source === "client" ? "" : " (оценка)"}`);
+    parts.push(`средний чек ${fmtInt(econ.avg_check)}${NBSP}₽${checkSource}`);
+    if (ltv > 1) parts.push(`с учетом повторных покупок за год ×${dec1(ltv)}`);
     return `Допущения: ${parts.join(", ")}.`;
   };
 
   // ── маркеры, которые заполняет сборщик ──
   const MARKERS = {
     money_lost() {
-      const rev = toNum(lost.revenue_month);
-      if (!(rev > 0)) warn("money_lost: lost_now.revenue_month <= 0 - прирост по плану нулевой, проверь forecast.json");
-      // Обращения = с сайта (переходы x конверсия, с ростом конверсии от прототипа и слабее у статей) + из Карт
-      // напрямую. Чтобы воронка сходилась с подписью конверсии, Карты - отдельной строкой, а фактическая
-      // конверсия дополнительных переходов - в допущениях, если она отличается от базовой.
-      const m12 = (Array.isArray(rec.months) ? rec.months : []).find((x) => toNum(x.m) === 12) || {};
+      if (!lostBasis) warn("money_lost: lost_now в forecast.json по старой семантике (v2.0, прирост по плану) - пересобери build-forecast.mjs");
+      const gap = toNum(lost.traffic_month);
       const leads = toNum(lost.leads_month);
-      const maps = Math.min(leads, toNum(lost.leads_maps_month ?? m12.leads_maps ?? (rec.drivers_m12 || {}).maps_leads));
-      const siteLeads = Math.max(0, leads - maps);
-      const gain = toNum(lost.traffic_month);
-      const steps = [
-        { value: fmtInt(gain), label: "переходов в месяц уходят к конкурентам" },
-        {
-          value: fmtCount(leads),
-          label: maps >= 0.5 ? `${leadWord} в месяц: ${fmtCount(siteLeads)} с сайта и ${fmtCount(maps)} из Яндекс Карт` : `${leadWord} в месяц`,
-        },
-      ];
-      if (!oneStep) steps.push({ value: fmtCount(lost.sales_month), label: "продаж в месяц" });
-      steps.push({ value: fmtRub(rev), label: "выручки в месяц" });
-      const drv = rec.drivers_m12 || {};
-      let convNote = "";
-      const effConv = gain > 0 ? siteLeads / gain : 0;
-      if (gain > 0 && Math.abs(effConv - toNum(econ.conversion_rate)) >= 0.002) {
-        const why = [];
-        if (toNum(drv.conv_mult) > 1.01) why.push("сайт с прототипом по образцу лидеров конвертирует лучше, в том числе текущих посетителей");
-        if (toNum(drv.articles) > 0) why.push("читатели статей обращаются реже");
-        convNote = ` С сайта к 12-му месяцу выходит около ${pct(effConv)} от дополнительных переходов${why.length ? ` (${why.join("; ")})` : ""}.`;
+      const sales = oneStep ? leads : toNum(lost.sales_month);
+      const rev = toNum(lost.revenue_month);
+      if (!(gap > 0) || !(rev > 0)) {
+        warn("money_lost: lost_now.traffic_month/revenue_month <= 0 - разрыва с конкурентами и планом нет, блок потерь заменен выноской");
+        return keepTogether([h3("Деньги, которые вы теряете"), callout({ tone: "neutral",
+          body: "По переходам из поиска вы не отстаете от сопоставимых конкурентов из топа: рост дадут конверсия сайта и новые запросы, расчет - в разделе «Прогноз»." })]);
       }
-      const mapsNote = maps >= 0.5 ? " Обращения из Яндекс Карт идут из карточки напрямую, без перехода на сайт." : "";
-      const disclaimer = `${econNote()}${convNote}${mapsNote} Это прирост к 12-му месяцу по плану работ сверх текущего уровня. Оценка, не гарантия; расчет по месяцам - в смете.`;
-      return moneyBlock({
+      // Воронка сходится с подписью конверсии: переходы x базовая конверсия = обращения (без прототипа и Карт).
+      if (lostBasis) {
+        const expLeads = gap * toNum(econ.conversion_rate);
+        if (Math.abs(expLeads - leads) > Math.max(0.15, expLeads * 0.03)) {
+          warn(`money_lost: ${fmtInt(gap)} переходов x ${pct(econ.conversion_rate)} = ${dec1(expLeads)}, а lost_now.leads_month ${leads} - воронка не сходится с допущениями, пересобери build-forecast.mjs`);
+        }
+      }
+      const target = toNum(lost.target_traffic) || t0 + gap;
+      const youNow = t0 >= 1 ? `вы - около ${fmtInt(t0)}` : "у вас переходов из поиска пока нет";
+      let caption, gapLabel;
+      if (lostBasis === "competitors") {
+        // Ориентир конкурентов обрезан уровнем плана к 12 мес (конкуренты получают больше, чем реально взять за
+        // год): их оценку Keys.so не печатаем (по локальным базам она бывает завышена в разы), а разницу считаем
+        // только до уровня года.
+        const compRef = Math.max(toNum(lost.competitors_traffic_median), toNum(lost.competitors_traffic_leader) * 0.5);
+        const capped = compRef > target + 0.5;
+        const diff = `~${fmtCount(leads)} ${leadsWord(leads)} и ~${fmtRub(rev)} выручки в месяц`;
+        caption = capped
+          ? `Конкуренты из топа получают из поиска ${compRef >= 2 * target ? "в разы " : ""}больше переходов, чем вы. ` +
+            `Даже до уровня, который реально взять за год (около ${fmtInt(target)} в месяц, ${t0 >= 1 ? `сейчас около ${fmtInt(t0)}` : "сейчас переходов нет"}), разница - это ${diff}.`
+          : `Конкуренты из топа получают около ${fmtInt(target)} ${pluralGen(target, TRAFFIC_GEN)} из поиска в месяц, ${youNow}. Разница - это ${diff}.`;
+        gapLabel = `${plural(Math.round(gap), TRAFFIC_FORMS)} в месяц: ${capped ? "разница до уровня года" : "разница с конкурентами"}`;
+      } else {
+        caption = `Столько выручки в месяц вы недополучаете против уровня, который реально взять за год: около ${fmtInt(target)} ${pluralGen(target, TRAFFIC_GEN)} из поиска в месяц` +
+          `${t0 >= 1 ? `, а сейчас около ${fmtInt(t0)}` : ", а сейчас их нет"}.`;
+        gapLabel = `${plural(Math.round(gap), TRAFFIC_FORMS)} в месяц вы недобираете`;
+      }
+      const steps = [
+        { value: fmtInt(gap), label: gapLabel },
+        { value: fmtCount(leads), label: `${leadsWord(leads)} в месяц` },
+      ];
+      if (!oneStep) steps.push({ value: fmtCount(sales), label: `${plural(dispCount(sales), SALES_FORMS)} в месяц` });
+      steps.push({ value: fmtRub(rev), label: "выручки в месяц" });
+      const basisNote = lostBasis === "competitors"
+        ? " Ориентир - переходы сопоставимых конкурентов из топа, но не больше уровня, который реально взять за год; конверсия - как сейчас, без улучшений сайта."
+        : lostBasis === "plan"
+          ? " Ориентир - уровень, который реально взять за год по плану работ; конверсия - как сейчас, без улучшений сайта."
+          : " Это прирост к 12-му месяцу по плану работ сверх текущего уровня.";
+      return keepTogether(moneyBlock({
         amount: `около ${fmtRub(rev)} в месяц`,
-        caption: "Столько выручки в месяц сейчас уходит к конкурентам: эти клиенты ищут ваши услуги, но находят не вас.",
+        caption,
         steps,
-        disclaimer,
-      });
+        disclaimer: `${econNote()}${basisNote} Оценка, не гарантия; расчет по месяцам - в смете.`,
+      }));
     },
 
     plan_timeline() {
-      const growthT = getTariffData(tariffs, recKey);
-      const ids = growthT ? [...tariffServiceIds(growthT)] : (rec.ids || []);
-      if (!growthT) warn(`plan_timeline: нет tariffs.json (${recKey}) - состав взят из forecast.json`);
+      const planT = getTariffData(tariffs, recKey);
+      const ids = planT ? [...tariffServiceIds(planT)] : (rec.ids || []);
+      if (!planT) warn(`plan_timeline: нет tariffs.json (${recKey}) - состав взят из forecast.json`);
       const items = timelineFor(ids);
-      if (!items.length) { warn("plan_timeline: в рекомендованном составе нет работ для плана"); return []; }
+      // разработка и запуск сайта: новый сайт (запуск не с 1-го мес) или разработку рекомендуем
+      const dev = devTimelineRow(ids, { launchMonth: launch, recommended: siteDevRec });
+      if (dev) {
+        const lastChain = items.reduce((a, it, i) => (["PA", "SY", "KP", "FQ"].includes(it.id) ? i : a), -1);
+        items.splice(lastChain + 1, 0, dev);
+      }
+      if (!items.length) { warn("plan_timeline: в составе плана нет работ"); return []; }
       const WPM = 52 / 12;
       const monthOf = (w) => Math.min(12, Math.max(1, Math.floor(w / WPM) + 1));
       const CHAIN = new Set(["PA", "SY", "KP", "FQ"]);
+      const monthlyFrom = Math.min(12, launch);
       const phases = items.map((it) => {
         if (it.monthly) {
-          return { name: it.label, from: monthOf(it.start_week), to: 12, tag: "каждый месяц", inside: true, color: C.blueSoft, textColor: C.navy };
+          return { name: it.label, from: Math.max(monthOf(it.start_week), monthlyFrom), to: 12, tag: "каждый месяц", inside: true, color: C.blueSoft, textColor: C.navy };
         }
         const s = it.start_week + 1, e = it.start_week + it.weeks;
         return {
-          name: it.label, from: monthOf(it.start_week), to: monthOf(it.start_week + it.weeks - 1),
+          name: it.label, from: monthOf(it.start_week), to: Math.max(monthOf(it.start_week), monthOf(it.start_week + it.weeks - 1)),
           tag: s === e ? `нед. ${s}` : `нед. ${s}-${e}`, inside: false, color: CHAIN.has(it.id) ? C.blue : C.navy,
         };
       });
-      return [h3("План работ по месяцам"), timeline(phases),
-        note("Разовые работы идут по очереди: следующий этап стартует после вашего согласования предыдущего. Недели - ориентир при быстрых ответах. Ежемесячные работы идут весь год.")];
+      const hasMonthly = items.some((it) => it.monthly);
+      let tail = "Ежемесячные работы идут весь год.";
+      if (launch > 1) tail = `Сайт собираем по согласованному прототипу и выводим в поиск к ${launch}-му месяцу${hasMonthly ? ": ежемесячные работы начинаются с этого месяца" : ""}.`;
+      else if (dev) tail = `Новый сайт собираем по согласованному прототипу${hasMonthly ? ", а ежемесячные работы идут весь год на текущем сайте" : ""}.`;
+      else if (!hasMonthly) tail = "";
+      return keepTogether([h3("План работ по месяцам"), timeline(phases),
+        note(`Разовые работы идут по очереди: следующий этап стартует после вашего согласования предыдущего. Недели - ориентир при быстрых ответах.${tail ? " " + tail : ""}`)]);
     },
 
     forecast_chart() {
@@ -647,42 +739,64 @@ function buildV2() {
       if (pts.length < 12) warn(`forecast_chart: в plan_series ${pts.length} точек из 12`);
       if (!pts.length) return [];
       const values = pts.map((p) => toNum(p.traffic));
-      return [h3("Переходы из поиска по месяцам"),
+      // новый сайт: первые месяцы до запуска нулевые - подпись, к какому месяцу сайт выходит в поиск
+      let launchNote = "";
+      if (launch > 1) launchNote = `Сайт выходит в поиск к ${launch}-му месяцу: до этого идут разработка и подготовка страниц. `;
+      else if (values[0] <= 0) {
+        const first = pts.find((p) => toNum(p.traffic) > 0);
+        if (first) launchNote = `Первые переходы из поиска - к ${toNum(first.m)}-му месяцу. `;
+      }
+      const tail = chartBaseLevel(values, t0) >= 1 ? "Светлая часть столбика - текущий уровень, темная - прирост по плану работ." : "Переходы из поиска в месяц по плану работ.";
+      return keepTogether([h3("Переходы из поиска по месяцам"),
         columnChart(values, pts.map((p) => `М${p.m}`), { base: t0 }),
-        note(chartBaseLevel(values, t0) >= 1 ? "Светлая часть столбика - текущий уровень, темная - прирост по плану работ. Оценка, не гарантия." : "Переходы из поиска в месяц по плану работ. Оценка, не гарантия.")];
+        note(`${launchNote}${tail} Оценка, не гарантия.`)]);
     },
 
     forecast_table() {
+      // Абсолютную выручку «без работ» не печатаем (у сильных сайтов это десятки миллионов - подрывает доверие):
+      // трафик с планом / без работ, дальше только прирост обращений и выручки к текущему уровню.
       const months = Array.isArray(rec.months) ? rec.months : [];
       const at = (m) => months.find((x) => toNum(x.m) === m) || {};
-      const bLeads = toNum(base.leads_month), bRev = toNum(base.revenue_month);
       const P = [3, 6, 12];
-      const metrics = [
-        { name: "Переходы из поиска в месяц", plan: [t0, ...P.map((m) => toNum(at(m).traffic))], none: Array(4).fill(t0), f: fmtInt },
-        { name: `${oneStep ? "Заказы" : "Обращения"} в месяц`, plan: [bLeads, ...P.map((m) => bLeads + toNum(at(m).leads))], none: Array(4).fill(bLeads), f: fmtCount },
-        { name: "Выручка в месяц", plan: [bRev, ...P.map((m) => bRev + toNum(at(m).revenue))], none: Array(4).fill(bRev), f: fmtRub },
-      ];
-      if (!months.length) warn("forecast_table: нет tariffs.<рекомендованный>.months в forecast.json");
+      if (!months.length) warn("forecast_table: нет tariffs.<тариф плана>.months в forecast.json");
+      const plus = (v, f) => (toNum(v) > 0 ? "+" + f(v) : f(0));
       const ws = cols([2.3, 1.25, 1, 1, 1, 1.05]);
       const z = { top: 90, bottom: 90, left: 120, right: 120 };
       const hb = { top: NONE, left: NONE, right: NONE, bottom: line(12, C.navy) };
       const soft = { top: NONE, left: NONE, right: NONE, bottom: NONE };
       const rb = { top: NONE, left: NONE, right: NONE, bottom: line(4, C.line) };
+      const numCell = (txt, i, o = {}) => cell(para(run(txt, { size: SZ.table, bold: !!o.bold, color: o.color || C.navy }), { after: 0, align: AlignmentType.RIGHT }),
+        { w: ws[i + 2], borders: o.borders || rb, fill: o.fill, margins: z, valign: VerticalAlignTable.CENTER });
       const hcell = (t, i) => cell(para(run(t, { size: SZ.small, bold: true, color: C.muted }), { after: 0, align: i >= 2 ? AlignmentType.RIGHT : AlignmentType.LEFT }), { w: ws[i], borders: hb, margins: { ...z, top: 80, bottom: 80 } });
-      const rows = [new TableRow({ tableHeader: true, children: ["Показатель", "", "Сейчас", "Через 3 мес", "Через 6 мес", "Через 12 мес"].map(hcell) })];
-      for (const mt of metrics) {
+      const rows = [new TableRow({ tableHeader: true, cantSplit: true, children: ["Показатель", "", "Сейчас", "Через 3 мес", "Через 6 мес", "Через 12 мес"].map(hcell) })];
+      // переходы: «С планом» / «Без работ»
+      rows.push(new TableRow({ cantSplit: true, children: [
+        cell(para(run("Переходы из поиска в месяц", { size: SZ.table, bold: true }), { after: 0, line: 252 }), { w: ws[0], rowSpan: 2, borders: rb, margins: z, valign: VerticalAlignTable.CENTER }),
+        cell(para(run("С планом", { size: SZ.small, bold: true, color: C.blue }), { after: 0 }), { w: ws[1], borders: soft, fill: C.blueTint, margins: z, valign: VerticalAlignTable.CENTER }),
+        ...[t0, ...P.map((m) => toNum(at(m).traffic))].map((v, i) => numCell(fmtInt(v), i, { bold: true, borders: soft, fill: C.blueTint })),
+      ] }));
+      rows.push(new TableRow({ cantSplit: true, children: [
+        cell(para(run("Без работ", { size: SZ.small, color: C.muted }), { after: 0 }), { w: ws[1], borders: rb, margins: z, valign: VerticalAlignTable.CENTER }),
+        ...Array(4).fill(t0).map((v, i) => numCell(fmtInt(v), i, { color: C.muted })),
+      ] }));
+      // прирост к текущему уровню (обращения - с Картами и прототипом, выручка - с циклом сделки)
+      const extra = [
+        { name: `Дополнительные ${oneStep ? "заказы" : "обращения"} в месяц`, vals: P.map((m) => plus(at(m).leads, fmtCount)) },
+        { name: "Дополнительная выручка в месяц", vals: P.map((m) => plus(at(m).revenue, fmtRub)) },
+      ];
+      for (const ex of extra) {
         rows.push(new TableRow({ cantSplit: true, children: [
-          cell(para(run(mt.name, { size: SZ.table, bold: true }), { after: 0, line: 252 }), { w: ws[0], rowSpan: 2, borders: rb, margins: z, valign: VerticalAlignTable.CENTER }),
-          cell(para(run("С планом", { size: SZ.small, bold: true, color: C.blue }), { after: 0 }), { w: ws[1], borders: soft, fill: C.blueTint, margins: z, valign: VerticalAlignTable.CENTER }),
-          ...mt.plan.map((v, i) => cell(para(run(mt.f(v), { size: SZ.table, bold: true, color: C.navy }), { after: 0, align: AlignmentType.RIGHT }), { w: ws[i + 2], borders: soft, fill: C.blueTint, margins: z, valign: VerticalAlignTable.CENTER })),
-        ] }));
-        rows.push(new TableRow({ cantSplit: true, children: [
-          cell(para(run("Без работ", { size: SZ.small, color: C.muted }), { after: 0 }), { w: ws[1], borders: rb, margins: z, valign: VerticalAlignTable.CENTER }),
-          ...mt.none.map((v, i) => cell(para(run(mt.f(v), { size: SZ.table, color: C.muted }), { after: 0, align: AlignmentType.RIGHT }), { w: ws[i + 2], borders: rb, margins: z, valign: VerticalAlignTable.CENTER })),
+          cell(para(run(ex.name, { size: SZ.table, bold: true }), { after: 0, line: 252 }), { w: ws[0] + ws[1], span: 2, borders: rb, margins: z, valign: VerticalAlignTable.CENTER }),
+          numCell("-", 0, { color: C.muted }),
+          ...ex.vals.map((txt, i) => numCell(txt, i + 1, { bold: true })),
         ] }));
       }
-      return [h3("Сейчас и через 3, 6 и 12 месяцев"), grid(ws, rows),
-        note(`«Без работ» - текущий уровень без изменений; разница между строками - то, что дает план работ. ${econNote()} Оценка, не гарантия.`)];
+      const lagNote = !oneStep && salesLag > 0
+        ? ` Продажа - в среднем через ${salesLag} мес после обращения (цикл сделки), поэтому выручка идет позже обращений.`
+        : "";
+      const mapsNote = P.some((m) => toNum(at(m).leads_maps) >= 0.5) ? ` В обращениях учтены звонки и маршруты из Яндекс Карт - они идут из карточки, без перехода на сайт.` : "";
+      return keepTogether([h3("Сейчас и через 3, 6 и 12 месяцев"), grid(ws, rows),
+        note(`«Без работ» - текущий уровень без изменений; дополнительные ${oneStep ? "заказы" : "обращения"} и выручка - прирост к тому, что сайт дает сейчас.${mapsNote}${lagNote} ${econNote()} Оценка, не гарантия.`)]);
     },
 
     forecast_drivers() {
@@ -694,8 +808,7 @@ function buildV2() {
       if (toNum(d.articles) > 0) items.push({ label: "Статьи", value: toNum(d.articles), valueText: "+" + fmtInt(d.articles), color: C.blue });
       const extra = [];
       const ml = toNum(d.maps_leads);
-      const leadForms = oneStep ? ["заказ", "заказа", "заказов"] : ["обращение", "обращения", "обращений"];
-      if (ml > 0) extra.push(`**+${fmtCount(ml)} ${plural(Math.abs(ml) < 10 ? Math.round(ml * 10) / 10 : Math.round(ml), leadForms)} в месяц** напрямую из Яндекс Карт, мимо сайта.`);
+      if (ml > 0) extra.push(`**+${fmtCount(ml)} ${leadsWord(ml)} в месяц** напрямую из Яндекс Карт, мимо сайта.`);
       if (toNum(d.conv_mult) > 1.005) extra.push(`**+${Math.round((toNum(d.conv_mult) - 1) * 100)}% к конверсии сайта**: страницы по образцу лидеров ниши.`);
       if (!items.length && !extra.length) { warn("forecast_drivers: в drivers_m12 нет ненулевых составляющих"); return []; }
       const out = [h3("За счет чего растем к 12 месяцу")];
@@ -717,7 +830,8 @@ function buildV2() {
     const type = block && block.type;
     if (type && MARKERS[type]) {
       markersDone.push(type);
-      return MARKERS[type]();
+      const out = MARKERS[type]();
+      return Array.isArray(out) ? out : [out]; // маркер в keepTogether - одна таблица
     }
     switch (type) {
       case "subheading":
@@ -849,8 +963,8 @@ function buildV2() {
   const kids = [];
   const add = (...x) => kids.push(...x.flat().filter(Boolean));
   // Блок закончился таблицей -> отбивка перед следующим блоком; между карточками плана подряд - тонкий разделитель.
-  // У последнего блока раздела отбивки нет: дальше заголовок раздела с новой страницы (лишний абзац в конце
-  // заполненной страницы дал бы пустую страницу).
+  // У последнего блока раздела отбивки нет: у заголовка следующего раздела своя отбивка сверху (spacing.before),
+  // лишний абзац в конце заполненной страницы дал бы почти пустую страницу.
   const addBlock = (els, nextType, curType) => {
     if (!els.length) return;
     add(els);
@@ -869,18 +983,32 @@ function buildV2() {
   add(spacer(320));
   add(h2("Главное за одну минуту"));
 
+  // KPI: рост трафика «×N» / «+N%» - только от заметной базы (t0 >= 30), иначе «до N переходов» (с нуля или с
+  // единиц: кратность от 3 переходов ничего не значит); обращения и выручка - из lost_now (та же семантика, что
+  // у блока «Деньги, которые вы теряете»). Числительные согласованы с числом, которое видит читатель.
   const m12 = toNum((rec.checkpoints || {}).m12);
   let growthTile;
   if (t0 < 30) {
-    growthTile = { value: `до ${fmtInt(m12)}`, label: "переходов из поиска в месяц к 12-му месяцу: сайт растет с нуля по плану работ", tone: "success" };
+    const t0src = (forecast.inputs || {}).t0_source;
+    const tail = t0 >= 1 ? `сейчас около ${fmtInt(t0)}` : (t0src === "metrika" ? "сайт растет с нуля" : "по открытым данным переходов из поиска пока почти нет");
+    growthTile = { value: `до ${fmtInt(m12)}`, label: `${pluralGen(Math.round(m12), TRAFFIC_GEN)} из поиска в месяц к 12-му месяцу по плану работ (${tail})`, tone: "success" };
   } else {
     const ratio = m12 / Math.max(t0, 1);
     const value = ratio >= 2 ? `×${dec1(ratio)}` : `+${Math.max(0, Math.round((ratio - 1) * 100))}%`;
     growthTile = { value, label: `рост переходов из поиска за 12 месяцев по плану работ (с ${fmtInt(t0)} до ${fmtInt(m12)} в месяц)`, tone: "success" };
   }
+  const kLeads = dispCount(lost.leads_month);
   add(kpiRow([
     growthTile,
-    { value: `~${fmtCount(lost.leads_month)}`, label: `${leadWord} в месяц сейчас уходят к конкурентам`, tone: "danger" },
+    {
+      value: `~${fmtCount(lost.leads_month)}`,
+      // нейтрально: ориентир потерь почти всегда срезан уровнем плана к 12 мес - «уходят к конкурентам» читается как
+      // обещание плана под видом потерь (приемка 06.10)
+      label: lostBasis === "competitors"
+        ? `${leadsWord(kLeads)} в месяц вы недополучаете - этот спрос сейчас забирают конкуренты из топа`
+        : `${leadsWord(kLeads)} в месяц вы недополучаете против уровня, который реально взять за год`,
+      tone: "danger",
+    },
     { value: `~${fmtRub(lost.revenue_month)}`, label: "выручки в месяц вы недополучаете", tone: "loss" },
   ]));
   add(spacer(200));
@@ -896,7 +1024,7 @@ function buildV2() {
   // ── Разделы ──
   const sections = Array.isArray(content.sections) ? content.sections : [];
   sections.forEach((section, idx) => {
-    add(sectionTitle(idx + 1, section.title || DEFAULT_TITLES[section.key] || ""));
+    add(sectionTitle(idx + 1, section.title || DEFAULT_TITLES[section.key] || "", { pageBreak: idx === 0 }));
     const ctx = { leadDone: false };
     const blocks = (Array.isArray(section.blocks) ? section.blocks : []).filter(Boolean);
     blocks.forEach((block, bi) => {

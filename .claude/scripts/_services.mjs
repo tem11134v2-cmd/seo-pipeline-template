@@ -79,7 +79,7 @@ export const SERVICES = {
     type: "onetime", price: 0, regular_price: 3000, deadline: "3 дня",
     description: "Одна статья 1500-3000 слов по вашей теме: текст, метатеги, ТЗ для верстальщика",
     result: "Готовая SEO-статья с метатегами",
-    client_line: "напишем пробную статью, чтобы вы оценили качество",
+    client_line: "напишем тестовую статью в подарок, чтобы вы оценили качество",
   },
   ST: {
     name: "Сателлит - платформа для размещения статей",
@@ -284,26 +284,52 @@ export const DEV_OPTIONS = [
 // ═══ План работ по неделям (для блока plan_timeline в docx) ═══
 // Разовые идут цепочкой PA -> SY -> KP -> FQ (алгоритмы ждут гейты заказчика), техника - сразу.
 // start_week - неделя начала (0 = первая неделя), weeks - длительность. Ежемесячные - полосой до конца года.
+// label - подпись строки плана в docx клиенту: без жаргона (не «FAQ», «n-граммы», «метатеги», «ПФ»).
 export const TIMELINE = {
   PA: { start_week: 0, weeks: 1, label: "Анализ бизнеса и смыслов" },
   FA: { start_week: 0, weeks: 1, label: "Технический аудит" },
-  BS: { start_week: 0, weeks: 1, label: "Настройка Tilda" },
-  MT: { start_week: 0, weeks: 1, label: "Метатеги" },
+  BS: { start_week: 0, weeks: 1, label: "Настройка сайта на Tilda" },
+  MT: { start_week: 0, weeks: 1, label: "Заголовки страниц для поиска" },
   // Сроки - по каталогу TARIFFS.md: SY 5 дней = 1 нед., KP 5-7 дней + ответы = 2 нед.; цепочка PA+SY+KP+FQ - 5 нед.
-  SY: { start_week: 1, weeks: 1, label: "Структура под спрос" },
+  SY: { start_week: 1, weeks: 1, label: "Структура сайта под спрос" },
   KP: { start_week: 2, weeks: 2, label: "Прототип с текстами" },
-  FQ: { start_week: 4, weeks: 1, label: "FAQ и n-граммы" },
+  FQ: { start_week: 4, weeks: 1, label: "Вопросы-ответы и ключевые слова на страницах" },
   IT: { start_week: 0, weeks: 1, label: "Темы статей" },
+  // ART в линейке только акцией (price 0) - подпись единая со сметой: «Тестовая статья (в подарок)»
   ART: { start_week: 1, weeks: 1, label: "Тестовая статья" },
-  ST: { start_week: 2, weeks: 2, label: "Сателлит" },
-  PF: { start_week: 0, weeks: 52, label: "Внешнее продвижение", monthly: true },
-  PFP: { start_week: 0, weeks: 52, label: "Внешнее продвижение", monthly: true },
-  YM: { start_week: 0, weeks: 52, label: "Активность в Картах", monthly: true },
-  LB: { start_week: 2, weeks: 50, label: "Внешние ссылки", monthly: true },
-  LA: { start_week: 2, weeks: 50, label: "Внешние ссылки", monthly: true },
-  AR: { start_week: 2, weeks: 50, label: "Статьи 10 в месяц", monthly: true },
+  ST: { start_week: 2, weeks: 2, label: "Тематический сайт для статей" },
+  PF: { start_week: 0, weeks: 52, label: "Внешнее продвижение в Яндексе", monthly: true },
+  PFP: { start_week: 0, weeks: 52, label: "Внешнее продвижение в Яндексе", monthly: true },
+  YM: { start_week: 0, weeks: 52, label: "Карточка в Яндекс Картах", monthly: true },
+  LB: { start_week: 2, weeks: 50, label: "Ссылки с других сайтов", monthly: true },
+  LA: { start_week: 2, weeks: 50, label: "Ссылки с других сайтов", monthly: true },
+  AR: { start_week: 2, weeks: 50, label: "Статьи, 10 в месяц", monthly: true },
   RP: { start_week: 0, weeks: 52, label: "Отчеты", monthly: true },
 };
+
+// Строка «Разработка и запуск сайта» для плана работ docx (в timelineFor не входит: смета считает по нему срок
+// разовых работ тарифа, а разработка - отдельный блок site_dev). Нужна, если сайт выходит в поиск не с 1-го мес
+// (launchMonth > 1 - новый сайт, forecast.json launch_month) или разработку рекомендуем (site_dev.recommended).
+// Сайт собирается по прототипу: старт после этапа KP (без него - с 1-й недели), конец - к месяцу запуска.
+// Сайт уже есть (launchMonth = 1), но пересобираем - ориентир DEV_TIMELINE.default_weeks после прототипа.
+export const DEV_TIMELINE = { label: "Разработка и запуск сайта", default_weeks: 9 };
+export function devTimelineRow(ids, { launchMonth = 1, recommended = false } = {}) {
+  const L = Math.max(1, Math.round(Number(launchMonth) || 1));
+  if (L <= 1 && !recommended) return null;
+  const afterProto = timelineFor(ids)
+    .filter((it) => ["PA", "SY", "KP"].includes(it.id))
+    .reduce((a, it) => Math.max(a, it.start_week + it.weeks), 0);
+  let start, end;
+  if (L > 1) {
+    end = Math.max(1, Math.round(((L - 1) * 52) / 12)); // неделя запуска: начало месяца L
+    start = Math.min(afterProto, Math.max(0, end - 4));  // прототип дольше срока - верстка идет параллельно
+    if (end - start < 1) start = Math.max(0, end - 1);
+  } else {
+    start = afterProto;
+    end = start + DEV_TIMELINE.default_weeks;
+  }
+  return { id: "DEV", label: DEV_TIMELINE.label, start_week: start, weeks: end - start, monthly: false, launch_month: L };
+}
 
 // Если в тарифе нет SY, KP идет сразу после PA; если нет KP, FQ - после SY (сдвиг цепочки).
 export function timelineFor(ids) {

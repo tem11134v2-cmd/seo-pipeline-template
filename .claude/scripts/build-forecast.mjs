@@ -27,7 +27,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
   MODEL_VERSION, TARIFF_KEYS, HORIZON, CAL, ECON_DEFAULTS,
-  computeAll, economicsChecks, resolveEconomics, applyClientEconomics,
+  computeAll, economicsChecks, resolveEconomics, applyClientEconomics, recommendOffer, lostNowCalc,
 } from "./_forecast-model.mjs";
 import { SERVICES, RETIRED_IDS, canonicalId } from "./_services.mjs";
 
@@ -226,32 +226,42 @@ const t0 = Number(fi.t0) || 0;
 const rnd = (x) => Math.round(x);
 const rnd1 = (x) => Math.round(x * 10) / 10;
 
-// «Сколько теряете сейчас»: то, что план Роста приносит в месяц к 12-му мес сверх текущего (рынок, который
-// сейчас забирают конкуренты), плюс сверка с трафиком конкурентов (для текста, не для денег).
-// Обращения и продажи - из неокругленного 12-го месяца (g.m12 модель уже округлила до целых: 0,7 продажи
-// стали бы «1», а 0,4 - «0 продаж» при ненулевой выручке).
-const gm12 = g.months[11];
+// Рекомендация для сметы и docx (recommendOffer в модели, ее же зовет verify-strategy.mjs): Рост по умолчанию,
+// при проваленном экономическом гейте - тариф с лучшим чистым результатом за 12 мес, если он в плюсе, иначе null.
+// План работ, график и потери в docx строятся по plan_tariff (= рекомендованный или Рост).
+const { recommended_offer: recommendedOffer, plan_tariff: planKey } = recommendOffer(res, checks);
+const pt = res[planKey] || g;
+
+// «Деньги, которые вы теряете» (v2.1, lostNowCalc в модели - ее же зовет verify-strategy.mjs): разрыв с ориентиром
+// конкурентов из топа (не больше уровня плана к 12-му мес) по БАЗОВОЙ конверсии; нет данных о конкурентах - по плану.
+const lost = lostNowCalc(fi, pt);
 const lostNow = {
-  basis: "прирост к 12-му месяцу по плану работ (рекомендованный состав) против текущего уровня",
-  traffic_month: rnd(gm12.traffic - t0),
-  leads_month: rnd1(gm12.leads),
-  leads_maps_month: rnd1(gm12.leads_maps),
-  sales_month: rnd1(gm12.sales),
-  revenue_month: rnd(gm12.revenue),
-  revenue_year: rnd(gm12.revenue * 12),
-  competitors_traffic_median: fi.competitors_traffic && Number(fi.competitors_traffic.median) > 0 ? Number(fi.competitors_traffic.median) : null,
-  competitors_traffic_leader: fi.competitors_traffic && Number(fi.competitors_traffic.leader) > 0 ? Number(fi.competitors_traffic.leader) : null,
+  basis: lost.basis,
+  basis_note: lost.basis === "competitors"
+    ? "разрыв с медианой трафика сопоставимых конкурентов из топа (не больше уровня, который реально взять за год), по базовой конверсии"
+    : "разрыв с уровнем, который реально взять за 12 мес по плану работ, по базовой конверсии",
+  target_traffic: rnd(lost.target_traffic),
+  traffic_month: rnd(lost.traffic_month),
+  leads_month: rnd1(lost.leads_month),
+  sales_month: rnd1(lost.sales_month),
+  revenue_month: rnd(lost.revenue_month),
+  revenue_year: rnd(lost.revenue_month * 12),
+  competitors_traffic_median: lost.competitors_traffic_median,
+  competitors_traffic_leader: lost.competitors_traffic_leader,
 };
 
-// Ряд «план vs без работ» для docx (рекомендованный тариф = Рост), месяцы 0..12.
+// Ряд «план vs без работ» для docx (тариф плана), месяцы 0..12.
 const planSeries = [{ m: 0, traffic: t0, leads: 0, revenue: 0, baseline: t0 }];
-for (const r of g.months.slice(0, 12)) {
+for (const r of pt.months.slice(0, 12)) {
   planSeries.push({ m: r.m, traffic: rnd(r.traffic), leads: rnd1(r.leads), revenue: rnd(r.revenue), baseline: t0 });
 }
 
 function tariffOut(r) {
   return {
     ids: r.ids,
+    launch_month: r.launch_month,
+    cap: r.cap,
+    capped_from_month: r.capped_from_month,
     checkpoints: Object.fromEntries(Object.entries(r.checkpoints).map(([k, v]) => [k, rnd(v)])),
     drivers_m12: r.drivers_m12,
     year1: r.year1,
@@ -284,20 +294,15 @@ const assumptionsNote = econ.model === "one_step"
     `обращение -> продажа ${fmtPct(econ.close_rate)}%, средний чек ${econ.avg_check.toLocaleString("ru-RU")} руб` +
     `${econ.avg_check_source === "client" ? "" : " (оценка)"}, маржинальность ${fmtPct(econ.margin)}%. `;
 
-// Рекомендация для сметы. Рост - по умолчанию (по его составу написан план работ docx). Экономический гейт не
-// пройден (RULES раздел 10: «тариф велик для экономики клиента») - смета не выделяет Рост: рекомендует тариф с
-// лучшим чистым результатом за 12 мес, если он в плюсе, иначе ни один (null).
-let recommendedOffer = "growth";
-if (checks.hard.length) {
-  const best = TARIFF_KEYS.filter((k) => res[k]).sort((a, b) => res[b].year1.net - res[a].year1.net)[0];
-  recommendedOffer = best && res[best].year1.net > 0 ? best : null;
-}
 
 const out = {
   model_version: MODEL_VERSION,
   horizon_months: HORIZON,
   recommended: "growth",
   recommended_offer: recommendedOffer,
+  plan_tariff: planKey,
+  launch_month: pt.launch_month,
+  traffic_cap: pt.cap,
   inputs: {
     t0,
     t0_source: fi.t0_source || (data.traffic_month_estimated ? "estimated" : "keyso"),
@@ -312,11 +317,14 @@ const out = {
   },
   assumptions_note:
     assumptionsNote +
+    (econ.ltv_factor > 1 ? `Повторные покупки одного клиента за год: x${String(Math.round(econ.ltv_factor * 10) / 10).replace(".", ",")}. ` : "") +
+    (econ.sales_lag_months > 0 ? `Обращение становится продажей в среднем через ${econ.sales_lag_months} мес (цикл сделки). ` : "") +
+    (pt.launch_month > 1 ? `Новый сайт выходит в поиск к ${pt.launch_month}-му мес: ежемесячные работы оплачиваются с этого месяца. ` : "") +
     `Деньги считаются только с прироста к текущему трафику. ROMI - от валовой прибыли (выручка x маржа). Оценка, не гарантия.`,
   baseline: {
     traffic_month: t0,
     leads_month: rnd1(t0 * econ.conversion_rate),
-    revenue_month: rnd(t0 * econ.conversion_rate * econ.close_rate * econ.avg_check),
+    revenue_month: rnd(t0 * econ.conversion_rate * econ.close_rate * econ.avg_check * econ.ltv_factor),
   },
   lost_now: lostNow,
   plan_series: planSeries,
@@ -326,7 +334,7 @@ const out = {
     pf_mult_max: CAL.pf_mult_max,
     vpp: CAL.vpp[econ.business_type],
     kp_conv_mult: CAL.kp_conv_mult,
-    source: "cases.timur-seo.ru (13 кейсов), поправка на отбор x0,8-0,9",
+    source: "кейсы cases.timur-seo.ru (13) + портфель Monstro/Метрика (ПФ, 13 сайтов), модель v2.1",
   },
 };
 

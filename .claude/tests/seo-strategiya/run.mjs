@@ -8,13 +8,19 @@
 //      стоп-паттерны -> 2; тире/буква Е-с-точками -> 2; нет раздела 4 -> 2; битый/нет JSON -> 1; тонкая проза -> 0.
 //   2. Легаси прогноз денег (_forecast-money.mjs, эталоны этапа 8) + сценарный/легаси лист сметы
 //      + блок СЦЕНАРНАЯ СОГЛАСОВАННОСТЬ. Старые стратегии пересобираются старыми путями (Р11) - числа не меняются.
-//   3. v2 (программа 06.10.2026, docs/upgrade-program-2026-10-06-strategy-v2.md §8):
+//   3. v2 (программа 06.10.2026, docs/upgrade-program-2026-10-06-strategy-v2.md §8) + модель v2.1 (боевой прогон
+//      на 5 клиентах, второй круг):
 //      модель _forecast-model.mjs (монотонность тарифов, Старт ~ Рост на 3-м мес, Рост > Старт на 12-м,
-//      прирост от m0, акция ПФ 1=2, конверсия от прототипа, экономический гейт); каталог _services.mjs
-//      (ступени цены подстраниц с полом, лендинг, порядок PA -> SY -> KP -> FQ); build-forecast.mjs (exit 0/2/3,
-//      экономика клиента, проценты -> доли); смета v2 (листы, формулы «Окупаемость» = forecast.json и модели,
-//      «Разработка сайта»); docx v2 (маркеры, без «тариф», легаси v1); verify-strategy v2 (деньги и тарифы
-//      в прозе, нет маркера, рассинхрон прогноза).
+//      прирост от m0, акция ПФ 1=2, конверсия от прототипа, экономический гейт; v2.1 - мягкий потолок softCap /
+//      trafficCap и срез пропорционально, месяц запуска нового сайта и затраты с него, цикл сделки, повторные
+//      покупки, recommendOffer / plan_tariff, потери lostNowCalc, мягкие проверки потолка и одинаковых тарифов);
+//      каталог _services.mjs (ступени цены подстраниц с полом, лендинг, порядок PA -> SY -> KP -> FQ);
+//      build-forecast.mjs (exit 0/2/3, экономика клиента, проценты -> доли, поля v2.1, новый сайт, потери);
+//      смета v2 (листы, формулы «Окупаемость» = forecast.json и модели, LTV и цикл сделки формулами, m0,
+//      безубыточность, ROMI с разработкой, кэш формул и fullCalcOnLoad, кухня архитектора не в смете,
+//      «Разработка сайта»); docx v2 (маркеры, без «тариф», легаси v1, план по plan_tariff, строка разработки,
+//      без абсолютной выручки «без работ», склонения); verify-strategy v2 (деньги и тарифы в прозе, нет маркера,
+//      рассинхрон прогноза, ЭКОНОМИКА, СОСТАВ ПЛАНА по тарифу плана).
 //
 // Фикстуры синтезируются inline в песочнице .claude/tmp/seo-strategiya-test/run-<pid>: у каждого прогона
 // своя папка, параллельные прогоны не стирают друг другу файлы. Зеленый прогон убирает свою папку,
@@ -32,9 +38,10 @@ import JSZip from "jszip";
 import { computeScenarioTariff, resolveActiveMonths, interpCheckpoints } from "../../scripts/_forecast-money.mjs";
 import {
   computeAll, computeTariff, economicsChecks, costSeries, trafficSeries, CAL, HORIZON, MODEL_VERSION,
+  ECON_DEFAULTS, softCap, trafficCap, launchMonth, resolveEconomics, recommendOffer, lostNowCalc, applyClientEconomics,
 } from "../../scripts/_forecast-model.mjs";
 import {
-  devPrice, devSubpagesPrice, timelineFor, serviceMeta, canonicalId, DEV_OPTIONS,
+  devPrice, devSubpagesPrice, timelineFor, serviceMeta, canonicalId, DEV_OPTIONS, TIMELINE, DEV_TIMELINE,
 } from "../../scripts/_services.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -997,6 +1004,119 @@ function copyV2Dir(srcDir, name, content) {
 
 const MONTH_TOL = 0.5; // визитов: допуск на округление при сравнении кривых
 
+// ── Фикстура v2.1 «новый сайт» (боевой прогон 06.10, натяжные потолки в Сочи) ──
+// Сайта и трафика нет, точный спрос главных фраз мал (178 - старый жесткий потолок 20% давал плоские 36 визитов
+// с 3-го мес), у прямых конкурентов 129 / 207 переходов. Старт для нового сайта уже PA + SY + KP + PF (RULES
+// раздел 5), Рост = Старт + FQ + LB, Максимум - PFP + LA. Разработку рекомендуем, делает разработчик клиента ->
+// сайт в поиске к 3-му мес. Экономика: Рост за 12 мес в минусе и хуже Старта -> гейт не пройден (exit 3),
+// смета рекомендует Старт, план docx - по Старту.
+const V2_NEW_FI = {
+  business_type: "services",
+  competition: "medium",
+  t0: 0,
+  t0_source: "keyso",
+  pages: { existing_commercial: 0, planned_new: 40, catalog_cards: 0 },
+  demand: { commercial_month: 178, info_month: 0, basis: "сумма точных частот 38 маркеров по Сочи (тестовая фикстура)" },
+  local: false,
+  maps_card: "none",
+  tech_critical: false,
+  has_positions: false,
+  site_age_months: 0,
+  implementation_lag_shift: 0,
+  competitors_traffic: { median: 129, leader: 207, basis: "Keyso, топ-3 прямых (тестовая фикстура)" },
+  economics: {
+    avg_check: 30000, avg_check_source: "site", conversion_rate: 0.05, close_rate: 0.3, margin: 0.4,
+    model: "two_step", basis: "тестовая фикстура",
+  },
+};
+
+function v2NewTariffs() {
+  const pf2 = { type: "pf_2for1", reason: "сайта пока нет - второй месяц внешнего продвижения после запуска в подарок" };
+  const startOnce = [{ id: "PA", price: 5000 }, { id: "SY", price: 25000 }, { id: "KP", price: 25000 }];
+  return {
+    diagnostics: { has_positions: false, site_profile: "new", local_with_address: false, maps_card: "none" },
+    start: {
+      onetime: clone(startOnce),
+      monthly: [{ id: "PF", price: 25000 }, { id: "RP", price: 0 }],
+      promos: [pf2],
+      total_onetime: 55000,
+      total_monthly: 25000,
+      hint: "Новый сайт под спрос: анализ, структура и прототип с текстами, после запуска - внешнее продвижение.",
+    },
+    growth: {
+      onetime: [...clone(startOnce), { id: "FQ", price: 25000 }],
+      monthly: [{ id: "PF", price: 25000 }, { id: "LB", price: 25000 }, { id: "RP", price: 0 }],
+      promos: [pf2],
+      total_onetime: 80000,
+      total_monthly: 50000,
+      hint: "Все из Старта плюс ключевые слова на страницах и ссылки с других сайтов.",
+    },
+    max: {
+      onetime: [...clone(startOnce), { id: "FQ", price: 25000 }],
+      monthly: [{ id: "PFP", price: 45000 }, { id: "LA", price: 45000 }, { id: "RP", price: 0 }],
+      promos: [pf2],
+      total_onetime: 80000,
+      total_monthly: 90000,
+      hint: "Профиль «Активный»: усиленное продвижение и больше ссылок.",
+    },
+    site_dev: {
+      recommended: true, format: "multipage", pages: 40, home_blocks: 10,
+      reason: "сайта нет - прогноз держится на новом сайте", promo_note: "при заказе разработки у нас - акция ПФ 1=2",
+    },
+    economics_round: 0,
+  };
+}
+
+const V2_NEW_INPUTS = {
+  url_raw: "", domain: "none", slug: "no-site-potolki", date: "Октябрь 2026", region: "Сочи", niche: "Натяжные потолки",
+  avg_check: null, conversion_rate: null, close_rate: null, margin: null, we_develop: false,
+};
+
+// Content нового сайта: работы плана - из Старта (тариф плана при проваленном гейте).
+function v2NewContent() {
+  const c = v2Content();
+  const items = c.sections[2].blocks.filter((b) => b.type === "plan_item");
+  items[0].services = ["PA", "SY"];
+  items[1].services = ["KP"];
+  items[2].services = ["SY"];
+  items[3].services = ["PF"];
+  return c;
+}
+
+// ── Фикстура «упор в потолок»: точный спрос (100) ниже текущего трафика (1 000), у всех трех тарифов структура на
+// 200 страниц - кривые упираются в мягкий потолок t0 x 2,5 к 3-му мес и почти совпадают (топдом, burols).
+const CAP_FI = {
+  business_type: "services", competition: "medium", t0: 1000,
+  pages: { existing_commercial: 12, planned_new: 200, catalog_cards: 0 },
+  demand: { commercial_month: 100 }, local: false, economics: { avg_check: 40000 },
+};
+function capTariffs() {
+  const once = [{ id: "PA", price: 5000 }, { id: "SY", price: 25000 }, { id: "KP", price: 25000 }];
+  return {
+    start: { onetime: clone(once), monthly: [{ id: "PF", price: 25000 }, { id: "RP", price: 0 }], total_onetime: 55000, total_monthly: 25000 },
+    growth: {
+      onetime: [...clone(once), { id: "FQ", price: 25000 }],
+      monthly: [{ id: "PF", price: 25000 }, { id: "LB", price: 25000 }, { id: "RP", price: 0 }], total_onetime: 80000, total_monthly: 50000,
+    },
+    max: {
+      onetime: [...clone(once), { id: "FQ", price: 25000 }],
+      monthly: [{ id: "PFP", price: 45000 }, { id: "LA", price: 45000 }, { id: "RP", price: 0 }], total_onetime: 80000, total_monthly: 90000,
+    },
+  };
+}
+
+// ── Текст docx / xlsx как его видит читатель: пробелы тысяч обычные, числа и деньги в формате сборщиков ──
+const flatText = (s) => String(s || "").replace(/[\s  ]+/g, " ");
+const fmtIntS = (n) => Math.round(Number(n) || 0).toLocaleString("ru-RU").replace(/[  ]/g, " ");
+const dec1S = (x) => String(Math.round(x * 10) / 10).replace(".", ",");
+// обращения / продажи: до 10 - с одним знаком (5,2), дальше целые (fmtCount сборщика docx)
+const fmtCountS = (x) => (Math.abs(x) < 10 ? dec1S(x) : fmtIntS(x));
+// деньги docx: «1,2 млн ₽», «450 тыс ₽», «900 ₽» (fmtRub сборщика)
+const rubShortS = (x) =>
+  x >= 999500 ? `${x / 1e6 >= 10 ? fmtIntS(x / 1e6) : dec1S(x / 1e6)} млн ₽` : x >= 1000 ? `${fmtIntS(x / 1000)} тыс ₽` : `${fmtIntS(x)} ₽`;
+// родительный после «до»: «до 571 перехода», «до 266 переходов»
+const trafficGenS = (n) => { const x = Math.round(n); return x % 10 === 1 && x % 100 !== 11 ? "перехода" : "переходов"; };
+
 // ──────────────────────────────────────────────────────────────────────────
 // 3.1. Модель _forecast-model.mjs
 // ──────────────────────────────────────────────────────────────────────────
@@ -1118,6 +1238,190 @@ await step("модель: экономический гейт - ROMI Роста 
   return true;
 });
 
+// ── v2.1: потолок, запуск нового сайта, цикл сделки, повторные покупки, рекомендация, потери ──
+
+await step("модель v2.1: softCap - до колена (0,6 x потолка) без изменений, дальше монотонно и ниже потолка; trafficCap = max(спрос x доля, лидер x1,5, медиана x1,5, t0 x2,5), без данных - без потолка", () => {
+  const cap = 1000;
+  const knee = CAL.soft_cap_knee * cap;
+  for (const x of [0, 100, knee]) if (softCap(x, cap) !== x) return `softCap(${x}) = ${softCap(x, cap)} (до колена значение не меняется)`;
+  if (Math.abs(softCap(knee + 1e-3, cap) - (knee + 1e-3)) > 1e-6) return "излом в колене: наклон не 1";
+  let prev = softCap(knee, cap);
+  for (let x = knee + 5; x <= 5 * cap; x += 5) {
+    const y = softCap(x, cap);
+    if (!(y > prev)) return `не монотонно: softCap(${x}) = ${y} <= ${prev}`;
+    if (!(y < cap) || y > x) return `softCap(${x}) = ${y} (ожидалось < ${cap} и <= x)`;
+    prev = y;
+  }
+  if (softCap(5000, Infinity) !== 5000 || softCap(5000, 0) !== 5000) return "без потолка (Infinity / 0) значение меняется";
+  const cases = [
+    ["спрос x 0,8 (medium)", V2_FI, 20000 * CAL.demand_share_cap.medium],
+    ["спрос x 0,6 (high)", v2Fi({ competition: "high" }), 20000 * CAL.demand_share_cap.high],
+    ["лидер прямых x1,5 (точный спрос мал)", V2_NEW_FI, 207 * CAL.cap_competitors.leader_share],
+    ["медиана x1,5", { t0: 0, demand: { commercial_month: 10 }, competitors_traffic: { median: 400, leader: 300 } }, 400 * CAL.cap_competitors.median_mult],
+    ["t0 x2,5 (спрос ниже трафика)", CAP_FI, 1000 * CAL.cap_t0_mult],
+    ["нет ни спроса, ни конкурентов", { t0: 500, demand: { commercial_month: 0 } }, Infinity],
+  ];
+  for (const [name, fi, want] of cases) {
+    const got = trafficCap(fi);
+    if (!(got === want || Math.abs(got - want) < 1e-9)) return `${name}: trafficCap ${got} (ожидалось ${want})`;
+  }
+  return true;
+});
+
+await step("модель v2.1: мягкий потолок - новый сайт с малым точным спросом (178) растет до 12-го мес (не плоско с m3-m4), потолок по лидеру прямых конкурентов, новые страницы не обнулены срезом", () => {
+  const r = computeTariff(V2_NEW_FI, v2NewTariffs().growth);
+  const cap = trafficCap(V2_NEW_FI);
+  if (r.cap !== Math.round(207 * CAL.cap_competitors.leader_share)) return `cap ${r.cap} (ожидался лидер 207 x 1,5)`;
+  if (!r.capped_from_month) return "кривая не дошла до колена потолка - фикстура не проверяет срез";
+  const tr = r.months.map((x) => x.traffic);
+  for (let m = r.launch_month + 1; m < 12; m++) {
+    if (!(tr[m] > tr[m - 1] + 0.1)) return `мес ${m + 1}: ${tr[m].toFixed(1)} не выше мес ${m}: ${tr[m - 1].toFixed(1)} - плато (жесткий потолок)`;
+  }
+  const c = r.checkpoints;
+  if (!(c.m12 > c.m6 * 1.1)) return `m12 ${c.m12.toFixed(1)} / m6 ${c.m6.toFixed(1)} < 1,1 - кривая плоская после разгона`;
+  if (!(c.m12 < cap)) return `m12 ${c.m12.toFixed(1)} не ниже потолка ${cap}`;
+  const demandLevel = V2_NEW_FI.demand.commercial_month * CAL.demand_share_cap.medium;
+  if (!(c.m12 > demandLevel * 1.5)) return `m12 ${c.m12.toFixed(1)} у уровня точного спроса ${demandLevel} - потолок взят по спросу, а не по конкурентам`;
+  if (!(r.drivers_m12.new_pages > 0)) return `drivers_m12.new_pages ${r.drivers_m12.new_pages} - срез потолка обнулил новые страницы`;
+  return true;
+});
+
+await step("модель v2.1: срез потолка делится между существующими и новыми страницами пропорционально (доля новых та же, что без потолка)", () => {
+  const fi = { business_type: "services", competition: "medium", t0: 400, pages: { existing_commercial: 12, planned_new: 40 }, demand: { commercial_month: 500 }, local: false, economics: { avg_check: 40000 } };
+  const ids = new Set(["PA", "SY", "KP", "PF", "RP"]);
+  const capped = trafficSeries(fi, ids);
+  const free = trafficSeries({ ...fi, demand: { commercial_month: 1e6 } }, ids);
+  for (const m of [6, 12]) {
+    const a = capped[m], b = free[m];
+    if (!a.capped || b.capped) return `мес ${m}: capped ${a.capped} / без потолка ${b.capped} - фикстура`;
+    if (!(a.commercial < b.commercial - 1)) return `мес ${m}: срез не сработал (${a.commercial} vs ${b.commercial})`;
+    const ra = a.new_part / a.exist_part, rb = b.new_part / b.exist_part;
+    if (Math.abs(ra - rb) > 1e-9 * Math.max(1, rb)) return `мес ${m}: новые / существующие ${ra.toFixed(4)} при потолке vs ${rb.toFixed(4)} без него`;
+  }
+  return true;
+});
+
+await step("модель v2.1: новый сайт - launchMonth (разработка у нас 2, у клиента 3, явный site_launch_month, сайт есть - 1); ежемесячные затраты с месяца запуска, акция ПФ 1=2 в месяц запуска + 1; трафик до запуска 0", () => {
+  if (launchMonth(V2_NEW_FI) !== CAL.launch_month.client) return `разработка у клиента: ${launchMonth(V2_NEW_FI)} (ожидалось ${CAL.launch_month.client})`;
+  if (launchMonth({ ...V2_NEW_FI, we_develop: true }) !== CAL.launch_month.we_develop) return `разработка у нас: ${launchMonth({ ...V2_NEW_FI, we_develop: true })}`;
+  if (launchMonth({ ...V2_NEW_FI, site_launch_month: 5 }) !== 5) return "явный site_launch_month не взят";
+  if (launchMonth(V2_FI) !== 1) return `сайт с трафиком: ${launchMonth(V2_FI)} (ожидалось 1)`;
+  if (launchMonth(v2Fi({ t0: 10, pages: { existing_commercial: 5, planned_new: 10, catalog_cards: 0 } })) !== 1) return "5 страниц услуг - сайт есть, запуск не с 1-го мес";
+  const g = v2NewTariffs().growth; // разовые 80 000, ежемесячные 50 000, ПФ 25 000, акция ПФ 1=2
+  const cs = costSeries(g, HORIZON, 3);
+  const want = [0, 80000, 0, 50000, 25000, 50000];
+  if (want.some((v, i) => cs[i] !== v)) return `costSeries(.., 3): мес 0-5 = ${cs.slice(0, 6).join(", ")} (ожидалось ${want.join(", ")})`;
+  const r = computeTariff(V2_NEW_FI, g);
+  if (r.launch_month !== 3) return `launch_month ${r.launch_month}`;
+  const costs = r.months.slice(0, 5).map((x) => x.cost);
+  if (costs.join() !== "80000,0,50000,25000,50000") return `затраты модели мес 1-5: ${costs.join(", ")}`;
+  if (r.year1.cost !== 80000 + 50000 * 10 - 25000) return `затраты 12 мес ${r.year1.cost} (ожидалось ${80000 + 50000 * 10 - 25000}: ежемесячные 10 мес)`;
+  for (let m = 1; m <= 3; m++) if (r.months[m - 1].traffic !== 0 || r.months[m - 1].leads !== 0) return `мес ${m}: трафик ${r.months[m - 1].traffic}, обращений ${r.months[m - 1].leads} до запуска`;
+  if (!(r.months[3].traffic > 0)) return "мес 4: сайт запущен, а трафика нет";
+  const w = computeTariff({ ...V2_NEW_FI, we_develop: true }, g);
+  if (w.months[1].cost !== 50000 || w.months[2].cost !== 25000) return `разработка у нас: мес 2-3 = ${w.months[1].cost}, ${w.months[2].cost} (ожидалось 50000, 25000)`;
+  return true;
+});
+
+await step("модель v2.1: цикл сделки - high_ticket: продажи 1-3 мес = 0, продажи мес m = обращения мес m-3 x закрытие; умолчания high_ticket 1% / 4%; b2b - 2 мес, услуги - 0", () => {
+  const d = ECON_DEFAULTS.high_ticket;
+  if (d.conversion_rate !== 0.01 || d.close_rate !== 0.04) return `умолчания high_ticket ${d.conversion_rate} / ${d.close_rate} (ожидалось 0,01 / 0,04)`;
+  const fi = v2Fi({ business_type: "high_ticket", local: false, economics: { avg_check: 12000000, model: "two_step" } });
+  const e = resolveEconomics(fi);
+  if (e.sales_lag_months !== 3 || e.conversion_rate !== 0.01 || e.close_rate !== 0.04) return `high_ticket: лаг ${e.sales_lag_months}, ${e.conversion_rate} / ${e.close_rate}`;
+  if (resolveEconomics({ business_type: "b2b" }).sales_lag_months !== 2) return "b2b: лаг не 2";
+  if (resolveEconomics({ business_type: "services" }).sales_lag_months !== 0) return "услуги: лаг не 0";
+  const r = computeTariff(fi, v2Tariffs().growth);
+  for (let m = 1; m <= 3; m++) if (r.months[m - 1].sales !== 0 || r.months[m - 1].revenue !== 0) return `мес ${m}: продаж ${r.months[m - 1].sales} (цикл сделки 3 мес)`;
+  if (!(r.months[0].leads > 0)) return "фикстура: нет обращений в 1-й мес";
+  for (let m = 4; m <= HORIZON; m++) {
+    const want = r.months[m - 4].leads * e.close_rate;
+    if (Math.abs(r.months[m - 1].sales - want) > 1e-9) return `мес ${m}: продаж ${r.months[m - 1].sales}, ожидалось обращения мес ${m - 3} x закрытие = ${want}`;
+  }
+  if (r.payback_month !== null && r.payback_month <= 3) return `окупаемость ${r.payback_month} мес - раньше первой продажи`;
+  return true;
+});
+
+await step("модель v2.1: повторные покупки - выручка = продажи x чек x ltv_factor (medical 1,8, ecommerce 1,3, услуги 1; ltv_factor агента с источником; меньше 1 -> 1)", () => {
+  const g = v2Tariffs().growth;
+  const cases = [
+    ["medical", v2Fi({ business_type: "medical", economics: { avg_check: 6500 } }), 1.8, "default"],
+    ["ecommerce", v2Fi({ business_type: "ecommerce", local: false, economics: { avg_check: 5000 } }), 1.3, "default"],
+    ["services", V2_FI, 1, "default"],
+    ["агент", v2Fi({ business_type: "medical", economics: { avg_check: 6500, ltv_factor: 2.5, ltv_source: "курс 5 процедур" } }), 2.5, "курс 5 процедур"],
+    ["меньше 1", v2Fi({ economics: { ...V2_FI.economics, ltv_factor: 0.5 } }), 1, "estimated"],
+  ];
+  for (const [name, fi, ltv, src] of cases) {
+    const r = computeTariff(fi, g);
+    if (r.economics.ltv_factor !== ltv) return `${name}: ltv_factor ${r.economics.ltv_factor} (ожидалось ${ltv})`;
+    if (r.economics.ltv_source !== src) return `${name}: ltv_source ${r.economics.ltv_source} (ожидалось ${src})`;
+    const x = r.months[11];
+    const want = x.sales * r.economics.avg_check * ltv;
+    if (Math.abs(x.revenue - want) > 1e-6 * Math.max(1, want)) return `${name}: выручка мес 12 ${x.revenue}, ожидалось продажи x чек x ${ltv} = ${want}`;
+  }
+  const one = computeTariff(v2Fi({ business_type: "medical", economics: { avg_check: 6500, ltv_factor: 1 } }), g);
+  const rep = computeTariff(v2Fi({ business_type: "medical", economics: { avg_check: 6500 } }), g);
+  if (!(rep.year1.profit > one.year1.profit * 1.7)) return `прибыль с повторными ${rep.year1.profit} не в ~1,8 раза выше разовой ${one.year1.profit}`;
+  return true;
+});
+
+await step("модель v2.1: recommendOffer - гейт пройден: Рост (план по Росту); не пройден: тариф с лучшим чистым результатом в плюсе (план по нему); все в минусе - null, план по Росту", () => {
+  const ok = recommendOffer(computeAll(V2_FI, v2Tariffs()));
+  if (ok.recommended_offer !== "growth" || ok.plan_tariff !== "growth") return `чистая фикстура: ${JSON.stringify(ok)}`;
+  const res = computeAll(V2_NEW_FI, v2NewTariffs());
+  const chk = economicsChecks(res);
+  if (!chk.hard.length) return "новый сайт: гейт пройден - фикстура должна его валить";
+  const best = ["start", "growth", "max"].sort((a, b) => res[b].year1.net - res[a].year1.net)[0];
+  const o = recommendOffer(res, chk);
+  if (best !== "start" || o.recommended_offer !== "start" || o.plan_tariff !== "start") return `новый сайт: лучший ${best}, ${JSON.stringify(o)} (ожидалось start/start)`;
+  const poor = computeAll({ ...V2_NEW_FI, economics: { ...V2_NEW_FI.economics, avg_check: 3000 } }, v2NewTariffs());
+  const p = recommendOffer(poor);
+  if (p.recommended_offer !== null || p.plan_tariff !== "growth") return `все в минусе: ${JSON.stringify(p)} (ожидалось null / growth)`;
+  return true;
+});
+
+await step("модель v2.1: lostNowCalc - ориентир max(медиана, половина лидера), не выше плана к 12 мес; базовая конверсия без прототипа и Карт; выручка x ltv; нет конкурентов или ориентир <= t0 - basis plan", () => {
+  const plan = computeTariff(V2_FI, v2Tariffs().growth);
+  const e = plan.economics;
+  const plan12 = plan.months[11].traffic_commercial;
+  const ref = Math.max(V2_FI.competitors_traffic.median, V2_FI.competitors_traffic.leader * CAL.lost_ref_leader_share);
+  const a = lostNowCalc(V2_FI, plan);
+  if (a.basis !== "competitors") return `basis ${a.basis}`;
+  if (Math.abs(a.target_traffic - Math.min(ref, plan12)) > 1e-9) return `ориентир ${a.target_traffic}, ожидалось min(${ref}, план ${plan12.toFixed(1)})`;
+  if (Math.abs(a.traffic_month - (a.target_traffic - V2_FI.t0)) > 1e-9) return "переходы != ориентир - t0";
+  if (Math.abs(a.leads_month - a.traffic_month * e.conversion_rate) > 1e-9) return `обращения ${a.leads_month} != переходы x базовая конверсия ${a.traffic_month * e.conversion_rate}`;
+  if (Math.abs(a.leads_month - plan.months[11].leads) < 1) return "обращения = прирост плана к 12 мес (старая семантика с прототипом и Картами)";
+  if (Math.abs(a.revenue_month - a.leads_month * e.close_rate * e.avg_check * e.ltv_factor) > 1e-6) return "выручка != обращения x закрытие x чек x ltv";
+  // ориентир ниже плана - берется ориентир
+  const low = v2Fi({ competitors_traffic: { median: 900, leader: 1000 } });
+  const b = lostNowCalc(low, computeTariff(low, v2Tariffs().growth));
+  if (b.basis !== "competitors" || Math.abs(b.target_traffic - 900) > 1e-9) return `медиана 900: ${b.basis} / ${b.target_traffic} (ожидалось competitors / 900)`;
+  // нет конкурентов - разрыв с уровнем плана
+  const noComp = v2Fi({ competitors_traffic: undefined });
+  const pc = computeTariff(noComp, v2Tariffs().growth);
+  const c = lostNowCalc(noComp, pc);
+  if (c.basis !== "plan" || Math.abs(c.target_traffic - pc.months[11].traffic_commercial) > 1e-9) return `нет конкурентов: ${c.basis} / ${c.target_traffic}`;
+  // ориентир не выше текущего трафика - тоже по плану
+  const big = v2Fi({ t0: 5000 });
+  const d = lostNowCalc(big, computeTariff(big, v2Tariffs().growth));
+  if (d.basis !== "plan") return `t0 5000 выше ориентира ${ref}: basis ${d.basis} (ожидалось plan)`;
+  // повторные покупки
+  const med = v2Fi({ economics: { ...V2_FI.economics, ltv_factor: 1.8 } });
+  const m = lostNowCalc(med, computeTariff(med, v2Tariffs().growth));
+  if (Math.abs(m.revenue_month - m.sales_month * V2_FI.economics.avg_check * 1.8) > 1e-6) return "выручка потерь без повторных покупок (ltv 1,8)";
+  return true;
+});
+
+await step("модель v2.1: мягкие проверки - упор в потолок к 3-4 мес и почти одинаковый трафик трех тарифов в soft (не hard); чистая фикстура - без них", () => {
+  const chk = economicsChecks(computeAll(CAP_FI, capTariffs()));
+  if (!chk.soft.some((s) => /уперся в потолок .* к [1-4]-му мес/.test(s))) return `нет предупреждения про потолок: ${chk.soft.join("; ")}`;
+  if (!chk.soft.some((s) => /почти одинаковый/.test(s))) return `нет предупреждения про одинаковые тарифы: ${chk.soft.join("; ")}`;
+  if (chk.hard.some((h) => /потолок|одинаков/.test(h))) return `форма прогноза попала в жесткий гейт: ${chk.hard.join("; ")}`;
+  const clean = economicsChecks(computeAll(V2_FI, v2Tariffs()));
+  if (clean.soft.some((s) => /потолок|одинаков/.test(s))) return `чистая фикстура: ${clean.soft.join("; ")}`;
+  return true;
+});
+
 // ──────────────────────────────────────────────────────────────────────────
 // 3.2. Каталог _services.mjs
 // ──────────────────────────────────────────────────────────────────────────
@@ -1197,6 +1501,8 @@ await step("serviceMeta/canonicalId: выведенные ID из легаси-�
 console.log("\n=== 3.3. v2: build-forecast.mjs ===");
 
 const V2_BASE = writeV2Dir("v2-base");
+// новый сайт: экономический гейт не пройден по замыслу фикстуры (exit 3), forecast.json записан
+const V2_NEW = writeV2Dir("v2-new", { fi: V2_NEW_FI, tariffs: v2NewTariffs(), inputs: V2_NEW_INPUTS, content: v2NewContent() });
 
 await step("build-forecast: чистая папка -> exit 0, forecast.json (модель v2, 3 тарифа, ряд m0..m12, потери, гейт без нарушений)", () => {
   if (V2_BASE.code !== 0) return `exit ${V2_BASE.code}: ${V2_BASE.stdout}`;
@@ -1251,6 +1557,7 @@ await step("build-forecast: Рост дороже Старта без польз
   const best = ["start", "growth", "max"].sort((a, b) => fc.tariffs[b].year1.net - fc.tariffs[a].year1.net)[0];
   const expect = fc.tariffs[best].year1.net > 0 ? best : null;
   if (fc.recommended_offer !== expect) return `recommended_offer ${fc.recommended_offer}, ожидалось ${expect}`;
+  if (fc.plan_tariff !== (expect || "growth")) return `plan_tariff ${fc.plan_tariff}, ожидалось ${expect || "growth"} (= recommended_offer || growth)`;
   if (V2_BASE.code === 0 && readJsonFile(join(V2_BASE.dir, "forecast.json")).recommended_offer !== "growth") return "чистая папка: recommended_offer не growth";
   return true;
 });
@@ -1327,12 +1634,109 @@ await step("build-forecast: one_step (магазин) - методика «ви�
   return true;
 });
 
-await step("build-forecast: lost_now - обращения и продажи с десятыми из 12-го месяца (не округленный m12)", () => {
+await step("build-forecast: lost_now v2.1 - разрыв с ориентиром конкурентов (не выше плана к 12 мес) по базовой конверсии, а не прирост плана с прототипом и Картами; нет конкурентов - basis plan", () => {
   const fc = readJsonFile(join(V2_BASE.dir, "forecast.json"));
-  const m = fc.tariffs.growth.months[11];
-  if (fc.lost_now.leads_month !== m.leads) return `lost_now.leads_month ${fc.lost_now.leads_month} != months[11].leads ${m.leads}`;
-  if (fc.lost_now.sales_month !== m.sales) return `lost_now.sales_month ${fc.lost_now.sales_month} != months[11].sales ${m.sales}`;
-  if (fc.lost_now.leads_maps_month !== m.leads_maps) return `lost_now.leads_maps_month ${fc.lost_now.leads_maps_month} != months[11].leads_maps ${m.leads_maps}`;
+  const ln = fc.lost_now;
+  const plan = computeTariff(V2_FI, v2Tariffs()[fc.plan_tariff]);
+  const e = fc.inputs.economics;
+  const ref = Math.max(V2_FI.competitors_traffic.median, V2_FI.competitors_traffic.leader * CAL.lost_ref_leader_share);
+  const target = Math.min(ref, plan.months[11].traffic_commercial);
+  const gap = target - V2_FI.t0;
+  const r1 = (x) => Math.round(x * 10) / 10;
+  const want = {
+    basis: "competitors", target_traffic: Math.round(target), traffic_month: Math.round(gap),
+    leads_month: r1(gap * e.conversion_rate), sales_month: r1(gap * e.conversion_rate * e.close_rate),
+    revenue_month: Math.round(gap * e.conversion_rate * e.close_rate * e.avg_check * e.ltv_factor),
+    revenue_year: Math.round(gap * e.conversion_rate * e.close_rate * e.avg_check * e.ltv_factor * 12),
+    competitors_traffic_median: 1800, competitors_traffic_leader: 6000,
+  };
+  for (const [k, v] of Object.entries(want)) if (ln[k] !== v) return `lost_now.${k} ${ln[k]} (ожидалось ${v})`;
+  if (!/конкурентов/.test(ln.basis_note || "")) return `basis_note: ${ln.basis_note}`;
+  const m12 = fc.tariffs[fc.plan_tariff].months[11];
+  if (Math.abs(ln.leads_month - m12.leads) < 1) return `lost_now.leads_month ${ln.leads_month} = прирост плана к 12 мес ${m12.leads} (старая семантика)`;
+  if ("leads_maps_month" in ln) return "в lost_now осталось leads_maps_month - потери без Карт";
+  // нет данных о конкурентах - разрыв с уровнем плана к 12 мес
+  const r = writeV2Dir("bf-lost-plan", { fi: v2Fi({ competitors_traffic: undefined }), content: null });
+  if (r.code !== 0) return `без конкурентов: exit ${r.code}: ${r.stdout}`;
+  const f2 = readJsonFile(join(r.dir, "forecast.json"));
+  if (f2.lost_now.basis !== "plan") return `без конкурентов: basis ${f2.lost_now.basis}`;
+  if (f2.lost_now.target_traffic !== f2.tariffs[f2.plan_tariff].months[11].traffic_commercial) return `без конкурентов: ориентир ${f2.lost_now.target_traffic} != план к 12 мес ${f2.tariffs[f2.plan_tariff].months[11].traffic_commercial}`;
+  return true;
+});
+
+await step("build-forecast: поля v2.1 - plan_tariff = recommended_offer || growth, launch_month, traffic_cap; у тарифов launch_month / cap / capped_from_month; экономика с ltv_factor и sales_lag_months", () => {
+  const fc = readJsonFile(join(V2_BASE.dir, "forecast.json"));
+  if (fc.plan_tariff !== "growth" || fc.recommended_offer !== "growth") return `plan_tariff ${fc.plan_tariff}, recommended_offer ${fc.recommended_offer}`;
+  if (fc.launch_month !== 1) return `launch_month ${fc.launch_month} (сайт есть - 1)`;
+  if (fc.traffic_cap !== Math.round(trafficCap(V2_FI))) return `traffic_cap ${fc.traffic_cap} != ${Math.round(trafficCap(V2_FI))}`;
+  for (const k of ["start", "growth", "max"]) {
+    const t = fc.tariffs[k];
+    if (t.launch_month !== 1 || t.cap !== fc.traffic_cap || !("capped_from_month" in t)) return `${k}: launch ${t.launch_month}, cap ${t.cap}, capped_from_month ${"capped_from_month" in t ? t.capped_from_month : "нет поля"}`;
+  }
+  const e = fc.inputs.economics;
+  if (e.ltv_factor !== 1 || e.ltv_source !== "default" || e.sales_lag_months !== 0) return `экономика: ltv ${e.ltv_factor} (${e.ltv_source}), лаг ${e.sales_lag_months}`;
+  if (fc.baseline.revenue_month !== Math.round(V2_FI.t0 * e.conversion_rate * e.close_rate * e.avg_check * e.ltv_factor)) return `baseline.revenue_month ${fc.baseline.revenue_month}`;
+  // новый сайт: гейт не пройден - смета и план по Старту
+  if (V2_NEW.code !== 3) return `новый сайт: exit ${V2_NEW.code} (по замыслу фикстуры гейт не пройден - 3): ${V2_NEW.stdout}`;
+  const nf = readJsonFile(join(V2_NEW.dir, "forecast.json"));
+  if (nf.recommended_offer !== "start" || nf.plan_tariff !== "start") return `новый сайт: recommended_offer ${nf.recommended_offer}, plan_tariff ${nf.plan_tariff}`;
+  const ps = nf.plan_series.slice(1).map((p) => p.traffic).join();
+  if (ps !== nf.tariffs.start.months.slice(0, 12).map((x) => x.traffic).join()) return "plan_series не по тарифу плана (Старт)";
+  if (nf.traffic_cap !== nf.tariffs.start.cap) return `traffic_cap ${nf.traffic_cap} != cap тарифа плана ${nf.tariffs.start.cap}`;
+  // все тарифы в минусе - рекомендации нет, план по Росту
+  const r = writeV2Dir("bf-offer-null", { fi: { ...V2_NEW_FI, economics: { ...V2_NEW_FI.economics, avg_check: 3000 } }, tariffs: v2NewTariffs(), inputs: V2_NEW_INPUTS, content: null });
+  if (r.code !== 3) return `чек 3 000: exit ${r.code}: ${r.stdout}`;
+  const pf = readJsonFile(join(r.dir, "forecast.json"));
+  if (pf.recommended_offer !== null || pf.plan_tariff !== "growth") return `чек 3 000: recommended_offer ${pf.recommended_offer}, plan_tariff ${pf.plan_tariff} (ожидалось null / growth)`;
+  return true;
+});
+
+await step("build-forecast: новый сайт (трафика и страниц нет) - launch_month 3 (2 при разработке у нас), ежемесячные затраты с запуска, акция ПФ в 4-м мес, трафик плана до запуска 0, методика про запуск", () => {
+  const fc = readJsonFile(join(V2_NEW.dir, "forecast.json"));
+  if (fc.launch_month !== 3) return `launch_month ${fc.launch_month} (разработчик клиента - 3)`;
+  for (const k of ["start", "growth", "max"]) if (fc.tariffs[k].launch_month !== 3) return `${k}: launch_month ${fc.tariffs[k].launch_month}`;
+  const costs = fc.tariffs.growth.months.slice(0, 5).map((x) => x.cost).join();
+  if (costs !== "80000,0,50000,25000,50000") return `затраты Роста мес 1-5: ${costs} (разовые в 1-м, ежемесячные с 3-го, ПФ бесплатно в 4-м)`;
+  if (fc.tariffs.growth.year1.cost !== 80000 + 50000 * 10 - 25000) return `затраты Роста за 12 мес ${fc.tariffs.growth.year1.cost}`;
+  if (fc.plan_series.slice(1, 4).some((p) => p.traffic !== 0)) return `трафик плана мес 1-3: ${fc.plan_series.slice(1, 4).map((p) => p.traffic).join(", ")} (до запуска 0)`;
+  if (!/Новый сайт выходит в поиск к 3-му мес/.test(fc.assumptions_note)) return `методика без запуска: ${fc.assumptions_note}`;
+  if (fc.lost_now.basis !== "competitors" || fc.lost_now.target_traffic !== 129) return `потери: ${fc.lost_now.basis}, ориентир ${fc.lost_now.target_traffic} (ожидалось медиана 129)`;
+  const r = writeV2Dir("bf-new-wedev", { fi: V2_NEW_FI, tariffs: v2NewTariffs(), inputs: { ...V2_NEW_INPUTS, we_develop: true }, content: null });
+  if (r.code !== 0 && r.code !== 3) return `разработка у нас: exit ${r.code}: ${r.stdout}`;
+  const w = readJsonFile(join(r.dir, "forecast.json"));
+  if (w.launch_month !== 2) return `разработка у нас: launch_month ${w.launch_month} (ожидалось 2)`;
+  const wc = w.tariffs.growth.months.slice(0, 3).map((x) => x.cost).join();
+  if (wc !== "80000,50000,25000") return `разработка у нас: затраты мес 1-3 ${wc}`;
+  return true;
+});
+
+await step("build-forecast: цикл сделки (high_ticket: продажи 1-3 мес = 0, окупаемость не раньше первой продажи) и повторные покупки (medical x1,8) - в экономике и методике", () => {
+  const t = v2Tariffs();
+  for (const k of ["growth", "max"]) {
+    t[k].monthly = t[k].monthly.filter((s) => s.id !== "YM");
+    t[k].total_monthly -= 25000;
+  }
+  const fiHT = v2Fi({ business_type: "high_ticket", local: false, economics: { avg_check: 12000000, avg_check_source: "estimated", model: "two_step", basis: "фикстура" } });
+  const r = writeV2Dir("bf-ht", { fi: fiHT, tariffs: t, content: null });
+  if (r.code !== 0 && r.code !== 3) return `high_ticket: exit ${r.code}: ${r.stdout}`;
+  const fc = readJsonFile(join(r.dir, "forecast.json"));
+  const e = fc.inputs.economics;
+  if (e.sales_lag_months !== 3 || e.conversion_rate !== 0.01 || e.close_rate !== 0.04) return `high_ticket: лаг ${e.sales_lag_months}, ${e.conversion_rate} / ${e.close_rate}`;
+  for (const k of ["start", "growth", "max"]) {
+    const m = fc.tariffs[k].months;
+    if (m.slice(0, 3).some((x) => x.sales !== 0)) return `${k}: продажи мес 1-3 ${m.slice(0, 3).map((x) => x.sales).join(", ")}`;
+    const pb = fc.tariffs[k].payback_month;
+    if (pb !== null && pb <= 3) return `${k}: окупаемость ${pb} мес - до первой продажи`;
+  }
+  if (!/цикл сделки/.test(fc.assumptions_note)) return `методика без цикла сделки: ${fc.assumptions_note}`;
+  const fiMed = v2Fi({ business_type: "medical", economics: { avg_check: 6500, avg_check_source: "site", model: "two_step", basis: "фикстура" } });
+  const r2 = writeV2Dir("bf-med", { fi: fiMed, content: null });
+  if (r2.code !== 0 && r2.code !== 3) return `medical: exit ${r2.code}: ${r2.stdout}`;
+  const f2 = readJsonFile(join(r2.dir, "forecast.json"));
+  if (f2.inputs.economics.ltv_factor !== 1.8 || f2.inputs.economics.ltv_source !== "default") return `medical: ltv ${f2.inputs.economics.ltv_factor} (${f2.inputs.economics.ltv_source})`;
+  if (!/Повторные покупки одного клиента за год: x1,8/.test(f2.assumptions_note)) return `методика без повторных покупок: ${f2.assumptions_note}`;
+  const res = computeTariff(applyClientEconomics(fiMed, V2_INPUTS).fi, v2Tariffs().growth);
+  if (f2.tariffs.growth.year1.romi !== res.year1.romi) return `medical: ROMI Роста ${f2.tariffs.growth.year1.romi} != модель ${res.year1.romi}`;
   return true;
 });
 
@@ -1365,8 +1769,15 @@ await step("build-forecast: клиентский средний чек пере�
 
 console.log("\n=== 3.4. v2: смета build-smeta-xlsx.mjs ===");
 
-// Мини-вычислитель формул ExcelJS (SUM, MAX, MIN, COUNT, IF, SUMPRODUCT, ссылки и диапазоны между листами):
-// пересчитывает формулы прямо из xlsx, с подменой ячеек параметров. Нужен, потому что exceljs формулы не считает.
+// Мини-вычислитель формул ExcelJS (SUM, MAX, MIN, COUNT, IF, AND, ROUND, ROUNDUP, FIXED, INDEX, SUMPRODUCT, склейка
+// строк &, ссылки и диапазоны между листами): пересчитывает формулы прямо из xlsx, с подменой ячеек параметров.
+// Нужен, потому что exceljs формулы не считает. FIXED - как Excel в русской локали (пробел тысяч, запятая).
+function fixedRu(x, d) {
+  const a = Math.round(Math.abs(x) * 10 ** d) / 10 ** d;
+  const [i, f] = a.toFixed(Math.max(0, d)).split(".");
+  return (x < 0 && a > 0 ? "-" : "") + i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + (d > 0 ? `,${f}` : "");
+}
+const roundUpX = (x, d) => (Math.sign(x) * Math.ceil(Math.abs(x) * 10 ** d - 1e-9)) / 10 ** d;
 function formulaEvaluator(wb) {
   const overrides = new Map();
   let cache = new Map();
@@ -1410,7 +1821,7 @@ function formulaEvaluator(wb) {
       if ((m = /^\d+(\.\d+)?(e[+-]?\d+)?/i.exec(rest))) { out.push({ t: "num", v: parseFloat(m[0]) }); i += m[0].length; continue; }
       if ((m = /^\$?([A-Z]+)\$?(\d+)/.exec(rest)) && !/^[A-Z]+\(/.test(rest)) { out.push({ t: "ref", col: m[1], row: +m[2] }); i += m[0].length; continue; }
       if ((m = /^[A-Z]+(?=\()/.exec(rest))) { out.push({ t: "fn", v: m[0] }); i += m[0].length; continue; }
-      if ((m = /^(>=|<=|<>|[-+*/(),:<>=])/.exec(rest))) { out.push({ t: "op", v: m[0] }); i += m[0].length; continue; }
+      if ((m = /^(>=|<=|<>|[-+*/(),:<>=&])/.exec(rest))) { out.push({ t: "op", v: m[0] }); i += m[0].length; continue; }
       throw new Error(`не разобрать формулу: ${rest}`);
     }
     return out;
@@ -1423,12 +1834,18 @@ function formulaEvaluator(wb) {
     const isOp = (v) => peek() && peek().t === "op" && (Array.isArray(v) ? v.includes(peek().v) : peek().v === v);
     const numv = (x) => (typeof x === "number" ? x : x === null || x === "" ? 0 : typeof x === "boolean" ? +x : NaN);
     function cmp() {
-      let a = add();
+      let a = cat();
       while (isOp([">=", "<=", "<>", ">", "<", "="])) {
         const op = next().v;
-        const x = numv(a), y = numv(add());
+        const x = numv(a), y = numv(cat());
         a = op === ">=" ? x >= y : op === "<=" ? x <= y : op === ">" ? x > y : op === "<" ? x < y : op === "=" ? x === y : x !== y;
       }
+      return a;
+    }
+    // склейка строк (ниже сравнения, выше сложения - как в Excel)
+    function cat() {
+      let a = add();
+      while (isOp("&")) { next(); const b = add(); a = String(a ?? "") + String(b ?? ""); }
       return a;
     }
     function add() {
@@ -1497,6 +1914,18 @@ function formulaEvaluator(wb) {
           case "MIN": { const n = nums(); return n.length ? Math.min(...n) : 0; }
           case "COUNT": return nums().length;
           case "IF": return evalAt(as[0]) ? evalAt(as[1]) : as[2] ? evalAt(as[2]) : false;
+          case "AND": return as.every((a) => !!evalAt(a));
+          case "ROUND": { const k = 10 ** numv(evalAt(as[1])); return Math.round(numv(evalAt(as[0])) * k) / k; }
+          case "ROUNDUP": return roundUpX(numv(evalAt(as[0])), numv(evalAt(as[1])));
+          case "FIXED": return fixedRu(numv(evalAt(as[0])), numv(evalAt(as[1])));
+          case "INDEX": {
+            // INDEX(ряд, 1, n) / INDEX(ряд, n): горизонтальный ряд, строка 1
+            const arr = flat(evalAt(as[0]));
+            if (as.length === 3 && numv(evalAt(as[1])) !== 1) throw new Error(`INDEX: строка не 1 в ${f}`);
+            const n = Math.trunc(numv(evalAt(as[as.length - 1])));
+            if (n < 1 || n > arr.length) throw new Error(`INDEX вне диапазона (${n}) в ${f}`);
+            return arr[n - 1];
+          }
           case "SUMPRODUCT": { const a = flat(evalAt(as[0])), b = flat(evalAt(as[1])); return a.reduce((s, x, i) => s + numv(x) * numv(b[i]), 0); }
           default: throw new Error(`функция ${t.v} не поддержана вычислителем`);
         }
@@ -1531,46 +1960,69 @@ const TKEYS = ["start", "growth", "max"];
 const TNAME = { start: "Старт", growth: "Рост", max: "Максимум" };
 const PB = "Окупаемость";
 
+// Разметка листа «Окупаемость»: строки параметров (желтые ячейки) и строки блока каждого тарифа.
+const PARAM_LABELS = [
+  ["check", /^Средний чек/], ["ltv", /^Повторные покупки/], ["conv", /^Конверсия визит/],
+  ["close", /^(Обращение -> продажа|Заказ -> оплата)/], ["lag", /^Цикл сделки/], ["margin", /^Маржинальность/],
+  ["m0", /^Текущий трафик/],
+];
+const BLOCK_LABELS = [
+  ["tot", /^Трафик из поиска всего/], ["leads", /^Дополнительные (обращения|заказы)/], ["sales", /^Дополнительные (продажи|оплаченные)/],
+  ["revenue", /^Дополнительная выручка/], ["profit", /^Валовая прибыль/], ["cost", /^Затраты на продвижение/],
+  ["cum", /^Результат нарастающим итогом/], ["be", /^Тех\. строка: чек и конверсия/], ["romi12", /^ROMI за 12 мес$/],
+  ["payback", /^Окупаемость, мес$/], ["romi24", /^ROMI за 24 мес$/], ["romiDev", /^ROMI за 12 мес с учетом разработки сайта$/],
+];
+function paybackLayout(wb) {
+  const ws = wb.getWorksheet(PB);
+  if (!ws) return { blocks: null, params: null };
+  const NAME_UP = { start: "СТАРТ", growth: "РОСТ", max: "МАКСИМУМ" };
+  const blocks = {};
+  const params = {};
+  let cur = null;
+  for (let r = 1; r <= ws.rowCount; r++) {
+    const a = ws.getCell(r, 1).value;
+    // строка условия окупаемости под таблицей тарифа - формула, а не текст
+    if (cur && a && typeof a === "object" && typeof a.formula === "string" && /Тариф окупается/.test(a.formula)) { blocks[cur].breakeven = r; continue; }
+    if (typeof a !== "string") continue;
+    for (const k of TKEYS) if (a.startsWith(`ТАРИФ «${NAME_UP[k]}»`)) { cur = k; blocks[k] = {}; }
+    if (!cur) { for (const [key, re] of PARAM_LABELS) if (!params[key] && re.test(a)) params[key] = r; continue; }
+    for (const [key, re] of BLOCK_LABELS) if (!blocks[cur][key] && re.test(a)) blocks[cur][key] = r;
+  }
+  return { blocks, params };
+}
+async function loadSmeta(dir, slug) {
+  const out = { dir, build: runBuildSmeta(dir), wb: null, ev: null, blocks: null, params: null, fc: null, xlsx: join(dir, `Smeta_${slug}.xlsx`) };
+  out.fc = existsSync(join(dir, "forecast.json")) ? readJsonFile(join(dir, "forecast.json")) : null;
+  if (out.build.code === 0 && existsSync(out.xlsx)) {
+    out.wb = new ExcelJS.Workbook();
+    await out.wb.xlsx.readFile(out.xlsx);
+    out.ev = formulaEvaluator(out.wb);
+    Object.assign(out, paybackLayout(out.wb));
+  }
+  return out;
+}
+const smetaProblem = (s) => (s.build.code !== 0 ? `смета не собралась: exit ${s.build.code}: ${s.build.stdout}` : !s.wb ? `нет ${s.xlsx}` : null);
+
 // Смета собирается по копии опорной папки; книга и разметка «Окупаемость» читаются один раз.
-const SMETA = { dir: null, build: null, wb: null, ev: null, blocks: null, params: null, fc: null };
-SMETA.dir = copyV2Dir(V2_BASE.dir, "smeta-v2");
-SMETA.build = runBuildSmeta(SMETA.dir);
-SMETA.fc = existsSync(join(SMETA.dir, "forecast.json")) ? readJsonFile(join(SMETA.dir, "forecast.json")) : null;
-const SMETA_XLSX = join(SMETA.dir, `Smeta_${V2_INPUTS.slug}.xlsx`);
-if (SMETA.build.code === 0 && existsSync(SMETA_XLSX)) {
-  SMETA.wb = new ExcelJS.Workbook();
-  await SMETA.wb.xlsx.readFile(SMETA_XLSX);
-  SMETA.ev = formulaEvaluator(SMETA.wb);
-  const ws = SMETA.wb.getWorksheet(PB);
-  if (ws) {
-    const NAME_UP = { start: "СТАРТ", growth: "РОСТ", max: "МАКСИМУМ" };
-    const blocks = {};
-    const params = {};
-    let cur = null;
-    for (let r = 1; r <= ws.rowCount; r++) {
-      const a = ws.getCell(r, 1).value;
-      if (typeof a !== "string") continue;
-      for (const k of TKEYS) if (a.startsWith(`ТАРИФ «${NAME_UP[k]}»`)) { cur = k; blocks[k] = {}; }
-      if (!params.check && a.startsWith("Средний чек")) params.check = r;
-      if (!params.conv && a.startsWith("Конверсия визит")) params.conv = r;
-      if (!params.close && a.startsWith("Обращение -> продажа")) params.close = r;
-      if (!params.margin && a.startsWith("Маржинальность")) params.margin = r;
-      if (cur) {
-        if (a === "ROMI за 12 мес") blocks[cur].romi12 = r;
-        if (a === "Окупаемость, мес") blocks[cur].payback = r;
-        if (a === "ROMI за 24 мес") blocks[cur].romi24 = r;
-      }
-    }
-    SMETA.blocks = blocks;
-    SMETA.params = params;
+const SMETA = await loadSmeta(copyV2Dir(V2_BASE.dir, "smeta-v2"), V2_INPUTS.slug);
+const SMETA_XLSX = SMETA.xlsx;
+function needSmeta() {
+  return smetaProblem(SMETA);
+}
+// Окупаемость на листе - точный месяц до 24-го или «> 24 мес» (как payback_month модели)
+const expPayback = (pm) => (pm == null ? `> ${HORIZON} мес` : pm);
+// Модель при временно измененном цикле сделки (CAL.sales_lag_months по типу бизнеса) - для сверки с формулами сметы.
+function withSalesLag(type, lag, fn) {
+  const had = Object.prototype.hasOwnProperty.call(CAL.sales_lag_months, type);
+  const saved = CAL.sales_lag_months[type];
+  if (lag != null) CAL.sales_lag_months[type] = lag;
+  try {
+    return fn();
+  } finally {
+    if (had) CAL.sales_lag_months[type] = saved;
+    else delete CAL.sales_lag_months[type];
   }
 }
-function needSmeta() {
-  if (SMETA.build.code !== 0) return `смета не собралась: exit ${SMETA.build.code}: ${SMETA.build.stdout}`;
-  if (!SMETA.wb) return `нет ${SMETA_XLSX}`;
-  return null;
-}
-const expPayback = (pm) => (pm == null ? "> 24 мес" : pm <= 12 ? pm : "на 2-м году");
 
 await step("смета v2: exit 0, 6 листов по порядку (Сравнение тарифов первым), без предупреждений об устаревшем прогнозе", () => {
   const bad = needSmeta();
@@ -1582,31 +2034,50 @@ await step("смета v2: exit 0, 6 листов по порядку (Срав�
   return true;
 });
 
-await step("смета v2: «Окупаемость» на формулах, кэш результатов во всей книге совпадает с пересчетом формул", () => {
+// Кэш формул: у каждой формулы в XML записан результат (<v>), он совпадает с пересчетом; fullCalcOnLoad - Excel
+// пересчитает при открытии. ExcelJS при чтении теряет кэш 0 (<v>0</v> -> result undefined) - его наличие видно по XML.
+async function smetaCacheProblem(s) {
+  let checked = 0;
+  const diffs = [];
+  for (const ws of s.wb.worksheets) {
+    ws.eachRow((row) => row.eachCell((c) => {
+      if (!(c.value && typeof c.value === "object" && typeof c.value.formula === "string")) return;
+      if (c.isMerged && c.master && c.master.address !== c.address) return; // ячейки объединения отдают формулу главной
+      checked++;
+      const v = s.ev.value(ws.name, c.address);
+      const r = c.value.result === undefined ? 0 : c.value.result;
+      const same = typeof r === "number" ? Math.abs(Number(v === "" ? 0 : v) - r) <= 1e-6 * Math.max(1, Math.abs(r)) : v === r;
+      if (!same && diffs.length < 3) diffs.push(`${ws.name}!${c.address} ${c.value.formula.slice(0, 120)}: ${v} != ${r}`);
+    }));
+  }
+  if (diffs.length) return `кэш != формула: ${diffs.join(" | ")}`;
+  const zip = await JSZip.loadAsync(readFileSync(s.xlsx));
+  const wbXml = await zip.file("xl/workbook.xml").async("string");
+  if (!/<calcPr[^>]*fullCalcOnLoad="1"/.test(wbXml)) return "в workbook.xml нет calcPr fullCalcOnLoad=\"1\" (Excel не пересчитает формулы при открытии)";
+  let noCache = 0, inXml = 0;
+  for (const name of Object.keys(zip.files).filter((x) => /^xl\/worksheets\/sheet\d+\.xml$/.test(x))) {
+    const xml = await zip.file(name).async("string");
+    const all = (xml.match(/<f>/g) || []).length;
+    inXml += all;
+    noCache += all - (xml.match(/<\/f><v>/g) || []).length;
+  }
+  if (noCache) return `${noCache} формул без кэша <v> - в просмотрщиках без пересчета ячейки пустые`;
+  if (inXml !== checked) return `формул в XML ${inXml}, прочитано ${checked}`;
+  return null;
+}
+
+await step("смета v2: «Окупаемость» на формулах; кэш каждой формулы во всей книге = пересчет, у всех формул в XML есть кэш <v>, fullCalcOnLoad", async () => {
   const bad = needSmeta();
   if (bad) return bad;
   let formulas = 0;
   SMETA.wb.getWorksheet(PB).eachRow((row) => row.eachCell((c) => { if (c.value && c.value.formula) formulas++; }));
-  if (formulas < 300) return `формул на листе «Окупаемость»: ${formulas} (ожидалось >= 300: 3 тарифа x 12 мес x строки)`;
-  if (!SMETA.blocks || TKEYS.some((k) => !SMETA.blocks[k] || !SMETA.blocks[k].romi12 || !SMETA.blocks[k].romi24 || !SMETA.blocks[k].payback)) {
-    return `не найдены блоки тарифов / строки ROMI: ${JSON.stringify(SMETA.blocks)}`;
+  if (formulas < 3 * 24 * 7) return `формул на листе «Окупаемость»: ${formulas} (ожидалось >= ${3 * 24 * 7}: 3 тарифа x 24 мес x строки)`;
+  if (!SMETA.blocks || TKEYS.some((k) => !SMETA.blocks[k] || !SMETA.blocks[k].romi12 || !SMETA.blocks[k].romi24 || !SMETA.blocks[k].payback || !SMETA.blocks[k].breakeven)) {
+    return `не найдены блоки тарифов / строки ROMI и условия окупаемости: ${JSON.stringify(SMETA.blocks)}`;
   }
-  for (const k of ["check", "conv", "close", "margin"]) if (!SMETA.params[k]) return `не найдена ячейка параметра ${k}`;
-  let checked = 0;
-  const diffs = [];
-  for (const ws of SMETA.wb.worksheets) {
-    ws.eachRow((row) => row.eachCell((c) => {
-      if (!(c.value && c.value.formula && c.value.result !== undefined)) return;
-      checked++;
-      const v = SMETA.ev.value(ws.name, c.address);
-      const r = c.value.result;
-      const same = typeof r === "number" ? Math.abs(v - r) <= 1e-6 * Math.max(1, Math.abs(r)) : v === r;
-      if (!same && diffs.length < 3) diffs.push(`${ws.name}!${c.address} ${c.value.formula}: ${v} != ${r}`);
-    }));
-  }
-  if (diffs.length) return `кэш != формула: ${diffs.join(" | ")}`;
-  if (checked < formulas) return `проверено ${checked} формул с кэшем из ${formulas}`;
-  return true;
+  for (const [k] of PARAM_LABELS) if (!SMETA.params[k]) return `не найдена ячейка параметра ${k}`;
+  SMETA.ev.reset();
+  return (await smetaCacheProblem(SMETA)) || true;
 });
 
 await step("смета v2: ROMI 12/24 мес и окупаемость из формул при исходных параметрах = forecast.json (±1 п.п.)", () => {
@@ -1626,26 +2097,76 @@ await step("смета v2: ROMI 12/24 мес и окупаемость из фо
   return true;
 });
 
-await step("смета v2: правка параметров (чек x2, конверсия 8%, закрытие 25%, маржа 50%) - формулы = модель с теми же параметрами", () => {
+await step("смета v2: правка параметров (чек x2, конверсия 8%, закрытие 25%, маржа 50%; повторные покупки 1,6 и цикл сделки 2 мес) - формулы = модель с теми же параметрами, «Сравнение» пересчитывается", () => {
   const bad = needSmeta();
   if (bad) return bad;
-  const econ = { ...V2_FI.economics, avg_check: V2_FI.economics.avg_check * 2, conversion_rate: 0.08, close_rate: 0.25, margin: 0.5 };
-  SMETA.ev.reset();
-  SMETA.ev.set(PB, `B${SMETA.params.check}`, econ.avg_check);
-  SMETA.ev.set(PB, `B${SMETA.params.conv}`, econ.conversion_rate);
-  SMETA.ev.set(PB, `B${SMETA.params.close}`, econ.close_rate);
-  SMETA.ev.set(PB, `B${SMETA.params.margin}`, econ.margin);
+  const cmp = SMETA.wb.getWorksheet("Сравнение тарифов");
+  let cmpRomi = null;
+  for (let r = 1; r <= cmp.rowCount; r++) if (cmp.getCell(r, 1).value === "ROMI за 12 мес") cmpRomi = r;
+  const scenarios = [
+    { name: "чек x2, конверсия 8%, закрытие 25%, маржа 50%", e: { avg_check: V2_FI.economics.avg_check * 2, conversion_rate: 0.08, close_rate: 0.25, margin: 0.5 }, lag: null },
+    { name: "повторные покупки 1,6, цикл сделки 2 мес", e: { ltv_factor: 1.6 }, lag: 2 },
+  ];
+  const CELL = { avg_check: "check", conversion_rate: "conv", close_rate: "close", margin: "margin", ltv_factor: "ltv" };
+  const tariffs = v2Tariffs();
   try {
-    const tariffs = v2Tariffs();
-    for (const k of TKEYS) {
-      const res = computeTariff(v2Fi({ economics: econ }), tariffs[k]);
-      const b = SMETA.blocks[k];
-      const r12 = SMETA.ev.value(PB, `B${b.romi12}`) * 100;
-      const r24 = SMETA.ev.value(PB, `B${b.romi24}`) * 100;
-      if (!(Math.abs(r12 - res.year1.romi) <= 1)) return `${k}: ROMI 12 мес формулой ${r12.toFixed(2)}% != модель ${res.year1.romi}%`;
-      if (!(Math.abs(r24 - res.year2.romi) <= 1)) return `${k}: ROMI 24 мес формулой ${r24.toFixed(2)}% != модель ${res.year2.romi}%`;
-      const pb = SMETA.ev.value(PB, `B${b.payback}`);
-      if (pb !== expPayback(res.payback_month)) return `${k}: окупаемость ${pb} != модель ${res.payback_month}`;
+    for (const sc of scenarios) {
+      const econ = { ...V2_FI.economics, ...sc.e };
+      SMETA.ev.reset();
+      for (const [ek, pk] of Object.entries(CELL)) if (ek in sc.e) SMETA.ev.set(PB, `B${SMETA.params[pk]}`, econ[ek]);
+      if (sc.lag != null) SMETA.ev.set(PB, `B${SMETA.params.lag}`, sc.lag);
+      for (const k of TKEYS) {
+        const res = withSalesLag(V2_FI.business_type, sc.lag, () => computeTariff(v2Fi({ economics: econ }), tariffs[k]));
+        const b = SMETA.blocks[k];
+        const r12 = SMETA.ev.value(PB, `B${b.romi12}`) * 100;
+        const r24 = SMETA.ev.value(PB, `B${b.romi24}`) * 100;
+        if (!(Math.abs(r12 - res.year1.romi) <= 1)) return `${sc.name}, ${k}: ROMI 12 мес формулой ${r12.toFixed(2)}% != модель ${res.year1.romi}%`;
+        if (!(Math.abs(r24 - res.year2.romi) <= 1)) return `${sc.name}, ${k}: ROMI 24 мес формулой ${r24.toFixed(2)}% != модель ${res.year2.romi}%`;
+        const pb = SMETA.ev.value(PB, `B${b.payback}`);
+        if (pb !== expPayback(res.payback_month)) return `${sc.name}, ${k}: окупаемость ${pb} != модель ${res.payback_month}`;
+        if (sc.lag) {
+          for (let m = 1; m <= sc.lag; m++) if (SMETA.ev.value(PB, `${SMETA.ev.colStr(m + 1)}${b.sales}`) !== 0) return `${sc.name}, ${k}: продажи мес ${m} не 0 при цикле ${sc.lag}`;
+        }
+        const c = SMETA.ev.value("Сравнение тарифов", `${SMETA.ev.colStr(TKEYS.indexOf(k) + 2)}${cmpRomi}`) * 100;
+        if (Math.abs(c - r12) > 1e-9) return `${sc.name}, ${k}: «Сравнение тарифов» не пересчиталось (${c.toFixed(2)}% vs ${r12.toFixed(2)}%)`;
+      }
+    }
+  } finally {
+    SMETA.ev.reset();
+  }
+  return true;
+});
+
+await step("смета v2: «Окупаемость» - повторные покупки, цикл сделки и m0 желтыми ячейками; продажи = INDEX(обращения, мес - цикл), выручка x повторные покупки; мес 13-24 свернуты, тех. строки скрыты; правка m0 сдвигает только уровень трафика", () => {
+  const bad = needSmeta();
+  if (bad) return bad;
+  const ws = SMETA.wb.getWorksheet(PB);
+  const P = SMETA.params;
+  for (const [k] of PARAM_LABELS) {
+    const argb = ws.getCell(P[k], 2).fill && ws.getCell(P[k], 2).fill.fgColor && ws.getCell(P[k], 2).fill.fgColor.argb;
+    if (argb !== "FFFFF2CC") return `параметр ${k} (строка ${P[k]}) не желтая ячейка ввода (${argb})`;
+  }
+  if (ws.getCell(P.ltv, 2).value !== 1 || ws.getCell(P.lag, 2).value !== 0 || ws.getCell(P.m0, 2).value !== V2_FI.t0) return "значения параметров не из forecast.json (ltv 1, цикл 0, m0 = t0)";
+  const b = SMETA.blocks.growth;
+  const sales = ws.getCell(b.sales, 6).value; // мес 5
+  if (!(sales && sales.formula && /INDEX\(/.test(sales.formula) && sales.formula.includes(`$B$${P.lag}`))) return `продажи - не сдвиг INDEX по циклу сделки: ${JSON.stringify(sales)}`;
+  const rev = ws.getCell(b.revenue, 6).value;
+  if (!(rev && rev.formula && rev.formula.includes(`$B$${P.ltv}`) && rev.formula.includes(`$B$${P.check}`))) return `выручка без повторных покупок: ${JSON.stringify(rev)}`;
+  const tot = ws.getCell(b.tot, 6).value;
+  if (!(tot && tot.formula && tot.formula.includes(`$B$${P.m0}`))) return `трафик месяца - не формула от m0: ${JSON.stringify(tot)}`;
+  if (!(ws.getColumn(14).hidden && ws.getColumn(25).hidden) || ws.getColumn(13).hidden || ws.getColumn(26).hidden) return "мес 13-24 не свернуты или свернуты итоги года";
+  for (const k of TKEYS) if (!ws.getRow(SMETA.blocks[k].be).hidden) return `${k}: тех. строка безубыточности не скрыта`;
+  // m0: +1000 сдвигает трафик ровно на 1000, обращения не падают; 0 - обращения не уходят в минус
+  SMETA.ev.reset();
+  const base = Object.fromEntries(TKEYS.map((k) => [k, { tot: SMETA.ev.value(PB, `M${SMETA.blocks[k].tot}`), leads: SMETA.ev.value(PB, `M${SMETA.blocks[k].leads}`) }]));
+  try {
+    for (const m0 of [V2_FI.t0 + 1000, 0]) {
+      SMETA.ev.set(PB, `B${P.m0}`, m0);
+      for (const k of TKEYS) {
+        const t12 = SMETA.ev.value(PB, `M${SMETA.blocks[k].tot}`), l12 = SMETA.ev.value(PB, `M${SMETA.blocks[k].leads}`);
+        if (Math.abs(t12 - base[k].tot - (m0 - V2_FI.t0)) > 1e-6) return `${k}: m0 ${m0} - трафик 12 мес ${t12} (ожидался сдвиг на ${m0 - V2_FI.t0} от ${base[k].tot})`;
+        if (!(l12 >= 0) || (m0 > V2_FI.t0 && l12 < base[k].leads - 1e-9)) return `${k}: m0 ${m0} - обращения 12 мес ${l12} (было ${base[k].leads})`;
+      }
     }
   } finally {
     SMETA.ev.reset();
@@ -1674,8 +2195,14 @@ await step("смета v2: «Сравнение тарифов» - ROMI, вло�
     const net = SMETA.ev.value("Сравнение тарифов", `${col}${rows.net}`);
     if (!(Math.abs(net - f.year1.net) <= 2)) return `${k}: чистый результат ${net} != ${f.year1.net}`;
     const tr = SMETA.ev.value("Сравнение тарифов", `${col}${rows.tr12}`);
-    if (tr !== f.checkpoints.m12) return `${k}: трафик 12 мес ${tr} != ${f.checkpoints.m12}`;
+    if (Math.round(tr) !== f.checkpoints.m12) return `${k}: трафик 12 мес ${tr} != ${f.checkpoints.m12}`;
+    const trCell = ws.getCell(`${col}${rows.tr12}`).value;
+    if (!(trCell && trCell.formula && trCell.formula.includes(PB))) return `${k}: трафик 12 мес - не ссылка на «Окупаемость» (правка m0 не дойдет)`;
   }
+  // сайт есть и все тарифы в плюсе: строк «с учетом разработки» и «Окупится за 12 мес, если» нет
+  if (rowOf("ROMI за 12 мес с учетом разработки сайта") || TKEYS.some((k) => SMETA.blocks[k].romiDev)) return "строка ROMI с разработкой у сайта, который уже есть (запуск с 1-го мес)";
+  if (rowOf("Окупится за 12 мес, если")) return "строка «Окупится за 12 мес, если», а все тарифы окупаются";
+  for (const k of TKEYS) if (SMETA.ev.value(PB, `A${SMETA.blocks[k].breakeven}`) !== "") return `${k}: строка условия окупаемости не пустая при ROMI > 0`;
   return true;
 });
 
@@ -1695,6 +2222,10 @@ await step("смета v2: «Разработка сайта» - итог баз
   if (!findCell(ws, /^РЕКОМЕНДУЕМ/)) return "нет пометки «РЕКОМЕНДУЕМ» (site_dev.recommended = true)";
   if (!findCell(ws, /^по расчету$/)) return "нет опций «по расчету»";
   if (!findCell(ws, /ПФ 1=2/)) return "нет строки акции ПФ 1=2";
+  // зачет прототипа - с любым тарифом, где есть KP (здесь Рост и Максимум), а не с первым из них
+  if (!findCell(ws, /^Вместе с любым тарифом, где есть прототип с текстами \(тарифы «Рост», «Максимум»\)/)) return "зачет прототипа не подписан «с любым тарифом, где есть прототип» (Рост, Максимум)";
+  // каталог у сайта услуг - проектов и услуг, не товаров
+  if (!findCell(ws, /^Каталог проектов \/ услуг/) || findCell(ws, /^Каталог товаров/)) return "опция каталога для сайта услуг подписана как каталог товаров";
   return true;
 });
 
@@ -1717,6 +2248,154 @@ await step("смета v2: листы тарифов - «Почему этот �
   const badChars = [];
   for (const ws of SMETA.wb.worksheets) ws.eachRow((row) => row.eachCell((c) => { if (/[ёЁ—–]/.test(cellText(c))) badChars.push(`${ws.name}!${c.address}`); }));
   if (badChars.length) return `буква Е-с-точками или длинное тире в ячейках: ${badChars.slice(0, 5).join(", ")}`;
+  return true;
+});
+
+// ── Смета нового сайта (v2.1): запуск к 3-му мес, гейт не пройден (рекомендуем Старт), Рост и Максимум за 12 мес
+// в минусе, разработку рекомендуем ──
+const SMETA_NEW = await loadSmeta(copyV2Dir(V2_NEW.dir, "smeta-v2-new"), V2_NEW_INPUTS.slug);
+const allCellsOf = (wb) => {
+  const out = [];
+  for (const ws of wb.worksheets) ws.eachRow((row) => row.eachCell((c) => out.push({ sheet: ws.name, addr: c.address, text: cellText(c) })));
+  return out;
+};
+
+await step("смета v2 (новый сайт): ежемесячные с 3-го мес и акция ПФ в 4-м на листах тарифов и в «Окупаемости», итог 12 мес = затраты модели; шапка «Натяжные потолки, Сочи», а не «none»; рекомендуем Старт; кэш формул", async () => {
+  const bad = smetaProblem(SMETA_NEW);
+  if (bad) return bad;
+  if (/ВНИМАНИЕ/.test(SMETA_NEW.build.stdout)) return `предупреждение при сборке: ${SMETA_NEW.build.stdout}`;
+  if (!/запуск сайта - 3-й мес/.test(SMETA_NEW.build.stdout)) return `лог без месяца запуска: ${SMETA_NEW.build.stdout}`;
+  const fc = SMETA_NEW.fc;
+  for (const k of TKEYS) {
+    const ws = SMETA_NEW.wb.getWorksheet(TNAME[k]);
+    if (!findCell(ws, /^Этап 2 \(ежемесячно\): с 3-го месяца, когда новый сайт выходит в поиск$/)) return `${TNAME[k]}: нет «Этап 2 (ежемесячно): с 3-го месяца»`;
+    if (!findCell(ws, /^4-й мес$/)) return `${TNAME[k]}: акция ПФ 1=2 не в 4-м мес (месяц запуска + 1)`;
+    const y12 = findCell(ws, /^Итого за 12 месяцев/);
+    if (!y12) return `${TNAME[k]}: нет итога за 12 месяцев`;
+    const v = SMETA_NEW.ev.value(TNAME[k], `E${y12.row}`);
+    if (v !== fc.tariffs[k].year1.cost) return `${TNAME[k]}: итог 12 мес ${v} != затраты модели ${fc.tariffs[k].year1.cost}`;
+    const pbCosts = [2, 3, 4, 5].map((col) => SMETA_NEW.wb.getWorksheet(PB).getCell(SMETA_NEW.blocks[k].cost, col).value);
+    const modelCosts = fc.tariffs[k].months.slice(0, 4).map((x) => x.cost);
+    if (pbCosts.join() !== modelCosts.join()) return `${k}: затраты «Окупаемости» мес 1-4 ${pbCosts.join(", ")} != модель ${modelCosts.join(", ")}`;
+  }
+  if (fc.tariffs.growth.months.slice(0, 4).map((x) => x.cost).join() !== "80000,0,50000,25000") return "фикстура: затраты Роста мес 1-4";
+  for (const ws of SMETA_NEW.wb.worksheets) {
+    const sub = cellText(ws.getCell(2, 1));
+    if (!sub.startsWith("Натяжные потолки, Сочи - SEO-продвижение")) return `${ws.name}: шапка «${sub}» (сайта нет - ниша и город)`;
+  }
+  if (allCellsOf(SMETA_NEW.wb).some((c) => /\bnone\b/i.test(c.text))) return "в смете осталось «none»";
+  if (!/РЕКОМЕНДУЕМ/.test(cellText(SMETA_NEW.wb.getWorksheet("Старт").getCell(1, 1))) || /РЕКОМЕНДУЕМ/.test(cellText(SMETA_NEW.wb.getWorksheet("Рост").getCell(1, 1)))) return "рекомендован не Старт (recommended_offer = start)";
+  return (await smetaCacheProblem(SMETA_NEW)) || true;
+});
+
+await step("смета v2 (новый сайт): ROMI 12 мес <= 0 - строка «Тариф окупается за 12 мес при среднем чеке от X ₽ (сейчас Y ₽)», чек и конверсия из нее дают ROMI 0; «Окупится за 12 мес, если» на «Сравнении»; подпись без «дольше 12 месяцев»", () => {
+  const bad = smetaProblem(SMETA_NEW);
+  if (bad) return bad;
+  const S = SMETA_NEW;
+  const P = S.params;
+  let losers = 0;
+  S.ev.reset();
+  try {
+    for (const k of TKEYS) {
+      const b = S.blocks[k];
+      if (!b.breakeven || !b.be) return `${k}: нет строки условия окупаемости / тех. строки безубыточности`;
+      const romi = S.ev.value(PB, `B${b.romi12}`);
+      const line = S.ev.value(PB, `A${b.breakeven}`);
+      if (romi > 0) {
+        if (line !== "") return `${k}: ROMI ${(romi * 100).toFixed(1)}% > 0, а строка условия «${line}»`;
+        continue;
+      }
+      losers++;
+      if (!/^Тариф окупается за 12 мес при среднем чеке от \d[\d ]* ₽ \(сейчас 30 000 ₽\)/.test(line)) return `${k}: строка условия «${line}»`;
+      const beCheck = S.ev.value(PB, `B${b.be}`), beConv = S.ev.value(PB, `C${b.be}`);
+      if (!(beCheck > 30000)) return `${k}: чек безубыточности ${beCheck} не выше текущего`;
+      S.ev.set(PB, `B${P.check}`, beCheck);
+      if (Math.abs(S.ev.value(PB, `B${b.romi12}`)) > 1e-9) return `${k}: при чеке ${beCheck} ROMI 12 мес ${S.ev.value(PB, `B${b.romi12}`)} (ожидалось 0)`;
+      S.ev.reset();
+      if (beConv > 0 && beConv <= 0.5) {
+        if (!/или конверсии от \d+,\d% \(сейчас 5,0%\)/.test(line)) return `${k}: в строке условия нет конверсии безубыточности: «${line}»`;
+        S.ev.set(PB, `B${P.conv}`, beConv);
+        if (Math.abs(S.ev.value(PB, `B${b.romi12}`)) > 1e-9) return `${k}: при конверсии ${beConv} ROMI 12 мес ${S.ev.value(PB, `B${b.romi12}`)} (ожидалось 0)`;
+        S.ev.reset();
+      }
+      // параметры поменяли так, что тариф окупается, - строка пустеет (формула живая)
+      S.ev.set(PB, `B${P.check}`, beCheck * 2);
+      if (S.ev.value(PB, `A${b.breakeven}`) !== "") return `${k}: при чеке x2 от безубыточного строка условия не пустая`;
+      S.ev.reset();
+    }
+  } finally {
+    S.ev.reset();
+  }
+  if (losers < 2) return `фикстура: тарифов с ROMI <= 0 - ${losers} (ожидались Рост и Максимум)`;
+  const cmp = S.wb.getWorksheet("Сравнение тарифов");
+  const row = findCell(cmp, /^Окупится за 12 мес, если$/);
+  if (!row) return "нет строки «Окупится за 12 мес, если» на «Сравнении тарифов»";
+  const startTxt = S.ev.value("Сравнение тарифов", `B${row.row}`), growthTxt = S.ev.value("Сравнение тарифов", `C${row.row}`);
+  if (startTxt !== "окупается при текущих допущениях" || !/^чек от \d[\d ]* ₽/.test(growthTxt)) return `«Окупится за 12 мес, если»: Старт «${startTxt}», Рост «${growthTxt}»`;
+  const a3 = cellText(cmp.getCell(3, 1));
+  if (/дольше 12 месяцев/.test(a3) || !/Рекомендуем тариф «Старт»/.test(a3)) return `подпись «Сравнения»: ${a3.slice(0, 200)}`;
+  return true;
+});
+
+await step("смета v2 (новый сайт): «ROMI за 12 мес с учетом разработки сайта» на «Окупаемости» и «Сравнении» = (прибыль - затраты - разработка с зачетом прототипа) / (затраты + разработка)", () => {
+  const bad = smetaProblem(SMETA_NEW);
+  if (bad) return bad;
+  const S = SMETA_NEW;
+  const t = v2NewTariffs();
+  const dp = devPrice(t.site_dev);
+  S.ev.reset();
+  for (const k of TKEYS) {
+    const b = S.blocks[k];
+    if (!b.romiDev) return `${k}: нет строки «ROMI за 12 мес с учетом разработки сайта»`;
+    const hasKP = t[k].onetime.some((s) => s.id === "KP");
+    const dev = dp.total - (hasKP ? dp.prototype_price : 0);
+    const profit = S.ev.value(PB, `Z${b.profit}`), cost = S.ev.value(PB, `Z${b.cost}`);
+    const want = (profit - cost - dev) / (cost + dev);
+    const got = S.ev.value(PB, `B${b.romiDev}`);
+    if (Math.abs(got - want) > 1e-9) return `${k}: ROMI с разработкой ${got} (ожидалось ${want}, разработка ${dev})`;
+    if (!(got < S.ev.value(PB, `B${b.romi12}`))) return `${k}: ROMI с разработкой не ниже ROMI без нее`;
+    const f = S.wb.getWorksheet(PB).getCell(b.romiDev, 2).value;
+    if (!(f && f.formula && f.formula.includes("'Разработка сайта'!"))) return `${k}: стоимость разработки не ссылкой на лист «Разработка сайта»: ${JSON.stringify(f)}`;
+  }
+  const cmp = S.wb.getWorksheet("Сравнение тарифов");
+  const row = findCell(cmp, /^ROMI за 12 мес с учетом разработки сайта$/);
+  if (!row) return "нет строки ROMI с разработкой на «Сравнении тарифов»";
+  for (let j = 0; j < TKEYS.length; j++) {
+    const col = S.ev.colStr(j + 2);
+    if (Math.abs(S.ev.value("Сравнение тарифов", `${col}${row.row}`) - S.ev.value(PB, `B${S.blocks[TKEYS[j]].romiDev}`)) > 1e-12) return `${TKEYS[j]}: «Сравнение» не ссылается на ROMI с разработкой`;
+  }
+  return true;
+});
+
+await step("смета v2: кухня архитектора не в смете - price_note (кроме объема «до N страниц» в начале), «Профиль «...»» в «Почему этот вариант», «(для не-Tilda)»; BS без пометки - объем по цене", async () => {
+  // базовая смета: у техаудита нет служебной пометки «(для не-Tilda)»
+  const bad = needSmeta();
+  if (bad) return bad;
+  const leakBase = allCellsOf(SMETA.wb).find((c) => /не-?\s?Tilda/i.test(c.text));
+  if (leakBase) return `${leakBase.sheet}!${leakBase.addr}: «${leakBase.text.slice(0, 80)}»`;
+  // тарифы с пометками архитектора; FA -> BS (сайт на Tilda), прогноз пересобран
+  const t = v2Tariffs();
+  for (const k of TKEYS) {
+    const i = t[k].onetime.findIndex((s) => s.id === "FA");
+    t[k].onetime[i] = { id: "BS", price: 5000 };
+    t[k].total_onetime -= 20000;
+  }
+  t.start.monthly.find((s) => s.id === "PF").price_note = "продвинутый пока не нужен - медианный DR прямых конкурентов 18, YMYL нет";
+  t.max.onetime.find((s) => s.id === "FQ").price_note = "до 30 коммерческих страниц; DR конкурентов до 32, профиль B";
+  t.max.hint = `Профиль «Активный»: ${t.max.hint}`;
+  const r = writeV2Dir("smeta-v2-kitchen", { tariffs: t, content: null });
+  if (r.code !== 0) return `build-forecast: exit ${r.code}: ${r.stdout}`;
+  const s = await loadSmeta(r.dir, V2_INPUTS.slug);
+  const sb = smetaProblem(s);
+  if (sb) return sb;
+  const cells = allCellsOf(s.wb);
+  const leak = cells.find((c) => /DR\s*\d|DR конкурент|медианный DR|YMYL|пока не нужен|[Пп]рофиль\s*«|профиль [AB]\b|не-?\s?Tilda/.test(c.text));
+  if (leak) return `кухня архитектора в смете: ${leak.sheet}!${leak.addr} «${leak.text.slice(0, 100)}»`;
+  const max = s.wb.getWorksheet("Максимум");
+  if (!findCell(max, /^Почему этот вариант: Все из Роста/)) return "«Почему этот вариант» Максимума не очищен от профиля";
+  const fq = findCell(max, /Объем: до 30 коммерческих страниц$/);
+  if (!fq) return "у FQ нет объема «до 30 коммерческих страниц» из начала price_note";
+  if (!findCell(s.wb.getWorksheet("Старт"), /Объем: до 10 страниц$/)) return "у BS 5 000 без пометки нет объема «до 10 страниц» по цене";
   return true;
 });
 
@@ -1823,6 +2502,125 @@ await step("docx легаси v1 (content без format, 6 разделов с �
   return true;
 });
 
+await step("docx v2: money_lost по lost_now v2.1 - разрыв с конкурентами по базовой конверсии (переходы x конверсия = обращения), без Карт и прототипа в воронке", () => {
+  if (!DOCX_TEXT) return "docx не собран";
+  const fc = readJsonFile(join(DOCX_DIR, "forecast.json"));
+  const ln = fc.lost_now, e = fc.inputs.economics;
+  if (ln.basis !== "competitors") return `фикстура: lost_now.basis ${ln.basis}`;
+  const t = flatText(DOCX_TEXT.text);
+  const i = t.indexOf("Деньги, которые вы теряете"), j = t.indexOf("Почему это важно сейчас");
+  if (i < 0 || j < i) return "не найден блок «Деньги, которые вы теряете»";
+  const block = t.slice(i, j);
+  if (!block.includes("Конкуренты из топа")) return `подпись блока не про конкурентов: ${block.slice(0, 200)}`;
+  if (!block.includes(`${fmtIntS(ln.traffic_month)} переход`)) return `нет шага «${fmtIntS(ln.traffic_month)} переход...» (lost_now.traffic_month)`;
+  if (!block.includes(`${fmtCountS(ln.leads_month)} обращени`)) return `нет шага «${fmtCountS(ln.leads_month)} обращ...» (lost_now.leads_month)`;
+  if (Math.abs(ln.leads_month - ln.traffic_month * e.conversion_rate) > 0.5 * e.conversion_rate + 0.051) return `воронка не сходится: ${ln.traffic_month} x ${e.conversion_rate} != ${ln.leads_month}`;
+  if (/Карт/.test(block)) return "в блоке потерь обращения из Карт - потери считаются по базовой конверсии, без Карт";
+  if (!/без улучшений сайта/.test(block)) return "нет пометки «конверсия - как сейчас, без улучшений сайта»";
+  if (/текущих посетителей/.test(t)) return "шаблонная фраза про «текущих посетителей»";
+  return true;
+});
+
+// Сборка docx в копии собранной папки с правками forecast.json / tariffs.json. Возврат {dir, r, text (плоский)}.
+async function buildDocxCase(name, srcDir, { patchForecast, patchTariffs, content } = {}) {
+  const dir = copyV2Dir(srcDir, name, content);
+  if (patchForecast) {
+    const f = readJsonFile(join(dir, "forecast.json"));
+    patchForecast(f);
+    writeJson(join(dir, "forecast.json"), f);
+  }
+  if (patchTariffs) {
+    const t = readJsonFile(join(dir, "tariffs.json"));
+    patchTariffs(t);
+    writeJson(join(dir, "tariffs.json"), t);
+  }
+  const r = runScript("build-strategy-docx.mjs", dir);
+  const p = join(dir, `SEO_Strategy_${readJsonFile(join(dir, "inputs.json")).slug}.docx`);
+  const text = r.code === 0 && existsSync(p) ? flatText((await docxText(p)).text) : null;
+  return { dir, r, text };
+}
+// раздел «План работ по месяцам» (до пояснения под ним)
+const planPart = (t) => { const i = t.indexOf("План работ по месяцам"); const j = t.indexOf("Разовые работы идут по очереди", i); return i < 0 ? "" : t.slice(i, j < 0 ? undefined : j); };
+const tablePart = (t) => { const i = t.indexOf("Сейчас и через 3, 6 и 12 месяцев"); const j = t.indexOf("За счет чего растем", i); return i < 0 ? "" : t.slice(i, j < 0 ? undefined : j); };
+
+const DOCX_NEW = await buildDocxCase("docx-v2-new", V2_NEW.dir);
+
+await step("docx v2 (новый сайт, гейт не пройден): план, график, таблица и KPI - по plan_tariff (Старт), строка «Разработка и запуск сайта», «Сайт выходит в поиск к 3-му месяцу»", () => {
+  if (!DOCX_NEW.text) return `docx не собран: exit ${DOCX_NEW.r.code}: ${DOCX_NEW.r.stdout}`;
+  if (/ВНИМАНИЕ/.test(DOCX_NEW.r.stdout)) return `предупреждения сборщика: ${DOCX_NEW.r.stdout}`;
+  const fc = readJsonFile(join(DOCX_NEW.dir, "forecast.json"));
+  if (fc.plan_tariff !== "start") return `фикстура: plan_tariff ${fc.plan_tariff}`;
+  const t = DOCX_NEW.text;
+  const plan = planPart(t);
+  for (const s of [TIMELINE.PA.label, TIMELINE.SY.label, TIMELINE.KP.label, DEV_TIMELINE.label, TIMELINE.PF.label]) if (!plan.includes(s)) return `в плане работ нет «${s}»`;
+  for (const id of ["FQ", "LB"]) if (plan.includes(TIMELINE[id].label)) return `в плане работа Роста «${TIMELINE[id].label}», а тариф плана - Старт`;
+  if (!t.includes("выводим в поиск к 3-му месяцу")) return "под планом нет «выводим в поиск к 3-му месяцу»";
+  if (!t.includes("Сайт выходит в поиск к 3-му месяцу")) return "под графиком нет «Сайт выходит в поиск к 3-му месяцу»";
+  const s = fc.tariffs.start, g = fc.tariffs.growth;
+  const kpi = `до ${fmtIntS(s.checkpoints.m12)} ${trafficGenS(s.checkpoints.m12)} из поиска в месяц к 12-му месяцу`;
+  if (!t.includes(kpi)) return `нет KPI «${kpi}» (по Старту)`;
+  if (t.includes(`до ${fmtIntS(g.checkpoints.m12)} `)) return `KPI по Росту (до ${g.checkpoints.m12})`;
+  const row = `С планом 0 ${fmtIntS(s.months[2].traffic)} ${fmtIntS(s.months[5].traffic)} ${fmtIntS(s.months[11].traffic)} Без работ 0 0 0 0`;
+  if (!tablePart(t).includes(row)) return `в таблице прогноза нет «${row}» (трафик Старта)`;
+  return true;
+});
+
+await step("docx v2: строка «Разработка и запуск сайта» в плане - при рекомендованной разработке (сайт есть - после прототипа), без нее и при запуске с 1-го мес - нет", async () => {
+  if (!DOCX_TEXT) return "docx не собран";
+  const base = flatText(DOCX_TEXT.text);
+  if (!planPart(base).includes(DEV_TIMELINE.label)) return "site_dev.recommended = true, а строки разработки в плане нет";
+  if (!base.includes("Новый сайт собираем по согласованному прототипу")) return "нет пояснения про сборку нового сайта по прототипу";
+  const { r, text } = await buildDocxCase("docx-v2-nodev", V2_BASE.dir, { patchTariffs: (t) => { t.site_dev.recommended = false; } });
+  if (!text) return `без разработки: exit ${r.code}: ${r.stdout}`;
+  if (planPart(text).includes(DEV_TIMELINE.label)) return "разработку не рекомендуем, сайт есть, а строка разработки в плане";
+  return true;
+});
+
+await step("docx v2: таблица прогноза без абсолютной выручки «без работ» - переходы с планом / без работ, дальше только прирост обращений и выручки", () => {
+  if (!DOCX_TEXT) return "docx не собран";
+  const fc = readJsonFile(join(DOCX_DIR, "forecast.json"));
+  const tbl = tablePart(flatText(DOCX_TEXT.text));
+  for (const s of ["Переходы из поиска в месяц", "С планом", "Без работ", "Дополнительные обращения в месяц", "Дополнительная выручка в месяц"]) if (!tbl.includes(s)) return `в таблице нет «${s}»`;
+  if (/(^| )Выручка в месяц/.test(tbl)) return "строка абсолютной выручки в таблице прогноза";
+  const baseRub = rubShortS(fc.baseline.revenue_month);
+  if (tbl.includes(baseRub)) return `абсолютная выручка без работ «${baseRub}» в таблице`;
+  const m = fc.tariffs[fc.plan_tariff].months;
+  for (const k of [3, 6, 12]) if (!tbl.includes(`+${rubShortS(m[k - 1].revenue)}`)) return `нет прироста выручки «+${rubShortS(m[k - 1].revenue)}» через ${k} мес`;
+  return true;
+});
+
+await step("docx v2: склонения по числу, которое видит читатель - «~21 обращение ... недополучаете», «~5,2 обращения ... недополучаете», «420 переходов», «104 перехода», «6,3 продажи», «1 продажа»", async () => {
+  const cases = [
+    { name: "a", ln: { traffic_month: 420, target_traffic: 820, leads_month: 21, sales_month: 6.3, revenue_month: 252000 },
+      want: ["~21 обращение в месяц вы недополучаете", "420 переходов в месяц", "21 обращение в месяц", "6,3 продажи в месяц", "~21 обращение и ~252 тыс ₽ выручки в месяц"] },
+    { name: "b", ln: { traffic_month: 104, target_traffic: 504, leads_month: 5.2, sales_month: 1, revenue_month: 40000 },
+      want: ["~5,2 обращения в месяц вы недополучаете", "104 перехода в месяц", "5,2 обращения в месяц", "1 продажа в месяц", "~5,2 обращения и ~40 тыс ₽ выручки в месяц"] },
+  ];
+  for (const c of cases) {
+    const { r, text } = await buildDocxCase(`docx-v2-plural-${c.name}`, V2_BASE.dir, { patchForecast: (f) => Object.assign(f.lost_now, c.ln) });
+    if (!text) return `${c.name}: docx не собран: exit ${r.code}: ${r.stdout}`;
+    if (/ВНИМАНИЕ/.test(r.stdout)) return `${c.name}: предупреждения сборщика: ${r.stdout}`;
+    const miss = c.want.filter((s) => !text.includes(s));
+    if (miss.length) return `${c.name}: нет «${miss.join("» | «")}»`;
+  }
+  return true;
+});
+
+await step("docx v2: старый forecast.json (без plan_tariff и lost_now.basis) - план и KPI по recommended_offer, предупреждение «пересобери build-forecast»", async () => {
+  const { r, text, dir } = await buildDocxCase("docx-v2-oldfc", V2_BASE.dir, {
+    patchForecast: (f) => { delete f.plan_tariff; f.recommended_offer = "start"; delete f.lost_now.basis; },
+  });
+  if (!text) return `exit ${r.code}: ${r.stdout}`;
+  if (!/пересобери build-forecast/.test(r.stdout)) return `нет предупреждения про старую семантику потерь: ${r.stdout}`;
+  if (planPart(text).includes(TIMELINE.YM.label)) return "план по Росту (Карты), а recommended_offer = start";
+  if (!planPart(flatText(DOCX_TEXT ? DOCX_TEXT.text : "")).includes(TIMELINE.YM.label)) return "фикстура: в плане Роста нет Карт";
+  const s = readJsonFile(join(dir, "forecast.json")).tariffs.start.checkpoints;
+  const ratio = s.m12 / s.m0;
+  const kpi = ratio >= 2 ? `×${dec1S(ratio)}` : `+${Math.round((ratio - 1) * 100)}%`;
+  if (!text.includes(`${kpi} рост переходов из поиска за 12 месяцев`)) return `нет KPI роста по Старту «${kpi}»`;
+  return true;
+});
+
 // ──────────────────────────────────────────────────────────────────────────
 // 3.6. verify-strategy.mjs v2
 // ──────────────────────────────────────────────────────────────────────────
@@ -1840,9 +2638,10 @@ await step("verify v2: чистый content + свежий forecast.json -> exit
   if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
   if (!/формат v2/.test(r.stdout)) return `скрипт не ушел в ветку v2: ${r.stdout}`;
   if (!/ПРОГНОЗ: OK/.test(r.stdout)) return `нет «ПРОГНОЗ: OK»: ${r.stdout}`;
-  for (const h of ["СТРУКТУРА (", "ДЕНЬГИ В ПРОЗЕ", "ТАРИФЫ В ПРОЗЕ", "СТОП-ПАТТЕРНЫ", "ТИРЕ/"]) {
-    if (r.stdout.includes(h)) return `ложное нарушение «${h}»: ${r.stdout}`;
+  for (const h of ["СТРУКТУРА (", "ДЕНЬГИ В ПРОЗЕ", "ТАРИФЫ В ПРОЗЕ", "СТОП-ПАТТЕРНЫ", "ТИРЕ/", "СОСТАВ ПЛАНА", "ЭКОНОМИКА", "ЖАРГОН"]) {
+    if (r.stdout.includes(h)) return `ложное нарушение / предупреждение «${h}»: ${r.stdout}`;
   }
+  if (!/тариф плана «Рост»/.test(r.stdout)) return `ПРОГНОЗ: OK не по тарифу плана «Рост»: ${r.stdout}`;
   if (/подозрительно тонкая|проза раздута/.test(r.stdout)) return `объем фикстуры вне 2500-14000: ${r.stdout}`;
   return true;
 });
@@ -1952,6 +2751,84 @@ await step("verify v2: DEV в plan_item при site_dev.recommended = false -> �
   return true;
 });
 
+function verifyNewCase(name, mutate) {
+  const content = v2NewContent();
+  if (mutate) mutate(content);
+  return copyV2Dir(V2_NEW.dir, name, content);
+}
+
+await step("verify v2 (новый сайт, гейт не пройден): exit 0, ПРОГНОЗ: OK по тарифу плана «Старт»; ЭКОНОМИКА (warning) - гейт и рекомендация сметы; ЖАРГОН - «Профиль «Активный»» в max.hint", () => {
+  const r = runVerify(verifyNewCase("verify-v2-new"));
+  if (r.code !== 0) return `exit ${r.code} (гейт - предупреждение, не блок): ${r.stdout}`;
+  if (!/ПРОГНОЗ: OK/.test(r.stdout) || !/тариф плана «Старт»/.test(r.stdout)) return `нет «ПРОГНОЗ: OK ... тариф плана «Старт»»: ${r.stdout}`;
+  if (!/ЭКОНОМИКА \(warning\)/.test(r.stdout) || !/экономический гейт не пройден/.test(r.stdout)) return `нет предупреждения ЭКОНОМИКА про гейт: ${r.stdout}`;
+  if (!/смета рекомендует: start/.test(r.stdout)) return `ЭКОНОМИКА не называет рекомендацию сметы: ${r.stdout}`;
+  if (/СОСТАВ ПЛАНА/.test(r.stdout)) return `ложное СОСТАВ ПЛАНА: работы плана из Старта: ${r.stdout}`;
+  if (!/ЖАРГОН \(warning\)/.test(r.stdout) || !/max\.hint/.test(r.stdout) || !/Профиль «Активный»/.test(r.stdout)) return `нет ЖАРГОН про профиль Максимума в max.hint: ${r.stdout}`;
+  return true;
+});
+
+await step("verify v2: СОСТАВ ПЛАНА - по тарифу плана (forecast.plan_tariff): при плане «Старт» работы Роста (FQ, LB) -> предупреждение, exit 0; Карты (YM) при плане «Рост» - без предупреждения", () => {
+  const r = runVerify(verifyNewCase("verify-v2-new-plan", (c) => {
+    const pi = c.sections[2].blocks.filter((b) => b.type === "plan_item");
+    pi[0].services = ["PA", "SY", "FQ"];
+    pi[3].services = ["PF", "LB"];
+  }));
+  if (r.code !== 0) return `exit ${r.code} (expect 0 - предупреждение): ${r.stdout}`;
+  if (!/СОСТАВ ПЛАНА \(warning\)/.test(r.stdout)) return `нет СОСТАВ ПЛАНА: ${r.stdout}`;
+  for (const id of ["FQ", "LB"]) if (!new RegExp(`${id} нет в составе тарифа плана «Старт»`).test(r.stdout)) return `нет предупреждения про ${id} вне Старта: ${r.stdout}`;
+  if (/(PA|SY|PF) нет в составе/.test(r.stdout)) return `ложное предупреждение по работам Старта: ${r.stdout}`;
+  // база: тариф плана - Рост, YM в его составе (чистый прогон - без СОСТАВ ПЛАНА, см. первый тест раздела)
+  const base = readJsonFile(join(V2_BASE.dir, "forecast.json"));
+  if (base.plan_tariff !== "growth" || !base.tariffs.growth.ids.includes("YM") || base.tariffs.start.ids.includes("YM")) return "фикстура: YM должен быть только в тарифе плана базы (Рост)";
+  return true;
+});
+
+await step("verify v2: упор в потолок / одинаковые тарифы в checks.soft -> ЭКОНОМИКА (warning) «прогноз упирается в потолок / тарифы не различаются» (growth-strategist), exit 0", () => {
+  const shape = economicsChecks(computeAll(CAP_FI, capTariffs())).soft.filter((s) => /потолок|одинаков/.test(s));
+  if (shape.length < 2) return `фикстура: мягких проверок формы ${shape.length}`;
+  const dir = verifyV2Case("verify-v2-cap-soft");
+  const f = readJsonFile(join(dir, "forecast.json"));
+  f.checks.soft.push(...shape);
+  writeJson(join(dir, "forecast.json"), f);
+  const r = runVerify(dir);
+  if (r.code !== 0) return `exit ${r.code} (expect 0 - предупреждение): ${r.stdout}`;
+  if (!/ЭКОНОМИКА \(warning\)/.test(r.stdout) || !/прогноз упирается в потолок \/ тарифы не различаются/.test(r.stdout)) return `нет предупреждения про форму прогноза: ${r.stdout}`;
+  if (!/growth-strategist/.test(r.stdout)) return "предупреждение не адресовано growth-strategist";
+  if (/экономический гейт не пройден/.test(r.stdout)) return "ложное «гейт не пройден» при пустом checks.hard";
+  return true;
+});
+
+await step("verify v2: подмена в forecast.json - lost_now.leads_month (прирост плана вместо разрыва), plan_tariff, launch_month -> exit 2, ПРОГНОЗ, чинит оркестратор", () => {
+  const cases = [
+    ["lost", (f) => { f.lost_now.leads_month = f.tariffs.growth.months[11].leads; }, /lost_now\.leads_month/],
+    ["plan", (f) => { f.plan_tariff = "max"; }, /plan_tariff в forecast\.json max != пересчет growth/],
+    ["launch", (f) => { f.launch_month = 3; }, /launch_month в forecast\.json 3 != пересчет 1/],
+  ];
+  for (const [name, patch, re] of cases) {
+    const dir = verifyV2Case(`verify-v2-tamper-${name}`);
+    const f = readJsonFile(join(dir, "forecast.json"));
+    patch(f);
+    writeJson(join(dir, "forecast.json"), f);
+    const r = runVerify(dir);
+    if (r.code !== 2) return `${name}: exit ${r.code} (expect 2): ${r.stdout}`;
+    if (!/ПРОГНОЗ \(/.test(r.stdout) || !re.test(r.stdout)) return `${name}: нет нарушения ${re}: ${r.stdout}`;
+    if (!/оркестратор: ПРОГНОЗ/.test(r.stdout)) return `${name}: маршрут к оркестратору не напечатан`;
+  }
+  return true;
+});
+
+await step("verify v2: ltv_factor в forecast_inputs изменен после build-forecast -> exit 2, «входы изменились после build-forecast (ltv_factor 1 -> 1.8)»", () => {
+  const dir = verifyV2Case("verify-v2-ltv-drift");
+  const d = readJsonFile(join(dir, "seo-strategiya_data.json"));
+  d.forecast_inputs.economics.ltv_factor = 1.8;
+  writeJson(join(dir, "seo-strategiya_data.json"), d);
+  const r = runVerify(dir);
+  if (r.code !== 2) return `exit ${r.code} (expect 2): ${r.stdout}`;
+  if (!/входы изменились после build-forecast/.test(r.stdout) || !/ltv_factor 1 -> 1\.8/.test(r.stdout)) return `нет нарушения про ltv_factor: ${r.stdout}`;
+  return true;
+});
+
 await step("docx: format «V2» (регистр, пробелы) собирается v2-рендером, как его принимает verify", () => {
   const c = v2Content();
   c.format = " V2 ";
@@ -1959,16 +2836,6 @@ await step("docx: format «V2» (регистр, пробелы) собирае�
   const r = runScript("build-strategy-docx.mjs", dir);
   if (r.code !== 0) return `exit ${r.code}: ${r.stdout}`;
   if (!/bytes, v2\)/.test(r.stdout)) return `ушел в легаси-рендер: ${r.stdout}`;
-  return true;
-});
-
-await step("docx v2: money_lost - обращения из Карт отдельно («N с сайта и M из Яндекс Карт»), фактическая конверсия в допущениях", () => {
-  if (!DOCX_TEXT) return "docx не собран";
-  const fc = readJsonFile(join(V2_BASE.dir, "forecast.json"));
-  if (!(fc.lost_now.leads_maps_month > 0)) return `в фикстуре нет обращений из Карт: ${fc.lost_now.leads_maps_month}`;
-  const t = DOCX_TEXT.text.replace(/ /g, " ");
-  if (!/с сайта и [\d,]+ из Яндекс Карт/.test(t)) return "нет разбивки «с сайта и ... из Яндекс Карт» в воронке";
-  if (!/из карточки напрямую/.test(t)) return "нет пояснения про обращения из Карт";
   return true;
 });
 

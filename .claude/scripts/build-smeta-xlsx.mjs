@@ -35,6 +35,7 @@ import {
 } from "./_services.mjs";
 import {
   HORIZON, CAL, computeTariff, trafficSeries, tariffServiceIds, costSeries, resolveEconomics,
+  applyClientEconomics, launchMonth, ECON_DEFAULTS,
 } from "./_forecast-model.mjs";
 
 const strategyDirArg = process.argv[2];
@@ -75,6 +76,21 @@ function deepClean(v) {
 
 const domain = inputs.domain || "site";
 const date = inputs.date || new Date().toLocaleDateString("ru-RU", { year: "numeric", month: "long" });
+// v2: подпись сайта в шапке листов. Сайта нет (domain "none") - «<ниша>, <регион>», а не «none - SEO-продвижение».
+// Ниша - короткая часть до двоеточия/скобки (полное описание ниши в шапку не влезает). Легаси-путь - domain как был.
+function siteLabelFor(inp) {
+  const d = String(inp.domain || "").trim();
+  if (d && !/^(none|null|undefined|site|нет|-)$/i.test(d)) return d;
+  let short = String(inp.niche || inp.niche_hypothesis || "").split(/[:;(]| - /)[0].replace(/\s+/g, " ").trim();
+  if (short.length > 70) short = short.slice(0, 70).replace(/\s+\S*$/, "");
+  const region = String(inp.region || "").trim();
+  const parts = [];
+  if (short) parts.push(short);
+  // регион уже в нише («... в Москве») - не повторяем (сравнение по основе слова: Москва/Москве)
+  if (region && !short.toLowerCase().includes(region.toLowerCase().slice(0, Math.max(4, region.length - 2)))) parts.push(region);
+  return parts.join(", ") || "Новый сайт";
+}
+const siteLabel = cleanText(siteLabelFor(inputs));
 // Имя файла: используем slug если есть (Latin, безопасно для email/FS), иначе domain без forbidden-chars (Windows).
 const safeName = (inputs.slug || domain).replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
 const outputPath = join(strategyDir, `Smeta_${safeName}.xlsx`);
@@ -173,12 +189,14 @@ function rowHeightFor(text, widthChars, lineHeight = 13, minHeight = 15) {
   return Math.max(minHeight, lines * lineHeight + 4);
 }
 
-// Буква колонки по номеру (1 -> A, 15 -> O). Листы сметы уже 26 колонок.
+// Буква колонки по номеру (1 -> A, 15 -> O, 27 -> AA).
 function colL(n) {
-  return String.fromCharCode(64 + n);
+  let s = "";
+  for (let x = n; x > 0; x = Math.floor((x - 1) / 26)) s = String.fromCharCode(65 + ((x - 1) % 26)) + s;
+  return s;
 }
 
-// Заголовок листа (крупный) + подзаголовок «домен - SEO-продвижение | дата». Возврат: следующая строка.
+// Заголовок листа v2 (крупный) + подзаголовок «сайт - SEO-продвижение | дата». Возврат: следующая строка.
 function writeSheetTitle(ws, title, span) {
   ws.mergeCells(1, 1, 1, span);
   const t = ws.getCell(1, 1);
@@ -188,7 +206,7 @@ function writeSheetTitle(ws, title, span) {
   ws.getRow(1).height = 22;
   ws.mergeCells(2, 1, 2, span);
   const s = ws.getCell(2, 1);
-  s.value = `${domain} - SEO-продвижение | ${date}`;
+  s.value = `${siteLabel} - SEO-продвижение | ${date}`;
   s.font = { name: FONT_FAMILY, size: FONT_SIZE, color: { argb: COLORS.muted } };
   s.alignment = { horizontal: "left", vertical: "middle" };
   return 3;
@@ -217,7 +235,29 @@ function writeNote(ws, row, text, span, widthChars, opts = {}) {
 // Актуальные ID - из _services.mjs, выведенные (NG/KF/BR/YB) - легаси-названиями того времени,
 // неизвестные (ручные строки вроде «Разработка сайта под SEO») - как записаны в tariffs.json.
 // legacy (старая задача без forecast.json) - тексты сметы того времени (CATALOG_V1), как отдавали клиенту.
-function serviceView(service, kind, legacy = false) {
+// v2: price_note - внутреннее обоснование цены архитектором (DR, профили, «не Tilda») - в клиентское описание
+// не идет. Исключение - объем работ в начале пометки («до 10 страниц», «до 30 коммерческих страниц»): это условие
+// цены, клиенту его видно. BS без такой пометки - объем по цене каталога (5 000 - до 10 стр., 10 000 - до 50 стр.).
+function volumeNote(id, service) {
+  const m = String(service.price_note || "").match(/^\s*(до\s+\d+\s+(?:[а-яё]+\s+){0,2}?страниц[а-яё]*)/i);
+  if (m) return m[1].replace(/\s+/g, " ").trim();
+  if (id === "BS") {
+    if (service.price === 5000) return "до 10 страниц";
+    if (service.price === 10000) return "до 50 страниц";
+  }
+  return "";
+}
+// v2: hint архитектора - как есть, но без внутренних названий профилей Максимума («Профиль «Активный»: ...»).
+function clientHint(h) {
+  let s = String(h || "")
+    .replace(/(^|[\s(])\(?[Пп]рофиль\s*«[^»]*»\)?\s*[:.,-]?\s*/g, (m, pre) => (pre === "(" ? "" : pre))
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  s = s.replace(/([.!?]\s+)([а-яёa-z])/g, (m, a, b) => a + b.toUpperCase());
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+function serviceView(service, kind, legacy = false, opts = {}) {
   const rawId = String(service.id || service.service_code || "");
   if (legacy) {
     const sid = canonicalId(service.id);
@@ -237,11 +277,13 @@ function serviceView(service, kind, legacy = false) {
   let name = known ? meta.name : (service.name || rawId);
   // «(акция - в подарок)» в названии - только когда услуга реально за 0 (старые сметы продавали ART за 3 000).
   if (known && typeof price === "number" && price > 0) name = name.replace(/\s*\(акция[^)]*\)\s*$/i, "");
-  let description = service.description || meta.description || "";
-  if (service.price_note) {
-    description = description ? `${description}\n- ${service.price_note}` : `- ${service.price_note}`;
-  }
-  const deadline = kind === "monthly" ? "-" : (service.deadline || meta.deadline || "1 нед.");
+  // служебные пометки каталога для агентов («(для не-Tilda)» у техаудита) клиенту не показываем
+  let description = String(service.description || meta.description || "").replace(/\s*\((?:для |только )?не-?\s?Tilda\)/gi, "");
+  const vol = volumeNote(meta.id, service);
+  if (vol) description = description ? `${description}\nОбъем: ${vol}` : `Объем: ${vol}`;
+  // ежемесячные: новый сайт - работы идут с месяца запуска (costSeries модели)
+  const launch = Math.max(1, Number(opts.launch) || 1);
+  const deadline = kind === "monthly" ? (launch > 1 ? `с ${launch}-го мес` : "-") : (service.deadline || meta.deadline || "1 нед.");
   const result = service.result || meta.result || "";
   const regular = Number(service.regular_price) > 0
     ? Number(service.regular_price)
@@ -318,24 +360,28 @@ function writeTariffSheet(workbook, tariffKey, tariffData, opts = {}) {
 
   ws.mergeCells(row, 1, row, 6);
   const subCell = ws.getCell(row, 1);
-  subCell.value = `${domain} - SEO-продвижение | ${date}`;
+  subCell.value = `${v2 ? siteLabel : domain} - SEO-продвижение | ${date}`;
   subCell.font = { name: FONT_FAMILY, size: FONT_SIZE, color: { argb: COLORS.muted } };
   subCell.alignment = { horizontal: "left", vertical: "middle" };
 
+  // v2: месяц запуска нового сайта (ежемесячные работы и акция ПФ 1=2 - от него, как costSeries модели)
+  const launch = v2 ? Math.max(1, Number(opts.launch) || 1) : 1;
+
   // v2: «Почему этот вариант» из hint (под шапкой)
-  if (v2 && tariffData.hint) {
+  const hint = v2 ? clientHint(tariffData.hint) : "";
+  if (v2 && hint) {
     row++;
     ws.mergeCells(row, 1, row, 6);
     const h = ws.getCell(row, 1);
     h.value = {
       richText: [
         { font: { name: FONT_FAMILY, size: FONT_SIZE, bold: true, color: { argb: COLORS.header_bg } }, text: "Почему этот вариант: " },
-        { font: { name: FONT_FAMILY, size: FONT_SIZE, color: { argb: COLORS.text } }, text: String(tariffData.hint) },
+        { font: { name: FONT_FAMILY, size: FONT_SIZE, color: { argb: COLORS.text } }, text: hint },
       ],
     };
     h.alignment = { wrapText: true, vertical: "top", horizontal: "left" };
     if (opts.recommended) h.fill = fill(COLORS.reco_bg);
-    ws.getRow(row).height = rowHeightFor(`Почему этот вариант: ${tariffData.hint}`, 140);
+    ws.getRow(row).height = rowHeightFor(`Почему этот вариант: ${hint}`, 140);
   }
   row += 2;
 
@@ -355,7 +401,7 @@ function writeTariffSheet(workbook, tariffKey, tariffData, opts = {}) {
   row++;
 
   const writeServiceRow = (service, i, kind) => {
-    const sv = serviceView(service, kind, !v2);
+    const sv = serviceView(service, kind, !v2, { launch });
     const isAlt = i % 2 === 1;
     const values = [i + 1, sv.name, sv.description, sv.deadline, sv.price, sv.result];
     const isPromoPrice = typeof sv.price === "number" && sv.price === 0 && sv.regular > 0;
@@ -432,13 +478,16 @@ function writeTariffSheet(workbook, tariffKey, tariffData, opts = {}) {
   // Акция «ПФ 1=2» - отдельной строкой в блоке ежемесячных, вне диапазона SUM (стоимость текстом).
   const promo = pfPromo(tariffData);
   if (promo) {
+    // v2 при новом сайте: бесплатен второй месяц ПФ после запуска (месяц launch + 1), как в costSeries модели
+    const pm = launch + 1;
     const vals = [
       "",
       "Акция: второй месяц внешнего продвижения в подарок",
-      promo.reason ? `Акция «ПФ 1=2»: ${promo.reason}` : "Акция «ПФ 1=2»: оплачиваете первый месяц внешнего продвижения, второй - бесплатно",
-      "2-й мес",
-      `-${fmtRub(promo.amount)} во 2-й мес`,
-      "Затраты второго месяца меньше на стоимость внешнего продвижения",
+      (promo.reason ? `Акция «ПФ 1=2»: ${promo.reason}` : "Акция «ПФ 1=2»: оплачиваете первый месяц внешнего продвижения, второй - бесплатно") +
+        (launch > 1 ? ` (внешнее продвижение начинается с запуска сайта в ${launch}-м мес, бесплатен ${pm}-й мес)` : ""),
+      `${pm}-й мес`,
+      `-${fmtRub(promo.amount)} ${pm === 2 ? "во" : "в"} ${pm}-й мес`,
+      `Затраты ${pm === 2 ? "второго" : `${pm}-го`} месяца меньше на стоимость внешнего продвижения`,
     ];
     vals.forEach((v, j) => {
       const c = ws.getCell(row, j + 1);
@@ -545,25 +594,36 @@ function writeTariffSheet(workbook, tariffKey, tariffData, opts = {}) {
     monthlyOngoingCell.font = { name: FONT_FAMILY, size: FONT_SIZE, bold: true, color: { argb: COLORS.text } };
     monthlyOngoingCell.numFmt = '#,##0 "₽/мес"';
   } else {
-    // v2: ежемесячные идут с первого месяца (как в модели затрат costSeries), акция ПФ 1=2 - минус во 2-й мес.
+    // v2: как модель затрат costSeries - разовые в 1-й мес, ежемесячные с месяца запуска сайта (сайт есть - с 1-го),
+    // акция ПФ 1=2 - минус во 2-й мес ежемесячных работ (месяц запуска + 1).
     const E1 = `E${onetimeTotalRow}`, EM = `E${monthlyTotalRow}`;
     const promoAmt = promo ? promo.amount : 0;
+    const promoIn12 = !!promo && launch + 1 <= 12;
+    const nMonths = Math.max(0, 12 - launch + 1);
     writeOrderLine({ label: "Этап 1 (старт): разовые работы", formula: E1, result: onetimeSum, fmt: FMT.money });
     writeOrderLine({ label: "Срок выполнения разовых работ", value: onetimeDeadline(tariffData) });
-    writeOrderLine({ label: "Этап 2 (ежемесячно): после старта", formula: EM, result: monthlySum, fmt: FMT.money_month });
+    writeOrderLine({
+      label: launch > 1 ? `Этап 2 (ежемесячно): с ${launch}-го месяца, когда новый сайт выходит в поиск` : "Этап 2 (ежемесячно): после старта",
+      formula: EM, result: monthlySum, fmt: FMT.money_month,
+    });
     if (promo) {
       writeOrderLine({
-        label: "Акция «ПФ 1=2»: второй месяц ежемесячных работ",
+        label: launch > 1 ? `Акция «ПФ 1=2»: ${launch + 1}-й месяц (второй месяц ежемесячных работ)` : "Акция «ПФ 1=2»: второй месяц ежемесячных работ",
         formula: `MAX(0,${EM}-${promoAmt})`, result: Math.max(0, monthlySum - promoAmt), fmt: FMT.money, promo: true,
       });
     }
     row++;
-    writeOrderLine({ label: "Итого за 1-й месяц (разовые + ежемесячные)", formula: `${E1}+${EM}`, result: onetimeSum + monthlySum, fmt: FMT.money, bold: true });
-    writeOrderLine({ label: "Далее ежемесячно", formula: EM, result: monthlySum, fmt: FMT.money_month, bold: true });
+    if (launch > 1) {
+      writeOrderLine({ label: "Итого за 1-й месяц (разовые работы)", formula: E1, result: onetimeSum, fmt: FMT.money, bold: true });
+      writeOrderLine({ label: `С ${launch}-го месяца ежемесячно`, formula: EM, result: monthlySum, fmt: FMT.money_month, bold: true });
+    } else {
+      writeOrderLine({ label: "Итого за 1-й месяц (разовые + ежемесячные)", formula: `${E1}+${EM}`, result: onetimeSum + monthlySum, fmt: FMT.money, bold: true });
+      writeOrderLine({ label: "Далее ежемесячно", formula: EM, result: monthlySum, fmt: FMT.money_month, bold: true });
+    }
     writeOrderLine({
-      label: promo ? "Итого за 12 месяцев (с учетом акции)" : "Итого за 12 месяцев",
-      formula: promo ? `${E1}+12*${EM}-${promoAmt}` : `${E1}+12*${EM}`,
-      result: onetimeSum + 12 * monthlySum - promoAmt,
+      label: promoIn12 ? "Итого за 12 месяцев (с учетом акции)" : "Итого за 12 месяцев",
+      formula: `${E1}+${nMonths}*${EM}${promoIn12 ? `-MIN(${EM},${promoAmt})` : ""}`,
+      result: onetimeSum + nMonths * monthlySum - (promoIn12 ? Math.min(monthlySum, promoAmt) : 0),
       fmt: FMT.money, bold: true, highlight: true,
     });
   }
@@ -887,26 +947,42 @@ function writeScenarioSheet(workbook, tariffsByKey, fs) {
 // v2 (forecast.json): модель, «Окупаемость», «Разработка сайта», «Сравнение тарифов»
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Пересчет модели по текущим тарифам: forecast_inputs (data.json) + экономика, уже разрешенная
-// build-forecast.mjs (клиентские значения поверх оценок) - forecast.json.inputs.economics.
+// Пересчет модели по текущим тарифам: forecast_inputs (data.json) с экономикой клиента - тем же applyClientEconomics,
+// что в build-forecast.mjs (в том числе we_develop из inputs.json: от него месяц запуска нового сайта), поверх -
+// экономика, уже разрешенная build-forecast.mjs (forecast.json.inputs.economics). Нет forecast_inputs - входы из
+// forecast.json; полей модели, которых там нет (трафик конкурентов для потолка, месяц запуска), добираем из
+// forecast.json, расхождение покажет staleCheck.
 function buildModel(fc, data, tariffsByKey) {
-  const fiSrc = data && data.forecast_inputs && typeof data.forecast_inputs === "object" ? data.forecast_inputs : null;
-  const fi = JSON.parse(JSON.stringify(fiSrc || fc.inputs || {}));
+  const fiSrc = data && data.forecast_inputs && typeof data.forecast_inputs === "object" && !Array.isArray(data.forecast_inputs)
+    ? data.forecast_inputs : null;
+  const base = JSON.parse(JSON.stringify(fiSrc || fc.inputs || {}));
+  if (!fiSrc) {
+    const ln = fc.lost_now || {};
+    if (!base.competitors_traffic && (Number(ln.competitors_traffic_median) > 0 || Number(ln.competitors_traffic_leader) > 0)) {
+      base.competitors_traffic = { median: Number(ln.competitors_traffic_median) || 0, leader: Number(ln.competitors_traffic_leader) || 0 };
+    }
+    if (base.site_launch_month == null && Number(fc.launch_month) >= 1) base.site_launch_month = Number(fc.launch_month);
+  }
+  const { fi } = applyClientEconomics(base, inputs);
   if (fc.inputs && fc.inputs.economics) fi.economics = { ...fc.inputs.economics };
   if (fc.inputs && Number.isFinite(Number(fc.inputs.t0))) fi.t0 = Number(fc.inputs.t0);
+  const launch = launchMonth(fi);
   const models = {};
   for (const k of TARIFF_KEYS) {
     const t = tariffsByKey[k];
     if (!t) continue;
     const ts = trafficSeries(fi, tariffServiceIds(t), HORIZON);
-    models[k] = { ts, cost: costSeries(t, HORIZON), res: computeTariff(fi, t, HORIZON) };
+    models[k] = { ts, cost: costSeries(t, HORIZON, launch), res: computeTariff(fi, t, HORIZON) };
   }
-  return { fi, econ: resolveEconomics(fi), models, fiSource: fiSrc ? "forecast_inputs" : "forecast.json inputs" };
+  return { fi, econ: resolveEconomics(fi), models, launch, fiSource: fiSrc ? "forecast_inputs" : "forecast.json inputs" };
 }
 
 // forecast.json против пересчета: расхождение = прогноз собран по другим тарифам/входам.
-function staleCheck(fc, models) {
+function staleCheck(fc, models, launch) {
   const msgs = [];
+  if (fc.launch_month != null && Number(fc.launch_month) !== launch) {
+    msgs.push(`месяц запуска сайта в forecast.json ${fc.launch_month}, пересчет ${launch}`);
+  }
   for (const k of TARIFF_KEYS) {
     const f = fc.tariffs && fc.tariffs[k];
     const md = models[k];
@@ -923,59 +999,96 @@ function staleCheck(fc, models) {
   return msgs;
 }
 
-// Помесячные входы таблицы тарифа (значения модели): мес 1..12 + агрегаты 2-го года (мес 13-24).
-// Множитель конверсии 2-го года - средневзвешенный по коммерческому трафику: тогда формула
-// (ком x множ - 12 x m0) x конв по агрегатам дает ровно сумму обращений мес 13-24.
-function blockInputs(md) {
+// Помесячные входы таблицы тарифа (значения модели), мес 1..HORIZON: прирост коммерческого трафика к текущему
+// (kg = коммерческий - t0), трафик статей, множитель конверсии, обращения из Карт, затраты (costSeries с месяцем
+// запуска). Трафик месяца на листе = m0 + kg + статьи: правка m0 сдвигает уровень, прирост модели сохраняется.
+function blockInputs(md, t0) {
   const months = [];
-  for (let m = 1; m <= 12; m++) {
+  for (let m = 1; m <= HORIZON; m++) {
     const t = md.ts[m];
-    months.push({ m, kom: t.commercial, info: t.info, mult: t.conv_mult, maps: t.maps_leads, cost: md.cost[m] });
+    months.push({ m, kg: Math.max(0, t.commercial - t0), info: t.info, mult: t.conv_mult, maps: t.maps_leads, cost: md.cost[m] });
   }
-  let kom = 0, komMult = 0, info = 0, maps = 0, cost = 0;
-  for (let m = 13; m <= HORIZON; m++) {
-    const t = md.ts[m];
-    kom += t.commercial; komMult += t.commercial * t.conv_mult; info += t.info; maps += t.maps_leads; cost += md.cost[m];
-  }
-  const y2 = { kom, info, mult: kom > 0 ? komMult / kom : 1, maps, cost, months: HORIZON - 12 };
-  return { months, y2 };
+  return { months };
 }
 
 // Те же формулы, что пишутся в ячейки, - на JS: кэш значений (result) для просмотрщиков без пересчета
-// и самопроверка против forecast.json.
+// и самопроверка против forecast.json. p - параметры листа (check, ltv, conv, close, lag, margin, m0, k).
 function evalBlock(bi, p) {
-  const leadsOf = (kom, mult, info, maps, m0) => Math.max(0, (kom * mult - m0) * p.conv + info * p.conv * p.k + maps);
-  const rows = [];
-  let cum = 0;
-  const y1 = { kom: 0, info: 0, gain: 0, maps: 0, leads: 0, sales: 0, revenue: 0, profit: 0, cost: 0, komMult: 0 };
-  let payback = null;
-  for (const x of bi.months) {
-    const gain = x.kom + x.info - p.m0;
-    const leads = leadsOf(x.kom, x.mult, x.info, x.maps, p.m0);
-    const sales = leads * p.close;
-    const revenue = sales * p.check;
-    const profit = revenue * p.margin;
-    cum += profit - x.cost;
-    if (payback === null && cum >= 0) payback = x.m;
-    const r = { ...x, gain, leads, sales, revenue, profit, cum };
-    rows.push(r);
-    for (const k of ["kom", "info", "gain", "maps", "leads", "sales", "revenue", "profit", "cost"]) y1[k] += r[k];
-    y1.komMult += x.kom * x.mult;
+  const lag = Math.max(0, Math.round(Number(p.lag) || 0));
+  const rows = bi.months.map((x) => ({
+    ...x,
+    tot: p.m0 + x.kg + x.info,
+    leads: Math.max(0, ((p.m0 + x.kg) * x.mult - p.m0) * p.conv + x.info * p.conv * p.k + x.maps),
+  }));
+  let cum = 0, cumCost = 0, payback = null;
+  for (const r of rows) {
+    const src = r.m - lag >= 1 ? rows[r.m - lag - 1] : null;
+    r.sales = (src ? src.leads : 0) * p.close;
+    r.revenue = r.sales * p.check * p.ltv;
+    r.profit = r.revenue * p.margin;
+    r.hm = (src ? src.maps : 0) * p.close * p.check * p.ltv * p.margin;
+    cum += r.profit - r.cost;
+    cumCost += r.cost;
+    r.cum = cum;
+    r.help = cum >= 0 && cumCost > 0 ? r.m : "";
+    if (payback === null && r.help !== "") payback = r.m;
   }
-  y1.mult = y1.kom > 0 ? y1.komMult / y1.kom : 1;
-  y1.cum = y1.profit - y1.cost;
-  const b = bi.y2;
-  const y2 = { kom: b.kom, info: b.info, mult: b.mult, maps: b.maps, cost: b.cost };
-  y2.gain = b.kom + b.info - b.months * p.m0;
-  y2.leads = leadsOf(b.kom, b.mult, b.info, b.maps, b.months * p.m0);
-  y2.sales = y2.leads * p.close;
-  y2.revenue = y2.sales * p.check;
-  y2.profit = y2.revenue * p.margin;
-  y2.cum = y1.cum + y2.profit - y2.cost;
+  const KEYS = ["tot", "kg", "info", "maps", "leads", "sales", "revenue", "profit", "cost", "hm"];
+  const agg = (from, to) => {
+    const o = {};
+    for (const k of KEYS) o[k] = rows.slice(from - 1, to).reduce((a, r) => a + r[k], 0);
+    o.cum = rows[to - 1].cum;
+    return o;
+  };
+  const y1 = agg(1, 12), y2 = agg(13, HORIZON);
   const romi12 = y1.cost > 0 ? (y1.profit - y1.cost) / y1.cost : 0;
   const romi24 = y1.cost + y2.cost > 0 ? (y1.profit + y2.profit - y1.cost - y2.cost) / (y1.cost + y2.cost) : 0;
-  const paybackText = payback !== null ? payback : (y2.cum >= 0 ? "на 2-м году" : "> 24 мес");
-  return { rows, y1, y2, romi12, romi24, payback: paybackText };
+  // Безубыточность за 12 мес: прибыль линейна по чеку (чек от = чек x затраты / прибыль) и по конверсии
+  // (обращения = конверсия x a + Карты, a >= 0 - MAX(0) не срабатывает): конв. от = конв. x (затраты - Карты) / (прибыль - Карты).
+  const beCheck = y1.profit > 0 ? (p.check * y1.cost) / y1.profit : 0;
+  const beConv = y1.profit - y1.hm > 0 ? (p.conv * (y1.cost - y1.hm)) / (y1.profit - y1.hm) : 0;
+  return { rows, y1, y2, romi12, romi24, payback: payback !== null ? payback : `> ${HORIZON} мес`, paybackMonth: payback, beCheck, beConv };
+}
+
+// FIXED() и ROUNDUP() Excel на JS - для кэша текстовых формул (русская локаль: пробел тысяч, запятая).
+function fixedRu(x, d) {
+  const a = Math.round(Math.abs(x) * 10 ** d) / 10 ** d;
+  const [i, f] = a.toFixed(Math.max(0, d)).split(".");
+  return (x < 0 && a > 0 ? "-" : "") + i.replace(/\B(?=(\d{3})+(?!\d))/g, " ") + (d > 0 ? `,${f}` : "");
+}
+function roundUp(x, d) {
+  const k = 10 ** d;
+  return (Math.sign(x) * Math.ceil(Math.abs(x) * k - 1e-9)) / k;
+}
+
+// Строка «при каких условиях тариф окупается за 12 мес» (ROMI 12 мес <= 0): формула и ее значение.
+// long - под таблицей тарифа на «Окупаемости», short - ячейка «Сравнения тарифов».
+// Конверсию безубыточности показываем только в достижимых пределах: не выше трех типовых для этого бизнеса и не выше
+// 50% (магазину «окупится при конверсии от 31,9%» - абсурд, приемка 06.10). Задается после чтения forecast.json.
+let BE_CONV_MAX = 0.5;
+function breakevenFormula({ romi, beCheck, beConv, check, conv }, long) {
+  const convPart = long
+    ? `" или конверсии от "&FIXED(ROUNDUP(${beConv}*100,1),1)&"% (сейчас "&FIXED(${conv}*100,1)&"%)"`
+    : `" или конверсия от "&FIXED(ROUNDUP(${beConv}*100,1),1)&"%"`;
+  const checkPart = long
+    ? `"Тариф окупается за 12 мес при среднем чеке от "&FIXED(ROUNDUP(${beCheck},-2),0)&" ₽ (сейчас "&FIXED(${check},0)&" ₽)"`
+    : `"чек от "&FIXED(ROUNDUP(${beCheck},-2),0)&" ₽"`;
+  const ok = long ? `""` : `"окупается при текущих допущениях"`;
+  const none = long
+    ? `"За 12 мес продаж по прогнозу нет: вложения возвращаются только на втором году или позже"`
+    : `"за 12 мес продаж нет"`;
+  return `IF(${romi}>0,${ok},IF(${beCheck}>0,${checkPart}&IF(AND(${beConv}>0,${beConv}<=${BE_CONV_MAX}),${convPart},""),${none}))`;
+}
+function breakevenText(ev, p, long) {
+  if (ev.romi12 > 0) return long ? "" : "окупается при текущих допущениях";
+  if (!(ev.beCheck > 0)) return long ? "За 12 мес продаж по прогнозу нет: вложения возвращаются только на втором году или позже" : "за 12 мес продаж нет";
+  const c = fixedRu(roundUp(ev.beCheck, -2), 0);
+  let s = long ? `Тариф окупается за 12 мес при среднем чеке от ${c} ₽ (сейчас ${fixedRu(p.check, 0)} ₽)` : `чек от ${c} ₽`;
+  if (ev.beConv > 0 && ev.beConv <= BE_CONV_MAX) {
+    const v = fixedRu(roundUp(ev.beConv * 100, 1), 1);
+    s += long ? ` или конверсии от ${v}% (сейчас ${fixedRu(p.conv * 100, 1)}%)` : ` или конверсия от ${v}%`;
+  }
+  return s;
 }
 
 const SOURCE_LABEL = {
@@ -989,38 +1102,92 @@ const T0_SOURCE_LABEL = {
   keyso: "оценка по Keyso",
   estimated: "оценка",
 };
+const BT_LABEL = {
+  services: "услуги", medical: "медицина", b2b: "B2B", high_ticket: "дорогие покупки",
+  ecommerce: "интернет-магазин", info: "информационный сайт",
+};
+const LTV_NOTE = {
+  medical: "курсы процедур и повторные визиты",
+  ecommerce: "повторные заказы",
+};
+
+// Подписи воронки: one_step (магазин, инфо) - «заказы», two_step - «обращения» и «продажи».
+function vocabFor(econ) {
+  const oneStep = econ.model === "one_step";
+  return {
+    oneStep,
+    leads: oneStep ? "заказы" : "обращения",
+    leadsGen: oneStep ? "заказов" : "обращений",
+    leadsRow: oneStep ? "Дополнительные заказы (сверх текущих)" : "Дополнительные обращения (сверх текущих)",
+    salesRow: oneStep ? "Дополнительные оплаченные заказы" : "Дополнительные продажи",
+    mapsRow: oneStep ? "Заказы и звонки из Яндекс Карт" : "Обращения из Яндекс Карт",
+    mapsShort: oneStep ? "заказы из Карт" : "обращения из Карт",
+    pages: econ.business_type === "ecommerce" ? "страницах каталога" : econ.business_type === "info" ? "страницах сайта" : "страницах услуг",
+  };
+}
 
 // ─── Лист «Окупаемость» ───
-// Колонки: A - показатель, B..M - мес 1..12, N - итого год 1, O - год 2 (мес 13-24, агрегаты).
+// Колонки: A - показатель, B..M - мес 1..12, N..Y - мес 13..24 (свернуты в группу), Z - итого год 1,
+// AA - год 2 (мес 13-24). Месяцы 2-го года - отдельными колонками, а не агрегатом: цикл сделки сдвигает продажи
+// на N мес, формула продаж берет обращения месяца m - N из единого ряда мес 1..24.
 function writePaybackSheet(ws, ctx) {
-  const { econ, fc, models, recommended } = ctx;
-  const LAST = 15;
-  const NCOL = 14, OCOL = 15;
-  ws.getColumn(1).width = 44;
-  for (let c = 2; c <= 13; c++) ws.getColumn(c).width = 12;
-  ws.getColumn(NCOL).width = 15;
-  ws.getColumn(OCOL).width = 17;
+  const { econ, fc, models, recommended, launch, t0, V, devFor } = ctx;
+  const H = HORIZON;
+  const COL_M = (m) => m + 1;
+  const ZC = H + 2, AAC = H + 3;
+  const LAST = AAC;
+  const Z = colL(ZC), AA = colL(AAC);
+  const FIRST = colL(COL_M(1)), M12 = colL(COL_M(12)), M13 = colL(COL_M(13)), MH = colL(COL_M(H));
+  ws.getColumn(1).width = 46;
+  for (let m = 1; m <= H; m++) {
+    const col = ws.getColumn(COL_M(m));
+    col.width = 11;
+    if (m > 12) { col.outlineLevel = 1; col.hidden = true; }
+  }
+  ws.properties.outlineLevelCol = 1;
+  ws.getColumn(ZC).width = 15;
+  ws.getColumn(AAC).width = 17;
 
   let row = writeSheetTitle(ws, "ОКУПАЕМОСТЬ ПО ТАРИФАМ", LAST);
-  writeNote(ws, row, "Желтые ячейки - параметры экономики: поменяйте их, и пересчитается весь лист и вкладка «Сравнение тарифов». Трафик, обращения из Карт и затраты по месяцам - из прогноза по составу каждого тарифа; обращения, продажи, выручка и прибыль считаются формулами.", LAST, 200);
+  const intro = [
+    "Желтые ячейки - параметры экономики: поменяйте их, и пересчитается весь лист и вкладка «Сравнение тарифов».",
+    `Прирост трафика, ${V.mapsShort} и затраты по месяцам - из прогноза по составу каждого тарифа; ${V.leads}, продажи, выручка и прибыль считаются формулами.`,
+    launch > 1 ? `Новый сайт выходит в поиск к ${launch}-му месяцу: ежемесячные работы оплачиваются с него, акция «ПФ 1=2» - в ${launch + 1}-м месяце.` : "",
+    `Месяцы 13-${H} свернуты: раскройте их кнопкой «+» над колонкой «Итого год 1».`,
+  ].filter(Boolean).join(" ");
+  writeNote(ws, row, intro, LAST, 200);
   row += 2;
 
   // ── Параметры ──
   writeSection(ws, row, "Параметры экономики", LAST);
   row++;
   const fromClient = new Set((fc.inputs && fc.inputs.economics_from_client) || []);
-  const typeNote = `оценка по типу бизнеса (${econ.business_type})`;
+  const typeNote = `оценка по типу бизнеса (${BT_LABEL[econ.business_type] || econ.business_type})`;
+  const lag = Math.max(0, Math.round(Number(econ.sales_lag_months) || 0));
+  const ltv = Number(econ.ltv_factor) >= 1 ? Number(econ.ltv_factor) : 1;
+  const ltvNote = LTV_NOTE[econ.business_type] || "разовая покупка, повторные не считаем";
   const params = [
     { key: "check", label: "Средний чек, ₽", value: econ.avg_check, fmt: FMT.money,
       source: SOURCE_LABEL[econ.avg_check_source] || econ.avg_check_source || "оценка" },
-    { key: "conv", label: econ.model === "one_step" ? "Конверсия визит -> заказ" : "Конверсия визит -> обращение", value: econ.conversion_rate, fmt: FMT.pct1,
-      source: fromClient.has("conversion_rate") ? "клиент" : econ.model === "one_step" ? typeNote : `${typeNote}; в кейсах агентства медиана 9,1% по целям Метрики - берем с запасом` },
-    { key: "close", label: econ.model === "one_step" ? "Заказ -> оплата" : "Обращение -> продажа", value: econ.close_rate, fmt: FMT.pct,
+    { key: "ltv", label: "Повторные покупки за год (x)", value: ltv, fmt: "0.0",
+      source: `${econ.ltv_source === "default" ? typeNote : "оценка"}: ${ltvNote}; выручка с одной продажи = средний чек x это число`,
+      validation: { type: "decimal", min: 1, max: 20, error: "Число покупок одного клиента за год: от 1 до 20" } },
+    { key: "conv", label: V.oneStep ? "Конверсия визит -> заказ" : "Конверсия визит -> обращение", value: econ.conversion_rate, fmt: FMT.pct1,
+      source: fromClient.has("conversion_rate") ? "клиент" : V.oneStep ? typeNote : `${typeNote}; в кейсах агентства медиана 9,1% по целям Метрики - берем с запасом` },
+    { key: "close", label: V.oneStep ? "Заказ -> оплата" : "Обращение -> продажа", value: econ.close_rate, fmt: FMT.pct,
       source: fromClient.has("close_rate") ? "клиент" : typeNote },
+    { key: "lag", label: "Цикл сделки, мес", value: lag, fmt: "0",
+      source: lag > 0
+        ? `${typeNote}: ${V.oneStep ? "заказ оплачивается" : "обращение становится продажей"} в среднем через ${lag} мес - продажи месяца считаются от ${V.leadsGen} ${lag} мес назад`
+        : `${V.oneStep ? "оплата" : "продажа"} в месяц ${V.oneStep ? "заказа" : "обращения"}; если клиенты решают дольше - впишите число месяцев, продажи сдвинутся`,
+      validation: { type: "whole", min: 0, max: 12, error: "Цикл сделки - целое число месяцев от 0 до 12" } },
     { key: "margin", label: "Маржинальность (валовая прибыль с выручки)", value: econ.margin, fmt: FMT.pct,
       source: fromClient.has("margin") ? "клиент" : typeNote },
-    { key: "m0", label: "Текущий трафик из поиска (m0), визитов в мес", value: Number(fc.inputs && fc.inputs.t0) || 0, fmt: FMT.int,
-      source: `${T0_SOURCE_LABEL[fc.inputs && fc.inputs.t0_source] || "оценка"}; деньги считаются только с прироста над этим уровнем (трафик по месяцам - из прогноза, от правки не меняется)` },
+    { key: "m0", label: "Текущий трафик из поиска (m0), визитов в мес", value: t0, fmt: FMT.int,
+      // Правка m0 не ломает прирост: трафик месяца = m0 + прирост модели (+ статьи), обращения - с прироста над m0.
+      source: t0 === 0 && launch > 1
+        ? "новый сайт - трафика из поиска пока нет; деньги считаются только с прироста"
+        : `${T0_SOURCE_LABEL[fc.inputs && fc.inputs.t0_source] || "оценка"}; знаете точнее (Метрика) - впишите: трафик по месяцам сдвинется на ту же величину, прирост по прогнозу сохранится, деньги считаются только с прироста` },
     { key: "k", label: "Множитель конверсии трафика статей", value: CAL.info_conv_factor, fmt: FMT.mult,
       source: "методика: читатели статей обращаются реже, чем посетители страниц услуг" },
   ];
@@ -1042,6 +1209,12 @@ function writePaybackSheet(ws, ctx) {
       right: { style: "thin", color: { argb: COLORS.input_border } },
     };
     vc.alignment = { horizontal: "center", vertical: "middle" };
+    if (p.validation) {
+      vc.dataValidation = {
+        type: p.validation.type, operator: "between", allowBlank: false, showErrorMessage: true,
+        formulae: [p.validation.min, p.validation.max], errorTitle: "Проверьте значение", error: p.validation.error,
+      };
+    }
     ws.mergeCells(row, 3, row, LAST);
     const sc = ws.getCell(row, 3);
     sc.value = `Источник: ${p.source}`;
@@ -1056,13 +1229,16 @@ function writePaybackSheet(ws, ctx) {
   // ── Таблицы по тарифам ──
   const refs = {};
   const evals = {};
-  const B = (c) => colL(c);
+  // INDEX(ряд, 1, n): строка 1, колонка n - так понимают и Excel, и Google Таблицы (INDEX(ряд, n) Таблицы читают как
+  // номер строки и для горизонтального ряда дают ошибку). MAX(1, ...) - индекс валиден и при неленивом IF.
+  const LAGX = (m) => `${m}-ROUND(${P.lag},0)`;
   for (const k of TARIFF_KEYS) {
     const md = models[k];
     if (!md) continue;
     const isReco = k === recommended;
-    const bi = blockInputs(md);
-    const ev = evalBlock(bi, PV);
+    const ev = evalBlock(blockInputs(md, t0), PV);
+    const dev = devFor ? devFor(k) : null;
+    if (dev) ev.romiDev = ev.y1.cost + dev.cost > 0 ? (ev.y1.profit - ev.y1.cost - dev.cost) / (ev.y1.cost + dev.cost) : 0;
     evals[k] = ev;
 
     // Заголовок блока
@@ -1074,8 +1250,8 @@ function writePaybackSheet(ws, ctx) {
     row++;
 
     const headers = ["Показатель"];
-    for (let m = 1; m <= 12; m++) headers.push(`Мес ${m}`);
-    headers.push("Итого год 1", "Год 2 (мес 13-24)");
+    for (let m = 1; m <= H; m++) headers.push(`Мес ${m}`);
+    headers.push("Итого год 1", `Год 2 (мес 13-${H})`);
     headers.forEach((h, i) => {
       const c = ws.getCell(row, i + 1);
       c.value = h;
@@ -1084,30 +1260,36 @@ function writePaybackSheet(ws, ctx) {
     });
     row++;
 
-    // Номера строк блока
+    // Номера строк блока. help/hm/be - служебные (скрыты): месяц окупаемости, прибыль с обращений из Карт,
+    // чек и конверсия безубыточности за 12 мес.
     const R = {};
-    const order = ["kom", "info", "gain", "mult", "maps", "leads", "sales", "revenue", "profit", "cost", "cum", "help"];
+    const order = ["tot", "kg", "info", "mult", "maps", "leads", "sales", "revenue", "profit", "cost", "cum", "help", "hm", "be"];
     order.forEach((key, i) => { R[key] = row + i; });
     const LABELS = {
-      kom: "Трафик на страницы услуг (коммерческий), визитов",
-      info: "Трафик на статьи, визитов",
-      gain: "Прирост трафика к сегодняшнему, визитов",
+      tot: "Трафик из поиска всего, визитов",
+      kg: `Прирост на ${V.pages} к сегодняшнему (прогноз), визитов`,
+      info: "Трафик на статьи (прогноз), визитов",
       mult: "Множитель конверсии (прототип КФ/КНДР)",
-      maps: "Обращения из Яндекс Карт",
+      maps: V.mapsRow,
       // Деньги - только с прироста: обращения, продажи и выручка здесь - СВЕРХ текущего уровня (m0), не итог.
-      leads: "Дополнительные обращения (сверх текущих)",
-      sales: "Дополнительные продажи",
+      leads: V.leadsRow,
+      sales: V.salesRow,
       revenue: "Дополнительная выручка, ₽",
       profit: "Валовая прибыль с прироста, ₽",
-      cost: "Затраты на продвижение (с акциями), ₽",
+      cost: launch > 1 ? "Затраты на продвижение (ежемесячные - с запуска сайта), ₽" : "Затраты на продвижение (с акциями), ₽",
       cum: "Результат нарастающим итогом, ₽",
-      help: "служебная: месяц, когда итог >= 0",
+      help: "Тех. строка: месяц окупаемости",
+      hm: `Тех. строка: прибыль с ${V.oneStep ? "заказов" : "обращений"} из Карт`,
+      be: "Тех. строка: чек и конверсия безубыточности за 12 мес",
     };
     const ROW_FMT = {
-      kom: FMT.int, info: FMT.int, gain: FMT.int, mult: FMT.mult, maps: FMT.dec1, leads: FMT.dec1, sales: FMT.dec1,
-      revenue: FMT.money, profit: FMT.money, cost: FMT.money, cum: FMT.money_signed, help: "0",
+      tot: FMT.int, kg: FMT.int, info: FMT.int, mult: FMT.mult, maps: FMT.dec1, leads: FMT.dec1, sales: FMT.dec1,
+      revenue: FMT.money, profit: FMT.money, cost: FMT.money, cum: FMT.money_signed, help: "0", hm: FMT.money, be: "General",
     };
-    const BOLD = new Set(["leads", "profit", "cum"]);
+    const BOLD = new Set(["tot", "leads", "profit", "cum"]);
+    const HIDDEN = new Set(["help", "hm", "be"]);
+    const leadsRng = `$${FIRST}$${R.leads}:$${MH}$${R.leads}`;
+    const mapsRng = `$${FIRST}$${R.maps}:$${MH}$${R.maps}`;
 
     order.forEach((key, i) => {
       const r = R[key];
@@ -1117,23 +1299,32 @@ function writePaybackSheet(ws, ctx) {
       applyBody(lc, isAlt, false);
       if (BOLD.has(key)) lc.font = { name: FONT_FAMILY, size: FONT_SIZE, bold: true, color: { argb: COLORS.text } };
 
-      for (let m = 1; m <= 12; m++) {
-        const col = m + 1, L = B(col), prevL = B(col - 1);
+      if (key === "be") {
+        const zP = `${Z}${R.profit}`, zC = `${Z}${R.cost}`, zH = `${Z}${R.hm}`;
+        ws.getCell(r, 2).value = { formula: `IF(${zP}>0,${P.check}*${zC}/${zP},0)`, result: ev.beCheck };
+        ws.getCell(r, 3).value = { formula: `IF(${zP}-${zH}>0,${P.conv}*(${zC}-${zH})/(${zP}-${zH}),0)`, result: ev.beConv };
+        return;
+      }
+
+      for (let m = 1; m <= H; m++) {
+        if (key === "hm" && m > 12) break;
+        const col = COL_M(m), L = colL(col), prevL = colL(col - 1);
         const x = ev.rows[m - 1];
         let v;
         switch (key) {
-          case "kom": v = x.kom; break;
+          case "tot": v = { formula: `${P.m0}+${L}${R.kg}+${L}${R.info}`, result: x.tot }; break;
+          case "kg": v = x.kg; break;
           case "info": v = x.info; break;
-          case "gain": v = { formula: `${L}${R.kom}+${L}${R.info}-${P.m0}`, result: x.gain }; break;
           case "mult": v = x.mult; break;
           case "maps": v = x.maps; break;
-          case "leads": v = { formula: `MAX(0,(${L}${R.kom}*${L}${R.mult}-${P.m0})*${P.conv}+${L}${R.info}*${P.conv}*${P.k}+${L}${R.maps})`, result: x.leads }; break;
-          case "sales": v = { formula: `${L}${R.leads}*${P.close}`, result: x.sales }; break;
-          case "revenue": v = { formula: `${L}${R.sales}*${P.check}`, result: x.revenue }; break;
+          case "leads": v = { formula: `MAX(0,((${P.m0}+${L}${R.kg})*${L}${R.mult}-${P.m0})*${P.conv}+${L}${R.info}*${P.conv}*${P.k}+${L}${R.maps})`, result: x.leads }; break;
+          case "sales": v = { formula: `IF(${LAGX(m)}>=1,INDEX(${leadsRng},1,MAX(1,${LAGX(m)})),0)*${P.close}`, result: x.sales }; break;
+          case "revenue": v = { formula: `${L}${R.sales}*${P.check}*${P.ltv}`, result: x.revenue }; break;
           case "profit": v = { formula: `${L}${R.revenue}*${P.margin}`, result: x.profit }; break;
           case "cost": v = x.cost; break;
           case "cum": v = { formula: m === 1 ? `${L}${R.profit}-${L}${R.cost}` : `${prevL}${R.cum}+${L}${R.profit}-${L}${R.cost}`, result: x.cum }; break;
-          case "help": v = { formula: `IF(${L}${R.cum}>=0,${m},"")`, result: x.cum >= 0 ? m : "" }; break;
+          case "help": v = { formula: `IF(AND(${L}${R.cum}>=0,SUM($${FIRST}$${R.cost}:${L}${R.cost})>0),${m},"")`, result: x.help }; break;
+          case "hm": v = { formula: `IF(${LAGX(m)}>=1,INDEX(${mapsRng},1,MAX(1,${LAGX(m)})),0)*${P.close}*${P.check}*${P.ltv}*${P.margin}`, result: x.hm }; break;
         }
         const c = ws.getCell(r, col);
         c.value = v;
@@ -1142,53 +1333,44 @@ function writePaybackSheet(ws, ctx) {
         if (BOLD.has(key)) c.font = { name: FONT_FAMILY, size: FONT_SIZE, bold: true, color: { argb: COLORS.text } };
       }
 
-      // Итого год 1 (N) и год 2 (O)
-      const rng = (rr) => `B${rr}:M${rr}`;
-      let nv, ov;
+      // Итого год 1 (Z) и год 2 (AA)
       const y1 = ev.y1, y2 = ev.y2;
-      switch (key) {
-        case "kom": case "info": case "gain": case "maps": case "leads": case "sales": case "revenue": case "profit": case "cost":
-          nv = { formula: `SUM(${rng(r)})`, result: y1[key] };
-          break;
-        case "mult":
-          nv = { formula: `IF(SUM(${rng(R.kom)})>0,SUMPRODUCT(${rng(R.kom)},${rng(R.mult)})/SUM(${rng(R.kom)}),1)`, result: y1.mult };
-          break;
-        case "cum": nv = { formula: `N${R.profit}-N${R.cost}`, result: y1.cum }; break;
-        default: nv = "";
+      let nv = "", ov = "";
+      if (["tot", "kg", "info", "maps", "leads", "sales", "revenue", "profit", "cost"].includes(key)) {
+        nv = { formula: `SUM(${FIRST}${r}:${M12}${r})`, result: y1[key] };
+        ov = { formula: `SUM(${M13}${r}:${MH}${r})`, result: y2[key] };
+      } else if (key === "hm") {
+        nv = { formula: `SUM(${FIRST}${r}:${M12}${r})`, result: y1.hm };
+      } else if (key === "cum") {
+        nv = { formula: `${M12}${R.cum}`, result: y1.cum };
+        ov = { formula: `${MH}${R.cum}`, result: y2.cum };
       }
-      switch (key) {
-        case "kom": ov = y2.kom; break;
-        case "info": ov = y2.info; break;
-        case "gain": ov = { formula: `O${R.kom}+O${R.info}-${HORIZON - 12}*${P.m0}`, result: y2.gain }; break;
-        case "mult": ov = y2.mult; break;
-        case "maps": ov = y2.maps; break;
-        case "leads": ov = { formula: `MAX(0,(O${R.kom}*O${R.mult}-${HORIZON - 12}*${P.m0})*${P.conv}+O${R.info}*${P.conv}*${P.k}+O${R.maps})`, result: y2.leads }; break;
-        case "sales": ov = { formula: `O${R.leads}*${P.close}`, result: y2.sales }; break;
-        case "revenue": ov = { formula: `O${R.sales}*${P.check}`, result: y2.revenue }; break;
-        case "profit": ov = { formula: `O${R.revenue}*${P.margin}`, result: y2.profit }; break;
-        case "cost": ov = y2.cost; break;
-        case "cum": ov = { formula: `N${R.cum}+O${R.profit}-O${R.cost}`, result: y2.cum }; break;
-        default: ov = "";
-      }
-      [[NCOL, nv], [OCOL, ov]].forEach(([col, v]) => {
+      [[ZC, nv], [AAC, ov]].forEach(([col, v]) => {
         const c = ws.getCell(r, col);
         c.value = v;
         applyTotal(c, ROW_FMT[key]);
         c.alignment = { horizontal: "center", vertical: "middle" };
       });
     });
-    ws.getRow(R.help).hidden = true;
-    row = R.help + 1;
+    for (const key of HIDDEN) ws.getRow(R[key]).hidden = true;
+    row = R[order[order.length - 1]] + 1;
 
     // Итоги под таблицей
     const summary = [
-      { key: "romi12", label: "ROMI за 12 мес", formula: `IF(N${R.cost}>0,(N${R.profit}-N${R.cost})/N${R.cost},0)`, result: ev.romi12, fmt: FMT.pct,
+      { key: "romi12", label: "ROMI за 12 мес", formula: `IF(${Z}${R.cost}>0,(${Z}${R.profit}-${Z}${R.cost})/${Z}${R.cost},0)`, result: ev.romi12, fmt: FMT.pct,
         note: "(валовая прибыль за год - затраты за год) / затраты за год" },
-      { key: "payback", label: "Окупаемость, мес", formula: `IF(COUNT(B${R.help}:M${R.help})>0,MIN(B${R.help}:M${R.help}),IF(O${R.cum}>=0,"на 2-м году","> 24 мес"))`, result: ev.payback, fmt: FMT.months,
+      { key: "payback", label: "Окупаемость, мес", formula: `IF(COUNT(${FIRST}${R.help}:${MH}${R.help})>0,MIN(${FIRST}${R.help}:${MH}${R.help}),"> ${H} мес")`, result: ev.payback, fmt: FMT.months,
         note: "первый месяц, когда результат нарастающим итогом стал не меньше нуля" },
-      { key: "romi24", label: "ROMI за 24 мес", formula: `IF(N${R.cost}+O${R.cost}>0,(N${R.profit}+O${R.profit}-N${R.cost}-O${R.cost})/(N${R.cost}+O${R.cost}),0)`, result: ev.romi24, fmt: FMT.pct,
+      { key: "romi24", label: `ROMI за ${H} мес`, formula: `IF(${Z}${R.cost}+${AA}${R.cost}>0,(${Z}${R.profit}+${AA}${R.profit}-${Z}${R.cost}-${AA}${R.cost})/(${Z}${R.cost}+${AA}${R.cost}),0)`, result: ev.romi24, fmt: FMT.pct,
         note: "второй год: работы продолжаются, сделанное за первый год держится" },
     ];
+    if (dev) {
+      summary.push({
+        key: "romiDev", label: "ROMI за 12 мес с учетом разработки сайта",
+        formula: `IF(${Z}${R.cost}+${dev.ref}>0,(${Z}${R.profit}-${Z}${R.cost}-${dev.ref})/(${Z}${R.cost}+${dev.ref}),0)`, result: ev.romiDev, fmt: FMT.pct,
+        note: `прогноз держится на новом сайте: к затратам за год добавлена разработка ${fmtRub(dev.cost)}${dev.hasKP ? " (с зачетом прототипа, который уже в тарифе)" : ""} - вкладка «Разработка сайта»`,
+      });
+    }
     const sref = {};
     for (const s of summary) {
       const lc = ws.getCell(row, 1);
@@ -1208,6 +1390,17 @@ function writePaybackSheet(ws, ctx) {
       sref[s.key] = row;
       row++;
     }
+    // ROMI 12 мес <= 0 - не голый минус, а условие окупаемости: при каком чеке или конверсии тариф выходит в ноль
+    // за год. Формула живая: поменяли параметры и тариф окупается - строка пустая.
+    ws.mergeCells(row, 1, row, LAST);
+    const bc = ws.getCell(row, 1);
+    const be = { romi: `B${sref.romi12}`, beCheck: `B${R.be}`, beConv: `C${R.be}`, check: P.check, conv: P.conv };
+    bc.value = { formula: breakevenFormula(be, true), result: breakevenText(ev, PV, true) };
+    bc.font = { name: FONT_FAMILY, size: FONT_SIZE, bold: true, color: { argb: COLORS.promo_text } };
+    bc.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+    sref.breakeven = row;
+    row++;
+
     refs[k] = { ...R, ...sref };
     row++;
   }
@@ -1221,7 +1414,7 @@ function writePaybackSheet(ws, ctx) {
   }
   const cal = fc.calibration_ref || {};
   writeNote(ws, row,
-    `Прогноз трафика - модель по составу тарифа: внешнее продвижение и техника ускоряют существующие страницы, структура и тексты дают новые страницы под спрос, прототип КФ/КНДР поднимает конверсию, Карты дают прямые обращения, статьи - накопительный трафик. Калибровка: ${cal.source || "кейсы агентства cases.timur-seo.ru"}. Обращения из Карт не зависят от конверсии сайта.`,
+    `Прогноз трафика - модель по составу тарифа: внешнее продвижение и техника ускоряют существующие страницы, структура и тексты дают новые страницы под спрос, прототип КФ/КНДР поднимает конверсию, Карты дают прямые ${V.leads}, статьи - накопительный трафик. Калибровка: ${cal.source || "кейсы агентства cases.timur-seo.ru"}. ${V.oneStep ? "Заказы" : "Обращения"} из Карт не зависят от конверсии сайта. Продажи месяца - от ${V.leadsGen} с учетом цикла сделки, выручка с продажи - средний чек x повторные покупки за год.`,
     LAST, 200);
   row++;
 
@@ -1231,7 +1424,7 @@ function writePaybackSheet(ws, ctx) {
 
 // ─── Лист «Разработка сайта» ───
 function writeDevSheet(ws, ctx) {
-  const { siteDev, kpTariffs } = ctx;
+  const { siteDev, kpTariffs, businessType } = ctx;
   const LAST = 4;
   [6, 64, 20, 52].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   let row = writeSheetTitle(ws, "РАЗРАБОТКА САЙТА ПОД КЛЮЧ", LAST);
@@ -1248,10 +1441,12 @@ function writeDevSheet(ws, ctx) {
   row++;
 
   const dp = devPrice(siteDev);
+  // Больше DEV.pages_max подстраниц формула не считает: цена и подпись - по pages_max, остальное - по расчету.
+  const overNote = `сверх ${DEV.pages_max} страниц - по расчету`;
   const fmtLabel = dp.format === "landing"
     ? `Лендинг (одностраничный сайт): главная из ${dp.home_blocks} блоков`
     : `Многостраничный сайт: главная из ${dp.home_blocks} блоков + ${dp.pages} ${plural(dp.pages, "подстраница", "подстраницы", "подстраниц")}` +
-      (dp.pages_over_max ? ` (по плану ${dp.pages_requested}: страницы сверх ${DEV.pages_max} - по расчету, в итог не входят)` : "");
+      (dp.pages_over_max ? ` (по плану ${dp.pages_requested}; ${overNote}, в итог не входят)` : "");
   writeNote(ws, row, `Формат: ${fmtLabel}. Срок: ${DEV.deadline[dp.format]}.`, LAST, 130, { bold: true, color: COLORS.text });
   row += 2;
 
@@ -1266,13 +1461,15 @@ function writeDevSheet(ws, ctx) {
   const partNotes = [
     `${fmtRub(DEV.block_price)} за блок главной`,
     "живой прототип с текстами - видите сайт до дизайна",
-    `ступени: ${tiersNote} (ставка на весь объем, не дешевле верхней границы предыдущей ступени)`,
+    `ступени: ${tiersNote} (ставка на весь объем, не дешевле верхней границы предыдущей ступени)` +
+      (dp.pages_over_max ? `; ${overNote}` : ""),
   ];
   const baseStart = row;
   let protoRow = null;
   dp.parts.forEach((p, i) => {
     const isAlt = i % 2 === 1;
-    const vals = [i + 1, p.label, p.price, partNotes[i] || ""];
+    const label = dp.pages_over_max && /^Подстраницы/.test(p.label) ? `Подстраницы: ${dp.pages} шт. (${overNote})` : p.label;
+    const vals = [i + 1, label, p.price, partNotes[i] || ""];
     vals.forEach((v, j) => {
       const c = ws.getCell(row, j + 1);
       c.value = v;
@@ -1296,10 +1493,12 @@ function writeDevSheet(ws, ctx) {
   const totalRow = row;
   row++;
 
-  // Зачет прототипа, если KP уже в тарифе
+  // Зачет прототипа: прототип с текстами (KP) уже есть в тарифе - этап не дублируется. Действует с любым тарифом,
+  // где есть KP (не только с первым или рекомендованным).
+  let kpTotalRow = null;
   if (kpTariffs.length && protoRow) {
-    const names = kpTariffs.map((k) => `«${TARIFF_NAMES[k]}»`).join(" или ");
-    const zl = `Если вместе с тарифом ${names}: прототип с текстами уже в тарифе - разработка дешевле на ${fmtRub(dp.prototype_price)}`;
+    const names = kpTariffs.map((k) => `«${TARIFF_NAMES[k]}»`).join(", ");
+    const zl = `Вместе с любым тарифом, где есть прототип с текстами (${kpTariffs.length > 1 ? "тарифы" : "тариф"} ${names}): прототип уже в тарифе - разработка дешевле на ${fmtRub(dp.prototype_price)}`;
     ws.mergeCells(row, 1, row, 2);
     const zc = ws.getCell(row, 1);
     zc.value = zl;
@@ -1318,7 +1517,7 @@ function writeDevSheet(ws, ctx) {
     row++;
     ws.mergeCells(row, 1, row, 2);
     const il = ws.getCell(row, 1);
-    il.value = `ИТОГО разработка вместе с тарифом ${names}`;
+    il.value = "ИТОГО разработка вместе с тарифом, где есть прототип с текстами";
     applyTotal(il);
     il.fill = fill(COLORS.reco_bg);
     const iv = ws.getCell(row, 3);
@@ -1328,6 +1527,7 @@ function writeDevSheet(ws, ctx) {
     iv.alignment = { horizontal: "center", vertical: "middle" };
     applyTotal(ws.getCell(row, 4));
     ws.getCell(row, 4).fill = fill(COLORS.reco_bg);
+    kpTotalRow = row;
     row++;
   }
 
@@ -1359,19 +1559,23 @@ function writeDevSheet(ws, ctx) {
   row++;
   ["№", "Опция", "Стоимость", "Примечание"].forEach((h, i) => { const c = ws.getCell(row, i + 1); c.value = h; applyHeader(c); });
   row++;
+  const shop = businessType === "ecommerce";
   DEV_OPTIONS.forEach((o, i) => {
     const isAlt = i % 2 === 1;
     const priceVal = o.price == null ? "по расчету" : o.price;
+    // каталог: у магазина - товаров, у остальных - проектов и услуг (строителю, дизайнеру, клинике)
+    const name = o.id === "catalog" && !shop ? "Каталог проектов / услуг: разработка и наполнение" : o.name;
+    let note = o.id === "catalog" && !shop ? "по расчету, зависит от числа позиций и фильтров" : (o.note || "");
     // «по расчету» уже в колонке цены - в примечании не повторяем
-    const note = o.price == null ? String(o.note || "").replace(/^по расчету[,;]?\s*/i, "") : (o.note || "");
-    const vals = [i + 1, o.name, priceVal, note];
+    if (o.price == null) note = note.replace(/^по расчету[,;]?\s*/i, "");
+    const vals = [i + 1, name, priceVal, note];
     vals.forEach((v, j) => {
       const c = ws.getCell(row, j + 1);
       c.value = v;
       applyBody(c, isAlt, j === 0 || j === 2);
       if (j === 2 && typeof v === "number") c.numFmt = o.unit === "год" ? '#,##0 "₽/год"' : FMT.money;
     });
-    ws.getRow(row).height = rowHeightFor(o.name, 64);
+    ws.getRow(row).height = rowHeightFor(name, 64);
     row++;
   });
   row++;
@@ -1381,20 +1585,33 @@ function writeDevSheet(ws, ctx) {
     LAST, 130);
 
   ws.views = [{ state: "frozen", ySplit: 1 }];
-  return { total: dp.total };
+  return { total: dp.total, totalRow, kpTotalRow, prototypePrice: dp.prototype_price };
 }
 
 // ─── Лист «Сравнение тарифов» (первый) ───
 function writeComparisonSheet(ws, ctx) {
-  const { fc, tariffsByKey, sheetRefs, payback, models, recommended } = ctx;
+  const { fc, tariffsByKey, sheetRefs, payback, models, recommended, launch, t0, V, devApplies, noSite } = ctx;
   const LAST = 4;
   [40, 30, 30, 30].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
   let row = writeSheetTitle(ws, "СРАВНЕНИЕ ТАРИФОВ", LAST);
-  const t0 = Number(fc.inputs && fc.inputs.t0) || 0;
-  const recoText = recommended
-    ? `Рекомендуем тариф «${TARIFF_NAMES[recommended]}».`
-    : "Рекомендацию по тарифу дадим после уточнения среднего чека и маржинальности: при текущих параметрах экономики вложения окупаются дольше 12 месяцев.";
-  writeNote(ws, row, `Сейчас из поиска: ~${fmtNum(t0)} визитов в месяц. ${recoText} Подробно по каждому тарифу - на вкладках тарифов, расчет по месяцам - на вкладке «Окупаемость».`, LAST, 120, { color: COLORS.text });
+  const keys = TARIFF_KEYS.filter((k) => payback.evals[k]);
+  // Рекомендации нет (экономический гейт не пройден, ни один тариф не в плюсе за 12 мес) - честно, как есть:
+  // окупаются ли тарифы хотя бы за 24 мес, и что уточнить.
+  let recoText;
+  if (recommended) {
+    recoText = `Рекомендуем тариф «${TARIFF_NAMES[recommended]}».`;
+  } else {
+    const paid = keys.filter((k) => payback.evals[k].paybackMonth != null)
+      .sort((a, b) => payback.evals[a].paybackMonth - payback.evals[b].paybackMonth);
+    recoText = "Рекомендацию по тарифу дадим после уточнения среднего чека и маржи: " + (paid.length
+      ? `при текущих допущениях за 12 месяцев не окупается ни один тариф, вложения возвращаются только на втором году (быстрее всего - тариф «${TARIFF_NAMES[paid[0]]}», к ${payback.evals[paid[0]].paybackMonth}-му месяцу).`
+      : `при текущих допущениях ни один тариф не окупается и за ${HORIZON} месяца.`);
+  }
+  const nowText = noSite
+    ? "Сайта пока нет."
+    : t0 > 0 ? `Сейчас из поиска: ~${fmtNum(t0)} визитов в месяц.` : "Сейчас сайт почти не получает посетителей из поиска.";
+  const launchText = launch > 1 ? ` Новый сайт выходит в поиск к ${launch}-му месяцу - ежемесячные работы начинаются с него.` : "";
+  writeNote(ws, row, `${nowText}${launchText} ${recoText} Подробно по каждому тарифу - на вкладках тарифов, расчет по месяцам - на вкладке «Окупаемость».`, LAST, 120, { color: COLORS.text });
   row += 2;
 
   // Шапка
@@ -1418,7 +1635,7 @@ function writeComparisonSheet(ws, ctx) {
         if (typeof sv.price === "number" && sv.price === 0) return `${sv.short} (${sv.regular > 0 ? "в подарок" : "бесплатно"})`;
         return sv.short;
       });
-      if (list.length) lines.push(`${title}: ${list.join(", ")}`);
+      if (list.length) lines.push(`${title}${kind === "monthly" && launch > 1 ? ` (с ${launch}-го мес)` : ""}: ${list.join(", ")}`);
     }
     return lines.join("\n") || "-";
   };
@@ -1426,7 +1643,7 @@ function writeComparisonSheet(ws, ctx) {
     const t = tariffsByKey[k];
     const out = [];
     const p = pfPromo(t);
-    if (p) out.push(`ПФ 1=2: второй месяц внешнего продвижения в подарок (-${fmtRub(p.amount)})`);
+    if (p) out.push(`ПФ 1=2: ${launch > 1 ? `${launch + 1}-й месяц (второй месяц после запуска)` : "второй месяц"} внешнего продвижения в подарок (-${fmtRub(p.amount)})`);
     for (const kind of ["onetime", "monthly"]) {
       for (const s of t[kind] || []) {
         const sv = serviceView(s, kind);
@@ -1435,24 +1652,40 @@ function writeComparisonSheet(ws, ctx) {
     }
     return out.join("\n") || "-";
   };
-  // Трафик - из того же пересчета модели, что и лист «Окупаемость» (при свежем forecast.json числа совпадают).
-  const cp = (k, key) => (models[k] ? Math.round(models[k].res.checkpoints[key]) : "-");
+  // Трафик - формулой от листа «Окупаемость» (правка текущего трафика m0 сдвигает и сравнение), кэш - модель.
+  const trafficAt = (m) => (k) => ({ formula: `${PB}!${colL(m + 1)}${payback.refs[k].tot}`, result: payback.evals[k].rows[m - 1].tot });
+  const anyLoss = keys.some((k) => payback.evals[k].romi12 <= 0);
 
   const defs = [
     { label: "Разово", fmt: FMT.money, get: (k) => ({ formula: `'${TARIFF_NAMES[k]}'!E${sheetRefs[k].onetimeTotalRow}`, result: sheetRefs[k].onetimeSum }) },
-    { label: "Ежемесячно", fmt: FMT.money_month, get: (k) => ({ formula: `'${TARIFF_NAMES[k]}'!E${sheetRefs[k].monthlyTotalRow}`, result: sheetRefs[k].monthlySum }) },
+    { label: launch > 1 ? `Ежемесячно (с ${launch}-го мес)` : "Ежемесячно", fmt: FMT.money_month, get: (k) => ({ formula: `'${TARIFF_NAMES[k]}'!E${sheetRefs[k].monthlyTotalRow}`, result: sheetRefs[k].monthlySum }) },
     { label: "Что входит", text: true, get: composition },
     { label: "Акции", text: true, get: promosText },
-    { label: "Трафик через 3 мес, визитов в мес", fmt: FMT.int, get: (k) => cp(k, "m3") },
-    { label: "Трафик через 6 мес, визитов в мес", fmt: FMT.int, get: (k) => cp(k, "m6") },
-    { label: "Трафик через 12 мес, визитов в мес", fmt: FMT.int, get: (k) => cp(k, "m12") },
-    { label: "Дополнительных обращений в месяц к 12-му мес (сверх текущих)", fmt: FMT.dec1, get: (k) => ({ formula: `${PB}!M${payback.refs[k].leads}`, result: payback.evals[k].rows[11].leads }) },
-    { label: "Вложения за 12 мес", fmt: FMT.money, get: (k) => ({ formula: `${PB}!N${payback.refs[k].cost}`, result: payback.evals[k].y1.cost }) },
-    { label: "Чистый результат за 12 мес", fmt: FMT.money_signed, bold: true, get: (k) => ({ formula: `${PB}!N${payback.refs[k].cum}`, result: payback.evals[k].y1.cum }) },
+    { label: "Трафик через 3 мес, визитов в мес", fmt: FMT.int, get: trafficAt(3) },
+    { label: "Трафик через 6 мес, визитов в мес", fmt: FMT.int, get: trafficAt(6) },
+    { label: "Трафик через 12 мес, визитов в мес", fmt: FMT.int, get: trafficAt(12) },
+    { label: `Дополнительных ${V.leadsGen} в месяц к 12-му мес (сверх текущих)`, fmt: FMT.dec1, get: (k) => ({ formula: `${PB}!M${payback.refs[k].leads}`, result: payback.evals[k].rows[11].leads }) },
+    { label: "Вложения за 12 мес", fmt: FMT.money, get: (k) => ({ formula: `${PB}!${colL(HORIZON + 2)}${payback.refs[k].cost}`, result: payback.evals[k].y1.cost }) },
+    { label: "Чистый результат за 12 мес", fmt: FMT.money_signed, bold: true, get: (k) => ({ formula: `${PB}!${colL(HORIZON + 2)}${payback.refs[k].cum}`, result: payback.evals[k].y1.cum }) },
     { label: "ROMI за 12 мес", fmt: FMT.pct, bold: true, get: (k) => ({ formula: `${PB}!B${payback.refs[k].romi12}`, result: payback.evals[k].romi12 }) },
-    { label: "Окупаемость, мес", fmt: FMT.months, get: (k) => ({ formula: `${PB}!B${payback.refs[k].payback}`, result: payback.evals[k].payback }) },
-    { label: "ROMI за 24 мес", fmt: FMT.pct, get: (k) => ({ formula: `${PB}!B${payback.refs[k].romi24}`, result: payback.evals[k].romi24 }) },
   ];
+  if (devApplies) {
+    defs.push({ label: "ROMI за 12 мес с учетом разработки сайта", fmt: FMT.pct, get: (k) => ({ formula: `${PB}!B${payback.refs[k].romiDev}`, result: payback.evals[k].romiDev }) });
+  }
+  if (anyLoss) {
+    defs.push({
+      label: "Окупится за 12 мес, если", text: true,
+      get: (k) => {
+        const rf = payback.refs[k];
+        const be = { romi: `${PB}!B${rf.romi12}`, beCheck: `${PB}!B${rf.be}`, beConv: `${PB}!C${rf.be}`, check: "", conv: "" };
+        return { formula: breakevenFormula(be, false), result: breakevenText(payback.evals[k], payback.params, false) };
+      },
+    });
+  }
+  defs.push(
+    { label: "Окупаемость, мес", fmt: FMT.months, get: (k) => ({ formula: `${PB}!B${payback.refs[k].payback}`, result: payback.evals[k].payback }) },
+    { label: `ROMI за ${HORIZON} мес`, fmt: FMT.pct, get: (k) => ({ formula: `${PB}!B${payback.refs[k].romi24}`, result: payback.evals[k].romi24 }) },
+  );
 
   defs.forEach((d, i) => {
     const isAlt = i % 2 === 1;
@@ -1469,7 +1702,7 @@ function writeComparisonSheet(ws, ctx) {
       applyBody(c, isAlt, !d.text);
       if (d.text) {
         c.alignment = { horizontal: "left", vertical: "top", wrapText: true };
-        maxH = Math.max(maxH, rowHeightFor(String(v), 30));
+        maxH = Math.max(maxH, rowHeightFor(String(v && typeof v === "object" ? v.result : v), 30));
       } else if (d.fmt) {
         c.numFmt = d.fmt;
       }
@@ -1509,7 +1742,7 @@ function writeComparisonSheet(ws, ctx) {
     writeNote(ws, row, `Методика: ${fc.assumptions_note}`, LAST, 120);
     row++;
   }
-  writeNote(ws, row, "Чек, конверсию и маржу можно поменять в желтых ячейках на вкладке «Окупаемость» - сравнение пересчитается. ROMI = (валовая прибыль - вложения) / вложения.", LAST, 120);
+  writeNote(ws, row, "Средний чек, повторные покупки, конверсию, цикл сделки, маржу и текущий трафик можно поменять в желтых ячейках на вкладке «Окупаемость» - сравнение пересчитается. ROMI = (валовая прибыль - вложения) / вложения.", LAST, 120);
 
   ws.views = [{ state: "frozen", ySplit: 1 }];
 }
@@ -1540,6 +1773,12 @@ if (existsSync(forecastPath)) {
 }
 
 if (forecast) {
+  // порог конверсии безубыточности - не выше трех типовых для этого типа бизнеса (и не выше 50%)
+  const bt = (forecast.inputs && forecast.inputs.business_type) || "services";
+  const typical = (ECON_DEFAULTS[bt] || ECON_DEFAULTS.services).conversion_rate;
+  BE_CONV_MAX = Math.min(0.5, 3 * typical);
+}
+if (forecast) {
   // ─── v2 ───
   const T = deepClean(tariffs); // свободный текст агента - без тире и буквы е-с-точками
   forecast = deepClean(forecast);
@@ -1566,7 +1805,10 @@ if (forecast) {
     : (KNOWN_TARIFFS.has(forecast.recommended) ? forecast.recommended : "growth");
 
   const model = buildModel(forecast, data, normTariffs);
-  const stale = staleCheck(forecast, model.models);
+  const launch = model.launch;
+  const t0 = Number(model.fi.t0) || 0;
+  const V = vocabFor(model.econ);
+  const stale = staleCheck(forecast, model.models, launch);
   if (stale.length) {
     console.warn("[build-smeta-xlsx] ВНИМАНИЕ: forecast.json не совпадает с пересчетом по tariffs.json - перезапусти build-forecast.mjs. Смета собрана по пересчету:");
     for (const s of stale) console.warn(`  - ${s}`);
@@ -1586,7 +1828,7 @@ if (forecast) {
   const sheetRefs = {};
   for (const k of TARIFF_KEYS) {
     if (!normTariffs[k]) continue;
-    sheetRefs[k] = writeTariffSheet(workbook, k, normTariffs[k], { v2: true, recommended: k === recommended });
+    sheetRefs[k] = writeTariffSheet(workbook, k, normTariffs[k], { v2: true, recommended: k === recommended, launch });
   }
   const missing = TARIFF_KEYS.filter((k) => !normTariffs[k]).map((k) => TARIFF_NAMES[k]);
   if (missing.length) {
@@ -1604,19 +1846,36 @@ if (forecast) {
     reason: (sd && sd.reason) || "",
     promo_note: (sd && sd.promo_note) || "",
   };
+  // Зачет прототипа - с любым тарифом, где есть KP (прототип с текстами).
   const kpTariffs = TARIFF_KEYS.filter((k) => normTariffs[k] && tariffServiceIds(normTariffs[k]).has("KP"));
-  // Зачет прототипа - по первому тарифу с KP начиная с рекомендованного (Рост ⊆ Максимум).
-  const kpForDev = kpTariffs.includes(recommended) ? [recommended] : kpTariffs.slice(0, 1);
   const wsDev = workbook.addWorksheet("Разработка сайта");
-  writeDevSheet(wsDev, { siteDev, kpTariffs: kpForDev });
+  const devRefs = writeDevSheet(wsDev, { siteDev, kpTariffs, businessType: model.econ.business_type });
+
+  // Прогноз держится на новом сайте (разработку рекомендуем, сайт выходит в поиск не с 1-го мес) - ROMI за 12 мес
+  // еще и с учетом разработки: затраты тарифа + база разработки, минус прототип, если он уже в тарифе.
+  const devApplies = siteDev.recommended && launch > 1;
+  const devFor = devApplies
+    ? (k) => {
+      const hasKP = kpTariffs.includes(k) && devRefs.kpTotalRow != null;
+      return {
+        ref: `'Разработка сайта'!$C$${hasKP ? devRefs.kpTotalRow : devRefs.totalRow}`,
+        cost: devRefs.total - (hasKP ? devRefs.prototypePrice : 0),
+        hasKP,
+      };
+    }
+    : null;
 
   const wsPayback = workbook.addWorksheet("Окупаемость");
-  const payback = writePaybackSheet(wsPayback, { econ: model.econ, fc: forecast, models: model.models, recommended });
+  const payback = writePaybackSheet(wsPayback, { econ: model.econ, fc: forecast, models: model.models, recommended, launch, t0, V, devFor });
 
-  writeComparisonSheet(wsCompare, { fc: forecast, tariffsByKey: normTariffs, sheetRefs, payback, models: model.models, recommended, special: T.special });
+  const noSite = siteLabel !== cleanText(String(inputs.domain || "").trim());
+  writeComparisonSheet(wsCompare, {
+    fc: forecast, tariffsByKey: normTariffs, sheetRefs, payback, models: model.models, recommended, special: T.special,
+    launch, t0, V, devApplies, noSite,
+  });
   for (const w of promoWarned) console.warn(w);
 
-  // Самопроверка: формулы (их JS-двойник) при исходных параметрах дают ROMI forecast.json (±1 п.п.).
+  // Самопроверка: формулы (их JS-двойник) при исходных параметрах дают ROMI и окупаемость forecast.json (±1 п.п.).
   for (const k of Object.keys(payback.evals)) {
     const f = forecast.tariffs[k];
     if (!f || !f.year1) continue;
@@ -1626,11 +1885,14 @@ if (forecast) {
     if (d12 > 1 || d24 > 1) {
       console.warn(`[build-smeta-xlsx] ВНИМАНИЕ: ROMI листа «Окупаемость» (${TARIFF_NAMES[k]}: ${Math.round(ev.romi12 * 100)}% / ${Math.round(ev.romi24 * 100)}%) расходится с forecast.json (${f.year1.romi}% / ${f.year2.romi}%)`);
     }
+    if ("payback_month" in f && (f.payback_month ?? null) !== ev.paybackMonth) {
+      console.warn(`[build-smeta-xlsx] ВНИМАНИЕ: окупаемость листа «Окупаемость» (${TARIFF_NAMES[k]}: ${ev.payback}) расходится с forecast.json (${f.payback_month ?? "нет"})`);
+    }
   }
 
-  // Excel пересчитывает формулы при открытии (Google Таблицы пересчитывают всегда).
+  // Excel пересчитывает формулы при открытии (Google Таблицы пересчитывают всегда); у формул записан кэш (result).
   workbook.calcProperties = { ...(workbook.calcProperties || {}), fullCalcOnLoad: true };
-  console.log(`[build-smeta-xlsx] v2: forecast.json (модель ${forecast.model_version || "?"}), входы модели - ${model.fiSource}, разработка - ${sd ? "site_dev из tariffs.json" : "справочно (site_dev нет)"}`);
+  console.log(`[build-smeta-xlsx] v2: forecast.json (модель ${forecast.model_version || "?"}), входы модели - ${model.fiSource}, запуск сайта - ${launch > 1 ? `${launch}-й мес` : "сайт есть"}, разработка - ${sd ? "site_dev из tariffs.json" : "справочно (site_dev нет)"}${devApplies ? ", ROMI с учетом разработки" : ""}`);
 } else {
   // ─── Легаси ───
   for (const rawKey of Object.keys(tariffs)) {

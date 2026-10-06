@@ -17,7 +17,7 @@
 // Конверсия визит -> обращение по умолчанию 5% для услуг: в кейсах медиана 9,1% (Q1 7,2%, цели Метрики,
 // включая клики по телефону и мессенджерам), берем с запасом. ROMI - от валовой прибыли (выручка x маржа).
 
-export const MODEL_VERSION = "v2";
+export const MODEL_VERSION = "v2.1";
 export const TARIFF_KEYS = ["start", "growth", "max"];
 export const HORIZON = 24;
 
@@ -37,7 +37,16 @@ export const CAL = {
   // Потолок: доля суммы ТОЧНЫХ частот маркеров коммерческого спроса ниши в регионе, которую сайт
   // забирает на зрелости вместе с хвостами (кадровый-элемент 2,7% в 1-й полный мес с 54 маркерами,
   // работа-эскорт 25,7% к m9-m11). Ограничивает сверху, не задает уровень.
-  demand_share_cap: { low: 0.30, medium: 0.20, high: 0.12 },
+  // v2.1 (боевой прогон 06.10, 5 клиентов): сумма точных частот главных фраз в 5-10 раз меньше реального спроса
+  // (нет хвостов, форм с городом, области) - жесткий потолок 20% обрезал прогноз к m3-m4 у всех 5 клиентов.
+  // Теперь потолок МЯГКИЙ (softCap) и берется как максимум из: точный спрос x доля (ниже), трафик лидера прямых
+  // конкурентов x leader_share, медиана прямых x median_mult, текущий трафик x t0_mult.
+  demand_share_cap: { low: 1.0, medium: 0.8, high: 0.6 },
+  // Keys.so занижает трафик примерно вдвое против Метрики (медиана 0,6 по 9 сайтам, добор критика) - поэтому
+  // лидер x1,5: новый сайт с полной структурой может догнать и обогнать местного лидера по его оценке Keys.so.
+  cap_competitors: { leader_share: 1.5, median_mult: 1.5 },
+  cap_t0_mult: 2.5,
+  soft_cap_knee: 0.6,                            // до 60% потолка - без среза, дальше плавно к потолку
 
   // Рост существующего трафика с ПФ. Калибровка по ПОРТФЕЛЮ (Monstro + Метрика, 13 сайтов на ПФ, 06.10.2026),
   // база 100+: m1 x1,03, m2 x1,42, m3 x1,72 (Q1 1,47 - Q3 1,88), m6 x2,38 (n=4), m12 x2,58 (n=3, с параллельными
@@ -97,10 +106,23 @@ export const CAL = {
   // Карты (YM): прямые обращения из карточки (звонки, маршруты) - доля коммерческого спроса в месяц.
   // Кейсы MK по Картам: звонки 43 -> 148, 37 -> 329 в мес. Доля зависит от того, ищут ли бизнес на
   // карте: локальные услуги и медицина - да, дорогие и B2B-покупки - редко, магазин - почти нет.
-  ym_leads_share: { services: 0.0015, medical: 0.002, b2b: 0.0003, high_ticket: 0.0003, ecommerce: 0.0002, info: 0 },
+  // v2.1 (приемка 06.10): 0,2% спроса давали медцентру 18 обращений в мес и держали на себе плюс Роста -
+  // доли 0,15% (кейсы MK по Картам: +105 и +292 звонка в мес - модель заметно консервативнее), а при уже
+  // существующей карточке считается только прирост (ym_existing_card_factor).
+  ym_leads_share: { services: 0.0015, medical: 0.0015, b2b: 0.0002, high_ticket: 0.0002, ecommerce: 0.0001, info: 0 },
+  ym_existing_card_factor: 0.7,
   ym_leads_min: 3,
   ym_leads_ramp: { lag: 1, tau: 2 },
   ym_card_create_lag: 0.5,                       // карточки нет - первая неделя уходит на оформление
+
+  // Цикл сделки: обращение этого месяца становится продажей через N мес (дома, недвижимость - решение 3-12 мес;
+  // B2B - согласования). Без лага окупаемость дорогих услуг выходила «1 мес» (боевой прогон топдом.рф).
+  sales_lag_months: { high_ticket: 3, b2b: 2 },
+  // Новый сайт (страниц под спрос нет): сайт выходит в поиск через N мес, ежемесячные работы (ПФ, Карты, ссылки,
+  // статьи) оплачиваются с месяца запуска, а не с 1-го. Разработка у нас - 2 мес, у разработчика клиента - 3.
+  launch_month: { we_develop: 2, client: 3 },
+  // «Деньги, которые вы теряете» (lostNowCalc): ориентир конкурентов не ниже этой доли трафика лидера.
+  lost_ref_leader_share: 0.5,
 
   // Удержание после остановки ПФ (для справки и текста условий): плавно 0,7 + 0,3 x exp(-t/1,5), t - мес после
   // остановки (портфель: через месяц ~0,9 от пика, через 2-3 мес ~0,72; у ltenergy за 15 мес медиана 0,91).
@@ -109,13 +131,16 @@ export const CAL = {
 
 // Дефолты экономики по типу бизнеса (если клиент не назвал). Конверсия - визит -> обращение
 // (звонок, заявка, мессенджер; для магазина - заказ). Консервативный край кейсов.
+// ltv_factor - покупок одного клиента за 12 мес (повторные визиты, курсы процедур, повторные заказы): выручка
+// с продажи = средний чек x ltv_factor. Медицина и косметология - курсы и повторные визиты; магазин - повторные
+// заказы. Агент может задать свое значение с basis.
 export const ECON_DEFAULTS = {
-  services:    { model: "two_step", conversion_rate: 0.05,  close_rate: 0.3,  margin: 0.4 },
-  medical:     { model: "two_step", conversion_rate: 0.05,  close_rate: 0.5,  margin: 0.4 },
-  b2b:         { model: "two_step", conversion_rate: 0.03,  close_rate: 0.2,  margin: 0.35 },
-  high_ticket: { model: "two_step", conversion_rate: 0.02,  close_rate: 0.05, margin: 0.2 },
-  ecommerce:   { model: "one_step", conversion_rate: 0.015, close_rate: 1,    margin: 0.25 },
-  info:        { model: "one_step", conversion_rate: 0.01,  close_rate: 1,    margin: 0.5 },
+  services:    { model: "two_step", conversion_rate: 0.05,  close_rate: 0.3,  margin: 0.4,  ltv_factor: 1 },
+  medical:     { model: "two_step", conversion_rate: 0.05,  close_rate: 0.5,  margin: 0.4,  ltv_factor: 1.8 },
+  b2b:         { model: "two_step", conversion_rate: 0.03,  close_rate: 0.2,  margin: 0.35, ltv_factor: 1 },
+  high_ticket: { model: "two_step", conversion_rate: 0.01,  close_rate: 0.04, margin: 0.2,  ltv_factor: 1 },
+  ecommerce:   { model: "one_step", conversion_rate: 0.015, close_rate: 1,    margin: 0.25, ltv_factor: 1.3 },
+  info:        { model: "one_step", conversion_rate: 0.01,  close_rate: 1,    margin: 0.5,  ltv_factor: 1 },
 };
 
 // ═══ Утилиты ═══
@@ -127,8 +152,49 @@ export function ramp(t, lag, tau) {
   if (t <= lag) return 0;
   return 1 - Math.exp(-(t - lag) / Math.max(tau, 0.01));
 }
-function boostAt(t, b, lagShift = 0) {
-  return 1 + (b.mult - 1) * ramp(t, b.lag + lagShift, b.tau);
+// Буст с лагом; scale - доля эффекта (на большой базе бусты слабее: тот же FAQ на 30 страницах - меньшая доля
+// всего трафика сильного сайта).
+function boostAt(t, b, lagShift = 0, scale = 1) {
+  return 1 + (b.mult - 1) * scale * ramp(t, b.lag + lagShift, b.tau);
+}
+
+// Мягкий потолок: до knee x cap - без изменений, дальше плавно к cap (непрерывно, наклон 1 в точке излома).
+export function softCap(x, cap, knee = CAL.soft_cap_knee) {
+  if (!Number.isFinite(cap) || cap <= 0) return x;
+  const k = knee * cap;
+  if (x <= k) return x;
+  const room = cap - k;
+  return cap - room * Math.exp(-(x - k) / room);
+}
+
+// Потолок коммерческого трафика: максимум из оценок спроса и трафика конкурентов (см. CAL). Infinity - если
+// данных нет совсем (ни спроса, ни конкурентов).
+export function trafficCap(fi = {}) {
+  const t0 = Math.max(0, num(fi.t0, 0));
+  const comp = ["low", "medium", "high"].includes(fi.competition) ? fi.competition : "medium";
+  const demandCommercial = Math.max(0, num(fi.demand && fi.demand.commercial_month, 0));
+  const ct = fi.competitors_traffic || {};
+  const leader = Math.max(0, num(ct.leader, 0));
+  const median = Math.max(0, num(ct.median, 0));
+  if (!(demandCommercial > 0) && !(leader > 0) && !(median > 0)) return Infinity;
+  return Math.max(
+    demandCommercial * CAL.demand_share_cap[comp],
+    leader * CAL.cap_competitors.leader_share,
+    median * CAL.cap_competitors.median_mult,
+    t0 * CAL.cap_t0_mult,
+  );
+}
+
+// Месяц запуска сайта (с него работают новые страницы и идут ежемесячные работы). 1 - сайт уже есть.
+// Явное fi.site_launch_month приоритетно; иначе новый сайт (трафика < 30 и коммерческих страниц <= 3) -
+// CAL.launch_month (we_develop - разработка у нас).
+export function launchMonth(fi = {}) {
+  const explicit = Math.round(num(fi.site_launch_month, NaN));
+  if (Number.isFinite(explicit) && explicit >= 1) return explicit;
+  const t0 = Math.max(0, num(fi.t0, 0));
+  const pages = Math.max(0, num(fi.pages && fi.pages.existing_commercial, 0));
+  if (t0 < 30 && pages <= 3) return fi.we_develop ? CAL.launch_month.we_develop : CAL.launch_month.client;
+  return 1;
 }
 
 // Нормализация ID услуг тарифа (алиасы старых ID).
@@ -182,6 +248,8 @@ export function applyClientEconomics(fiRaw, clientInputs) {
     const v = econFraction(k, ci[k]);
     if (v != null) { e[k] = v; fromClient.push(k); }
   }
+  // разработку сайта заказывают у нас - запуск нового сайта быстрее (CAL.launch_month)
+  if (fi.we_develop == null && ci.we_develop === true) fi.we_develop = true;
   return { fi, fromClient };
 }
 
@@ -199,23 +267,29 @@ export function resolveEconomics(fi = {}) {
     conversion_rate: num(e.conversion_rate, d.conversion_rate),
     close_rate: model === "one_step" ? num(e.close_rate, 1) : num(e.close_rate, d.close_rate),
     margin: num(e.margin, d.margin),
+    ltv_factor: Math.max(1, num(e.ltv_factor, d.ltv_factor || 1)),
+    ltv_source: e.ltv_factor != null ? (e.ltv_source || "estimated") : "default",
+    sales_lag_months: CAL.sales_lag_months[type] || 0,
     basis: e.basis || "",
   };
 }
 
 // Затраты тарифа по месяцам 1..H. Разовые - в 1-й мес. Акции: promos[] с {type:"pf_2for1"} - минус цена
 // ежемесячной ПФ-услуги во 2-й мес; {type:"discount", month, amount} - произвольная скидка месяца.
-export function costSeries(tariff, H = HORIZON) {
+// monthlyStart - месяц, с которого идут ежемесячные работы (новый сайт - с месяца запуска, см. launchMonth).
+// Акция «ПФ 1=2» - бесплатен второй месяц ПФ, то есть месяц monthlyStart + 1.
+export function costSeries(tariff, H = HORIZON, monthlyStart = 1) {
   const onetime = num(tariff && tariff.total_onetime, sumPrices(tariff && tariff.onetime));
   const monthly = num(tariff && tariff.total_monthly, sumPrices(tariff && tariff.monthly));
+  const ms = Math.max(1, Math.round(num(monthlyStart, 1)));
   const out = new Array(H + 1).fill(0);
-  for (let m = 1; m <= H; m++) out[m] = monthly + (m === 1 ? onetime : 0);
+  for (let m = 1; m <= H; m++) out[m] = (m >= ms ? monthly : 0) + (m === 1 ? onetime : 0);
   for (const p of (tariff && tariff.promos) || []) {
     if (!p) continue;
     if (p.type === "pf_2for1") {
       const pf = ((tariff.monthly) || []).find((s) => s && (s.id === "PF" || s.id === "PFP"));
       const amount = num(p.amount, pf ? num(pf.price, 0) : 0);
-      if (H >= 2) out[2] = Math.max(0, out[2] - amount);
+      if (H >= ms + 1) out[ms + 1] = Math.max(0, out[ms + 1] - amount);
     } else if (p.type === "discount") {
       const m = Math.round(num(p.month, 1));
       if (m >= 1 && m <= H) out[m] = Math.max(0, out[m] - num(p.amount, 0));
@@ -249,6 +323,8 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
   const techCritical = !!fi.tech_critical;
   // внедрение: свой разработчик клиента / мы (разработка сайта у нас) - сдвиг лагов
   const implShift = num(fi.implementation_lag_shift, 0);
+  // новый сайт: страницы работают с месяца запуска (лаг новых страниц не меньше launch - 1 + 1 мес индексации)
+  const launch = launchMonth(fi);
 
   const hasPF = ids.has("PF") || ids.has("PFP");
   const hasSY = ids.has("SY");
@@ -272,41 +348,49 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
   const newLevel = hasSY
     ? plannedNew * vppNew * contentQ * (hasPF ? 1 : CAL.nopf_level_factor[comp])
     : 0;
-  const newRamp = hasPF ? CAL.new_pages_ramp_pf : CAL.new_pages_ramp_nopf;
+  const newRampBase = hasPF ? CAL.new_pages_ramp_pf : CAL.new_pages_ramp_nopf;
+  const newRamp = { lag: Math.max(newRampBase.lag, launch), tau: newRampBase.tau };
 
-  // Потолок коммерческого трафика по спросу (если спрос известен).
-  const cap = demandCommercial > 0
-    ? Math.max(demandCommercial * CAL.demand_share_cap[comp], t0 * 1.2)
-    : Infinity;
+  // Потолок коммерческого трафика (мягкий, см. trafficCap/softCap).
+  const cap = trafficCap(fi);
 
   const series = [];
   for (let m = 0; m <= H; m++) {
     const exist = m === 0 ? t0 : t0 + (existTarget - t0) * ramp(m, existRamp.lag, existRamp.tau);
     const fresh = m === 0 ? 0 : newLevel * ramp(m, newRamp.lag + implShift, newRamp.tau);
-    let boost = 1;
+    // v2.1: бусты «на странице» (техника, метатеги, FAQ, КФ лидеров) - только на СУЩЕСТВУЮЩИЕ страницы: новые
+    // страницы структуры уже делаются с метатегами и текстами (это в vpp и content_q), иначе двойной счет (приемка
+    // 06.10: 9,8 визита на новую страницу против 7 по кейсам). Ссылки и Карты - на весь коммерческий трафик.
+    let boostPage = 1, boostAll = 1;
     const parts = {};
     if (m > 0) {
       for (const id of ["FA", "BS", "MT", "FQ", "LB", "LA"]) {
         if (!(id === "MT" ? hasMT : ids.has(id))) continue;
         let b = CAL.boosts[id];
         if (id === "FA" && techCritical) b = { ...b, mult: b.mult * CAL.tech_critical_extra };
-        const k = boostAt(m, b, id === "BS" ? 0 : implShift);
-        boost *= k;
+        const k = boostAt(m, b, id === "BS" ? 0 : implShift, f);
+        if (id === "LB" || id === "LA") boostAll *= k; else boostPage *= k;
         parts[id] = k;
       }
       if (hasKP) {
-        const k = boostAt(m, CAL.boosts.KP_rank, implShift);
-        boost *= k;
+        const k = boostAt(m, CAL.boosts.KP_rank, implShift, f);
+        boostPage *= k;
         parts.KP = k;
       }
       if (hasYM) {
-        const k = boostAt(m, CAL.boosts.YM, hasCard ? 0 : CAL.ym_card_create_lag);
-        boost *= k;
+        const k = boostAt(m, CAL.boosts.YM, Math.max(hasCard ? 0 : CAL.ym_card_create_lag, launch - 1), f);
+        boostAll *= k;
         parts.YM = k;
       }
     }
-    const commercialRaw = (exist + fresh) * boost;
-    const commercial = m === 0 ? t0 : Math.max(t0, Math.min(commercialRaw, cap));
+    const boost = boostPage * boostAll;
+    const commercialRaw = exist * boost + fresh * boostAll;
+    const commercial = m === 0 ? t0 : Math.max(t0, softCap(commercialRaw, cap));
+    // срез потолка делим пропорционально между существующими и новыми страницами (иначе весь срез ложился на
+    // новые страницы и главная ценность структуры выглядела нулевой)
+    const scaleCap = commercialRaw > 0 ? commercial / commercialRaw : 1;
+    const existShown = m === 0 ? t0 : Math.max(t0, exist * boost * scaleCap);
+    void boostPage;
 
     // 3) Статьи.
     let info = 0;
@@ -322,8 +406,9 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
     let mapsLeads = 0;
     if (hasYM && m > 0) {
       const share = CAL.ym_leads_share[type] ?? CAL.ym_leads_share.services;
-      const level = share > 0 ? Math.max(CAL.ym_leads_min, demandCommercial * share) : 0;
-      mapsLeads = level * ramp(m, CAL.ym_leads_ramp.lag + (hasCard ? 0 : CAL.ym_card_create_lag), CAL.ym_leads_ramp.tau);
+      const level = share > 0 ? Math.max(CAL.ym_leads_min, demandCommercial * share) * (hasCard ? CAL.ym_existing_card_factor : 1) : 0;
+      // Карты оплачиваются с месяца запуска сайта (costSeries) - и обращения из них не раньше
+      mapsLeads = level * ramp(m, Math.max(CAL.ym_leads_ramp.lag + (hasCard ? 0 : CAL.ym_card_create_lag), launch - 1 + CAL.ym_leads_ramp.lag), CAL.ym_leads_ramp.tau);
     }
 
     // 5) Множитель конверсии (прототип КФ/КНДР внедрен).
@@ -336,8 +421,9 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
       commercial,
       info,
       total: commercial + info,
-      exist_part: m === 0 ? t0 : Math.min(exist * boost, commercial),
-      new_part: Math.max(0, commercial - Math.min(exist * boost, commercial)),
+      exist_part: Math.min(existShown, commercial),
+      new_part: Math.max(0, commercial - Math.min(existShown, commercial)),
+      capped: m > 0 && commercialRaw > CAL.soft_cap_knee * cap,
       maps_leads: mapsLeads,
       conv_mult: convMult,
       boosts: parts,
@@ -352,12 +438,20 @@ export function computeTariff(fi, tariff, H = HORIZON) {
   const ids = tariffServiceIds(tariff);
   const t0 = Math.max(0, num(fi.t0, 0));
   const traffic = trafficSeries(fi, ids, H);
-  const cost = costSeries(tariff, H);
+  const launch = launchMonth(fi);
+  const cost = costSeries(tariff, H, launch);
   const cr = econ.conversion_rate;
   const close = econ.close_rate;
-  const check = econ.avg_check;
+  const check = econ.avg_check * econ.ltv_factor;      // выручка с одной продажи за 12 мес (повторные покупки)
   const margin = econ.margin;
+  const salesLag = econ.sales_lag_months;               // обращения месяца m -> продажи месяца m + lag
+  // Мощность бизнеса (самозанятый, мастер-одиночка, малая бригада): дополнительных продаж в мес не больше, чем
+  // бизнес физически обслужит сверх текущих (приемка 06.10: дизайнер-одиночка получал 6 проектов в мес).
+  const capacity = num(fi.capacity_sales_month, NaN);
+  const baseSales = t0 * cr * close;
+  const extraSalesCap = Number.isFinite(capacity) && capacity > 0 ? Math.max(0, capacity - baseSales) : Infinity;
   const baseLeads = t0 * cr;
+  const leadsByMonth = new Array(H + 1).fill(0);
 
   const months = [];
   let cumProfit = 0, cumCost = 0, payback = null;
@@ -366,7 +460,8 @@ export function computeTariff(fi, tariff, H = HORIZON) {
     const leadsSite = tr.commercial * cr * tr.conv_mult - baseLeads;
     const leadsInfo = tr.info * cr * CAL.info_conv_factor;
     const leads = Math.max(0, leadsSite + leadsInfo + tr.maps_leads);
-    const sales = leads * close;
+    leadsByMonth[m] = leads;
+    const sales = Math.min(extraSalesCap, (m - salesLag >= 1 ? leadsByMonth[m - salesLag] : 0) * close);
     const revenue = sales * check;
     const profit = revenue * margin;
     cumProfit += profit;
@@ -404,6 +499,9 @@ export function computeTariff(fi, tariff, H = HORIZON) {
     ids: [...ids],
     economics: econ,
     t0,
+    launch_month: launch,
+    cap: Number.isFinite(trafficCap(fi)) ? Math.round(trafficCap(fi)) : null,
+    capped_from_month: (traffic.find((x) => x.capped) || {}).m || null,
     checkpoints: {
       m0: t0,
       m1: traffic[1].total, m2: traffic[2].total, m3: traffic[3].total, m6: traffic[6].total,
@@ -458,9 +556,58 @@ export function economicsChecks(res) {
     if (g.year1.romi < s.year1.romi) soft.push(`ROMI Роста (${g.year1.romi}%) ниже Старта (${s.year1.romi}%) за 12 мес`);
     if (s.year1.romi <= 0) soft.push(`ROMI Старта за 12 мес ${s.year1.romi}% <= 0`);
   }
+  if (g && g.capped_from_month && g.capped_from_month <= 4) {
+    soft.push(`прогноз Роста уперся в потолок (${g.cap}) уже к ${g.capped_from_month}-му мес - проверь спрос (формы с городом и областью, общие запросы) и трафик конкурентов в forecast_inputs`);
+  }
+  if (s && g && x && s.ids.join() !== g.ids.join()) {
+    const same = Math.abs(s.checkpoints.m12 - g.checkpoints.m12) <= Math.max(2, 0.02 * g.checkpoints.m12)
+      && Math.abs(x.checkpoints.m12 - g.checkpoints.m12) <= Math.max(2, 0.02 * g.checkpoints.m12);
+    if (same) soft.push("трафик к 12 мес у трех тарифов почти одинаковый - тарифы не различаются по результату (потолок спроса или состав)");
+  }
   if (g && x) {
     if (x.checkpoints.m12 + 0.5 < g.checkpoints.m12) hard.push(`трафик Максимума к 12 мес ниже Роста - состав Максимума не шире Роста`);
     if (x.year2.net < g.year2.net) soft.push(`чистый результат Максимума за 24 мес (${x.year2.net}) меньше Роста (${g.year2.net})`);
   }
+  // RULES раздел 10: цель - ROMI Максимума за 24 мес > 0 (драйверы с лучшей отдачей, а не все сразу)
+  if (x && x.year2.romi <= 0) soft.push(`ROMI Максимума за 24 мес ${x.year2.romi}% <= 0 (цель > 0) - в Максимуме драйверы с лучшей отдачей, а не все сразу`);
   return { hard, soft };
+}
+
+// Рекомендация для сметы и тариф плана docx. Рост - по умолчанию. Экономический гейт не пройден (RULES раздел 10:
+// «тариф велик для экономики клиента») - тариф с лучшим чистым результатом за 12 мес, если он в плюсе, иначе ни
+// один (null). План работ, график и потери в docx строятся по plan_tariff (= рекомендованный или Рост).
+// Единая точка для build-forecast.mjs и verify-strategy.mjs.
+export function recommendOffer(res, checks = economicsChecks(res)) {
+  let offer = "growth";
+  if (checks.hard.length) {
+    const best = TARIFF_KEYS.filter((k) => res[k]).sort((a, b) => res[b].year1.net - res[a].year1.net)[0];
+    offer = best && res[best].year1.net > 0 ? best : null;
+  }
+  return { recommended_offer: offer, plan_tariff: offer || "growth" };
+}
+
+// «Деньги, которые вы теряете» (v2.1): разрыв между трафиком клиента и тем, что получают сопоставимые конкуренты из
+// топа, - но не больше уровня, который реально взять планом к 12-му мес (коммерческий трафик тарифа плана). Ориентир
+// конкурентов - медиана топ-3 прямых по трафику, но не ниже половины лидера (в списке прямых бывают совсем мелкие
+// сайты). Считается по БАЗОВОЙ конверсии (без прототипа и без Карт): это рынок, который сейчас уходит к конкурентам,
+// а не обещание плана. Нет данных о конкурентах (или ориентир не выше t0) - разрыв по плану (basis: plan).
+// planRes - computeTariff тарифа плана. Возврат неокругленный (округляет build-forecast).
+export function lostNowCalc(fi = {}, planRes) {
+  const econ = resolveEconomics(fi);
+  const t0 = Number(fi.t0) || 0;
+  const ctr = fi.competitors_traffic || {};
+  const median = Number(ctr.median) > 0 ? Number(ctr.median) : null;
+  const leader = Number(ctr.leader) > 0 ? Number(ctr.leader) : null;
+  const plan12 = planRes && planRes.months && planRes.months[11] ? planRes.months[11].traffic_commercial : t0;
+  const ref = Math.max(median || 0, leader ? leader * CAL.lost_ref_leader_share : 0);
+  let target = plan12, basis = "plan";
+  if (ref > t0) { target = Math.min(ref, plan12); basis = "competitors"; }
+  const traffic = Math.max(0, target - t0);
+  const leads = traffic * econ.conversion_rate;
+  const sales = leads * econ.close_rate;
+  const revenue = sales * econ.avg_check * econ.ltv_factor;
+  return {
+    basis, target_traffic: target, traffic_month: traffic, leads_month: leads, sales_month: sales,
+    revenue_month: revenue, competitors_traffic_median: median, competitors_traffic_leader: leader,
+  };
 }

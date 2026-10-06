@@ -40,14 +40,23 @@
 //   ДЕНЬГИ В ПРОЗЕ   - любые суммы и валюта (₽, руб, рублей, тыс. руб, млн руб, $, суммы рядом со словами
 //                      выручка/прибыль/чек/бюджет/стоимость...) в ЛЮБЫХ строках писателя.      -> strategy-writer
 //   ТАРИФЫ В ПРОЗЕ   - слово «тариф» в любой форме, «Старт»/«Рост»/«Максимум» в кавычках, «вариант «...»»,
-//                      «пакет Рост»; ID услуг (SY, KP, FQ, PF...) вне plan_item.services.       -> strategy-writer
+//                      «пакет Рост»; внутреннее название профиля Максимума («Профиль «Активный»», «профиль B»);
+//                      ID услуг (SY, KP, FQ, PF...) вне plan_item.services.                    -> strategy-writer
 //   СТОП-ПАТТЕРНЫ ВОДЫ, ТИРЕ/Е-С-ТОЧКАМИ - как в легаси.                                       -> strategy-writer
 //   ОБЪЕМ (warning)  - проза < 2500 или > 14000 симв. (4-6 стр A4).
-//   СОСТАВ ПЛАНА (warning) - ID из plan_item.services, которых нет в рекомендованном составе (growth).
-//   ПРОГНОЗ          - forecast.json есть и сходится с независимым пересчетом модели (_forecast-model.mjs,
-//                      computeAll по forecast_inputs + inputs.json + tariffs.json): year1.romi (допуск 1 п.п.)
-//                      и year1.cost (допуск 1 руб) по каждому тарифу, состав, потери в месяц.
+//   ЖАРГОН (warning) - «вайбкод», «n-граммы» в прозе писателя; «Профиль «...»» и «вайбкод» в клиентских текстах
+//                      tariffs.json (hint, reason - уходят в смету). DR и ИКС - метрики, не жаргон.
+//   СОСТАВ ПЛАНА (warning) - ID из plan_item.services, которых нет в составе тарифа плана (forecast.plan_tariff:
+//                      рекомендованный или Рост - по нему docx рисует план, график и потери).
+//   ПРОГНОЗ          - forecast.json есть и сходится с независимым пересчетом модели (_forecast-model.mjs v2.1:
+//                      computeAll по forecast_inputs + inputs.json + tariffs.json - applyClientEconomics, launchMonth,
+//                      costSeries с месяца запуска, ltv, цикл сделки): year1.romi (допуск 1 п.п.) и year1.cost
+//                      (допуск 1 руб) по каждому тарифу, состав, месяц запуска и потолок, гейт (checks.hard),
+//                      recommended_offer/plan_tariff; потери в месяц (lost_now: traffic/leads/revenue) - пересчет
+//                      lostNowCalc и сверка смысла (базовая конверсия без прототипа и Карт, не выше плана к 12 мес).
 //                      -> ОРКЕСТРАТОР, не писатель: перезапустить build-forecast.mjs.
+//   ЭКОНОМИКА (warning) - forecast.checks.hard непуст (экономический гейт не пройден - решает SKILL после круга
+//                      tariff-architect) или checks.soft про потолок / одинаковые тарифы (-> growth-strategist).
 // Без format "v2" - легаси-путь ниже (раздел 4, СЦЕНАРНАЯ СОГЛАСОВАННОСТЬ) без изменений.
 
 import { readFileSync, existsSync } from "node:fs";
@@ -55,6 +64,9 @@ import { join, resolve } from "node:path";
 import { computeScenarioTariff, resolveActiveMonths, TARIFF_KEYS } from "./_forecast-money.mjs";
 import {
   computeAll,
+  economicsChecks,
+  recommendOffer,
+  lostNowCalc,
   resolveEconomics,
   applyClientEconomics,
   tariffServiceIds,
@@ -232,6 +244,21 @@ const V2_PACKAGE_QUOTED_RE = /[«"“„'‘‹]\s*(старт|рост|макс
 const V2_VARIANT_QUOTED_RE = /(?<![а-я])вариант[а-я]*\s+[«"“„‹]/g; // по нижнему регистру
 // по оригиналу: название пакета - с прописной, существительное - в любом регистре («Вариант Рост» в начале фразы)
 const V2_PACKAGE_NAMED_RE = /(?<![А-Яа-яЁё])(?:[Пп]акет|[Вв]ариант|[Пп]лан)[а-яё]*\s+(?:Старт|Рост|Максимум)(?![А-Яа-яЁё])/g;
+// Профиль Максимума (tariff-architect, RULES раздел 7): «Профиль «Активный»», «профиль Глубинный», «профиль B» -
+// внутренняя кухня подбора. По нижнему регистру. «профиль компании», «профиль в Картах», «профиль «Яндекс Бизнес»»
+// не ловятся: в кавычках - только одно слово-прилагательное, буква - только латинская a/b.
+const V2_PROFILE_RE =
+  /(?<![а-я])профил[а-я]*\s+(?:максимума\s+)?(?:[«"“„‹]\s*[а-я-]+(?:ый|ий|ой)\s*[»"”“›]|(?:глубинн|активн)(?:ый|ого|ому|ым|ом)(?![а-я])|[«"“„‹]?[ab][»"”“›]?(?![a-z0-9]))/g;
+
+// ── Жаргон для клиента (warning). По нижнему регистру.
+const V2_JARGON_PROSE = [
+  [/(?<![а-я])вайб[\s-]?код[а-я]*|(?<![a-z])vibe[\s-]?cod[a-z]*/g, "«вайбкод» - жаргон разработки (писать: сайт на собственном движке с админкой)"],
+  [/(?<![a-zа-я])[nн][\s-]?грамм[а-я]*/g, "«n-граммы» - жаргон SEO (писать: недостающие слова и фразы из топа)"],
+];
+const V2_JARGON_TARIFF_TEXTS = [
+  [V2_PROFILE_RE, "внутреннее название профиля Максимума (клиенту - что добавляет вариант, без профиля)"],
+  [V2_JARGON_PROSE[0][0], V2_JARGON_PROSE[0][1]],
+];
 
 // ── ID услуг (регистр важен: только латиница в верхнем регистре). Неоднозначные (IT-компания, UX, ART-студия)
 // считаются ID только рядом с однозначным ID в той же строке или в скобках «(IT)».
@@ -297,6 +324,9 @@ function v2TariffHits(str, skipIds) {
   }
   for (const m of allMatches(V2_VARIANT_QUOTED_RE, s)) hits.push({ kind: "«вариант «...»» как название пакета", index: m.index, length: m[0].length });
   for (const m of allMatches(V2_PACKAGE_NAMED_RE, str)) hits.push({ kind: `название пакета «${m[0]}»`, index: m.index, length: m[0].length });
+  for (const m of allMatches(V2_PROFILE_RE, s)) {
+    hits.push({ kind: `внутреннее название профиля «${str.slice(m.index, m.index + m[0].length)}»`, index: m.index, length: m[0].length });
+  }
   if (!skipIds) {
     const ids = allMatches(V2_ID_RE, str);
     const hasStrong = ids.some((m) => !V2_AMBIGUOUS_IDS.has(m[1]));
@@ -306,6 +336,14 @@ function v2TariffHits(str, skipIds) {
       hits.push({ kind: `ID услуги «${m[1]}» (внутренний код сметы - писать человеческими словами)`, index: m.index, length: m[0].length });
     }
   }
+  return hits.sort((a, b) => a.index - b.index);
+}
+
+// Жаргон в строке по списку [re, kind]: [{kind, index, length}].
+function v2JargonHits(str, list) {
+  const s = lowerKeep(str);
+  const hits = [];
+  for (const [re, kind] of list) for (const m of allMatches(re, s)) hits.push({ kind, index: m.index, length: m[0].length });
   return hits.sort((a, b) => a.index - b.index);
 }
 
@@ -370,9 +408,10 @@ function v2CheckForecast(tariffsRaw, tariffsBroken) {
         ? "tariffs.json битый - прогноз не с чем сверить"
         : "нет tariffs.json - прогноз не с чем сверить (шаг тарифов не выполнен?)"
     );
-    return { violations, notes };
+    return { violations, notes, forecast };
   }
-  if (forecast.model_version !== V2_MODEL_VERSION) {
+  const sameModel = forecast.model_version === V2_MODEL_VERSION;
+  if (!sameModel) {
     violations.push(
       `forecast.json построен моделью «${forecast.model_version}», текущая «${V2_MODEL_VERSION}» - прогноз устарел, перезапусти build-forecast.mjs`
     );
@@ -405,7 +444,7 @@ function v2CheckForecast(tariffsRaw, tariffsBroken) {
     );
   } else {
     violations.push("нет входов прогноза: ни forecast_inputs в seo-strategiya_data.json, ни inputs в forecast.json");
-    return { violations, notes };
+    return { violations, notes, forecast };
   }
 
   // Сдвиг входов после build-forecast (диагностика: какие именно поля разъехались).
@@ -429,6 +468,8 @@ function v2CheckForecast(tariffsRaw, tariffsBroken) {
       ["conversion_rate", n0(econWas.conversion_rate), n0(econNow.conversion_rate)],
       ["close_rate", n0(econWas.close_rate), n0(econNow.close_rate)],
       ["margin", n0(econWas.margin), n0(econNow.margin)],
+      ["ltv_factor", n0(econWas.ltv_factor), n0(econNow.ltv_factor)],
+      ["sales_lag_months", n0(econWas.sales_lag_months), n0(econNow.sales_lag_months)],
     ];
     const drift = pairs
       .filter(([, was, now]) => (typeof was === "number" ? Math.abs(was - now) > 1e-9 : was !== now))
@@ -438,13 +479,17 @@ function v2CheckForecast(tariffsRaw, tariffsBroken) {
     }
   }
 
-  let res;
+  let res, checksNow, offerNow;
   try {
     res = computeAll(fi, tariffs, V2_HORIZON);
+    checksNow = economicsChecks(res);
+    offerNow = recommendOffer(res, checksNow);
   } catch (err) {
     violations.push(`пересчет модели упал: ${err.message}`);
-    return { violations, notes };
+    return { violations, notes, forecast };
   }
+  const soft = exact ? violations : notes; // запасной путь (без forecast_inputs) - сверка подсказкой
+  const STALE = "прогноз устарел, перезапусти build-forecast.mjs";
 
   const fKeys = Object.keys(forecast.tariffs).filter((k) => V2_TARIFF_KEYS.includes(k));
   const keys = V2_TARIFF_KEYS.filter((k) => tariffs[k] || forecast.tariffs[k]);
@@ -472,29 +517,113 @@ function v2CheckForecast(tariffsRaw, tariffsBroken) {
       violations.push(`[${k}] затраты 12 мес в forecast.json ${ft.year1?.cost} != пересчет ${rt.year1.cost} - прогноз устарел, перезапусти build-forecast.mjs`);
     }
     if (!Number.isFinite(romiWas) || Math.abs(romiWas - rt.year1.romi) > 1) {
-      (exact ? violations : notes).push(`[${k}] ROMI 12 мес в forecast.json ${ft.year1?.romi}% != пересчет ${rt.year1.romi}% - прогноз устарел, перезапусти build-forecast.mjs`);
+      soft.push(`[${k}] ROMI 12 мес в forecast.json ${ft.year1?.romi}% != пересчет ${rt.year1.romi}% - ${STALE}`);
+    }
+    // v2.1: месяц запуска нового сайта, потолок и месяц упора (поля есть у сборок после 06.10 10:05 - старые
+    // сборки той же версии модели без них не валим)
+    for (const [f, now] of [["launch_month", rt.launch_month], ["cap", rt.cap], ["capped_from_month", rt.capped_from_month]]) {
+      if (ft[f] === undefined) continue;
+      if ((ft[f] ?? null) !== (now ?? null)) soft.push(`[${k}] ${f} в forecast.json ${ft[f]} != пересчет ${now} - ${STALE}`);
     }
   }
   if (!fKeys.includes("growth") && !tariffs.growth) {
     violations.push("нет рекомендованного тарифа growth ни в tariffs.json, ни в forecast.json");
   }
 
-  // «Деньги, которые вы теряете» (маркер money_lost) берутся из lost_now - сверить с пересчетом Роста.
-  if (res.growth && isObj(forecast.lost_now)) {
-    const lostWas = Number(forecast.lost_now.revenue_month);
-    const lostNow = Math.round(res.growth.m12.revenue);
-    if (!Number.isFinite(lostWas) || Math.abs(lostWas - lostNow) > 1) {
-      (exact ? violations : notes).push(`lost_now.revenue_month в forecast.json ${forecast.lost_now.revenue_month} != пересчет ${lostNow} - прогноз устарел, перезапусти build-forecast.mjs`);
+  // Рекомендация сметы, тариф плана docx, гейт - пересчет recommendOffer/economicsChecks.
+  const planKey = offerNow.plan_tariff;
+  const planRes = res[planKey] || res.growth;
+  if (sameModel && planRes) {
+    if ((forecast.recommended_offer ?? null) !== offerNow.recommended_offer) {
+      soft.push(`recommended_offer в forecast.json ${forecast.recommended_offer ?? null} != пересчет ${offerNow.recommended_offer} - ${STALE}`);
     }
-  } else if (res.growth) {
+    if (forecast.plan_tariff !== planKey) {
+      soft.push(`plan_tariff в forecast.json ${forecast.plan_tariff ?? "(нет)"} != пересчет ${planKey} (по нему docx рисует план, график и потери) - ${STALE}`);
+    }
+    if (Number(forecast.launch_month) !== planRes.launch_month) {
+      soft.push(`launch_month в forecast.json ${forecast.launch_month ?? "(нет)"} != пересчет ${planRes.launch_month} (месяц запуска нового сайта) - ${STALE}`);
+    }
+    if ((forecast.traffic_cap ?? null) !== (planRes.cap ?? null)) {
+      soft.push(`traffic_cap в forecast.json ${forecast.traffic_cap ?? "(нет)"} != пересчет ${planRes.cap} - ${STALE}`);
+    }
+    const hardWas = isObj(forecast.checks) && Array.isArray(forecast.checks.hard) ? forecast.checks.hard : [];
+    if (hardWas.join("\n") !== checksNow.hard.join("\n")) {
+      soft.push(`экономический гейт (checks.hard) в forecast.json [${hardWas.length}] != пересчет [${checksNow.hard.length}]${checksNow.hard.length ? `: ${shorten(checksNow.hard[0], 90)}` : ""} - ${STALE}`);
+    }
+  }
+
+  // «Деньги, которые вы теряете» (маркер money_lost) - lost_now. 1) Пересчет общей функцией модели lostNowCalc по
+  // тарифу плана (ловит устаревший прогноз). 2) Смысл v2.1 по самим числам forecast.json, инлайн (ловит регресс
+  // формулы): обращения = переходы x БАЗОВАЯ конверсия (без прототипа и Карт), выручка = продажи x чек x ltv,
+  // ориентир не выше уровня плана к 12 мес, переходы = ориентир - t0.
+  const ln = forecast.lost_now;
+  if (planRes && isObj(ln)) {
+    if (sameModel) {
+      const calc = lostNowCalc(fi, planRes);
+      const r1 = (x) => Math.round(x * 10) / 10;
+      const cmp = [
+        ["traffic_month", Math.round(calc.traffic_month), 1],
+        ["leads_month", r1(calc.leads_month), 0.051],
+        ["revenue_month", Math.round(calc.revenue_month), 1],
+      ];
+      for (const [f, now, tol] of cmp) {
+        const was = Number(ln[f]);
+        if (!Number.isFinite(was) || Math.abs(was - now) > tol) {
+          soft.push(`lost_now.${f} в forecast.json ${ln[f]} != пересчет ${now} (${calc.basis === "competitors" ? "ориентир конкурентов" : "уровень плана"} ${Math.round(calc.target_traffic)}, тариф плана ${planKey}) - ${STALE}`);
+        }
+      }
+      if (ln.basis !== calc.basis) soft.push(`lost_now.basis в forecast.json ${ln.basis ?? "(нет)"} != пересчет ${calc.basis} - ${STALE}`);
+
+      const e = isObj(forecast.inputs) && isObj(forecast.inputs.economics) ? forecast.inputs.economics : resolveEconomics(fi);
+      const cr = Number(e.conversion_rate), close = Number(e.close_rate);
+      const perSale = Number(e.avg_check) * (Number(e.ltv_factor) > 0 ? Number(e.ltv_factor) : 1);
+      const tr = Number(ln.traffic_month), leads = Number(ln.leads_month), rev = Number(ln.revenue_month);
+      const t0 = Number(forecast.inputs?.t0 ?? fi.t0) || 0;
+      const target = Number(ln.target_traffic);
+      const plan12 = Number(forecast.tariffs?.[forecast.plan_tariff]?.months?.[11]?.traffic_commercial);
+      const sem = [];
+      if ([cr, close, perSale, tr, leads, rev].every(Number.isFinite)) {
+        // переходы округлены до целых (+-0,5), обращения - до десятых
+        if (Math.abs(leads - tr * cr) > 0.5 * cr + 0.051) {
+          sem.push(`lost_now.leads_month ${leads} != переходы ${tr} x базовая конверсия ${cr} = ${r1(tr * cr)} (потери считаются без прототипа и Карт)`);
+        }
+        if (Math.abs(rev - tr * cr * close * perSale) > 0.5 * cr * close * perSale + 1) {
+          sem.push(`lost_now.revenue_month ${rev} != переходы x конверсия x закрытие x чек x ltv = ${Math.round(tr * cr * close * perSale)}`);
+        }
+      }
+      if (Number.isFinite(target) && Number.isFinite(tr) && Math.abs(tr - Math.max(0, target - t0)) > 1) {
+        sem.push(`lost_now.traffic_month ${tr} != ориентир ${target} - текущий трафик ${t0}`);
+      }
+      if (Number.isFinite(target) && Number.isFinite(plan12) && target > plan12 + 1) {
+        sem.push(`lost_now.target_traffic ${target} выше уровня плана к 12 мес (${plan12}) - потери не больше того, что реально взять планом`);
+      }
+      for (const s of sem) soft.push(`${s} - дефект формулы потерь (build-forecast / lostNowCalc), не писателя`);
+    }
+  } else if (planRes) {
     violations.push("в forecast.json нет lost_now - маркеру money_lost нечего показать, перезапусти build-forecast.mjs");
   }
 
-  const hard = isObj(forecast.checks) && Array.isArray(forecast.checks.hard) ? forecast.checks.hard : [];
+  return { violations, notes, compared, source, forecast, planKey: forecast.plan_tariff || offerNow.plan_tariff };
+}
+
+// ЭКОНОМИКА (warning): гейт и форма прогноза по forecast.checks (то, что видит SKILL после build-forecast).
+function v2EconomicsWarnings(forecast) {
+  const out = [];
+  if (!isObj(forecast) || !isObj(forecast.checks)) return out;
+  const hard = Array.isArray(forecast.checks.hard) ? forecast.checks.hard.filter(nonEmptyStr) : [];
+  const softList = Array.isArray(forecast.checks.soft) ? forecast.checks.soft.filter(nonEmptyStr) : [];
   if (hard.length) {
-    notes.push(`в forecast.json ${hard.length} жестк. замечаний экономического гейта (build-forecast exit 3) - решение по тарифам за оркестратором: ${shorten(hard[0], 90)}`);
+    const offer = forecast.recommended_offer;
+    out.push(
+      `экономический гейт не пройден: ${hard.join("; ")} (смета рекомендует: ${offer ? offer : "ни один тариф"}; ` +
+        "решение - SKILL после круга tariff-architect, не блок проверки)"
+    );
   }
-  return { violations, notes, compared, source };
+  const shape = softList.filter((s) => /потолок|одинаков/i.test(s));
+  if (shape.length) {
+    out.push(`прогноз упирается в потолок / тарифы не различаются - проверь спрос в forecast_inputs (growth-strategist): ${shape.join("; ")}`);
+  }
+  return out;
 }
 
 function runV2() {
@@ -504,6 +633,7 @@ function runV2() {
   const stops = [];
   const dashYo = [];
   const planWarnings = [];
+  const jargon = [];
 
   // ── 1. СТРУКТУРА ──
   const tp = content.title_page;
@@ -711,6 +841,10 @@ function runV2() {
       const kinds = [...new Set(th.map((h) => h.kind))].join(", ");
       tariffsProse.push(`${where}: ${kinds} - "${fragmentAt(str, th[0].index, th[0].length)}"`);
     }
+    const jh = v2JargonHits(str, V2_JARGON_PROSE);
+    if (jh.length) {
+      jargon.push(`${where}: ${[...new Set(jh.map((h) => h.kind))].join(", ")} - "${fragmentAt(str, jh[0].index, jh[0].length)}" (strategy-writer)`);
+    }
   });
 
   // ── 3а. ДЕНЬГИ, разнесенные по полям: kpi {value: "~1,3 млн", label: "выручки в месяц"} и table (заголовок
@@ -779,32 +913,65 @@ function runV2() {
     volumeWarn = `проза раздута: ${chars} симв. (> ${V2_PROSE_MAX}), вероятно больше 6 стр - сжать тезисы`;
   }
 
-  // ── 7. СОСТАВ ПЛАНА (warning) + ПРОГНОЗ ──
+  // ── 7. ПРОГНОЗ + СОСТАВ ПЛАНА (warning) + ЖАРГОН в текстах сметы (warning) ──
   const tariffsPath = join(strategyDir, "tariffs.json");
   const tariffsRaw = readJson(tariffsPath, false);
   const tariffsBroken = !tariffsRaw && existsSync(tariffsPath);
-  if (tariffsRaw && planItems.length) {
-    const growth = isObj(tariffsRaw.growth) ? tariffsRaw.growth : isObj(tariffsRaw.rost) ? tariffsRaw.rost : null;
-    if (growth) {
-      const growthIds = new Set([...tariffServiceIds(growth)].map((id) => canonicalId(id)));
-      for (const it of planItems) {
-        for (const id of it.ids) {
-          if (id === "DEV") {
-            // site_dev tariff-architect пишет всегда (вкладка сметы справочная) - в план разработка идет только
-            // при recommended: true.
-            if (!isObj(tariffsRaw.site_dev)) {
-              planWarnings.push(`plan_item «${shorten(it.title, 40)}»: DEV (разработка), но в tariffs.json нет site_dev`);
-            } else if (tariffsRaw.site_dev.recommended !== true) {
-              planWarnings.push(`plan_item «${shorten(it.title, 40)}»: DEV (разработка), но site_dev.recommended не true - разработку не рекомендуем, в план она не идет`);
-            }
-          } else if (!growthIds.has(id)) {
-            planWarnings.push(`plan_item «${shorten(it.title, 40)}»: ${id} нет в рекомендованном составе (growth: ${[...growthIds].join(", ")})`);
+  const fc = v2CheckForecast(tariffsRaw, tariffsBroken);
+  const econWarns = v2EconomicsWarnings(fc.forecast);
+
+  // План работ docx рисуется по тарифу плана (forecast.plan_tariff: рекомендованный сметой или Рост) - с ним и
+  // сверяем plan_item.services. Нет forecast.json / plan_tariff - пересчет модели, иначе Рост.
+  const TNAME = { start: "Старт", growth: "Рост", max: "Максимум" };
+  const tariffOf = (k) => (isObj(tariffsRaw?.[k]) ? tariffsRaw[k] : k === "growth" && isObj(tariffsRaw?.rost) ? tariffsRaw.rost : null);
+  let planKey = V2_TARIFF_KEYS.includes(fc.planKey) ? fc.planKey : "growth";
+  if (tariffsRaw && !tariffOf(planKey) && planKey !== "growth") {
+    planWarnings.push(`тариф плана «${TNAME[planKey]}» (forecast.plan_tariff) нет в tariffs.json - план сверен с Ростом`);
+    planKey = "growth";
+  }
+  const planTariff = tariffsRaw ? tariffOf(planKey) : null;
+  if (planTariff && planItems.length) {
+    const planIds = new Set([...tariffServiceIds(planTariff)].map((id) => canonicalId(id)));
+    for (const it of planItems) {
+      for (const id of it.ids) {
+        if (id === "DEV") {
+          // site_dev tariff-architect пишет всегда (вкладка сметы справочная) - в план разработка идет только
+          // при recommended: true.
+          if (!isObj(tariffsRaw.site_dev)) {
+            planWarnings.push(`plan_item «${shorten(it.title, 40)}»: DEV (разработка), но в tariffs.json нет site_dev`);
+          } else if (tariffsRaw.site_dev.recommended !== true) {
+            planWarnings.push(`plan_item «${shorten(it.title, 40)}»: DEV (разработка), но site_dev.recommended не true - разработку не рекомендуем, в план она не идет`);
           }
+        } else if (!planIds.has(id)) {
+          planWarnings.push(
+            `plan_item «${shorten(it.title, 40)}»: ${id} нет в составе тарифа плана «${TNAME[planKey]}» (${[...planIds].join(", ")})` +
+              (planKey !== "growth" ? " - экономический гейт не пройден, смета рекомендует его, а не Рост" : "")
+          );
         }
       }
     }
   }
-  const fc = v2CheckForecast(tariffsRaw, tariffsBroken);
+
+  // Клиентские тексты tariffs.json (уходят в смету): hint, promos[].reason, site_dev.reason/promo_note,
+  // special[].reason - профиль Максимума и «вайбкод» (чинит tariff-architect).
+  if (tariffsRaw) {
+    const texts = [];
+    for (const k of ["start", "growth", "rost", "max"]) {
+      const t = tariffsRaw[k];
+      if (!isObj(t)) continue;
+      texts.push([`${k}.hint`, t.hint]);
+      (Array.isArray(t.promos) ? t.promos : []).forEach((p, i) => isObj(p) && texts.push([`${k}.promos[${i}].reason`, p.reason]));
+    }
+    if (isObj(tariffsRaw.site_dev)) texts.push(["site_dev.reason", tariffsRaw.site_dev.reason], ["site_dev.promo_note", tariffsRaw.site_dev.promo_note]);
+    (Array.isArray(tariffsRaw.special) ? tariffsRaw.special : []).forEach((s, i) => isObj(s) && texts.push([`special[${i}].reason`, s.reason]));
+    for (const [where, str] of texts) {
+      if (!nonEmptyStr(str)) continue;
+      const jh = v2JargonHits(str, V2_JARGON_TARIFF_TEXTS);
+      if (jh.length) {
+        jargon.push(`tariffs.json ${where}: ${[...new Set(jh.map((h) => h.kind))].join(", ")} - "${fragmentAt(str, jh[0].index, jh[0].length)}" (tariff-architect, текст уходит в смету)`);
+      }
+    }
+  }
 
   // ── Отчет ──
   console.log(`[verify-strategy] формат v2, разделов: ${secs.length}, прозы: ${chars} симв.`);
@@ -821,16 +988,19 @@ function runV2() {
       : `  - в норме: ${chars} симв. (ориентир ${V2_PROSE_MIN}-${V2_PROSE_MAX}, 4-6 стр; точную оценку дает strategy-verifier)`
   );
   printCapped("СОСТАВ ПЛАНА (warning)", planWarnings);
+  printCapped("ЖАРГОН (warning)", jargon);
 
   if (fc.violations.length) {
     printCapped("ПРОГНОЗ", fc.violations);
     console.log("  -> чинит ОРКЕСТРАТОР, не strategy-writer: перезапусти build-forecast.mjs <strategy_dir> (exit 3 - круг tariff-architect), затем verify-strategy.mjs заново.");
   } else {
     console.log(
-      `\nПРОГНОЗ: OK (forecast.json сходится с пересчетом модели ${V2_MODEL_VERSION}: ROMI и затраты 12 мес по ${fc.compared} тарифам, потери в месяц; входы - ${fc.source}).`
+      `\nПРОГНОЗ: OK (forecast.json сходится с пересчетом модели ${V2_MODEL_VERSION}: ROMI и затраты 12 мес по ${fc.compared} тарифам, ` +
+        `запуск и потолок, гейт и тариф плана «${TNAME[planKey]}», потери в месяц; входы - ${fc.source}).`
     );
   }
   for (const n of fc.notes) console.log(`  (i) ${n}`);
+  printCapped("ЭКОНОМИКА (warning)", econWarns);
 
   const writerBlocks = [
     ["СТРУКТУРА", structure],
@@ -850,7 +1020,12 @@ function runV2() {
     );
     process.exit(2);
   }
-  const warns = [volumeWarn ? "объем" : null, planWarnings.length ? "состав плана" : null].filter(Boolean);
+  const warns = [
+    volumeWarn ? "объем" : null,
+    planWarnings.length ? "состав плана" : null,
+    jargon.length ? "жаргон" : null,
+    econWarns.length ? "экономика" : null,
+  ].filter(Boolean);
   console.log(`\n[verify-strategy] OK: нарушений нет${warns.length ? ` (см. предупреждения: ${warns.join(", ")})` : ""}.`);
   process.exit(0);
 }

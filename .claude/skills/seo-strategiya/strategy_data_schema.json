@@ -1,6 +1,7 @@
 {
   "$schema": "Спецификация формата seo-strategiya_data.json. Контракт между growth-strategist (заполняет все, кроме tariffs) и tariff-architect / build-forecast.mjs / strategy-writer / проверками (читают).",
-  "$version": "4.0",
+  "$version": "4.1",
+  "$changes_4_1": "06.10.2026, второй круг v2 после боевого прогона на 5 клиентах (модель v2.1). forecast_inputs: demand.basis ОБЯЗАТЕЛЕН (сколько маркеров, какие формы, регион частот), demand.region_name, demand.underestimated (точная форма занижает спрос - потолок опирается на конкурентов), markers только с частотой > 0, спрос по кластерам: головные запросы ниши + главные фразы направлений без топонима и с городом + формы с областью, регион частот город и область - код области; competitors_traffic.median = медиана ТОП-3 прямых по трафику (не всех прямых), leader = максимум среди ПРЯМЫХ (не ориентиров), новые client и base - клиент и конкуренты в одной базе Keys.so и одной метрике (t0 при t0_source keyso = client); has_positions - по локальной базе и t0 (ТОП-50 < 10 и t0 < 30 - позиций нет), has_positions_basis; site_launch_month - не писать для нового сайта (скрипт берет launchMonth по we_develop); implementation_lag_shift - только при явных фактах; economics.ltv_factor + ltv_source (повторные покупки), economics.scale (масштаб бизнеса для сверки базовых продаж), high_ticket по умолчанию 1% / 4%. competitors: client, traffic_compare, у каждой записи traffic_base / traffic_local_base, commercial_pages с разбивкой по разделам в basis. Файлы v4.0 читаются как раньше: новых полей скрипты не требуют.",
   "$changes_4_0": "06.10.2026, стратегия v2. Добавлены forecast_inputs (входы модели прогноза _forecast-model.mjs; кривые и деньги по каждому тарифу считает build-forecast.mjs после тарифов -> forecast.json), scan.maps / scan.address_confirmable / scan.commercial_pages, metrics.has_positions / site_age_months / traffic_source, competitors.*.traffic_month, serp_queries. growth-strategist больше НЕ пишет forecast_scenarios, decomposition и forecast[] - их формат описан в $deprecated_v3 только для чтения старых файлов. ID услуг - линейка 06.10.2026 (KP, FQ, YM вместо NG, KF, YB, BR).",
 
   "domain": "site.ru",
@@ -62,7 +63,7 @@
       {"page": "/services", "issue": "title 78 символов"}
     ]
   },
-  "$comment_metrics": "traffic_month - визиты ИЗ ПОИСКА в месяц (traffic_source: metrika | keyso | null), не все визиты сайта. has_positions = top50 > 0 на msk или локальной базе. site_age_months - возраст сайта (не домена), для акции «ПФ 1=2». metrics.yandex_maps - копия scan.yandex_maps для старых потребителей.",
+  "$comment_metrics": "traffic_month - визиты ИЗ ПОИСКА в месяц (traffic_source: metrika | keyso | null), не все визиты сайта. has_positions = top50 > 0 на msk или локальной базе (признак сканера; для прогноза и акции «ПФ 1=2» берется forecast_inputs.has_positions - по локальной базе и t0). site_age_months - возраст сайта (не домена), для акции «ПФ 1=2». metrics.yandex_maps - копия scan.yandex_maps для старых потребителей.",
 
   "dynamics": [
     {"month": "2026-07", "top10": 8, "top50": 65, "traffic_month": 30},
@@ -71,6 +72,18 @@
   ],
 
   "competitors": {
+    "traffic_compare": {
+      "base": "spb",
+      "reason": "локальная база: трафик есть у 6 из 6 прямых, клиент в ней не пуст",
+      "client": 40,
+      "top3_direct": [
+        {"domain": "competitor2.ru", "traffic": 2700},
+        {"domain": "competitor3.ru", "traffic": 1500},
+        {"domain": "competitor1.ru", "traffic": 1100}
+      ],
+      "median_top3": 1500,
+      "leader_direct": {"domain": "competitor2.ru", "traffic": 2700}
+    },
     "direct": [
       {
         "domain": "competitor1.ru",
@@ -81,8 +94,10 @@
         "pages": 120,
         "traffic_month": 1800,
         "traffic_month_local": 1100,
+        "traffic_base": "msk",
+        "traffic_local_base": "spb",
         "commercial_pages": 46,
-        "commercial_pages_basis": "sitemap: /uslugi/* 52 URL, под направления клиента 46",
+        "commercial_pages_basis": "sitemap: /uslugi/* 52 URL; под направления клиента 46 - химчистка мебели 15, ковров 11, матрасов 7, штор 6, клининг 7; не считаны: блог 80, /uslugi/ корень, акции 5",
         "growth_model": "контент + ПФ"
       }
     ],
@@ -95,7 +110,9 @@
         "pages": 500,
         "traffic_month": 6000,
         "traffic_month_local": 3900,
-        "takeaway": "блог 200+ статей, активные ссылки"
+        "traffic_base": "msk",
+        "traffic_local_base": "spb",
+        "takeaway": "блог 200+ статей, активные ссылки; ~3 900 визитов/мес (Keys.so spb)"
       }
     ],
     "leader_pages_summary": {
@@ -103,7 +120,7 @@
       "client_missing": ["калькулятора нет"]
     }
   },
-  "$comment_competitors": "Метрики конкурентов - Keyso domains_batch на msk (dr из type=links, остальное из type=organic); traffic_month_local - тот же пакет на локальной базе (если задана). commercial_pages - только у топ-3 прямых: коммерческие посадочные ПОД НАПРАВЛЕНИЯ КЛИЕНТА (вход для forecast_inputs.pages.planned_new). Нет данных - null, не 0.",
+  "$comment_competitors": "Из competitors.json (competitor-analyst). Метрики конкурентов - Keyso domains_batch на msk (dr из type=links, остальное из type=organic) у ВСЕХ доменов; traffic_month_local - тот же пакет на локальной базе (если задана). У каждой записи traffic_base (база traffic_month) и traffic_local_base (база traffic_month_local). traffic_compare - сравнение «клиент против конкурентов» в ОДНОЙ базе и одной метрике (клиент в том же пакете domains_batch): base - база сравнения (локальная, если в ней трафик у 3+ прямых и клиент там не пуст или пуст в обеих базах; иначе msk), client - трафик клиента в ней, top3_direct - три прямых с наибольшим трафиком, median_top3 - их медиана, leader_direct - максимум среди прямых (ориентиры не идут). Отсюда forecast_inputs.competitors_traffic и столбики docx. commercial_pages - только у топ-3 прямых: коммерческие посадочные ПОД НАПРАВЛЕНИЯ КЛИЕНТА, подсчет URL с разбивкой по разделам в commercial_pages_basis (вход для forecast_inputs.pages.planned_new); круглые оценки и одно число на несколько сайтов - дефект. Нет данных - null, не 0.",
 
   "verdict": {
     "type": "РАСШИРЯЕМ",
@@ -171,7 +188,7 @@
     "competition": "medium",
     "t0": 40,
     "t0_source": "keyso",
-    "t0_basis": "Keyso traffic, база spb (Метрики нет)",
+    "t0_basis": "Keys.so domains_batch organic, база spb (база сравнения, клиент в одном пакете с конкурентами) - 40; Метрики нет",
     "pages": {
       "existing_commercial": 8,
       "planned_new": 38,
@@ -182,23 +199,30 @@
       "commercial_month": 14800,
       "info_month": 4200,
       "region": 2,
+      "region_name": "Санкт-Петербург",
+      "underestimated": false,
       "markers": [
         {"q": "химчистка дивана", "ws": 1240},
+        {"q": "химчистка мебели", "ws": 1020},
         {"q": "химчистка ковров", "ws": 980},
+        {"q": "химчистка дивана спб", "ws": 650},
         {"q": "химчистка матраса", "ws": 610}
       ],
-      "basis": "сумма ТОЧНЫХ частот (\"!\") 34 маркеров коммерческих кластеров по региону 2 (jm_wordstat, один пакет); крупнейшие: химчистка дивана 1240, химчистка ковров 980; инфо - 12 маркеров-вопросов"
+      "basis": "сумма ТОЧНЫХ частот (\"!\") 41 маркера с частотой > 0 из 52 запрошенных (jm_wordstat, один пакет, 06.10.2026), регион 2 (Санкт-Петербург, клиент работает только в городе); формы: головной «химчистка мебели» и «химчистка мебели спб», главные фразы 14 направлений без топонима и с «спб», подуслуги без топонима; крупнейшие: химчистка дивана 1240, химчистка мебели 1020, химчистка ковров 980; 11 фраз с нулем не включены; инфо - 12 маркеров-вопросов"
     },
     "local": true,
     "maps_card": "unverified",
     "tech_critical": false,
     "has_positions": true,
+    "has_positions_basis": "ТОП-50 по базе spb 60 (>= 10), t0 40 (>= 30) -> позиции есть",
     "site_age_months": 30,
     "implementation_lag_shift": 0,
     "competitors_traffic": {
-      "median": 1100,
-      "leader": 3900,
-      "basis": "Keyso domains_batch, база spb, 6 прямых"
+      "median": 1500,
+      "leader": 2700,
+      "client": 40,
+      "base": "spb",
+      "basis": "Keys.so domains_batch organic, база spb, клиент в том же пакете: топ-3 прямых по трафику competitor2.ru 2 700, competitor3.ru 1 500, competitor1.ru 1 100 -> медиана 1 500; лидер прямых competitor2.ru 2 700; клиент 40"
     },
     "economics": {
       "avg_check": 6500,
@@ -206,11 +230,13 @@
       "conversion_rate": 0.05,
       "close_rate": 0.3,
       "margin": 0.4,
+      "ltv_factor": 1,
+      "ltv_source": "default",
       "model": "two_step",
-      "basis": "чек - типовой заказ по прайсу сайта (диван 3-местный 5 500-7 500); конверсия, закрытие и маржа - дефолты ECON_DEFAULTS для services (клиент не назвал)"
+      "basis": "чек - типовой заказ по прайсу сайта (диван 3-местный 5 500-7 500), не «от 1 500» за кресло; конверсия, закрытие и маржа - дефолты ECON_DEFAULTS для services (клиент не назвал); повторные покупки - 1 (химчистку мебели заказывают раз в год-два); масштаба бизнеса на сайте нет - сверка не делалась"
     }
   },
-  "$comment_forecast_inputs": "Пишет growth-strategist. Единственный вход модели прогноза (_forecast-model.mjs): build-forecast.mjs после тарифов строит кривую трафика и деньги по КАЖДОМУ тарифу из его состава и пишет forecast.json. Здесь нет ни трафика по месяцам, ни денег, ни тарифов. Обязательные для скрипта: t0 (число >= 0), pages.existing_commercial и pages.planned_new (числа), demand.commercial_month (число), economics.avg_check (> 0) - иначе build-forecast exit 2. Перечисления: business_type services|medical|b2b|high_ticket|ecommerce|info; competition low|medium|high; t0_source metrika|keyso|estimated; maps_card none|unverified|verified|unknown; economics.model two_step|one_step; avg_check_source client|site|estimated. Доли (conversion_rate, close_rate, margin) - в (0; 1], не проценты. Клиентские значения из inputs.json перекрывают economics (делает скрипт). Дефолты по типу бизнеса - ECON_DEFAULTS в _forecast-model.mjs. demand.info_month = 0 означает «инфоспроса нет» (модель тогда не ограничивает трафик статей спросом) - заполняй, если у ниши есть инфоспрос.",
+  "$comment_forecast_inputs": "Пишет growth-strategist. Единственный вход модели прогноза (_forecast-model.mjs): build-forecast.mjs после тарифов строит кривую трафика и деньги по КАЖДОМУ тарифу из его состава и пишет forecast.json. Здесь нет ни трафика по месяцам, ни денег, ни тарифов. Обязательные для скрипта: t0 (число >= 0), pages.existing_commercial и pages.planned_new (числа), demand.commercial_month (число), economics.avg_check (> 0) - иначе build-forecast exit 2. Обязательные по контракту (скрипт не блокирует, проверяет агент и verify): demand.basis - сколько маркеров запрошено и сколько > 0, какие формы (головные запросы ниши, главные фразы направлений без топонима и с городом, формы с областью), регион частот (код и название), крупнейшие, что не включено. Спрос: сумма точных частот форм с городом и без складывается без двойного счета (точная частота не включает хвосты); регион «город и область» - код области (Москва и МО 1, СПб и ЛО 10174, Минская область 29630, Ростовская 11029, Краснодарский край 10995, Свердловская 11162); demand.underestimated: true - точная форма занижает спрос (Беларусь и др. страны; сумма меньше медианы топ-3 конкурентов при полном составе) - потолок прогноза держится на competitors_traffic. Трафик: t0 при t0_source keyso и competitors_traffic - одна база Keys.so и одна метрика (domains_batch organic, клиент в одном пакете с конкурентами, competitors.traffic_compare); competitors_traffic.median - медиана ТОП-3 прямых по трафику, leader - максимум среди прямых, client - клиент в той же базе, base - база сравнения; поле идет в мягкий потолок прогноза (лидер и медиана x1,5) и в lost_now (разрыв с max(медиана, половина лидера)). has_positions - по локальной базе (нет - msk) и t0: ТОП-50 < 10 и t0 < 30 - false (условие акции «ПФ 1=2» у tariff-architect), has_positions_basis - строка. site_launch_month (необязательное) - месяц запуска нового сайта; агент НЕ пишет его для нового сайта (t0 < 30 и existing_commercial <= 3): скрипт сам берет launchMonth (2 при inputs.we_develop == true, иначе 3); вручную - только при явном сроке запуска из inputs.notes или ответа оператора. implementation_lag_shift - 0 или 1; 1 только при явных фактах, что большой объем (planned_new >= 20 или прототип на весь сайт) на живом сайте внедряет сам клиент; у нового сайта всегда 0. we_develop агент не пишет - скрипт берет из inputs.json. Перечисления: business_type services|medical|b2b|high_ticket|ecommerce|info; competition low|medium|high; t0_source metrika|keyso|estimated; maps_card none|unverified|verified|unknown; economics.model two_step|one_step; avg_check_source client|site|estimated; ltv_source client|site|estimated|default. Доли (conversion_rate, close_rate, margin) - в (0; 1], не проценты. economics.avg_check - реальный чек одной покупки основного направления в рублях (не «от», не порог бесплатной доставки, не минимальный заказ); смешанный ассортимент - взвешенный чек с расчетом в basis. economics.ltv_factor (>= 1, обычно до 3) - покупок одного клиента за 12 мес, выручка с продажи = avg_check x ltv_factor; нет поля - дефолт ECON_DEFAULTS (medical 1,8, ecommerce 1,3, остальные 1); ориентиры: медицина и косметология 1,5-2,5, салоны и фитнес с абонементами 1,5-3, магазин с повторными заказами 1,2-1,5, разовые покупки 1. economics.scale (необязательное) - масштаб бизнеса из фактов сайта: {sales_month, capacity_month, basis}; базовые продажи t0 x conversion_rate x close_rate не выше ~30% sales_month (магазин - ~60%), иначе пересмотреть t0 и доли. Цикл сделки (sales_lag_months: high_ticket 3, b2b 2) задает скрипт по business_type, в данные не пишется. Клиентские значения из inputs.json перекрывают economics (делает скрипт). Дефолты по типу бизнеса - ECON_DEFAULTS в _forecast-model.mjs (services 5% / 30% / 40%; medical 5% / 50% / 40%; b2b 3% / 20% / 35%; high_ticket 1% / 4% / 20%; ecommerce 1,5% заказ / 25%; info 1%). demand.info_month = 0 означает «инфоспроса нет» (модель тогда не ограничивает трафик статей спросом) - заполняй, если у ниши есть инфоспрос.",
 
   "traffic_month_estimated": false,
   "$comment_traffic": "traffic_month_estimated = true, если forecast_inputs.t0_source == \"estimated\" (нет Метрики и трафика Keyso - оценка по позициям или 0). Поле для совместимости: build-forecast.mjs берет его, если в forecast_inputs нет t0_source.",
