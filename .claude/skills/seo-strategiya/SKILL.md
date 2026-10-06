@@ -1,11 +1,17 @@
 ---
 name: seo-strategiya
-description: Полный цикл SEO-стратегии для клиента. Скан сайта → метрики → конкуренты → точки роста → три тарифа → стратегия .docx (без цен) и смета .xlsx (с ценами). Аргументы: <URL> [--resume].
+description: Полный цикл SEO-стратегии для клиента. Скан сайта → метрики → конкуренты → точки роста → три тарифа → прогноз и экономика по каждому тарифу → стратегия .docx (4 раздела тезисами, без цен и тарифов) и смета .xlsx (тарифы, разработка сайта, окупаемость). Аргументы: <URL> [--resume].
 ---
 
 # seo-strategiya
 
-Скил-оркестратор формирования стратегии и сметы. Запускается **в worktree-сессии**. Проходит state machine от скана сайта до сборки docx/xlsx.
+Скил-оркестратор формирования стратегии и сметы. Запускается **в worktree-сессии**. Проходит state machine от скана сайта до сборки docx/xlsx и загрузки в Drive.
+
+Версия v2 (программа `docs/upgrade-program-2026-10-06-strategy-v2.md`, [ADR-046](../../../docs/adr/046-strategy-v2.md)):
+- новая линейка услуг (`TARIFFS.md`: 17 услуг + разработка сайта `DEV` отдельным блоком; `PA -> SY -> KP -> FQ`, Яндекс Карты `YM`, акции «ПФ 1=2» и «Тестовая статья в подарок»);
+- прогноз трафика и денег считает скрипт `build-forecast.mjs` по составу КАЖДОГО тарифа (модель `_forecast-model.mjs`, калибровка по кейсам агентства), агенты кривых и денег не рисуют;
+- экономический гейт после тарифов: ROMI Роста за 12 мес > 0 и Рост не хуже Старта по чистому результату - иначе один круг пересборки тарифов;
+- стратегия .docx - 4 раздела тезисами, без цен, без тарифов и без денег в прозе (деньги рисует сборщик из `forecast.json`); тарифы, разработка сайта и окупаемость - только в смете .xlsx.
 
 ## Аргументы
 
@@ -13,19 +19,49 @@ description: Полный цикл SEO-стратегии для клиента.
 /seo-strategiya <URL> [--resume] [--niche="..."] [--region="..."]
 ```
 
-- `URL` — обязательный позиционный. Домен клиента в формате `https://site.ru/` или `site.ru`. Если у клиента нет сайта — передать `none`, скил спросит дополнительные данные.
-- `--resume` — продолжить с того места, где остановилось (по `meta.json`).
-- `--niche="..."` — ниша/описание бизнеса (ГИПОТЕЗА). Если передан - не переспрашивать; пишется как `niche_hypothesis`, сверяется со сканом на гейте 2.5. Через него `new-project` стартует стратегию «тёплой».
-- `--region="..."` — регион продвижения. Если передан - не переспрашивать.
+- `URL` - обязательный позиционный. Домен клиента в формате `https://site.ru/` или `site.ru`. Если у клиента нет сайта - передать `none`, скил спросит дополнительные данные.
+- `--resume` - продолжить с того места, где остановилось (по `meta.json`).
+- `--niche="..."` - ниша/описание бизнеса (ГИПОТЕЗА). Если передан - не переспрашивать; пишется как `niche_hypothesis`, сверяется со сканом на гейте 2.5. Через него `new-project` стартует стратегию «теплой».
+- `--region="..."` - регион продвижения. Если передан - не переспрашивать.
 
 ## State machine
 
 ```
-init → scan-done → competitors-done → growth-done →
-  tariffs-done → content-done → strategy-verified → docx-done → xlsx-done → shared → completed
+init → scan-done → competitors-done → growth-done → tariffs-done →
+  forecast-done → content-done → strategy-verified → docx-done → xlsx-done → shared → completed
 ```
 
-`meta.json` — единственный источник истины. Обновляется через `.claude/hooks/update-meta.sh <strategy_dir> <state>`.
+`meta.json` - единственный источник истины. Обновляется через `.claude/hooks/update-meta.sh <strategy_dir> <state> [ключ=значение ...]`.
+
+| state | Что готово | Следующий шаг |
+|---|---|---|
+| `init` | `inputs.json`, `meta.json` | 2. Скан |
+| `scan-done` | `scan.json`, `metrics.json` | 2.5 (если `inputs.niche` еще `null`) и 3 |
+| `competitors-done` | `competitors.json`, `serp.json` | 4. Точки роста |
+| `growth-done` | `growth-points.json`, `seo-strategiya_data.json` (с `forecast_inputs`) | 5. Тарифы |
+| `tariffs-done` | `tariffs.json` (с `promos`, `site_dev`) | 5.5. Прогноз и экономика |
+| `forecast-done` | `forecast.json` | 6. Контент |
+| `content-done` | `seo-strategiya_content.json` (`format: "v2"`) | 6.5. Проверка |
+| `strategy-verified` | `verify_report.json` (verdict pass) | 7. docx |
+| `docx-done` | `SEO_Strategy_<slug>.docx` | 8. xlsx |
+| `xlsx-done` | `Smeta_<slug>.xlsx` | 9. Drive |
+| `shared` | `share.json` | 10. Финал |
+
+Финальные состояния (`xlsx-done`, `shared`, `completed`) и имена файлов `SEO_Strategy_<slug>.docx` / `Smeta_<slug>.xlsx` не менять - их читают `/share-strategy` и `/status`.
+
+Поток данных:
+```
+inputs.json -> strategy-scanner -> scan.json, metrics.json
+            -> competitor-analyst -> competitors.json (+ трафик конкурентов), serp.json
+            -> growth-strategist -> seo-strategiya_data.json (+ forecast_inputs)           [growth-done]
+            -> tariff-architect -> tariffs.json (+ promos, site_dev)                        [tariffs-done]
+            -> build-forecast.mjs -> forecast.json (exit 3 -> tariff-architect, 1 круг)     [forecast-done]
+            -> strategy-writer -> seo-strategiya_content.json (format v2)                   [content-done]
+            -> verify-strategy.mjs + strategy-verifier                                      [strategy-verified]
+            -> build-strategy-docx.mjs -> SEO_Strategy_<slug>.docx                          [docx-done]
+            -> build-smeta-xlsx.mjs -> Smeta_<slug>.xlsx                                    [xlsx-done]
+            -> Drive                                                                        [shared -> completed]
+```
 
 ## Алгоритм
 
@@ -36,10 +72,10 @@ GIT_DIR=$(git rev-parse --git-dir)
 COMMON_DIR=$(git rev-parse --git-common-dir)
 ```
 
-Если `GIT_DIR == COMMON_DIR` — мы в main. Предупредить:
+Если `GIT_DIR == COMMON_DIR` - мы в main. Предупредить:
 > «⚠️ Ты собираешь стратегию в main-сессии. Pre-commit hook здесь не блокирует. Для многозадачности рекомендую закрыть и переоткрыть с галочкой worktree.»
 
-Не блокировать — пользователь может сознательно так захотеть.
+Не блокировать - пользователь может сознательно так захотеть.
 
 ### 0b. Parse args
 
@@ -52,24 +88,28 @@ slug = slugify(domain)   // vasya.ru → vasya-ru; none → no-site-<timestamp>
 
 ### 1. Setup
 
-> **Это предпродажный скил.** НЕ ищи и НЕ требуй `ЗАКАЗЧИК.md` (на свежем клоне его ещё нет - он появляется только после `/seo-shablon`). Контекст собираешь сам: вопросы ниже + скан (шаг 2).
+> **Это предпродажный скил.** НЕ ищи и НЕ требуй `ЗАКАЗЧИК.md` (на свежем клоне его еще нет - он появляется только после `/seo-shablon`). Контекст собираешь сам: вопросы ниже + скан (шаг 2).
 > **Факт раньше утверждения:** ниша/регион из аргумента или домена - это ГИПОТЕЗА, не факт. Истину устанавливает `strategy-scanner` → `scan.json`. Финальное `inputs.niche` проставляется только после сверки со сканом (гейт 2.5).
 
-Спроси пользователя (если не указано в аргументе):
+Спроси пользователя одним сообщением (что уже передано аргументами - не переспрашивать):
 - Регион продвижения (например «Санкт-Петербург») - или из `--region`
 - Ниша / описание бизнеса (1-2 предложения) - или из `--niche`; пишется как `niche_hypothesis`
 - Есть ли доступ к Вебмастеру и Метрике на аккаунт tem11134? (Y/n)
+- **Есть ли у бизнеса физический адрес/офис для клиентов (для Яндекс Карт)?** (да / нет / не знаю) → `address_confirmable: true | false | null`. Без адреса организацию в Картах не подтвердить: услугу «Яндекс Карты: активность» (`YM`) не предлагаем, обращения из Карт в прогноз не идут. «Не знаю» - адрес определит скан по сайту.
+- **Будем ли мы разрабатывать сайт (новый сайт или редизайн у нас)?** (да / нет / пока не решено) → `we_develop: true | false | null`. «Да» - вкладка сметы «Разработка сайта» с пометкой «рекомендуем», акция «ПФ 1=2», без техаудита старого сайта. «Нет» / «не решено» - разработку рекомендует или нет `tariff-architect` по состоянию сайта, вкладка в смете есть всегда.
 - Бюджет клиента, если озвучен (опц.)
 - Средний чек / стоимость заказа (₽), если известен - для перевода прогноза трафика в деньги (опц., иначе оценим по нише и пометим «оценочно»)
-- Ориентировочная конверсия сайта в заявку, если знаете (опц., иначе берём типовую по нише)
-- Маржинальность бизнеса (%), если готовы озвучить - для расчёта окупаемости и ROI в смете (опц., иначе оценим по нише)
+- Ориентировочная конверсия сайта визит -> обращение, если знаете (опц., иначе типовая по типу бизнеса: услуги 5%, кейсы агентства дают 7-13%)
+- Маржинальность бизнеса (%), если готовы озвучить - ROMI и окупаемость в смете считаются от валовой прибыли (опц., иначе оценим по нише)
 - Заметки и пожелания (опц.)
 
-**Если `URL == none` (домена нет — нужен запуск с нуля)** — дополнительно спроси:
+Проценты можно записывать как `5` или `0.05` - `build-forecast.mjs` сам переведет в доли. Конверсия и маржа: любое число от 1 и выше - проценты (`1` = 1% = `0.01`, `5` = 5%); закрытие сделки: `1` = 100%, проценты - больше 1 (`30` = 30%). Конверсия 1% - это `0.01` или `1`, не `100`. Значения клиента перекрывают оценки агента (это делает скрипт, не агенты).
+
+**Если `URL == none` (домена нет - нужен запуск с нуля)** - дополнительно спроси:
 - Главный целевой запрос или маркер ниши (1-2 шт., например «ремонт квартир спб»)
 - Известные конкуренты, на которых хочется равняться (1-3 домена, опц.)
 
-Эти данные нужны competitor-analyst для пути Г (генерация маркеров «<услуга> <город>») и growth-strategist для частотных таблиц. Запиши их в `inputs.json` как поля `seed_queries: [...]` и `seed_competitors: [...]`.
+Эти данные нужны competitor-analyst для пути Г (генерация маркеров «<услуга> <город>») и growth-strategist для спроса. Запиши их в `inputs.json` как поля `seed_queries: [...]` и `seed_competitors: [...]`. Вопрос про разработку сайта задай и здесь: сайта нет, но решение «делаем у нас» - за клиентом.
 
 Определи `region_id` (Wordstat) и базы Keys.so (двойная база, точка 4):
 
@@ -92,14 +132,17 @@ keyso_base_local = база города: spb | ekb | nsk | kzn | nnv | che | sa
 ```
 strategy_dir = strategies/<NNN>-<slug>/
 ```
-Где NNN — следующий свободный двузначный/трёхзначный номер с ведущим нулём (отсчёт от существующих папок в `strategies/`, если папки нет — 001).
+Где NNN - следующий свободный трехзначный номер с ведущими нулями (отсчет от существующих папок в `strategies/`, если папки нет - 001).
 
 Если `--resume`:
 - Найти существующую `strategies/NNN-<slug>/` (по slug или по NNN если указан).
 - Прочитать `meta.json`. `state = meta.state`.
 - Спросить: «Найдено в состоянии `<state>`, last_completed=`<...>`. Продолжить? [Y/n]»
-- Если Y — перейти к ветке от следующего шага после `state`.
-- Заметка по гейту стратегии: если зашли на `content-done` - сперва прогнать шаг 6.5 (6.5а + 6.5б) до `strategy-verified`, и только потом шаг 7. Если зашли на `strategy-verified` - гейт уже пройден, сразу шаг 7.
+- Если Y - перейти к шагу из таблицы state machine (следующий после `state`).
+- Заметки по гейтам: зашли на `tariffs-done` - сначала шаг 5.5 (прогноз), без `forecast.json` писатель не стартует. Зашли на `content-done` - сперва шаг 6.5 (6.5а + 6.5б) до `strategy-verified`, и только потом шаг 7. Зашли на `strategy-verified` - гейт уже пройден, сразу шаг 7.
+- **Задача, начатая до v2** (в `inputs.json` нет поля `we_develop`): в ней старый каталог услуг, нет `forecast_inputs`, контент без `format: "v2"`.
+  - state `strategy-verified` и дальше - доделать старым путем: `build-strategy-docx.mjs` и `build-smeta-xlsx.mjs` сами узнают старый формат (без `format: "v2"` / без `forecast.json`) и собирают его без изменения чисел (ADR-046, Р11).
+  - state раньше `strategy-verified` - продолжать нельзя (агенты v2 не чинят старые артефакты). Предложить пересборку по v2: задать два новых вопроса (адрес, разработка), дописать `address_confirmable` и `we_develop` в `inputs.json`, `bash .claude/hooks/update-meta.sh <strategy_dir> init` и пройти с шага 2 (в старом `scan.json` нет полей v2: коммерческие страницы, адрес, карточка в Картах).
 
 Иначе:
 - Создать `<strategy_dir>/`.
@@ -117,6 +160,8 @@ strategy_dir = strategies/<NNN>-<slug>/
   "keyso_base_local": "spb",
   "access_webmaster": true,
   "access_metrika": true,
+  "address_confirmable": null,
+  "we_develop": null,
   "budget": null,
   "avg_check": null,
   "avg_check_source": null,
@@ -124,11 +169,16 @@ strategy_dir = strategies/<NNN>-<slug>/
   "close_rate": null,
   "margin": null,
   "notes": "",
-  "date": "Май 2026"
+  "date": "Октябрь 2026"
 }
 ```
 
-`slug` — Latin-only kebab-case (для IDN-доменов вроде `сайт.рф` нужен явный slug, иначе генерация имён файлов даст некрасивый результат). Скрипты `build-strategy-docx.mjs` и `build-smeta-xlsx.mjs` используют `slug` для имени файла, иначе fallback на `domain`.
+Поля v2:
+- `address_confirmable` - ответ оператора про адрес для Карт. `true` / `false` - факт от клиента, авторитетнее сайта (сканер переносит его в `scan.address_confirmable`); `null` - адрес определяет скан по сайту.
+- `we_develop` - разработку сайта заказывают у нас. Читает `tariff-architect`: `site_dev.recommended`, акция «ПФ 1=2», без `FA`. `null` = `false`.
+- `avg_check` (+ `avg_check_source: "client"`, если чек назвал клиент) - руб, число; `conversion_rate` (визит -> обращение) и `margin` - доля или проценты (`0.05` или `5`; число от 1 и выше - проценты, `1` = 1%); `close_rate` (обращение -> продажа) - доля или проценты (`0.3` или `30`; `1` = 100%) - экономика от клиента; `null` - оценку по нише дает `growth-strategist` в `forecast_inputs.economics`. Значение клиента вне разумного диапазона (конверсия выше 30%) скрипт не блокирует, но печатает предупреждение - подтвердить у клиента.
+
+`slug` - Latin-only kebab-case (для IDN-доменов вроде `сайт.рф` нужен явный slug, иначе генерация имен файлов даст некрасивый результат). Скрипты `build-strategy-docx.mjs` и `build-smeta-xlsx.mjs` используют `slug` для имени файла, иначе fallback на `domain`.
 - Записать `<strategy_dir>/meta.json`:
 ```json
 {
@@ -140,7 +190,7 @@ strategy_dir = strategies/<NNN>-<slug>/
   "updated": "<ISO UTC>"
 }
 ```
-- Записать `.claude/tmp/current-task.txt` с путём `<strategy_dir>` (критично — без этого pre-commit откажет в коммите).
+- Записать `.claude/tmp/current-task.txt` с путем `<strategy_dir>` (критично - без этого pre-commit откажет в коммите).
 - `state = "init"`.
 
 ### 2. Скан + метрики (если state == "init")
@@ -152,20 +202,23 @@ strategy_dir = strategies/<NNN>-<slug>/
 strategy_dir: <strategy_dir>
 inputs_path: <strategy_dir>/inputs.json
 project_root: <project root>
-Прочитай inputs.json, MCP_MAP.md. Сделай скан сайта (если есть домен), собери метрики клиента, доп. техчек. Сохрани scan.json и metrics.json.
+Прочитай inputs.json, MCP_MAP.md. Сделай скан сайта (если есть домен): коммерческие страницы, адрес для Карт,
+карточка в Яндекс Картах; собери метрики клиента (трафик и его источник, есть ли позиции, возраст сайта), доп. техчек.
+Если в inputs.json address_confirmable задан (true/false) - это ответ оператора, он авторитетнее сайта: запиши это
+значение в scan.address_confirmable (адрес с сайта, если найден, - в address). Сохрани scan.json и metrics.json.
 ```
 
 После завершения:
 - `bash .claude/hooks/update-meta.sh <strategy_dir> scan-done`
-- Вывести сводку (агент уже вывел). Сразу переходить к шагу 3.
+- Вывести сводку (агент уже вывел). Сразу переходить к шагу 2.5 и 3.
 
-### 2.5. Гейт сверки ниши (сразу после скана, state остаётся scan-done)
+### 2.5. Гейт сверки ниши (сразу после скана, state остается scan-done)
 
 Прочитать `scan.json`. Установить `inputs.niche` (поле было `null`):
 - Если `scan.niche_conflict == true` → `inputs.niche = scan.niche_from_site` (скан авторитетнее догадки). В чат ОДНУ строку: «скан уточнил нишу: было „<niche_hypothesis>“ → стало „<niche_from_site>“».
 - Иначе → `inputs.niche = niche_hypothesis` (гипотеза подтвердилась).
 
-Записать обновлённый `inputs.json`. Дальше `competitor-analyst` и `growth-strategist` читают `inputs.niche` как ФАКТ. Это ловит кривую нишу рано (сразу после скана), а не «в середине», когда докладывают дочерние агенты.
+Записать обновленный `inputs.json`. Дальше `competitor-analyst` и `growth-strategist` читают `inputs.niche` как ФАКТ. Это ловит кривую нишу рано (сразу после скана), а не «в середине», когда докладывают дочерние агенты.
 
 ### 3. Конкуренты + вердикт (если state == "scan-done")
 
@@ -175,14 +228,16 @@ project_root: <project root>
 ```
 strategy_dir: <strategy_dir>
 project_root: <project root>
-Прочитай inputs.json, scan.json, metrics.json, MCP_MAP.md. Найди прямые конкуренты (5-8) и ориентиры (2-3), проанализируй выдачу, сформулируй вердикт. Сохрани competitors.json и serp.json.
+Прочитай inputs.json, scan.json, metrics.json, MCP_MAP.md. Найди прямые конкуренты (5-8) и ориентиры (2-3) с метриками
+пакетом (domains_batch: ТОП-10/50, трафик, страницы, DR), проанализируй выдачу, сформулируй вердикт.
+Сохрани competitors.json и serp.json.
 ```
 
 После завершения:
 - `bash .claude/hooks/update-meta.sh <strategy_dir> competitors-done`
-- Сводка — есть. Переход к шагу 4.
+- Сводка - есть. Переход к шагу 4.
 
-### 4. Точки роста + strategy_data.json (если state == "competitors-done")
+### 4. Точки роста + входы прогноза (если state == "competitors-done")
 
 Маркер: `.claude/tmp/expected-growth-strategist-<run_id>.txt = <strategy_dir>/seo-strategiya_data.json`
 
@@ -190,12 +245,18 @@ project_root: <project root>
 ```
 strategy_dir: <strategy_dir>
 project_root: <project root>
-Прочитай все JSON из <strategy_dir>, TARIFFS.md, schema. Сформулируй 3-6 точек роста с проверкой частотности Wordstat, Quick Wins (2-3), прогноз для тарифа Рост. Собери forecast_scenarios - два самосогласованных сценария прогноза (Вход 3-6 мес и Год работы): только кривые трафика и единые допущения, деньги/окупаемость/ROMI считает скрипт сметы. Собери strategy_data.json по схеме (поле tariffs пусто).
+Прочитай все JSON из <strategy_dir>, TARIFFS.md, strategy_data_schema.json (v4.0). Сформулируй 3-6 точек роста,
+сними спрос ниши одним пакетным jm_wordstat (точная частота по региону клиента), Quick Wins (2-3). Собери
+forecast_inputs - входы прогноза (тип бизнеса, конкуренция, трафик сейчас t0 и его источник, коммерческие страницы
+сейчас и в плане, спрос, local и карточка в Картах, позиции, возраст сайта, трафик конкурентов, экономика: клиентские
+значения из inputs.json как есть, остальное - оценка по нише с basis). Кривые трафика и деньги НЕ считай -
+это build-forecast.mjs после тарифов; forecast_scenarios, decomposition и forecast[] не пиши.
+Собери seo-strategiya_data.json по схеме v4.0 (поле tariffs пусто).
 ```
 
 После завершения:
 - `bash .claude/hooks/update-meta.sh <strategy_dir> growth-done`
-- Сводка анализа выведена в чат — это «итог Шага 1» в терминологии исходного скила. Переход сразу к подбору тарифов.
+- Сводка анализа выведена в чат (с строкой `forecast_inputs`). Переход сразу к подбору тарифов.
 
 ### 5. Тарифы (если state == "growth-done")
 
@@ -205,14 +266,59 @@ project_root: <project root>
 ```
 strategy_dir: <strategy_dir>
 project_root: <project root>
-Прочитай strategy_data.json, TARIFFS.md, RULES.md. Собери три тарифа Старт/Рост/Максимум по правилам и развилкам. Посчитай корректировки прогноза. Сохрани tariffs.json.
+Прочитай seo-strategiya_data.json (с forecast_inputs), inputs.json (budget, we_develop, экономика клиента),
+TARIFFS.md, RULES.md. Собери три тарифа Старт / Рост / Максимум по правилам и развилкам (тариф выше включает тариф
+ниже; PA обязателен при SY или KP), акции в promos («ПФ 1=2» только по условию, «Тестовая статья в подарок»), блок
+site_dev (рекомендуем ли разработку, формат и объем - без цены, цену считает скрипт). Прогноз трафика, деньги и ROMI
+не считай - это build-forecast.mjs. economics_round: 0. Сохрани tariffs.json.
 ```
 
 После завершения:
 - `bash .claude/hooks/update-meta.sh <strategy_dir> tariffs-done`
-- Сводка тарифов выведена. Переход к контенту.
+- Сводка тарифов выведена. Переход к прогнозу.
 
-### 6. Контент стратегии (если state == "tariffs-done")
+### 5.5. Прогноз и экономика (если state == "tariffs-done")
+
+Без агента и без MCP - детерминированный скрипт:
+```
+.claude\scripts\_node.cmd .claude\scripts\build-forecast.mjs <strategy_dir>
+```
+
+Скрипт читает `seo-strategiya_data.json` (`forecast_inputs`) + `tariffs.json` + `inputs.json` (экономика клиента перекрывает оценку агента) и пишет `forecast.json`: кривая трафика, обращения, выручка, затраты (с акциями), ROMI 12 и 24 мес и окупаемость по КАЖДОМУ тарифу из его состава, потери клиента сейчас (`lost_now`), ряд для графика docx (`plan_series`), проверки экономики (`checks.hard` / `checks.soft`). В stdout - сводка по тарифам (трафик m3/m6/m12, обращения, ROMI, окупаемость).
+
+Ветвление по exit:
+- **Exit 0** - готово. Предупреждения «ЭКОНОМИКА (предупреждения)» (ROMI Роста < 100%, Рост ниже Старта по ROMI и т.п.) - не блок, запомнить для финальной сводки. `bash .claude/hooks/update-meta.sh <strategy_dir> forecast-done`, переход к шагу 6.
+- **Exit 3** - нарушения тарифов, блок в stdout:
+  - «ПРАВИЛА ТАРИФОВ» - скрипт проверил правила Шага 10 `tariff-architect` до расчета (выведенный или неизвестный ID, ID строчными, `DEV` в тарифе, цена не по каталогу, `total_*` не равен сумме строк, связки и пары, включение, акция «ПФ 1=2»). `forecast.json` НЕ записан;
+  - «ЭКОНОМИЧЕСКИЙ ГЕЙТ» - жесткие нарушения экономики (ROMI Роста за 12 мес <= 0, чистый результат Роста меньше Старта, трафик тарифа выше ниже тарифа ниже). `forecast.json` при этом записан (`recommended_offer` в нем - тариф, который смета выделит вместо Роста, или `null`).
+  - Если в `tariffs.json` `economics_round` = 0 (или поля нет) - один круг пересборки. Маркер `expected-tariff-architect-<run_id>.txt = <strategy_dir>/tariffs.json`, делегировать `tariff-architect`:
+    ```
+    strategy_dir: <strategy_dir>
+    project_root: <project root>
+    Круг экономического гейта (economics_round: 1). build-forecast.mjs вернул нарушения:
+    <блок «ПРАВИЛА ТАРИФОВ» или «ЭКОНОМИЧЕСКИЙ ГЕЙТ» из stdout дословно>
+    Прогноз по текущим тарифам (если записан): <strategy_dir>/forecast.json (year1, checkpoints, drivers_m12, checks).
+    Пересобери тарифы по разделу «Круг экономического гейта» своего промта и RULES.md (раздел 10).
+    diagnostics и site_dev не меняй. Перепиши tariffs.json целиком с economics_round: 1.
+    ```
+    Затем снова `build-forecast.mjs`: exit 0 - как выше; снова exit 3 - следующий пункт.
+  - Если круг уже был (`economics_round` = 1) и снова «ПРАВИЛА ТАРИФОВ» - **стоп** с показом блока: прогноза нет, тарифы нарушают правила после пересборки (дефект `tariff-architect`, сообщить владельцу).
+  - Если круг уже был (`economics_round` = 1) и не пройден «ЭКОНОМИЧЕСКИЙ ГЕЙТ» - **не блокировать**. Записать предупреждение и идти дальше:
+    `bash .claude/hooks/update-meta.sh <strategy_dir> forecast-done economics_warning="<нарушения одной строкой, без двойных кавычек>"`
+    В чат: «Экономический гейт не пройден и после пересборки тарифов: <нарушения>. Стратегию собираю, рекомендация - в финальной сводке.» Переход к шагу 6.
+- **Exit 2** - неполный или битый `forecast_inputs` (дефект `growth-strategist`): в stdout список проблем. Один круг: маркер `expected-growth-strategist-<run_id>.txt = <strategy_dir>/seo-strategiya_data.json`, делегировать `growth-strategist`:
+  ```
+  strategy_dir: <strategy_dir>
+  project_root: <project root>
+  build-forecast.mjs не принял forecast_inputs:
+  <список проблем из stdout дословно>
+  Допиши или исправь forecast_inputs в seo-strategiya_data.json по контракту v4.0 (точки роста и остальные поля
+  не трогай). Экономику, которой нет у клиента, оцени по нише с basis. Верни только файл, в чат - 2 строки.
+  ```
+  После фикса ВСЕГДА пере-делегировать `tariff-architect` промтом шага 5 (маркер `expected-tariff-architect-<run_id>.txt`): тарифы собраны по неполным входам - на `t0`, `pages`, `business_type`, `demand`, экономике (`lead_value`, порог Карт) и самом наличии `forecast_inputs` стоит его диагностика и прикидка экономики. Затем снова `build-forecast.mjs` с тем же ветвлением. Снова exit 2 - стоп с показом проблем: без входов прогноза нечего строить (частый случай - нет среднего чека: спросить у клиента, записать `avg_check` в `inputs.json`, `--resume`).
+- **Exit 1** - ошибка запуска (нет `seo-strategiya_data.json` / `tariffs.json`, нет тарифа Рост, битый JSON) - показать stderr, стоп.
+
+### 6. Контент стратегии (если state == "forecast-done")
 
 Маркер: `.claude/tmp/expected-strategy-writer-<run_id>.txt = <strategy_dir>/seo-strategiya_content.json`
 
@@ -220,7 +326,14 @@ project_root: <project root>
 ```
 strategy_dir: <strategy_dir>
 project_root: <project root>
-Прочитай strategy_data.json, tariffs.json, TARIFFS.md. Сформируй прозу для 6 разделов стратегии (без цен в разделе 4). Сохрани seo-strategiya_content.json.
+Прочитай inputs.json, seo-strategiya_data.json, forecast.json, tariffs.json (только состав рекомендованного тарифа
+growth и site_dev.recommended), scan/metrics/competitors/serp.json, TARIFFS.md, _services.mjs (short, client_line).
+Напиши seo-strategiya_content.json формата v2: title_page, summary (headline + 3 points), 4 раздела тезисными блоками -
+situation «Где вы сейчас», competitors «Кто в топе и почему», plan «Что нужно, чтобы обогнать конкурентов»,
+forecast «Прогноз» - и next_step. Ни цен, ни денежных сумм, ни тарифов (слова «тариф» и названий пакетов) в тексте:
+деньги, план по месяцам, график и таблицу прогноза рисует сборщик по маркерам - money_lost (situation),
+plan_timeline + не меньше 2 plan_item (plan), forecast_chart + forecast_table (+ forecast_drivers) (forecast).
+Числа - только из файлов анализа и forecast.json. Объем 4-6 страниц A4.
 ```
 
 После завершения:
@@ -228,10 +341,7 @@ project_root: <project root>
 
 ### 6.5. Проверка стратегии (если state == "content-done")
 
-Двухслойный гейт ПЕРЕД сборкой docx (по образцу /seo-struktura шаги 9г+9д): дешевый
-детерминированный скрипт ловит механику, дорогой opus-верификатор ловит смысл. Общий бюджет
-повторов на оба под-гейта = **максимум 2 суммарно** (не по 2 на каждый). Ре-делегация - только
-`strategy-writer` (parent-fallback запрещен).
+Двухслойный гейт ПЕРЕД сборкой docx (по образцу /seo-struktura шаги 9г+9д): дешевый детерминированный скрипт ловит механику, дорогой opus-верификатор ловит смысл. Общий бюджет повторов писателя на оба под-гейта = **максимум 2 суммарно** (не по 2 на каждый). Ре-делегация прозы - только `strategy-writer` (parent-fallback запрещен).
 
 #### 6.5а. Механический гейт
 
@@ -239,22 +349,24 @@ project_root: <project root>
 .claude\scripts\_node.cmd .claude\scripts\verify-strategy.mjs <strategy_dir>
 ```
 
-Ловит: цены в прозе тарифов (только раздел 4), фиксированный стоп-лист воды, тире/букву
-Е-с-точками, грубый перебор объема (warning, не блок), сценарную согласованность
-forecast_scenarios (монотонность кривых, cost_months==active_months, пересчет ROMI по марже,
-год>=вход; legacy без сценариев - блок пропускается).
+Для контента `format: "v2"` ловит (блоки отчета):
+- `СТРУКТУРА` - 4 раздела по ключам `situation` / `competitors` / `plan` / `forecast`, обязательные маркеры (`money_lost`, `plan_timeline` + 2 `plan_item`, `forecast_chart`, `forecast_table`), известные типы блоков, ID услуг в `plan_item.services` есть в каталоге;
+- `ДЕНЬГИ В ПРОЗЕ` - любые суммы и валюта в строках писателя (деньги только в маркерах сборщика);
+- `ТАРИФЫ В ПРОЗЕ` - слово «тариф», «Старт» / «Рост» / «Максимум» как названия пакетов, ID услуг вне `plan_item.services`;
+- `СТОП-ПАТТЕРНЫ ВОДЫ`, `ТИРЕ/Е-С-ТОЧКАМИ`;
+- `ОБЪЕМ (warning)` (4-6 стр, не блок), `СОСТАВ ПЛАНА (warning)` (услуги плана не из состава Роста, не блок - смысл проверит 6.5б);
+- `ПРОГНОЗ` - `forecast.json` сходится с независимым пересчетом модели по `forecast_inputs` + `inputs.json` + `tariffs.json` (ROMI и затраты 12 мес по каждому тарифу, потери в месяц).
 
-- **Exit 0** - к смысловому гейту 6.5б. Предупреждения по объему (если печатались) отметить в
-  финальной сводке, не блок.
-- **Exit 2** - блок. Пере-делегировать с текстом нарушений (общий бюджет повторов 6.5а+6.5б =
-  максимум 2), затем повторить verify-strategy.mjs. Кому делегировать - по заголовку блока в stdout
-  (в духе ORCHESTRATION.md, без чтения данных):
-  - блок «СЦЕНАРНАЯ СОГЛАСОВАННОСТЬ» -> дефект в `forecast_scenarios` (артефакт growth-strategist,
-    писатель их не чинит). Пере-делегировать `growth-strategist`: пусть перевыпустит
-    `forecast_scenarios` (кривые/active_months/единые допущения) с учетом текста нарушений.
-  - прочие блоки (цены в прозе / стоп-паттерны воды / тире-Е-с-точками / объем / структура) ->
-    `strategy-writer`, как раньше.
+Ветвление:
+- **Exit 0** - к смысловому гейту 6.5б. Предупреждения (объем, состав плана) отметить в финальной сводке, не блок.
+- **Exit 2** - блок. Кому чинить - по блоку «КОМУ ЧИНИТЬ» в конце stdout (без чтения данных, в духе ORCHESTRATION.md):
+  - `ПРОГНОЗ` -> чинит **оркестратор, не писатель**: `forecast.json` устарел (тарифы или входы менялись после шага 5.5). Перезапустить `build-forecast.mjs <strategy_dir>` - ТОЛЬКО скрипт и ветвление по его exit, без `update-meta.sh` (статус остается `content-done`, шаг 6 заново не идет): exit 0 - сразу снова 6.5а; exit 3 - круг `tariff-architect` по шагу 5.5, только если `economics_round` еще 0, затем снова `build-forecast.mjs` и 6.5а (при `economics_round` = 1: «ЭКОНОМИЧЕСКИЙ ГЕЙТ» - предупреждение в сводку и 6.5а, «ПРАВИЛА ТАРИФОВ» - стоп); exit 2 / 1 - стоп с показом вывода. Перезапуск прогноза не тратит бюджет повторов писателя; разрешен один раз - если после него `ПРОГНОЗ` снова красный, стоп с показом вывода (расхождение модели и проверки - дефект скриптов). Числа прозы после нового прогноза могли устареть - их ловит 6.5б.
+  - `СТРУКТУРА` / `ДЕНЬГИ В ПРОЗЕ` / `ТАРИФЫ В ПРОЗЕ` / `СТОП-ПАТТЕРНЫ ВОДЫ` / `ТИРЕ/Е-С-ТОЧКАМИ` -> `strategy-writer` с текстом нарушений (бюджет повторов 6.5а+6.5б = максимум 2).
+  - Есть и `ПРОГНОЗ`, и блоки писателя - сначала перезапуск прогноза, потом писатель (он пишет по свежему `forecast.json`).
+  - После фикса - снова `verify-strategy.mjs`.
 - **Exit 1** - ошибка запуска (нет `seo-strategiya_content.json` / битый JSON) - показать stderr, стоп.
+
+Контент без `format: "v2"` (старая задача, см. шаг 1) проверяется легаси-путем: блоки «ЦЕНЫ В ПРОЗЕ ТАРИФОВ» и т.д.; блок «СЦЕНАРНАЯ СОГЛАСОВАННОСТЬ» - дефект `forecast_scenarios`. Писатель v2 такой контент не чинит: показать нарушения пользователю и предложить пересборку по v2 (шаг 1, «Задача, начатая до v2»).
 
 #### 6.5б. Смысловой гейт (агент)
 
@@ -265,23 +377,22 @@ forecast_scenarios (монотонность кривых, cost_months==active_m
 strategy_dir: <strategy_dir>
 project_root: <project root>
 
-Прочитай seo-strategiya_content.json + seo-strategiya_data.json + tariffs.json + inputs.json
-(+ scan/metrics/competitors/serp.json если есть). Проверь: нет цен в прозе (раздел 4 и вся проза,
-кроме декомпозиции выручки раздела 6), цифры бьются с JSON-источниками, тарифы согласованы с
-tariffs.json, объем 5-7 стр, анти-вода сверх стоп-листа, вердикт не противоречит данным, стиль.
-Ничего не чини. Запиши verify_report.json.
+Прочитай seo-strategiya_content.json (format v2) + seo-strategiya_data.json + forecast.json + tariffs.json + inputs.json
+(+ scan/metrics/competitors/serp.json если есть, TARIFFS.md, _services.mjs). Проверь: числа в прозе (трафик, позиции,
+страницы, частоты, обращения) бьются с источниками и forecast.json; работы в разделе plan есть в каталоге и совпадают
+с составом рекомендованного тарифа (growth) - человеческими словами, без ID и цен; нет тарифов, цен и денежных сумм в
+прозе писателя (деньги - только в маркерах сборщика); вердикт не противоречит данным; объем 4-6 стр; вода сверх
+стоп-листа; стиль. Ничего не чини. Запиши verify_report.json.
 ```
 
 После завершения - прочитать `verify_report.json` (точечно `verdict` + `counters`, не весь файл):
 - `verdict == pass` - оба гейта пройдены, перейти к обновлению state ниже, затем к шагу 7.
-- `verdict == needs-fix` / `fail` - пере-делегировать `strategy-writer` с issues из отчета (общий
-  бюджет повторов 6.5а+6.5б = максимум 2), затем повторить 6.5а (verify-strategy.mjs) и 6.5б. После
-  2 повторов без pass - стоп с показом issues пользователю (docx не собираем).
+- `verdict == needs-fix` / `fail` - пере-делегировать `strategy-writer` с issues из отчета (общий бюджет повторов 6.5а+6.5б = максимум 2), затем повторить 6.5а (verify-strategy.mjs) и 6.5б. После 2 повторов без pass - стоп с показом issues пользователю (docx не собираем).
 
 **Ре-делегация strategy-writer при фиксах** - тот же промт, что шаг 6, плюс строкой:
 ```
-Учти замечания verify_report.json: <краткий список kind+where+fix_hint>. Верни только
-seo-strategiya_content.json, содержимое в чат не выводи.
+Учти замечания (verify-strategy.mjs / verify_report.json): <краткий список kind+where+fix_hint>. Исправь ровно это,
+остальное не трогай. Верни только seo-strategiya_content.json, содержимое в чат не выводи.
 ```
 
 Когда ОБА гейта прошли (verify-strategy exit 0 И strategy-verifier verdict pass):
@@ -294,7 +405,12 @@ seo-strategiya_content.json, содержимое в чат не выводи.
 .claude\scripts\_node.cmd .claude\scripts\build-strategy-docx.mjs <strategy_dir>
 ```
 
-Скрипт читает `seo-strategiya_content.json` + `tariffs.json` + `inputs.json`, генерирует `<strategy_dir>/SEO_Strategy_<domain>.docx`.
+Скрипт читает `seo-strategiya_content.json` + `forecast.json` + `tariffs.json` + `inputs.json`, генерирует `<strategy_dir>/SEO_Strategy_<slug>.docx`:
+- обложка-баннер (домен, ниша, регион, дата) и «Главное за одну минуту»: 3 KPI-плитки из `forecast.json` (рост трафика за 12 мес по плану, сколько обращений в месяц уходит конкурентам, сколько выручки в месяц клиент недополучает) + «Коротко» из `summary` писателя;
+- 4 раздела тезисными блоками (каждый с новой страницы); маркеры заполняет сборщик: `money_lost` (деньги, которые клиент теряет: воронка переходы -> обращения -> продажи -> выручка + допущения), `plan_timeline` (план работ по месяцам 1-12 по составу Роста: разовые `PA -> SY -> KP -> FQ`, ежемесячные полосой), `forecast_chart` (трафик по месяцам), `forecast_table` (сейчас / 3 / 6 / 12 мес с планом и без работ), `forecast_drivers` (за счет чего рост);
+- ни цен, ни тарифов, ни слова «тариф». Дизайн-система - `docs/design-strategy-docx.md` (Arial, таблицы с заливкой, без плавающих фигур - переживает конверсию в Google Docs).
+
+Предупреждения скрипта (stdout) - в финальную сводку. Exit 1 «content v2 требует forecast.json» - вернуться к шагу 5.5 (`update-meta.sh <strategy_dir> tariffs-done`); прочие exit 1 - показать stderr, стоп. Контент без `format: "v2"` (старая задача) собирается старым рендером 6 разделов.
 
 `bash .claude/hooks/update-meta.sh <strategy_dir> docx-done`
 
@@ -304,23 +420,33 @@ seo-strategiya_content.json, содержимое в чат не выводи.
 .claude\scripts\_node.cmd .claude\scripts\build-smeta-xlsx.mjs <strategy_dir>
 ```
 
-Скрипт читает `tariffs.json` + `inputs.json` + `seo-strategiya_data.json`, генерирует `<strategy_dir>/Smeta_<domain>.xlsx` (3 вкладки Старт/Рост/Максимум с формулами SUM + 4-я вкладка «Декомпозиция и окупаемость»). 4-я вкладка строит ДВА самосогласованных сценария (Вход 3-6 мес и Год работы) по каждому тарифу: трафик -> лиды -> продажи -> выручка через средний чек, плюс точка окупаемости и ROMI по марже (не по обороту), плюс строка-вывод в пользу годового формата цифрами. Источник - `forecast_scenarios` из `seo-strategiya_data.json`. Обратная совместимость: если `forecast_scenarios` нет, но есть старые `decomposition`+`forecast` - вкладка строится по старой модели (12 мес) с пометкой «старый формат». Если нет ни того ни другого - 4-я вкладка пропускается.
+Скрипт читает `tariffs.json` + `forecast.json` + `seo-strategiya_data.json` (`forecast_inputs`) + `inputs.json`, генерирует `<strategy_dir>/Smeta_<slug>.xlsx` - 6 листов:
+1. **«Сравнение тарифов»** (первым): Старт / Рост / Максимум колонками - разово, ежемесячно, состав коротко, акции, трафик к 3/6/12 мес, дополнительных обращений в месяц к 12 мес, вложения за 12 мес, чистый результат 12 мес, ROMI 12 мес, окупаемость, ROMI 24 мес; рекомендованный выделен (`forecast.recommended_offer`: Рост; при проваленном экономическом гейте - тариф с лучшим чистым результатом за 12 мес, если он в плюсе, иначе ни один - вместо рекомендации строка «дадим после уточнения чека и маржи»); блок «Дополнительно» - спец-предложения `tariffs.special` (сателлит).
+2. **«Старт»**, 3. **«Рост»**, 4. **«Максимум»**: услуги с ценами и формулами SUM, строка «почему этот вариант» (`hint`), акции строками (тестовая статья - «3 000 ₽ -> 0 ₽ (акция)»), порядок оплаты с учетом «ПФ 1=2».
+5. **«Разработка сайта»**: формат и база по формуле калькулятора (`devPrice` из `_services.mjs`), что входит, опции строками без суммы (цена или «по расчету»), зачет стоимости прототипа при `KP` в Росте, акция «ПФ 1=2» при разработке у нас, пометка «рекомендуем» / «по запросу» (`site_dev.recommended`).
+6. **«Окупаемость»**: параметры (средний чек, конверсия, закрытие, маржа - ячейки ввода с подписью источника: правишь - пересчитываются лист и «Сравнение тарифов»), по каждому тарифу 12 месяцев + «Итого год» + «2-й год» (трафик из модели, прирост к сегодняшнему, обращения, продажи, выручка, валовая прибыль, затраты с акциями, результат нарастающим итогом - формулами), под таблицей ROMI 12 мес, окупаемость, ROMI 24 мес; методика - строкой `assumptions_note`.
+
+Предупреждения stdout:
+- «forecast.json не совпадает с пересчетом по tariffs.json» - после 6.5а так быть не должно (там та же сверка). Если все же - перезапустить только `build-forecast.mjs`, без `update-meta.sh` (статус не откатывать): exit 0 - шаги 7 и 8 заново (KPI docx тоже из `forecast.json`); любой другой exit - стоп с показом вывода (тарифы или входы менялись после проверки стратегии - дефект, сообщить владельцу).
+- «ROMI листа «Окупаемость» расходится с forecast.json» - не блок, отметить в финальной сводке (дефект формул сметы, сообщить владельцу).
+
+Легаси: нет `forecast.json` (старая задача) - старые листы: 3 тарифа + «Декомпозиция и окупаемость» по `forecast_scenarios` / `decomposition` без изменения чисел (`_forecast-money.mjs`).
 
 `bash .claude/hooks/update-meta.sh <strategy_dir> xlsx-done`
 
 ### 9. Загрузка в Google Drive (если state == "xlsx-done")
 
-Финальные .docx и .xlsx грузим в Drive с **автоконверсией в Google Workspace** — команда сразу редактирует/комментирует в браузере. Локальные файлы остаются как резерв-оригинал.
+Финальные .docx и .xlsx грузим в Drive с **автоконверсией в Google Workspace** - команда сразу редактирует/комментирует в браузере. Локальные файлы остаются как резерв-оригинал.
 
-**Предусловие:** MCP `gdrive-piotr` подключён глобально, OAuth пройден один раз. См. ADR-008.
+**Предусловие:** MCP `gdrive-piotr` подключен глобально, OAuth пройден один раз. См. ADR-008.
 
 #### 9a. Прочитать конфиг папок
 
-`~/.claude/seo-knowledge/DRIVE.md` — извлечь ID двух якорь-папок:
-- `strategies_folder_id` — папка для стратегий (расшарена «anyone with link → reader»)
-- `smety_folder_id` — папка для смет (то же самое)
+`~/.claude/seo-knowledge/DRIVE.md` - извлечь ID двух якорь-папок:
+- `strategies_folder_id` - папка для стратегий (расшарена «anyone with link → reader»)
+- `smety_folder_id` - папка для смет (то же самое)
 
-Если файл DRIVE.md не существует или ID не находятся — пропустить весь шаг 9, перейти к шагу 10 с пометкой в meta `share_skipped: "drive_config_missing"`. Пользователю в финальном выводе сообщить, что Drive-загрузка пропущена.
+Если файл DRIVE.md не существует или ID не находятся - пропустить весь шаг 9, перейти к шагу 10 с пометкой в meta `share_skipped: "drive_config_missing"`. Пользователю в финальном выводе сообщить, что Drive-загрузка пропущена.
 
 #### 9b. Загрузить стратегию (.docx → Google Doc)
 
@@ -334,7 +460,7 @@ mcp__gdrive-piotr__uploadFile(
 )
 ```
 
-**`convertToGoogleFormat: true`** — Google Drive автоматически превратит .docx в нативный Google Doc. Команда открывает в браузере, может комментировать, редактировать совместно, делиться через стандартные Google-механизмы.
+**`convertToGoogleFormat: true`** - Google Drive автоматически превратит .docx в нативный Google Doc. Команда открывает в браузере, может комментировать, редактировать совместно, делиться через стандартные Google-механизмы.
 
 Из ответа сохранить: `id`, `link` (viewLink).
 
@@ -350,7 +476,7 @@ mcp__gdrive-piotr__uploadFile(
 )
 ```
 
-Формулы `=SUM(E5:E10)` корректно конвертируются в Google Sheets. Форматирование Arial и тёмно-синие заголовки сохранятся.
+Формулы (`=SUM(...)`, формулы листа «Окупаемость» и ссылки «Сравнения тарифов» на другие листы) корректно конвертируются в Google Sheets. Форматирование Arial и темно-синие заголовки сохранятся.
 
 #### 9d. Записать share.json
 
@@ -383,12 +509,12 @@ mcp__gdrive-piotr__uploadFile(
 
 #### Что делать при ошибке Drive-загрузки
 
-Если MCP не отвечает, OAuth протух, или вернулась ошибка — **не блокировать `/seo-strategiya`**. Локальные файлы и так готовы. Действия:
+Если MCP не отвечает, OAuth протух, или вернулась ошибка - **не блокировать `/seo-strategiya`**. Локальные файлы и так готовы. Действия:
 1. Записать в `meta.json` поле `share_error: "<краткое описание>"` (через update-meta или вручную через Edit).
-2. НЕ переходить в `shared` — оставить state `xlsx-done`.
+2. НЕ переходить в `shared` - оставить state `xlsx-done`.
 3. В шаге 10 сообщить пользователю: «Локально готово. Расшаривание в Drive не удалось (причина). Запусти `/share-strategy <NNN>` отдельно после исправления.»
 
-Это даёт устойчивость: даже если Drive временно недоступен, стратегия не теряется.
+Это дает устойчивость: даже если Drive временно недоступен, стратегия не теряется.
 
 ### 10. Финал (если state == "shared" или state == "xlsx-done")
 
@@ -400,20 +526,35 @@ git add -A
 git commit -m "Strategy <NNN> for <domain>: completed"
 ```
 
-Если шаг 9 прошёл успешно (`state` был `shared` перед `completed`), вывести:
+Для блока «Экономика» прочитать точечно из `forecast.json`: `tariffs.{start,growth,max}.year1.romi`, `tariffs.growth.year2.romi`, `tariffs.growth.payback_month` (`null` = больше 24 мес), `checks.soft`, `inputs.economics` (чек и его источник, маржа, `economics_from_client`); из `meta.json` - `economics_warning` (если был); предупреждения шагов 6.5а, 7 и 8, если печатались.
+
+Если шаг 9 прошел успешно (`state` был `shared` перед `completed`), вывести:
 ```
 ═══ СТРАТЕГИЯ ГОТОВА ═══
 
 Клиент: <domain>
 
-📄 Стратегия (Google Doc, для команды и клиента):
+📄 Стратегия (Google Doc, для команды и клиента; 4 раздела, без цен и тарифов):
    <view_link>
 
-📊 Смета (Google Sheet, внутренняя, с ценами):
+📊 Смета (Google Sheet, с ценами: сравнение тарифов, Старт/Рост/Максимум,
+   разработка сайта, окупаемость):
    <view_link>
 
 Оба файла доступны по ссылке любому без логина (anyone with link → reader),
 команда может редактировать и комментировать прямо в браузере.
+
+Экономика (ROMI от валовой прибыли, деньги - только с прироста к текущему трафику):
+   ROMI 12 мес: Старт <a>% | Рост <b>% | Максимум <c>%
+   Рост: окупаемость <N> мес (или «больше 24 мес»), ROMI 24 мес <d>%
+   Средний чек <X> руб (<от клиента | оценка>), маржа <M>%
+   [Предупреждения: checks.soft построчно]
+   [Если economics_warning: Гейт не пройден и после пересборки тарифов: <нарушения>.
+    Рекомендация: подтвердить у клиента средний чек и маржу (сейчас - оценка), облегчить
+    предложение - разовые работы (PA + SY + KP) или Старт. Пересчет: поправить inputs.json,
+    update-meta.sh <strategy_dir> tariffs-done, /seo-strategiya --resume.]
+
+Стратегия - без цен и тарифов. Тарифы, разработка сайта и окупаемость - в смете.
 
 Локальные оригиналы (резерв):
    <strategy_dir>/SEO_Strategy_<slug>.docx
@@ -421,14 +562,15 @@ git commit -m "Strategy <NNN> for <domain>: completed"
 
 Данные анализа: <strategy_dir>/seo-strategiya_data.json
 Тарифы:         <strategy_dir>/tariffs.json
+Прогноз:        <strategy_dir>/forecast.json
 Ссылки:         <strategy_dir>/share.json
 
-⚠️ НЕ ЗАБУДЬ /handoff перед закрытием сессии — иначе файлы останутся
+⚠️ НЕ ЗАБУДЬ /handoff перед закрытием сессии - иначе файлы останутся
    в worktree и не попадут в основную папку проекта.
 ═══════════════════════
 ```
 
-Если шаг 9 был пропущен (`state` остался `xlsx-done`) — вывести fallback:
+Если шаг 9 был пропущен (`state` остался `xlsx-done`) - вывести fallback:
 ```
 Готово локально. Drive-расшаривание не выполнено.
 Причина: <из meta.share_error / share_skipped>
@@ -436,6 +578,10 @@ git commit -m "Strategy <NNN> for <domain>: completed"
 Локальные файлы:
    <strategy_dir>/SEO_Strategy_<slug>.docx
    <strategy_dir>/Smeta_<slug>.xlsx
+
+Экономика: <тот же блок, что выше>
+
+Стратегия - без цен и тарифов. Тарифы, разработка сайта и окупаемость - в смете.
 
 Когда исправишь Drive (см. README troubleshooting), запусти:
    /share-strategy <NNN>
@@ -445,7 +591,7 @@ git commit -m "Strategy <NNN> for <domain>: completed"
 
 ## Параллельная работа
 
-Несколько стратегий одновременно — каждая в своём worktree:
+Несколько стратегий одновременно - каждая в своем worktree:
 ```
 claude --worktree strat-002
 ```
@@ -454,10 +600,12 @@ claude --worktree strat-002
 
 ## Запреты
 
-- НЕ пиши результаты в корень проекта (никакого `SEO_Strategy_*.docx` в корне) — только в `<strategy_dir>/`. Иначе pre-commit отклонит.
-- НЕ пропускай состояния — каждое `update-meta.sh` обязательно.
-- НЕ редактируй методологию (TARIFFS.md, RULES.md) — это `~/.claude/seo-knowledge/`, read-only.
+- НЕ пиши результаты в корень проекта (никакого `SEO_Strategy_*.docx` в корне) - только в `<strategy_dir>/`. Иначе pre-commit отклонит.
+- НЕ пропускай состояния - каждое `update-meta.sh` обязательно (включая `forecast-done`).
+- НЕ считай прогноз, деньги, ROMI и окупаемость сам и НЕ правь `forecast.json` руками - только `build-forecast.mjs`. Поменялись тарифы или экономика - перезапусти скрипт.
+- НЕ пропускай в стратегию (.docx) цены, тарифы и денежные суммы из прозы - деньги рисует сборщик из `forecast.json`, тарифы и цены живут только в смете.
+- НЕ редактируй методологию (TARIFFS.md, RULES.md) - это `~/.claude/seo-knowledge/`, read-only.
 - НЕ используй длинное тире (—) и среднее (–). Только дефис (-).
 - НЕ используй букву ё - всегда пиши е. Правило для всех клиентских текстов и метатегов (как и запрет тире).
-- НЕ делай `git push` и не публикуй артефакты — это решение пользователя.
-- НЕ запускай `/seo-statya`, `/seo-temi` из этой же сессии — это отдельные worktree-задачи.
+- НЕ делай `git push` и не публикуй артефакты - это решение пользователя.
+- НЕ запускай `/seo-statya`, `/seo-temi` из этой же сессии - это отдельные worktree-задачи.

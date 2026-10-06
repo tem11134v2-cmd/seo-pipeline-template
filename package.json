@@ -9,6 +9,7 @@
     "to-excel": "node .claude/scripts/to-excel.mjs",
     "assemble-html": "node .claude/scripts/assemble-html.mjs",
     "tilda-split": "node .claude/scripts/tilda-split.mjs",
+    "build-forecast": "node .claude/scripts/build-forecast.mjs",
     "build-strategy-docx": "node .claude/scripts/build-strategy-docx.mjs",
     "build-smeta-xlsx": "node .claude/scripts/build-smeta-xlsx.mjs",
     "build-article-docx": "node .claude/scripts/build-article-docx.mjs",

@@ -1,12 +1,13 @@
 {
-  "$schema": "Спецификация формата strategy_data.json. Это контракт между growth-strategist (заполняет всё кроме tariffs) и tariff-architect/strategy-writer (читают).",
-  "$version": "3.0",
+  "$schema": "Спецификация формата seo-strategiya_data.json. Контракт между growth-strategist (заполняет все, кроме tariffs) и tariff-architect / build-forecast.mjs / strategy-writer / проверками (читают).",
+  "$version": "4.0",
+  "$changes_4_0": "06.10.2026, стратегия v2. Добавлены forecast_inputs (входы модели прогноза _forecast-model.mjs; кривые и деньги по каждому тарифу считает build-forecast.mjs после тарифов -> forecast.json), scan.maps / scan.address_confirmable / scan.commercial_pages, metrics.has_positions / site_age_months / traffic_source, competitors.*.traffic_month, serp_queries. growth-strategist больше НЕ пишет forecast_scenarios, decomposition и forecast[] - их формат описан в $deprecated_v3 только для чтения старых файлов. ID услуг - линейка 06.10.2026 (KP, FQ, YM вместо NG, KF, YB, BR).",
 
   "domain": "site.ru",
   "region": "Санкт-Петербург",
   "region_id": 2,
   "niche": "Краткое описание ниши клиента",
-  "date": "Май 2026",
+  "date": "Октябрь 2026",
   "keyso_base_primary": "msk",
   "keyso_base_local": "spb",
   "path": "А",
@@ -18,32 +19,55 @@
     "region_from_site": "Санкт-Петербург",
     "region_match": true,
     "directions": ["направление1", "направление2"],
+    "commercial_pages": 8,
+    "commercial_pages_basis": "sitemap: /uslugi/* 7 URL + главная; блог 20 и служебные не считаны",
+    "catalog_cards": 0,
+    "address_confirmable": true,
+    "address": "Санкт-Петербург, ул. Примерная, 10",
+    "maps": {
+      "has_card": true,
+      "url": "https://yandex.ru/maps/org/primer/1234567890/",
+      "rating": 4.6,
+      "reviews": 12,
+      "verified": null,
+      "note": "ссылка на карточку в футере; рейтинг и отзывы из сниппета брендовой выдачи; подтверждение владельцем проверить вручную"
+    },
+    "yandex_maps": true,
     "problems": ["проблема1", "проблема2"]
   },
+  "$comment_scan": "scan - целиком из scan.json (obvious_problems -> problems). maps: has_card true|false|null (null - не проверено), verified true|false|null, rating/reviews - только если видны в источнике. yandex_maps - булев для совместимости: true только при maps.has_card == true. address_confirmable: true - на сайте есть физический адрес (улица, дом) для подтверждения организации в Картах; false - онлайн/выездной формат; null - не определено. commercial_pages - коммерческие посадочные (услуги, подуслуги, категории), без статей и служебных.",
 
   "metrics": {
     "dr": 5,
     "iks": 30,
     "top10": 12,
     "top50": 89,
+    "has_positions": true,
     "pages_keyso": 45,
     "pages_index": 38,
     "age_years": 3.5,
-    "traffic_month": 1200,
-    "search_share": 0.42,
-    "yandex_maps": false,
+    "site_age_months": 30,
+    "site_age_basis": "история Keyso: ТОП-50 > 0 с 2024-04",
+    "traffic_month": 40,
+    "traffic_source": "keyso",
+    "traffic_keyso": 40,
+    "traffic_keyso_base": "spb",
+    "search_share": null,
+    "yandex_maps": true,
     "bot_traffic_warning": false,
     "critical_issues_webmaster": [],
     "indexation_speedyindex": {"checked": 10, "in_index": 8},
+    "local_metrics": {"base": "spb", "dr": 4, "top10": 8, "top50": 60, "pages_keyso": 40, "traffic": 40},
     "tech_check": [
       {"page": "/services", "issue": "title 78 символов"}
     ]
   },
+  "$comment_metrics": "traffic_month - визиты ИЗ ПОИСКА в месяц (traffic_source: metrika | keyso | null), не все визиты сайта. has_positions = top50 > 0 на msk или локальной базе. site_age_months - возраст сайта (не домена), для акции «ПФ 1=2». metrics.yandex_maps - копия scan.yandex_maps для старых потребителей.",
 
   "dynamics": [
-    {"month": "2025-10", "top10": 8, "top50": 65, "traffic_month": 800},
-    {"month": "2025-11", "top10": 10, "top50": 72, "traffic_month": 950},
-    {"month": "2025-12", "top10": 12, "top50": 89, "traffic_month": 1200}
+    {"month": "2026-07", "top10": 8, "top50": 65, "traffic_month": 30},
+    {"month": "2026-08", "top10": 10, "top50": 72, "traffic_month": 35},
+    {"month": "2026-09", "top10": 12, "top50": 89, "traffic_month": 40}
   ],
 
   "competitors": {
@@ -55,6 +79,10 @@
         "top10": 45,
         "top50": 320,
         "pages": 120,
+        "traffic_month": 1800,
+        "traffic_month_local": 1100,
+        "commercial_pages": 46,
+        "commercial_pages_basis": "sitemap: /uslugi/* 52 URL, под направления клиента 46",
         "growth_model": "контент + ПФ"
       }
     ],
@@ -62,8 +90,11 @@
       {
         "domain": "leader1.ru",
         "dr": 35,
+        "top10": 410,
         "top50": 1200,
         "pages": 500,
+        "traffic_month": 6000,
+        "traffic_month_local": 3900,
         "takeaway": "блог 200+ статей, активные ссылки"
       }
     ],
@@ -72,31 +103,61 @@
       "client_missing": ["калькулятора нет"]
     }
   },
+  "$comment_competitors": "Метрики конкурентов - Keyso domains_batch на msk (dr из type=links, остальное из type=organic); traffic_month_local - тот же пакет на локальной базе (если задана). commercial_pages - только у топ-3 прямых: коммерческие посадочные ПОД НАПРАВЛЕНИЯ КЛИЕНТА (вход для forecast_inputs.pages.planned_new). Нет данных - null, не 0.",
 
   "verdict": {
     "type": "РАСШИРЯЕМ",
-    "text": "В ТОП многостраничники, у клиента 45 страниц — необходимо расширение структуры.",
-    "actions": ["SY в Старт", "расширение до 80+ страниц"]
+    "text": "В ТОП многостраничники со 100+ страниц, у клиента 8 коммерческих страниц - необходимо расширение структуры.",
+    "actions": ["страницы под подуслуги и смежные направления, которых нет (SY)", "коммерческие блоки лидеров: калькулятор, цены, отзывы (KP)"]
   },
+
+  "serp_queries": [
+    {
+      "query": "химчистка дивана",
+      "base": "spb",
+      "ws": 5400,
+      "wsk": 1300,
+      "client_position": 34,
+      "client_url": "https://site.ru/divany/",
+      "top": ["a.ru", "b.ru", "c.ru"],
+      "page_types": ["услуга", "услуга", "каталог"],
+      "aggregators_in_top3": 0,
+      "intent": "коммерческий"
+    }
+  ],
+  "$comment_serp_queries": "Копия serp.json.queries (competitor-analyst). ws/wsk - частоты базы Keyso из keyword_info (ws широкая, wsk точная), client_position - позиция клиента в ТОП-50 (null - нет). Точная региональная частота Wordstat - в growth_points[].evidence[].ws и forecast_inputs.demand.",
 
   "growth_points": [
     {
       "name": "Расширение структуры услуг",
-      "problem": "На сайте 45 страниц, у конкурентов 120-500.",
-      "consequences": "Невозможно конкурировать за СЧ/ВЧ запросы — нет посадочных страниц.",
-      "solution": "Создать 30+ страниц услуг с уникальным контентом.",
+      "problem": "На сайте 8 коммерческих страниц, у трех сильнейших конкурентов 40-55 под те же направления.",
+      "consequences": "Под спрос на подуслуги нет посадочных страниц - эти запросы забирают конкуренты.",
+      "solution": "Спроектировать структуру под спрос и добавить около 38 страниц услуг с текстами.",
       "evidence": [
-        {"query": "тимбилдинг спб", "ws": 2400, "top": "eventgroup.ru", "client_pos": 34},
-        {"query": "корпоратив спб", "ws": 1800, "top": "prazdnik.ru", "client_pos": null}
+        {"query": "химчистка дивана", "ws": 1240, "top": "a.ru", "client_pos": 34},
+        {"query": "химчистка угловых диванов", "ws": 210, "top": "b.ru", "client_pos": null}
       ],
       "competitor_facts": [
-        "У eventgroup.ru страница /teambuilding собирает 89 ключей в ТОП-50",
-        "У prazdnik.ru раздел услуг — 45 отдельных страниц"
+        "У a.ru страница /himchistka-divanov собирает 89 ключей в ТОП-50",
+        "У b.ru раздел услуг - 45 отдельных страниц"
       ],
-      "summary": "Расширение до 80+ страниц даст доступ к ~5000 запросов/мес.",
-      "services": ["SY", "NG"]
+      "summary": "Около 38 новых страниц под направления, которые уже ищут: ~14 800 запросов в месяц по точной частоте в регионе.",
+      "services": ["PA", "SY", "KP"]
+    },
+    {
+      "name": "Карточка в Яндекс Картах без активности",
+      "problem": "Карточка компании в Картах есть, но в ней 12 отзывов и нет публикаций, у конкурентов 80-150 отзывов.",
+      "consequences": "Локальный спрос с карты и колдунщика выдачи уходит конкурентам с активными карточками.",
+      "solution": "Регулярные отзывы, реакции и публикации в карточке каждый месяц.",
+      "evidence": [
+        {"query": "химчистка мебели рядом", "ws": 390, "top": "yandex.ru/maps", "client_pos": null}
+      ],
+      "competitor_facts": ["У a.ru карточка с рейтингом 4,9 и 140 отзывами"],
+      "summary": "Активная карточка поднимается в Картах и передает вес сайту, плюс прямые звонки из Карт.",
+      "services": ["YM"]
     }
   ],
+  "$comment_growth_points": "services - ID линейки 06.10.2026: PA, SY, KP, FQ, FA, BS, MT, PF, PFP, YM, LB, LA, AR, IT, ART. Выведенные NG, KF, YB, BR, MF, MD не использовать. evidence[].ws - ТОЧНАЯ частота (\"!\") в регионе клиента (inputs.region_id) из одного пакетного jm_wordstat; не широкая, не Keyso ws, не Москва. Точка роста про Карты (YM) - только для локального бизнеса с адресом.",
 
   "tech_problems": ["нет canonical на 12 страницах", "дубли H1 на 3 страницах"],
   "quick_wins": [
@@ -105,62 +166,106 @@
     "Настроить robots.txt"
   ],
 
-  "tariffs": {},
-
-  "forecast": [
-    {"period": "сейчас", "top10": 12, "top50": 89, "dr": 5, "traffic_month": 1200, "pages_index": 38},
-    {"period": "3 мес", "top10": 30, "top50": 180, "dr": 8, "traffic_month": 3500, "pages_index": 65},
-    {"period": "6 мес", "top10": 55, "top50": 350, "dr": 12, "traffic_month": 7000, "pages_index": 80},
-    {"period": "12 мес", "top10": 90, "top50": 500, "dr": 18, "traffic_month": 12000, "pages_index": 95}
-  ],
+  "forecast_inputs": {
+    "business_type": "services",
+    "competition": "medium",
+    "t0": 40,
+    "t0_source": "keyso",
+    "t0_basis": "Keyso traffic, база spb (Метрики нет)",
+    "pages": {
+      "existing_commercial": 8,
+      "planned_new": 38,
+      "catalog_cards": 0,
+      "basis": "у клиента 8 коммерческих (sitemap); у топ-3 прямых под направления клиента 41/46/52, медиана 46 -> 46 - 8 = 38"
+    },
+    "demand": {
+      "commercial_month": 14800,
+      "info_month": 4200,
+      "region": 2,
+      "markers": [
+        {"q": "химчистка дивана", "ws": 1240},
+        {"q": "химчистка ковров", "ws": 980},
+        {"q": "химчистка матраса", "ws": 610}
+      ],
+      "basis": "сумма ТОЧНЫХ частот (\"!\") 34 маркеров коммерческих кластеров по региону 2 (jm_wordstat, один пакет); крупнейшие: химчистка дивана 1240, химчистка ковров 980; инфо - 12 маркеров-вопросов"
+    },
+    "local": true,
+    "maps_card": "unverified",
+    "tech_critical": false,
+    "has_positions": true,
+    "site_age_months": 30,
+    "implementation_lag_shift": 0,
+    "competitors_traffic": {
+      "median": 1100,
+      "leader": 3900,
+      "basis": "Keyso domains_batch, база spb, 6 прямых"
+    },
+    "economics": {
+      "avg_check": 6500,
+      "avg_check_source": "site",
+      "conversion_rate": 0.05,
+      "close_rate": 0.3,
+      "margin": 0.4,
+      "model": "two_step",
+      "basis": "чек - типовой заказ по прайсу сайта (диван 3-местный 5 500-7 500); конверсия, закрытие и маржа - дефолты ECON_DEFAULTS для services (клиент не назвал)"
+    }
+  },
+  "$comment_forecast_inputs": "Пишет growth-strategist. Единственный вход модели прогноза (_forecast-model.mjs): build-forecast.mjs после тарифов строит кривую трафика и деньги по КАЖДОМУ тарифу из его состава и пишет forecast.json. Здесь нет ни трафика по месяцам, ни денег, ни тарифов. Обязательные для скрипта: t0 (число >= 0), pages.existing_commercial и pages.planned_new (числа), demand.commercial_month (число), economics.avg_check (> 0) - иначе build-forecast exit 2. Перечисления: business_type services|medical|b2b|high_ticket|ecommerce|info; competition low|medium|high; t0_source metrika|keyso|estimated; maps_card none|unverified|verified|unknown; economics.model two_step|one_step; avg_check_source client|site|estimated. Доли (conversion_rate, close_rate, margin) - в (0; 1], не проценты. Клиентские значения из inputs.json перекрывают economics (делает скрипт). Дефолты по типу бизнеса - ECON_DEFAULTS в _forecast-model.mjs. demand.info_month = 0 означает «инфоспроса нет» (модель тогда не ограничивает трафик статей спросом) - заполняй, если у ниши есть инфоспрос.",
 
   "traffic_month_estimated": false,
-  "$comment_traffic": "traffic_month_estimated=true, если базовый traffic_month оценён (нет Метрики/тонкая база Keyso). Строка SEO-трафик в прогнозе ВСЕГДА число, не null.",
+  "$comment_traffic": "traffic_month_estimated = true, если forecast_inputs.t0_source == \"estimated\" (нет Метрики и трафика Keyso - оценка по позициям или 0). Поле для совместимости: build-forecast.mjs берет его, если в forecast_inputs нет t0_source.",
 
-  "decomposition": {
-    "$comment": "DEPRECATED (v3.0): деньги перенесены в скрипт сметы, growth-strategist это поле больше НЕ заполняет. Оставлено как алиас для чтения СТАРЫХ файлов (обратная совместимость 4-й вкладки, legacy-рендер). Новые файлы содержат forecast_scenarios вместо decomposition. Историческая семантика: денежная воронка для тарифа Рост (leads=traffic*conversion_rate, sales=leads*close_rate, revenue=sales*avg_check), окупаемость/ROMI считались от прибыли (revenue*margin) только в смете.",
-    "model": "two_step",
-    "avg_check": 25000,
-    "avg_check_source": "estimated",
-    "conversion_rate": 0.02,
-    "close_rate": 0.3,
-    "margin": 0.35,
-    "basis": "SEO-трафик тарифа Рост (рекомендованный)",
-    "rows": [
-      {"period": "сейчас", "traffic": 1200, "leads": 24, "sales": 7, "revenue": 175000},
-      {"period": "6 мес", "traffic": 7000, "leads": 140, "sales": 42, "revenue": 1050000},
-      {"period": "12 мес", "traffic": 12000, "leads": 240, "sales": 72, "revenue": 1800000}
-    ]
-  },
+  "tariffs": {},
 
-  "forecast_scenarios": {
-    "$comment": "Два самосогласованных сценария для 4-й вкладки сметы. assumptions едины на оба (конверсия/чек/маржа). У каждого сценария своя кривая трафика (checkpoints тарифа Рост, скрипт масштабирует на Старт x0.6 / Максимум x1.3) и свое число активных месяцев ежемесячных услуг. Деньги (лиды/выручка/кэшфлоу/ROMI/окупаемость) СКРИПТ считает сам из checkpoints+assumptions+затрат тарифа - агент денег НЕ считает.",
-    "assumptions": {
+  "$deprecated_v3": {
+    "$comment": "DEPRECATED (v4.0): НЕ писать в новые файлы. Описание для чтения СТАРЫХ seo-strategiya_data.json (пересборка старых смет и docx легаси-путем через _forecast-money.mjs). Новые файлы: forecast_inputs вместо всех трех полей; прогноз трафика и денег - в forecast.json (build-forecast.mjs).",
+    "forecast": [
+      {"period": "сейчас", "top10": 12, "top50": 89, "dr": 5, "traffic_month": 1200, "pages_index": 38},
+      {"period": "12 мес", "top10": 90, "top50": 500, "dr": 18, "traffic_month": 12000, "pages_index": 95}
+    ],
+    "decomposition": {
+      "$comment": "DEPRECATED еще с v3.0: денежная воронка тарифа Рост (leads = traffic x conversion_rate, sales = leads x close_rate, revenue = sales x avg_check). Легаси-лист сметы читает data.decomposition + data.forecast.",
       "model": "two_step",
-      "conversion_rate": 0.02,
-      "close_rate": 0.3,
       "avg_check": 25000,
       "avg_check_source": "estimated",
+      "conversion_rate": 0.02,
+      "close_rate": 0.3,
       "margin": 0.35,
-      "basis": "SEO-трафик, масштабируется по тарифам"
+      "basis": "SEO-трафик тарифа Рост (рекомендованный)",
+      "rows": [
+        {"period": "сейчас", "traffic": 1200, "leads": 24, "sales": 7, "revenue": 175000},
+        {"period": "12 мес", "traffic": 12000, "leads": 240, "sales": 72, "revenue": 1800000}
+      ]
     },
-    "scenarios": [
-      {
-        "id": "entry_3_6",
-        "label": "Вход 3-6 мес",
-        "recommended": false,
-        "active_months": { "start": 3, "growth": 4, "max": 6 },
-        "traffic_checkpoints": { "m0": 1200, "m3": 3000, "m6": 4600, "m9": 5200, "m12": 5400 },
-        "methodology_note": "Клиент оплачивает ежемесячные услуги 3-6 мес (по тарифу). После остановки публикаций рост затухает к плато - лаг индексации 2-4 мес доносит уже набранное, дальше кривая выполаживается. К 12-му мес - умеренный результат."
+    "forecast_scenarios": {
+      "$comment": "DEPRECATED (v4.0): два сценария v3.0 (Вход 3-6 мес / Год работы) с одной кривой Роста и плоским масштабом Старт x0,6 / Максимум x1,3. Сценарий «Вход 3-6 мес» удален, плоский масштаб удален. Легаси-лист сметы (writeScenarioSheet) читает это поле у старых файлов.",
+      "assumptions": {
+        "model": "two_step",
+        "conversion_rate": 0.02,
+        "close_rate": 0.3,
+        "avg_check": 25000,
+        "avg_check_source": "estimated",
+        "margin": 0.35,
+        "basis": "SEO-трафик, масштабируется по тарифам"
       },
-      {
-        "id": "year",
-        "label": "Год работы",
-        "recommended": true,
-        "active_months": { "start": 12, "growth": 12, "max": 12 },
-        "traffic_checkpoints": { "m0": 1200, "m3": 3500, "m6": 7000, "m9": 9600, "m12": 12000 },
-        "methodology_note": "Контент добавляется весь год. Прирост привязан к накопленному объему опубликованного контента с лагом 2-4 мес - кривая продолжает расти к 12-му мес. Оба прогноза выведены из одних исходных данных Wordstat/конкурентов."
-      }
-    ]
+      "scenarios": [
+        {
+          "id": "entry_3_6",
+          "label": "Вход 3-6 мес",
+          "recommended": false,
+          "active_months": { "start": 3, "growth": 4, "max": 6 },
+          "traffic_checkpoints": { "m0": 1200, "m3": 3000, "m6": 4600, "m9": 5200, "m12": 5400 },
+          "methodology_note": "..."
+        },
+        {
+          "id": "year",
+          "label": "Год работы",
+          "recommended": true,
+          "active_months": { "start": 12, "growth": 12, "max": 12 },
+          "traffic_checkpoints": { "m0": 1200, "m3": 3500, "m6": 7000, "m9": 9600, "m12": 12000 },
+          "methodology_note": "..."
+        }
+      ]
+    }
   }
 }
