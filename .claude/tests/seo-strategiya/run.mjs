@@ -1149,15 +1149,65 @@ await step("модель: замена MT -> SY (метатеги входят �
   return true;
 });
 
-await step("модель: Старт и Рост близки на 3-м мес при ПФ в обоих (Старт/Рост >= 0,75), Рост заметно выше на 12-м (>= 1,3 при planned_new > 0)", () => {
+await step("модель: Старт и Рост близки на 3-м мес при ПФ в обоих (Рост без Карт; Старт/Рост >= 0,75), Рост заметно выше на 12-м (>= 1,3 при planned_new > 0)", () => {
   if (!(V2_FI.pages.planned_new > 0)) return "фикстура: planned_new должен быть > 0";
-  const res = computeAll(V2_FI, v2Tariffs());
+  // v2.2: Карты усиливают ПФ в 1,5 раза - Рост с Картами уходит вперед уже к 3-му мес (это отдельный тест ниже);
+  // «почти вровень на 3-м мес» - про структуру и тексты, поэтому здесь Рост без Карт.
+  const t = v2Tariffs();
+  t.growth.monthly = t.growth.monthly.filter((x) => x.id !== "YM");
+  t.growth.total_monthly = t.growth.monthly.reduce((acc, x) => acc + (x.price || 0), 0);
+  const res = computeAll(V2_FI, t);
   const s = res.start.checkpoints, g = res.growth.checkpoints;
   if (!res.start.ids.includes("PF") || !res.growth.ids.includes("PF")) return "фикстура: ПФ должен быть в обоих тарифах";
   const r3 = s.m3 / g.m3;
   const r12 = g.m12 / s.m12;
   if (r3 < 0.75) return `m3: Старт ${Math.round(s.m3)} / Рост ${Math.round(g.m3)} = ${r3.toFixed(2)} (< 0,75)`;
   if (r12 < 1.3) return `m12: Рост ${Math.round(g.m12)} / Старт ${Math.round(s.m12)} = ${r12.toFixed(2)} (< 1,3)`;
+  return true;
+});
+
+await step("модель v2.2: Карты усиливают ПФ - Рост с Картами выше Роста без Карт на 3-м и 12-м мес; разгон новых страниц с ПФ к 6-му мес >= 80% уровня, без ПФ к 12-му мес только около 90%", () => {
+  const fi = v2Fi({ local: true, maps_card: "verified" });
+  const t = v2Tariffs();
+  const noYm = JSON.parse(JSON.stringify(t.growth));
+  noYm.monthly = noYm.monthly.filter((x) => x.id !== "YM");
+  const withYm = computeTariff(fi, { ...t.growth, monthly: [...noYm.monthly, { id: "YM", price: 25000 }] });
+  const without = computeTariff(fi, noYm);
+  if (!(withYm.checkpoints.m3 > without.checkpoints.m3 * 1.1)) return `m3: с Картами ${Math.round(withYm.checkpoints.m3)}, без ${Math.round(without.checkpoints.m3)}`;
+  if (!(withYm.checkpoints.m12 > without.checkpoints.m12)) return "m12: Карты не добавили трафика";
+  // ПФ ускоряет выход в топ: новые страницы с ПФ (без Карт) к 6-му мес >= 80% уровня, без ПФ к 6-му мес < 60%
+  const fiNew = v2Fi({ t0: 0, local: false, pages: { existing_commercial: 0, planned_new: 40, catalog_cards: 0 }, site_launch_month: 1, site_age_months: 36 });
+  const pf = trafficSeries(fiNew, new Set(["PA", "SY", "KP", "PF", "RP"]));
+  const nopf = trafficSeries(fiNew, new Set(["PA", "SY", "KP"]));
+  const lvlPf = pf[24].commercial, lvlNo = nopf[24].commercial;
+  if (pf[6].commercial < 0.8 * lvlPf) return `с ПФ к 6-му мес ${Math.round(pf[6].commercial)} из ${Math.round(lvlPf)} (< 80%)`;
+  if (nopf[6].commercial > 0.6 * lvlNo) return `без ПФ к 6-му мес уже ${Math.round(nopf[6].commercial)} из ${Math.round(lvlNo)} (> 60%)`;
+  if (nopf[12].commercial < 0.8 * lvlNo || nopf[12].commercial > 0.97 * lvlNo) return `без ПФ к 12-му мес ${Math.round(nopf[12].commercial)} из ${Math.round(lvlNo)} (ожидалось ~90%)`;
+  return true;
+});
+
+await step("модель v2.2: новый сайт на новом домене - ПФ без Карт в 1-й мес после запуска дает меньше 100 переходов (но не 0 к 2-му), ПФ с Картами - больше 100", () => {
+  const fiNew = v2Fi({ t0: 0, local: true, maps_card: "none", pages: { existing_commercial: 0, planned_new: 40, catalog_cards: 0 }, we_develop: true, site_age_months: 0 });
+  const L = launchMonth(fiNew);
+  const noYm = trafficSeries(fiNew, new Set(["PA", "SY", "KP", "PF", "RP"]));
+  const ym = trafficSeries(fiNew, new Set(["PA", "SY", "KP", "PF", "YM", "RP"]));
+  if (!(noYm[L + 1].commercial < 100)) return `без Карт мес ${L + 1}: ${Math.round(noYm[L + 1].commercial)} (>= 100)`;
+  if (!(noYm[L + 2].commercial > 0)) return `без Карт мес ${L + 2}: 0`;
+  if (!(ym[L + 1].commercial >= 100)) return `с Картами мес ${L + 1}: ${Math.round(ym[L + 1].commercial)} (< 100)`;
+  return true;
+});
+
+await step("модель v2.2: техаудит дает буст только при серьезных ошибках (tech_critical), ссылки - не раньше 4-го мес", () => {
+  const fi = v2Fi({ local: false });
+  const ids = new Set(["FA", "PF", "RP"]);
+  const plain = trafficSeries({ ...fi, tech_critical: false }, ids)[6].commercial;
+  const crit = trafficSeries({ ...fi, tech_critical: true }, ids)[6].commercial;
+  const none = trafficSeries({ ...fi, tech_critical: false }, new Set(["PF", "RP"]))[6].commercial;
+  if (!(crit > plain * 1.05)) return `FA при серьезных ошибках не дал буста: ${Math.round(crit)} против ${Math.round(plain)}`;
+  if (!(plain < none * 1.03)) return `FA без серьезных ошибок дал заметный буст: ${Math.round(plain)} против ${Math.round(none)}`;
+  const lb = trafficSeries(fi, new Set(["PF", "LB", "RP"])), base = trafficSeries(fi, new Set(["PF", "RP"]));
+  for (let m = 1; m <= 4; m++) if (Math.abs(lb[m].commercial - base[m].commercial) > 1e-6) return `ссылки дали эффект уже на ${m}-м мес`;
+  if (!(lb[8].commercial > base[8].commercial)) return "ссылки не дали эффекта и к 8-му мес";
   return true;
 });
 

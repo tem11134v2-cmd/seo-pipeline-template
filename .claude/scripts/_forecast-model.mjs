@@ -17,7 +17,7 @@
 // Конверсия визит -> обращение по умолчанию 5% для услуг: в кейсах медиана 9,1% (Q1 7,2%, цели Метрики,
 // включая клики по телефону и мессенджерам), берем с запасом. ROMI - от валовой прибыли (выручка x маржа).
 
-export const MODEL_VERSION = "v2.1";
+export const MODEL_VERSION = "v2.2";
 export const TARIFF_KEYS = ["start", "growth", "max"];
 export const HORIZON = 24;
 
@@ -66,11 +66,23 @@ export const CAL = {
   // PA -> SY -> KP ~1 мес + внедрение), разгон считается от запуска страниц (t - lag).
   // Новые сайты с ПФ: 45-75% уровня к m3 от запуска, 75-95% к m6 -> tau 2,5 (70% / 91%); tau 1,5 давал 86% / 98%
   // (быстрее кейсов) и уводил Рост от Старта уже на 3-м мес.
-  new_pages_ramp_pf: { lag: 2, tau: 2.5 },
-  new_pages_ramp_nopf: { lag: 2.5, tau: 3 },
+  // v2.2 (практика владельца, 06.10): ПФ не только дает быстрый старт, но и ускоряет выход новых страниц в топ -
+  // уровень, на который Рост без ПФ выходит за 12+ мес, с ПФ достижим за ~6 мес. С ПФ: 86% уровня через 4 мес после
+  // лага (к m6); без ПФ: 90% только к ~13-му мес.
+  new_pages_ramp_pf: { lag: 2, tau: 2.0 },
+  new_pages_ramp_nopf: { lag: 2.5, tau: 4.5 },
+  // Карты (YM) повышают суммарную эффективность ПФ в среднем в 1,5 раза (практика владельца): эффект ПФ на
+  // существующих страницах x1,5 и разгон в 1,5 раза быстрее (и существующих, и новых страниц).
+  pf_ym_synergy: 1.5,
+  // Новый сайт на новом домене без ссылочного веса: ПФ без Карт почти не выводит даже первые 100 переходов в первый
+  // месяц - разгон новых страниц на полмесяца позже и в 1,5 раза медленнее (в 1-й мес после запуска < 100 переходов);
+  // ПФ вместе с Картами - обычный разгон.
+  new_domain_no_ym: { extra_lag: 0.5, tau_mult: 1.5 },
   // Без ПФ в конкурентной нише новые страницы добирают меньше (кейсы: ПФ определяет скорость, а в
   // высокой конкуренции и уровень).
-  nopf_level_factor: { low: 0.9, medium: 0.7, high: 0.5 },
+  // v2.2: по практике владельца без ПФ сайт выходит на тот же уровень, только вдвое дольше (12+ мес против 6) -
+  // штраф уровня без ПФ мягкий, главное отличие - скорость (new_pages_ramp_nopf).
+  nopf_level_factor: { low: 1.0, medium: 0.9, high: 0.75 },
   // Качество текстов новых страниц: есть KP (тексты в прототипе) или FQ (n-граммы) - 1,0;
   // только структура (тексты пишет клиент) - 0,75.
   content_q_with_texts: 1.0,
@@ -79,16 +91,20 @@ export const CAL = {
   // Бусты на весь коммерческий трафик (множители с лагом). Источники: кейсы техаудита (lp-teh),
   // FAQ/n-граммы и КФ - экспертная оценка по прогонам; ссылки и Карты в кейсах не замерены - оценка.
   boosts: {
-    FA: { mult: 1.10, lag: 2, tau: 1.5 },        // техаудит (внедрение разработчиком клиента)
+    // v2.2: техаудит дает заметный разовый буст только при серьезных ошибках (tech_critical: ошибки индексации,
+    // зеркал, массовые дубли) - тогда x1,12; иначе почти ничего (x1,02).
+    FA: { mult: 1.02, lag: 2, tau: 1.5 },        // техаудит (внедрение разработчиком клиента)
     BS: { mult: 1.08, lag: 1, tau: 1 },          // базовое SEO Tilda (делаем сами)
     MT: { mult: 1.05, lag: 1.5, tau: 1 },        // метатеги отдельно
     FQ: { mult: 1.12, lag: 2.5, tau: 2 },        // n-граммы + FAQ на коммерческих страницах
     KP_rank: { mult: 1.10, lag: 3, tau: 2 },     // КФ/КНДР лидеров на сайте - коммерческие факторы
-    LB: { mult: 1.08, lag: 3, tau: 3 },
-    LA: { mult: 1.15, lag: 3, tau: 3 },
-    YM: { mult: 1.12, lag: 1, tau: 2 },          // Карты: активность карточки передается сайту
+    // v2.2: ссылки - сильнее всего на Google и не раньше чем через 3-4 мес; в Яндексе (основной трафик) слабее.
+    LB: { mult: 1.06, lag: 4, tau: 3 },
+    LA: { mult: 1.12, lag: 4, tau: 3 },
+    // Карты без ПФ (редкий случай): только перенос веса карточки на сайт. С ПФ Карты работают через pf_ym_synergy.
+    YM: { mult: 1.08, lag: 1, tau: 2 },
   },
-  tech_critical_extra: 1.08,                     // FA при критичных ошибках индексации - добавка
+  fa_critical_mult: 1.12,                        // FA при серьезных тех. ошибках (tech_critical)
 
   // Конверсия: прототип КФ/КНДР на сайте поднимает конверсию (кейсы MK: 1% -> 4%; cn-exclusive
   // 4,7% -> 9,1%) - берем x1,3 с лагом внедрения.
@@ -335,13 +351,18 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
   const hasKP = ids.has("KP");
   const hasAR = ids.has("AR");
   const hasYM = ids.has("YM") && local;
+  const synergy = hasPF && hasYM ? CAL.pf_ym_synergy : 1;       // Карты усиливают ПФ
+  // новый сайт на новом домене: запуск позже 1-го мес или сайту меньше 6 мес
+  const newDomain = launch > 1 || num(fi.site_age_months, 999) < 6;
 
   // 1) Существующие страницы.
   const f = Math.min(1, Math.max(CAL.mult_floor, Math.pow(CAL.mult_ref_t0 / Math.max(t0, 1), 0.25)));
-  const multMax = 1 + ((hasPF ? CAL.pf_mult_max : CAL.nopf_mult_max) - 1) * f;
+  const multMax = hasPF
+    ? 1 + (CAL.pf_mult_max - 1) * synergy * f
+    : 1 + (CAL.nopf_mult_max - 1) * f;
   const pageTarget = (existingPages * vpp + cards * CAL.vpp_card) * (hasPF ? 1 : CAL.nopf_level_factor[comp]);
   const existTarget = Math.max(t0 * multMax, pageTarget, t0);
-  const existRamp = hasPF ? CAL.pf_ramp : CAL.nopf_ramp;
+  const existRamp = hasPF ? { lag: CAL.pf_ramp.lag, tau: CAL.pf_ramp.tau / synergy } : CAL.nopf_ramp;
 
   // 2) Новые страницы (только при SY).
   const contentQ = hasTexts ? CAL.content_q_with_texts : CAL.content_q_structure_only;
@@ -349,7 +370,12 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
     ? plannedNew * vppNew * contentQ * (hasPF ? 1 : CAL.nopf_level_factor[comp])
     : 0;
   const newRampBase = hasPF ? CAL.new_pages_ramp_pf : CAL.new_pages_ramp_nopf;
-  const newRamp = { lag: Math.max(newRampBase.lag, launch), tau: newRampBase.tau };
+  let newLag = Math.max(newRampBase.lag, launch), newTau = newRampBase.tau;
+  if (hasPF) {
+    newTau = newTau / synergy;
+    if (newDomain && !hasYM) { newLag += CAL.new_domain_no_ym.extra_lag; newTau *= CAL.new_domain_no_ym.tau_mult; }
+  }
+  const newRamp = { lag: newLag, tau: newTau };
 
   // Потолок коммерческого трафика (мягкий, см. trafficCap/softCap).
   const cap = trafficCap(fi);
@@ -367,7 +393,7 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
       for (const id of ["FA", "BS", "MT", "FQ", "LB", "LA"]) {
         if (!(id === "MT" ? hasMT : ids.has(id))) continue;
         let b = CAL.boosts[id];
-        if (id === "FA" && techCritical) b = { ...b, mult: b.mult * CAL.tech_critical_extra };
+        if (id === "FA" && techCritical) b = { ...b, mult: CAL.fa_critical_mult };
         const k = boostAt(m, b, id === "BS" ? 0 : implShift, f);
         if (id === "LB" || id === "LA") boostAll *= k; else boostPage *= k;
         parts[id] = k;
@@ -377,7 +403,7 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
         boostPage *= k;
         parts.KP = k;
       }
-      if (hasYM) {
+      if (hasYM && !hasPF) {
         const k = boostAt(m, CAL.boosts.YM, Math.max(hasCard ? 0 : CAL.ym_card_create_lag, launch - 1), f);
         boostAll *= k;
         parts.YM = k;

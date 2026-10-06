@@ -185,7 +185,7 @@ arsenkin_wordstat(mode="dynamics", queries=["<основной маркер>"], 
 
 **`maps_card`** - из `scan.maps`: `has_card == false` -> `"none"`; `has_card == true` и `verified == true` -> `"verified"`; `has_card == true`, `verified` не true -> `"unverified"`; `has_card == null` -> `"unknown"`.
 
-**`tech_critical`** - `true`, если есть ошибки, которые прямо мешают индексации: FATAL/CRITICAL в `metrics.critical_issues_webmaster`, robots закрывает коммерческие разделы, noindex или чужой canonical на коммерческих страницах, в индексе меньше половины проверенных ключевых URL, контент страниц виден только после JS. Иначе `false`.
+**`tech_critical`** - `true` только при СЕРЬЕЗНЫХ тех. ошибках (без них техаудит буста не дает и в тариф не ставится) - ошибки, которые прямо мешают индексации: FATAL/CRITICAL в `metrics.critical_issues_webmaster`, robots закрывает коммерческие разделы, noindex или чужой canonical на коммерческих страницах, в индексе меньше половины проверенных ключевых URL, контент страниц виден только после JS. Иначе `false`.
 
 **`has_positions`** - есть ли у сайта позиции, которые внешнее продвижение может разогнать. По нему `tariff-architect` дает акцию «ПФ 1=2» и профиль «новый сайт». Считай по ЛОКАЛЬНОЙ базе региона клиента и текущему трафику, а не по Москве: московская выдача ничего не говорит о позициях регионального сайта в его городе (голден-агро: на msk ТОП-50 12, на mns 0 - акцию не дали, хотя по Минску позиций нет).
 - база позиций - `keyso_base_local`, если задана (`metrics.local_metrics.top50`), иначе `keyso_base_primary` (`metrics.top50`);
