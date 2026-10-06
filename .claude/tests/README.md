@@ -35,7 +35,7 @@ done
 | `build-article-docx` | сборка docx статьи (таблицы, нумерация фото) | 8 |
 | `machinery` | модельная политика против frontmatter агентов, висячие ссылки на ADR, JSON-lint и узкий фолбэк маркера в хуке, режим клиентского клона (шаги по `docs/` - SKIP с причиной) | 18 |
 | `metatags` | четыре скрипта `/seo-metategi` | 16 |
-| `seo-strategiya` | `verify-strategy.mjs` (легаси и v2), модель прогноза `_forecast-model.mjs` и легаси `_forecast-money.mjs`, каталог `_services.mjs`, `build-forecast.mjs` (exit 0/2/3), смета v2 (формулы «Окупаемость» против `forecast.json`, разработка сайта) и легаси-листы, docx v2 и легаси | 77 |
+| `seo-strategiya` | `verify-strategy.mjs` (легаси и v2), модель прогноза `_forecast-model.mjs` и легаси `_forecast-money.mjs`, каталог `_services.mjs`, карточка ниши `_niche.mjs`, `build-forecast.mjs` (exit 0/2/3, `niche`), смета v2 (формулы «Окупаемость» против `forecast.json`, разработка сайта) и легаси-листы, docx v2 и легаси | 119 |
 | `seo-structure` | `validate-project-input` (вход `sites/NNN/project.json`, тир-гейт), `select-top10`, `build-structure-xlsx`, `import-structure`, `verify-structure`, словарь вердиктов `seo-base` | 50 |
 | `seo-tehaudit` | `merge-onpage`, схема `onpage.json`, `verify-audit.mjs` | 23 |
 | `seo-temi` | `read-topics-xlsx.mjs` | 5 |

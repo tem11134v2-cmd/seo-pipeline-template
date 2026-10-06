@@ -37,6 +37,10 @@
 //                      порядке, маркеры money_lost (situation), plan_timeline + >= 2 plan_item (plan),
 //                      forecast_chart + forecast_table (forecast), известные типы блоков, ID в plan_item.services
 //                      есть в каталоге _services.mjs.                                        -> strategy-writer
+//   СТРУКТУРА (warning) - карточка ниши (v2.2): нет маркера niche_card в competitors, он не сразу после лида,
+//                      повторяется или стоит в другом разделе (-> strategy-writer, круг «только minor»); маркер
+//                      есть, а в forecast.json нет niche (прогноз собран до карточки) -> оркестратор: перезапустить
+//                      build-forecast.mjs. Не блок: content v2 до карточки ниши проходит гейт.
 //   ДЕНЬГИ В ПРОЗЕ   - любые суммы и валюта (₽, руб, рублей, тыс. руб, млн руб, $, суммы рядом со словами
 //                      выручка/прибыль/чек/бюджет/стоимость...) в ЛЮБЫХ строках писателя.      -> strategy-writer
 //   ТАРИФЫ В ПРОЗЕ   - слово «тариф» в любой форме, «Старт»/«Рост»/«Максимум» в кавычках, «вариант «...»»,
@@ -199,7 +203,8 @@ const ROUND_THOUSANDS_RE = /\b\d{1,3}[\s ]?000\b/;
 const IS_V2 = String(content.format ?? "").trim().toLowerCase() === "v2";
 
 const V2_SECTION_KEYS = ["situation", "competitors", "plan", "forecast"];
-const V2_MARKER_TYPES = ["money_lost", "plan_timeline", "forecast_chart", "forecast_table", "forecast_drivers"];
+// niche_card (v2.2) - «Объем и конкурентность ниши» по forecast.json -> niche, раздел competitors сразу после лида.
+const V2_MARKER_TYPES = ["money_lost", "plan_timeline", "forecast_chart", "forecast_table", "forecast_drivers", "niche_card"];
 const V2_BLOCK_TYPES = new Set([
   "subheading", "paragraph", "kpi_row", "issues", "bullets", "callout", "table", "compare", "bars",
   "plan_item", "quick_wins", "conditions", ...V2_MARKER_TYPES,
@@ -750,6 +755,33 @@ function runV2() {
     if (!countType("forecast", "forecast_table")) structure.push('[forecast] нет маркера {"type": "forecast_table"}');
   }
 
+  // ── 1а. СТРУКТУРА (warning): карточка ниши niche_card (v2.2) - competitors, сразу после лида, один раз. Не блок:
+  // content v2, написанный до карточки, проходит гейт (сборщик просто не нарисует блок).
+  const structWarnings = [];
+  let nicheMarkers = 0;
+  secs.forEach((sec, i) => {
+    if (!isObj(sec) || !Array.isArray(sec.blocks)) return;
+    const sk = sec.key || `sections[${i}]`;
+    const at = sec.blocks.map((b, j) => (isObj(b) && b.type === "niche_card" ? j : -1)).filter((j) => j >= 0);
+    nicheMarkers += at.length;
+    if (!at.length) return;
+    if (sec.key !== "competitors") {
+      structWarnings.push(`[${sk}] маркер niche_card вне раздела competitors - перенеси его в «Кто в топе и почему» сразу после лида (strategy-writer)`);
+      return;
+    }
+    if (at.length > 1) structWarnings.push(`[competitors] маркер niche_card ${at.length} раза - нужен один, сразу после лида (strategy-writer)`);
+    const before = sec.blocks.slice(0, at[0]).find((b) => !(isObj(b) && ["paragraph", "subheading"].includes(b.type)));
+    if (before) {
+      structWarnings.push(`[competitors] маркер niche_card стоит после блока «${isObj(before) ? before.type : "?"}» - его место сразу после лида раздела (strategy-writer)`);
+    }
+  });
+  if (byKey.competitors && !nicheMarkers) {
+    structWarnings.push(
+      '[competitors] нет маркера {"type": "niche_card"} - объем и конкурентность ниши (рынок, сила конкурентов по факторам, ' +
+        "работы под каждый разрыв) не попадут в docx; вставь его сразу после лида раздела (strategy-writer)"
+    );
+  }
+
   // ── 2. Корпус прозы писателя (стоп-паттерны и объем) ──
   const prose = []; // {text, where}
   const add = (text, where) => {
@@ -920,6 +952,15 @@ function runV2() {
   const fc = v2CheckForecast(tariffsRaw, tariffsBroken);
   const econWarns = v2EconomicsWarnings(fc.forecast);
 
+  // Маркер карточки есть, а forecast.json собран до нее (нет niche) - блоку нечего показать. Дело оркестратора,
+  // не писателя. При красном ПРОГНОЗ не дублируем: перезапуск build-forecast там уже назначен.
+  if (nicheMarkers && isObj(fc.forecast) && !fc.violations.length && !isObj(fc.forecast.niche)) {
+    structWarnings.push(
+      "маркер niche_card есть, а в forecast.json нет niche (прогноз собран до карточки ниши) - перезапусти build-forecast.mjs " +
+        "(оркестратор, не писатель; снова нет - причина в его выводе, строка «niche: пропущен»), иначе сборщик не нарисует блок"
+    );
+  }
+
   // План работ docx рисуется по тарифу плана (forecast.plan_tariff: рекомендованный сметой или Рост) - с ним и
   // сверяем plan_item.services. Нет forecast.json / plan_tariff - пересчет модели, иначе Рост.
   const TNAME = { start: "Старт", growth: "Рост", max: "Максимум" };
@@ -987,6 +1028,7 @@ function runV2() {
       ? `  - ${volumeWarn}`
       : `  - в норме: ${chars} симв. (ориентир ${V2_PROSE_MIN}-${V2_PROSE_MAX}, 4-6 стр; точную оценку дает strategy-verifier)`
   );
+  printCapped("СТРУКТУРА (warning)", structWarnings);
   printCapped("СОСТАВ ПЛАНА (warning)", planWarnings);
   printCapped("ЖАРГОН (warning)", jargon);
 
@@ -1022,6 +1064,7 @@ function runV2() {
   }
   const warns = [
     volumeWarn ? "объем" : null,
+    structWarnings.length ? "структура (карточка ниши)" : null,
     planWarnings.length ? "состав плана" : null,
     jargon.length ? "жаргон" : null,
     econWarns.length ? "экономика" : null,

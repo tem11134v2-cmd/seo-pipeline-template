@@ -300,7 +300,7 @@ export const TIMELINE = {
   ST: { start_week: 2, weeks: 2, label: "Тематический сайт для статей" },
   PF: { start_week: 0, weeks: 52, label: "Внешнее продвижение в Яндексе", monthly: true },
   PFP: { start_week: 0, weeks: 52, label: "Внешнее продвижение в Яндексе", monthly: true },
-  YM: { start_week: 0, weeks: 52, label: "Карточка в Яндекс Картах", monthly: true },
+  YM: { start_week: 0, weeks: 52, label: "Продвижение в Яндекс Картах", monthly: true },
   LB: { start_week: 2, weeks: 50, label: "Ссылки с других сайтов", monthly: true },
   LA: { start_week: 2, weeks: 50, label: "Ссылки с других сайтов", monthly: true },
   AR: { start_week: 2, weeks: 50, label: "Статьи, 10 в месяц", monthly: true },

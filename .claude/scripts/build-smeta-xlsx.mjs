@@ -9,6 +9,8 @@
 //   трафик, множитель конверсии (прототип КФ/КНДР) и обращения из Карт. Деньги на листе «Окупаемость» считают
 //   ФОРМУЛЫ от ячеек параметров (чек, конверсия, закрытие, маржа, текущий трафик): правишь параметр -
 //   пересчитывается лист и «Сравнение тарифов». При исходных параметрах формулы дают те же ROMI, что forecast.json.
+//   v2.2: forecast.json -> niche (_niche.mjs) - над таблицей «Сравнения тарифов» блок «Ниша» (спрос, трафик топ-3,
+//   конкуренция) и строка «Трафик к 12 мес, % от уровня топ-3» (формула: трафик тарифа / медиана топ-3). Нет niche - нет блока.
 // - легаси: forecast.json нет - листы тарифов + 4-я вкладка «Декомпозиция и окупаемость» в старых форматах
 //   данных (forecast_scenarios / decomposition+forecast) через _forecast-money.mjs. Числа не меняются.
 //
@@ -1414,7 +1416,7 @@ function writePaybackSheet(ws, ctx) {
   }
   const cal = fc.calibration_ref || {};
   writeNote(ws, row,
-    `Прогноз трафика - модель по составу тарифа: внешнее продвижение и техника ускоряют существующие страницы, структура и тексты дают новые страницы под спрос, прототип КФ/КНДР поднимает конверсию, Карты дают прямые ${V.leads}, статьи - накопительный трафик. Калибровка: ${cal.source || "кейсы агентства cases.timur-seo.ru"}. ${V.oneStep ? "Заказы" : "Обращения"} из Карт не зависят от конверсии сайта. Продажи месяца - от ${V.leadsGen} с учетом цикла сделки, выручка с продажи - средний чек x повторные покупки за год.`,
+    `Прогноз трафика - модель по составу тарифа: внешнее продвижение ускоряет существующие страницы и выход новых в топ, техника дает разовый рост, структура и тексты дают новые страницы под спрос, прототип КФ/КНДР поднимает конверсию, Карты усиливают внешнее продвижение (в среднем в 1,5 раза) и дают прямые ${V.leads}, ссылки работают не раньше 3-4 мес, статьи - накопительный трафик. Калибровка: ${cal.source || "кейсы агентства cases.timur-seo.ru"}. ${V.oneStep ? "Заказы" : "Обращения"} из Карт не зависят от конверсии сайта. Продажи месяца - от ${V.leadsGen} с учетом цикла сделки, выручка с продажи - средний чек x повторные покупки за год.`,
     LAST, 200);
   row++;
 
@@ -1588,6 +1590,61 @@ function writeDevSheet(ws, ctx) {
   return { total: dp.total, totalRow, kpTotalRow, prototypePrice: dp.prototype_price };
 }
 
+// ─── Блок «Ниша» над таблицей тарифов (forecast.niche, _niche.mjs, v2.2) ───
+// Три строки: спрос по главным запросам, трафик топ-3 конкурентов (медиана числом - на нее ссылается строка
+// «% от уровня топ-3» таблицы тарифов), конкуренция. Строка без данных пропускается; нет niche (прогноз до v2.2) -
+// блока нет. Возврат: { row (следующая свободная), medianRef ("$B$N" или null), median }.
+const COMPETITION_RU = { low: "низкая", medium: "средняя", high: "высокая" };
+function writeNicheBlock(ws, row, niche, LAST) {
+  const none = { row, medianRef: null, median: null };
+  if (!niche || typeof niche !== "object") return none;
+  const vol = niche.volume && typeof niche.volume === "object" ? niche.volume : {};
+  const comp = niche.competition && typeof niche.competition === "object" ? niche.competition : {};
+  const pos = (v) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
+  const demand = pos(vol.demand_exact);
+  const median = pos(vol.median_top3_traffic);
+  const leader = vol.leader && pos(vol.leader.traffic) ? vol.leader : null;
+  const level = COMPETITION_RU[comp.level] || null;
+  const lines = [];
+  if (demand != null) lines.push({ label: "Спрос по главным запросам", value: demand, note: "точная частота: сколько раз ищут именно эти фразы" });
+  if (median != null || leader) {
+    const leaderText = leader ? `лидер ${fmtNum(leader.traffic)} в мес${leader.domain ? ` (${leader.domain})` : ""}` : "";
+    lines.push({
+      label: median != null ? "Трафик топ-3 конкурентов, медиана" : "Трафик топ-3 конкурентов",
+      value: median != null ? median : "-",
+      note: [median != null ? "переходы из поиска" : "", leaderText].filter(Boolean).join("; "),
+      median: median != null,
+    });
+  }
+  if (level) lines.push({ label: "Конкуренция", value: level, note: comp.basis ? String(comp.basis) : "" });
+  if (!lines.length) return none;
+
+  writeSection(ws, row, "Ниша", LAST);
+  row++;
+  let medianRef = null;
+  lines.forEach((ln, i) => {
+    const isAlt = i % 2 === 1;
+    const a = ws.getCell(row, 1);
+    a.value = ln.label;
+    applyBody(a, isAlt, false);
+    a.font = { name: FONT_FAMILY, size: FONT_SIZE, bold: true, color: { argb: COLORS.text } };
+    const b = ws.getCell(row, 2);
+    b.value = ln.value;
+    applyBody(b, isAlt, true);
+    b.font = { name: FONT_FAMILY, size: FONT_SIZE, bold: true, color: { argb: COLORS.text } };
+    if (typeof ln.value === "number") b.numFmt = '#,##0 "в мес"';
+    ws.mergeCells(row, 3, row, LAST);
+    const c = ws.getCell(row, 3);
+    c.value = ln.note || "";
+    applyBody(c, isAlt, false);
+    c.font = { name: FONT_FAMILY, size: FONT_SIZE, color: { argb: COLORS.muted } };
+    ws.getRow(row).height = rowHeightFor(ln.note, 60);
+    if (ln.median) medianRef = `$B$${row}`;
+    row++;
+  });
+  return { row: row + 1, medianRef, median };
+}
+
 // ─── Лист «Сравнение тарифов» (первый) ───
 function writeComparisonSheet(ws, ctx) {
   const { fc, tariffsByKey, sheetRefs, payback, models, recommended, launch, t0, V, devApplies, noSite } = ctx;
@@ -1613,6 +1670,10 @@ function writeComparisonSheet(ws, ctx) {
   const launchText = launch > 1 ? ` Новый сайт выходит в поиск к ${launch}-му месяцу - ежемесячные работы начинаются с него.` : "";
   writeNote(ws, row, `${nowText}${launchText} ${recoText} Подробно по каждому тарифу - на вкладках тарифов, расчет по месяцам - на вкладке «Окупаемость».`, LAST, 120, { color: COLORS.text });
   row += 2;
+
+  // Ниша: спрос, трафик топ-3, конкуренция (нет forecast.niche - блока нет).
+  const nb = writeNicheBlock(ws, row, fc.niche, LAST);
+  row = nb.row;
 
   // Шапка
   const head = ["Показатель", ...TARIFF_KEYS.map((k) => (k === recommended ? `${TARIFF_NAMES[k]}\n(рекомендуем)` : TARIFF_NAMES[k]))];
@@ -1656,6 +1717,7 @@ function writeComparisonSheet(ws, ctx) {
   const trafficAt = (m) => (k) => ({ formula: `${PB}!${colL(m + 1)}${payback.refs[k].tot}`, result: payback.evals[k].rows[m - 1].tot });
   const anyLoss = keys.some((k) => payback.evals[k].romi12 <= 0);
 
+  const rowOf = {}; // id строки -> номер строки листа (заполняет цикл записи ниже)
   const defs = [
     { label: "Разово", fmt: FMT.money, get: (k) => ({ formula: `'${TARIFF_NAMES[k]}'!E${sheetRefs[k].onetimeTotalRow}`, result: sheetRefs[k].onetimeSum }) },
     { label: launch > 1 ? `Ежемесячно (с ${launch}-го мес)` : "Ежемесячно", fmt: FMT.money_month, get: (k) => ({ formula: `'${TARIFF_NAMES[k]}'!E${sheetRefs[k].monthlyTotalRow}`, result: sheetRefs[k].monthlySum }) },
@@ -1663,12 +1725,21 @@ function writeComparisonSheet(ws, ctx) {
     { label: "Акции", text: true, get: promosText },
     { label: "Трафик через 3 мес, визитов в мес", fmt: FMT.int, get: trafficAt(3) },
     { label: "Трафик через 6 мес, визитов в мес", fmt: FMT.int, get: trafficAt(6) },
-    { label: "Трафик через 12 мес, визитов в мес", fmt: FMT.int, get: trafficAt(12) },
+    { id: "tr12", label: "Трафик через 12 мес, визитов в мес", fmt: FMT.int, get: trafficAt(12) },
+  ];
+  // Доля уровня топ-3: трафик тарифа к 12 мес (ячейка строки выше) / медиана топ-3 (ячейка блока «Ниша»).
+  if (nb.medianRef) {
+    defs.push({
+      label: "Трафик к 12 мес, % от уровня топ-3", fmt: FMT.pct,
+      get: (k) => ({ formula: `${colL(TARIFF_KEYS.indexOf(k) + 2)}${rowOf.tr12}/${nb.medianRef}`, result: payback.evals[k].rows[11].tot / nb.median }),
+    });
+  }
+  defs.push(
     { label: `Дополнительных ${V.leadsGen} в месяц к 12-му мес (сверх текущих)`, fmt: FMT.dec1, get: (k) => ({ formula: `${PB}!M${payback.refs[k].leads}`, result: payback.evals[k].rows[11].leads }) },
     { label: "Вложения за 12 мес", fmt: FMT.money, get: (k) => ({ formula: `${PB}!${colL(HORIZON + 2)}${payback.refs[k].cost}`, result: payback.evals[k].y1.cost }) },
     { label: "Чистый результат за 12 мес", fmt: FMT.money_signed, bold: true, get: (k) => ({ formula: `${PB}!${colL(HORIZON + 2)}${payback.refs[k].cum}`, result: payback.evals[k].y1.cum }) },
     { label: "ROMI за 12 мес", fmt: FMT.pct, bold: true, get: (k) => ({ formula: `${PB}!B${payback.refs[k].romi12}`, result: payback.evals[k].romi12 }) },
-  ];
+  );
   if (devApplies) {
     defs.push({ label: "ROMI за 12 мес с учетом разработки сайта", fmt: FMT.pct, get: (k) => ({ formula: `${PB}!B${payback.refs[k].romiDev}`, result: payback.evals[k].romiDev }) });
   }
@@ -1689,6 +1760,7 @@ function writeComparisonSheet(ws, ctx) {
 
   defs.forEach((d, i) => {
     const isAlt = i % 2 === 1;
+    if (d.id) rowOf[d.id] = row;
     const lc = ws.getCell(row, 1);
     lc.value = d.label;
     applyBody(lc, isAlt, false);

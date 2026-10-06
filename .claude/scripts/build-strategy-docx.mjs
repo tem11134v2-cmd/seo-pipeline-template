@@ -12,6 +12,9 @@
 //     новый сайт (launch_month > 1) или рекомендованная разработка - строка «Разработка и запуск сайта», ежемесячные
 //     полосы с месяца запуска; потери - по lost_now.basis (competitors | plan), базовая конверсия; в таблице прогноза
 //     нет абсолютной выручки; жесткий разрыв страницы - только после первой страницы.
+//     v2.2: маркер niche_card (раздел competitors, сразу после лида) - «Объем и конкурентность ниши» из
+//     forecast.json niche (_niche.mjs): спрос, трафик лидера и топ-3, что реально взять к 12 мес, уровень конкуренции
+//     и таблица разрывов по показателям с работами, которые их закрывают (без цен и названий вариантов работ).
 //   легаси (без format): старый рендер 6 разделов (tariff / special / decomposition_table ...) - для пересборки
 //     старых стратегий без изменений (renderLegacy ниже).
 //
@@ -42,7 +45,7 @@ import {
 } from "docx";
 import { TARIFF_SCALE, interpCheckpoints, computeScenarioTariff } from "./_forecast-money.mjs";
 import { tariffServiceIds } from "./_forecast-model.mjs";
-import { timelineFor, devTimelineRow } from "./_services.mjs";
+import { timelineFor, devTimelineRow, serviceMeta } from "./_services.mjs";
 
 const LOG = "[build-strategy-docx]";
 const strategyDirArg = process.argv[2];
@@ -557,7 +560,172 @@ function timeline(phases, months = 12) {
   return grid(ws, [head, ...rows], { borders: { ...TBL_NONE, insideHorizontal: line(24, C.white), insideVertical: line(2, C.line) } });
 }
 
-// ─── 12. Колонтитулы: шапка справа с линейкой, подвал «TIMUR SEO | дата | стр. X из Y»; на обложке - пусто ───
+// ─── 12. Объем и конкурентность ниши (маркер niche_card): 3 KPI объема, бейдж конкуренции, таблица
+// «Показатель | Топ-3 (медиана) | У вас | Что сделаем» и строка «Чтобы дотянуться до топа». Данные - forecast.json
+// niche (_niche.mjs), работы - короткие названия услуг (SERVICES.short) без цен и без названий вариантов работ:
+// план - «в плане работ», только Максимум - «в расширенном варианте работ». Маркер оборачивает блок в keepTogether.
+const QUERY_FORMS = ["запрос", "запроса", "запросов"];
+const PAGE_FORMS = ["страница", "страницы", "страниц"];
+const COMPETITION_LEVEL = {
+  low: { label: "низкая", color: C.green },
+  medium: { label: "средняя", color: C.amber },
+  high: { label: "высокая", color: C.red },
+};
+// цвет ячейки «У вас» по разрыву с топ-3 (светофор, как в матрице ✓ / ~ / ✗); gap unknown - строка не выводится
+const GAP_STYLE = {
+  big: { color: C.red, fill: C.redTint },
+  some: { color: C.amber, fill: C.amberTint },
+  none: { color: C.green, fill: C.greenTint },
+};
+// число или null (toNum превращает пустое в 0, а здесь «нет данных» и «ноль» - разные вещи)
+function numOrNull(v) {
+  if (v == null || v === "") return null;
+  const n = typeof v === "number" ? v : parseFloat(String(v).replace(/\s/g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+// «a», «a и b», «a, b и c»
+const joinRu = (xs) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} и ${xs[xs.length - 1]}`);
+// внутри фразы - со строчной («структура сайта под спрос»), аббревиатуры («SEO-статьи») не трогаем
+const lowerFirst = (s) => s.replace(/^([A-ZА-ЯЁ])(?=[a-zа-яё])/, (c) => c.toLowerCase());
+const svcShort = (id) => { const m = serviceMeta(id); return clean(m.short || m.name || id); };
+
+function nicheCardBlock(nc, { m12 = null } = {}) {
+  const vol = nc.volume || {};
+  const comp = nc.competition || {};
+  const out = [h3("Объем и конкурентность ниши")];
+
+  // ── KPI объема: спрос, лидер (+ медиана топ-3), что реально взять к 12 мес по плану ──
+  const tiles = [];
+  const demand = numOrNull(vol.demand_exact);
+  if (demand > 0) {
+    tiles.push({ value: `~${fmtInt(demand)}`, tone: "info",
+      label: `${plural(Math.round(demand), QUERY_FORMS)} в месяц - ищут по главным запросам ниши, точная частота; с длинными запросами - в разы больше` });
+  }
+  const leaderT = numOrNull(vol.leader && vol.leader.traffic);
+  const med = numOrNull(vol.median_top3_traffic);
+  if (leaderT > 0) {
+    tiles.push({ value: fmtInt(leaderT), tone: "accent",
+      label: `${plural(Math.round(leaderT), TRAFFIC_FORMS)} из поиска в месяц у лидера${med > 0 ? `; медиана топ-3 - ${fmtInt(med)}` : ""}` });
+  } else if (med > 0) {
+    tiles.push({ value: fmtInt(med), tone: "accent", label: `${plural(Math.round(med), TRAFFIC_FORMS)} из поиска в месяц - медиана топ-3` });
+  }
+  // «Что реально взять» - то же число, что в KPI обложки и графике (checkpoints.m12 тарифа плана)
+  let reach = numOrNull(vol.reachable_12);
+  let share = numOrNull(vol.share_of_median_12);
+  if (m12 > 0 && (reach == null || Math.abs(reach - m12) > 1)) {
+    if (reach != null) warn(`niche_card: niche.volume.reachable_12 ${fmtInt(reach)} не совпадает с планом к 12 мес ${fmtInt(m12)} - взят план, пересобери build-forecast.mjs`);
+    reach = m12;
+    share = med > 0 ? Math.round((m12 / med) * 100) : null;
+  }
+  if (reach > 0 && tiles.length) { // без спроса и трафика топа плитка «что взять» не про нишу - не выводим
+    const shareTxt = share == null ? "" : share < 1 ? " - меньше 1% от уровня топ-3" : ` - ${fmtInt(share)}% от уровня топ-3`;
+    tiles.push({ value: `~${fmtInt(reach)}`, tone: "success",
+      label: `${plural(Math.round(reach), TRAFFIC_FORMS)} из поиска в месяц к 12-му месяцу по плану работ${shareTxt}` });
+  }
+  if (tiles.length) out.push(kpiRow(tiles), spacer(160));
+
+  // ── Бейдж конкуренции + основание (числа топ-3 со склонениями) ──
+  const factors = (Array.isArray(comp.factors) ? comp.factors : []).filter((f) => f && f.label);
+  const fTop = (k) => { const f = factors.find((x) => x.key === k); return f ? numOrNull(f.top3_median) : null; };
+  if (comp.level || factors.length) {
+    const lvl = COMPETITION_LEVEL[comp.level] || COMPETITION_LEVEL.medium;
+    const why = [];
+    const pg = fTop("pages"), vis = fTop("visibility"), dr = fTop("links");
+    if (pg != null) why.push(`${fmtInt(pg)} ${plural(Math.round(pg), PAGE_FORMS)} под спрос`);
+    if (vis != null) why.push(`${fmtInt(vis)} ${plural(Math.round(vis), QUERY_FORMS)} в ТОП-10 Яндекса`);
+    if (dr != null) why.push(`ссылочный вес DR около ${fmtInt(dr)}`);
+    const basis = why.length ? `у сайтов топ-3 в среднем ${joinRu(why)}` : comp.basis ? String(comp.basis) : "";
+    const kids = [run(`${NBSP}Конкуренция: ${lvl.label}${NBSP}`, { size: SZ.body, bold: true, color: C.white, bg: lvl.color })];
+    if (basis) kids.push(run(`   ${basis}`, { size: SZ.small, color: C.muted }));
+    out.push(para(kids, { after: 120, line: 252 }));
+  }
+
+  // ── Таблица факторов ──
+  const par = new Map((Array.isArray(nc.to_parity) ? nc.to_parity : []).filter((p) => p && p.id).map((p) => [p.id, p]));
+  // нет to_parity - не знаем, что в плане: работы без пометок, итог без «в плане работ» (any)
+  const where = (id) => { if (!par.size) return "any"; const p = par.get(id); return !p ? "rest" : p.in_plan ? "plan" : p.in_max ? "max" : "rest"; };
+  const rowsF = factors.filter((f) => GAP_STYLE[f.gap]); // gap unknown (нет данных для сравнения) - строку не выводим
+  if (rowsF.length) {
+    const ws = cols([3.1, 1.3, 1.45, 3.5]);
+    const z = { top: 80, bottom: 80, left: 120, right: 120 };
+    const hb = { top: NONE, left: NONE, right: NONE, bottom: line(12, C.navy) };
+    const rb = { top: NONE, left: NONE, right: NONE, bottom: line(4, C.line) };
+    const nb = { top: NONE, left: NONE, right: NONE, bottom: NONE };
+    const t = (txt, o = {}) => para(rich(txt, { size: o.size || SZ.table, color: o.color, bold: o.bold }), { after: o.after ?? 0, align: o.align, line: 252 });
+    const head = new TableRow({ tableHeader: true, cantSplit: true, children: ["Показатель", "Топ-3 (медиана)", "У вас", "Что сделаем"].map((h, i) =>
+      cell(para(run(h, { size: SZ.small, bold: true, color: C.muted }), { after: 0, align: i === 1 || i === 2 ? AlignmentType.CENTER : AlignmentType.LEFT, line: 252 }),
+        { w: ws[i], borders: hb, margins: { ...z, top: 60, bottom: 60 }, valign: VerticalAlignTable.BOTTOM })) });
+    const rows = [head];
+    for (const f of rowsF) {
+      const st = GAP_STYLE[f.gap];
+      const top = numOrNull(f.top3_median), client = numOrNull(f.client);
+      const examples = f.key === "commercial" ? strItems(f.examples).map((s) => clean(s).trim().replace(/[.;,\s]+$/, "")).filter(Boolean) : [];
+      // примеры - не больше ~4 строк мелким шрифтом (блок неделимый и должен быть заметно меньше страницы)
+      const exList = [];
+      for (const ex of examples) if (!exList.length || [...exList, ex].join("; ").length <= 400) exList.push(ex); else break;
+      const b = exList.length ? nb : rb; // примеры - подстрокой под строкой, линейка - под ними
+      let noteUsed = false;
+      const cells = [cell(t(f.label), { w: ws[0], borders: b, margins: { ...z, left: 0 }, valign: VerticalAlignTable.CENTER })];
+      const valCell = (txt, w, o = {}) => cell(t(txt, { bold: true, color: o.color || C.navy, align: AlignmentType.CENTER, size: o.size }),
+        { w, span: o.span, borders: b, fill: o.fill, margins: z, valign: VerticalAlignTable.CENTER });
+      if (top == null && client == null) {
+        // нечего сравнивать числом (Карты, статьи) - одна ячейка на две колонки с пояснением, цвет по разрыву
+        noteUsed = !!f.note;
+        cells.push(valCell(f.note || (f.gap === "none" ? "на уровне топа" : "отстаете"), ws[1] + ws[2], { span: 2, color: st.color, fill: st.fill, size: SZ.small }));
+      } else {
+        cells.push(valCell(top != null ? fmtInt(top) : f.key === "commercial" ? "есть" : "-", ws[1]));
+        let ct;
+        if (client != null) ct = f.key === "commercial" ? `не хватает ${fmtInt(client)}` : fmtInt(client);
+        else if (f.note) { ct = f.note; noteUsed = true; }
+        else ct = "-";
+        cells.push(valCell(ct, ws[2], { color: st.color, fill: st.fill, size: client != null ? undefined : SZ.small }));
+      }
+      // «Что сделаем»: разрыв есть - работы (план / расширенный вариант / отдельно), нет - «на уровне топа»
+      const act = [];
+      const svc = [...new Set((f.services || []).filter(Boolean))];
+      if (f.gap === "none") act.push(t("на уровне топа", { color: C.green, bold: true }));
+      else if (svc.length) {
+        svc.forEach((id) => {
+          const w = where(id);
+          const kids = [run(svcShort(id), { size: SZ.table })];
+          if (w === "max") kids.push(run(" - в расширенном варианте", { size: SZ.small, color: C.muted }));
+          if (w === "rest") kids.push(run(" - отдельно", { size: SZ.small, color: C.muted }));
+          act.push(para(kids, { after: 20, line: 252 }));
+        });
+        if (f.note && !noteUsed) act.push(t(f.note, { size: SZ.small, color: C.muted }));
+      } else {
+        act.push(t(f.key === "traffic" ? "итог всех работ" : f.note && !noteUsed ? f.note : "-", { size: SZ.small, color: C.muted }));
+      }
+      cells.push(cell(act, { w: ws[3], borders: b, margins: { ...z, right: 0 }, valign: VerticalAlignTable.CENTER }));
+      rows.push(new TableRow({ cantSplit: true, children: cells }));
+      if (exList.length) {
+        rows.push(new TableRow({ cantSplit: true, children: [cell(para([
+          run("Например: ", { size: SZ.small, bold: true, color: C.muted }),
+          run(exList.join("; ") + ".", { size: SZ.small, color: C.muted }),
+        ], { after: 0, line: 252 }), { w: W, span: 4, borders: rb, margins: { top: 0, bottom: 80, left: 0, right: 0 } })] }));
+      }
+    }
+    out.push(grid(ws, rows), spacer(160));
+
+    // ── Чтобы дотянуться до топа: работы из разрывов big/some - в плане, в расширенном варианте, отдельно ──
+    const ids = [];
+    for (const f of rowsF) if (f.gap !== "none") for (const id of f.services || []) if (id && !ids.includes(id)) ids.push(id);
+    const names = (w) => joinRu(ids.filter((id) => where(id) === w).map((id) => lowerFirst(svcShort(id))));
+    const parts = [];
+    if (names("any")) parts.push(names("any"));
+    if (names("plan")) parts.push(`${names("plan")} - в плане работ`);
+    if (names("max")) parts.push(`${names("max")} - в расширенном варианте работ`);
+    if (names("rest")) parts.push(`${names("rest")} - можно подключить отдельно`);
+    if (parts.length) out.push(callout({ tone: "info", body: `**Чтобы дотянуться до топа:** ${parts.join("; ")}.` }));
+    else if (!rowsF.some((f) => f.gap !== "none")) out.push(callout({ tone: "success", body: "**По основным показателям вы на уровне топа:** рост дадут новые запросы и конверсия сайта." }));
+  }
+  if (!tiles.length && !rowsF.length) return []; // ни объема, ни сравнения - блока нет (маркер предупредит)
+  out.push(note(`Топ-3 - три сильнейших прямых конкурента по переходам из поиска${rowsF.length ? ", в колонке - середина их значений (медиана)" : ""}. ` +
+    "Переходы - оценка Keys.so по одной методике для всех сайтов, включая ваш. Оценка, не гарантия."));
+  return out;
+}
+
+// ─── 13. Колонтитулы: шапка справа с линейкой, подвал «TIMUR SEO | дата | стр. X из Y»; на обложке - пусто ───
 function headerFooter(dom, dt, author) {
   return {
     headers: {
@@ -699,6 +867,22 @@ function buildV2() {
       }));
     },
 
+    // «Объем и конкурентность ниши» (v2.2): forecast.json niche (_niche.mjs). Нет niche (прогноз до v2.2) - блок
+    // пропускается с предупреждением. KPI «что реально взять» - по тарифу плана, как обложка и график.
+    niche_card() {
+      const nc = forecast.niche;
+      if (!nc || typeof nc !== "object" || (!nc.volume && !nc.competition)) {
+        warn("niche_card: в forecast.json нет niche (прогноз собран до v2.2) - блок «Объем и конкурентность ниши» пропущен, пересобери build-forecast.mjs");
+        return [];
+      }
+      const els = nicheCardBlock(nc, { m12: toNum((rec.checkpoints || {}).m12) || null });
+      if (!els.length) {
+        warn("niche_card: в forecast.json niche без объема и без сравнения с топ-3 - блок «Объем и конкурентность ниши» пропущен");
+        return [];
+      }
+      return keepTogether(els);
+    },
+
     plan_timeline() {
       const planT = getTariffData(tariffs, recKey);
       const ids = planT ? [...tariffServiceIds(planT)] : (rec.ids || []);
@@ -829,9 +1013,10 @@ function buildV2() {
   function renderBlock(block, ctx) {
     const type = block && block.type;
     if (type && MARKERS[type]) {
-      markersDone.push(type);
       const out = MARKERS[type]();
-      return Array.isArray(out) ? out : [out]; // маркер в keepTogether - одна таблица
+      const els = Array.isArray(out) ? out : [out]; // маркер в keepTogether - одна таблица
+      markersDone.push(els.length ? type : `${type} (пропущен)`);
+      return els;
     }
     switch (type) {
       case "subheading":

@@ -43,6 +43,7 @@ import {
 import {
   devPrice, devSubpagesPrice, timelineFor, serviceMeta, canonicalId, DEV_OPTIONS, TIMELINE, DEV_TIMELINE,
 } from "../../scripts/_services.mjs";
+import { nicheCard } from "../../scripts/_niche.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "../../..");
@@ -1814,6 +1815,260 @@ await step("build-forecast: клиентский средний чек пере�
 });
 
 // ──────────────────────────────────────────────────────────────────────────
+// 3.3а. v2.2: карточка ниши _niche.mjs (nicheCard) и forecast.json -> niche
+// ──────────────────────────────────────────────────────────────────────────
+
+console.log("\n=== 3.3а. v2.2: карточка ниши _niche.mjs (объем и конкурентность) ===");
+
+// Пять прямых конкурентов в разном порядке, у одного трафик под псевдонимом traffic и страницы под pages, у одного
+// нет данных, пустой домен отбрасывается. Топ-3 по трафику: leader.ru 6 000, second.ru 2 500, mid.ru 1 800.
+function nicheComp() {
+  return {
+    keyso_base: "spb",
+    direct: [
+      { domain: "small.ru", traffic_month: 300, top10: 80, commercial_pages: 20, dr: 15 },
+      { domain: "leader.ru", traffic_month: 6000, top10: 900, commercial_pages: 160, dr: 30 },
+      { domain: "nodata.ru" },
+      { domain: "mid.ru", traffic_month: 1800, top10: 400, commercial_pages: 60, dr: 22 },
+      { domain: "second.ru", traffic: 2500, top10: 500, pages: 90, dr: 26 },
+      { domain: "" },
+    ],
+    leader_pages_summary: {
+      client_missing: ["цены", { element: "отзывы с фото" }, { name: "калькулятор" }, { text: "гарантия" }, "портфолио"],
+      blog_usage: "у двух из трех лидеров блог со статьями",
+    },
+  };
+}
+const NICHE_FI = {
+  t0: 400, pages: { existing_commercial: 30 }, demand: { commercial_month: 20000, basis: "точные частоты (фикстура)" },
+  local: true, maps_card: "unverified", competition: "high", competitors_traffic: { basis: "Keyso spb (фикстура)" },
+};
+const NICHE_PLAN = new Set(["PA", "SY", "KP", "PF", "YM"]);
+const NICHE_MAX = new Set(["PA", "SY", "KP", "FQ", "PFP", "YM", "AR", "LA"]);
+function nicheRun(patch = {}) {
+  return nicheCard({
+    fi: clone(NICHE_FI), competitors: nicheComp(), metrics: { top10: 40, dr: 14 },
+    planIds: NICHE_PLAN, maxIds: NICHE_MAX, planM12: 1000, cap: 9000, ...patch,
+  });
+}
+const factorOf = (card, key) => card.competition.factors.find((f) => f.key === key);
+
+await step("nicheCard: топ-3 прямых по трафику (traffic_month и traffic), медиана топ-3, лидер, доли к 12 мес от медианы и лидера, потолок, спрос", () => {
+  const v = nicheRun().volume;
+  const doms = v.top3.map((c) => c.domain).join(",");
+  if (doms !== "leader.ru,second.ru,mid.ru") return `топ-3: ${doms} (ожидалось leader.ru,second.ru,mid.ru)`;
+  if (v.top3[1].traffic !== 2500 || v.top3[1].commercial_pages !== 90) return `псевдонимы traffic/pages не прочитаны: ${JSON.stringify(v.top3[1])}`;
+  if (v.median_top3_traffic !== 2500) return `медиана топ-3 ${v.median_top3_traffic} (ожидалось 2500)`;
+  if (!v.leader || v.leader.domain !== "leader.ru" || v.leader.traffic !== 6000) return `лидер ${JSON.stringify(v.leader)}`;
+  if (v.client_now !== 400 || v.reachable_12 !== 1000 || v.ceiling !== 9000) return `client_now ${v.client_now}, reachable_12 ${v.reachable_12}, ceiling ${v.ceiling}`;
+  if (v.share_of_median_12 !== 40) return `share_of_median_12 ${v.share_of_median_12} (1000 / 2500 = 40%)`;
+  if (v.share_of_leader_12 !== 17) return `share_of_leader_12 ${v.share_of_leader_12} (1000 / 6000 = 17%)`;
+  if (v.demand_exact !== 20000 || !v.demand_basis) return `спрос ${v.demand_exact}, basis ${v.demand_basis}`;
+  if (v.traffic_basis !== "Keyso spb (фикстура)") return `traffic_basis ${v.traffic_basis}`;
+  // без трафика у всех - топ-3 по запросам в ТОП-10, медиана и лидер - из forecast_inputs.competitors_traffic
+  const noTraffic = nicheCard({
+    fi: { competitors_traffic: { median: 700, leader: 2000 } },
+    competitors: { direct: [{ domain: "a.ru", top10: 10 }, { domain: "b.ru", top10: 90 }, { domain: "c.ru", top10: 50 }, { domain: "d.ru", top10: 5 }] },
+    planM12: 350,
+  }).volume;
+  if (noTraffic.top3.map((c) => c.domain).join(",") !== "b.ru,c.ru,a.ru") return `без трафика топ-3 не по ТОП-10: ${noTraffic.top3.map((c) => c.domain)}`;
+  if (noTraffic.median_top3_traffic !== 700 || !noTraffic.leader || noTraffic.leader.traffic !== 2000 || noTraffic.leader.domain !== null) {
+    return `запасной путь competitors_traffic: медиана ${noTraffic.median_top3_traffic}, лидер ${JSON.stringify(noTraffic.leader)}`;
+  }
+  if (noTraffic.share_of_median_12 !== 50) return `share_of_median_12 по запасной медиане ${noTraffic.share_of_median_12} (350 / 700 = 50%)`;
+  return true;
+});
+
+await step("nicheCard: уровни разрыва с медианой топ-3 - big < 50%, some < 80%, none от 80%, unknown без данных клиента; работы под разрыв", () => {
+  const comp = () => ({ direct: ["a.ru", "b.ru", "c.ru"].map((d) => ({ domain: d, traffic_month: 1000, commercial_pages: 100, top10: 200 })) });
+  const gapAt = (pages) => factorOf(nicheCard({ fi: { pages: { existing_commercial: pages } }, competitors: comp() }), "pages");
+  const cases = [[49, "big"], [50, "some"], [79, "some"], [80, "none"], [150, "none"]];
+  for (const [pages, want] of cases) {
+    const f = gapAt(pages);
+    if (!f || f.gap !== want) return `страниц ${pages} против 100: gap ${f && f.gap} (ожидалось ${want})`;
+  }
+  const unknown = gapAt(null);
+  if (!unknown || unknown.gap !== "unknown" || unknown.top3_median !== 100 || unknown.client !== null) return `без страниц клиента: ${JSON.stringify(unknown)}`;
+  const card = nicheRun();
+  const pages = factorOf(card, "pages");
+  if (pages.top3_median !== 90 || pages.client !== 30 || pages.gap !== "big") return `pages: ${JSON.stringify(pages)} (медиана 160/90/60 = 90, у клиента 30 -> big)`;
+  if (pages.services.join(",") !== "SY,KP") return `pages: работы ${pages.services} (ожидалось SY,KP)`;
+  // тексты - KP, а без KP в плане при FQ - FQ
+  const fqPages = factorOf(nicheRun({ planIds: new Set(["SY", "FQ", "PF"]) }), "pages");
+  if (fqPages.services.join(",") !== "SY,FQ") return `pages без KP в плане: ${fqPages.services} (ожидалось SY,FQ)`;
+  const vis = factorOf(card, "visibility");
+  if (vis.top3_median !== 500 || vis.client !== 40 || vis.gap !== "big" || vis.services.join(",") !== "PF,YM") return `visibility: ${JSON.stringify(vis)}`;
+  const visPfp = factorOf(nicheRun({ planIds: new Set(["SY", "KP", "PFP"]) }), "visibility");
+  if (visPfp.services[0] !== "PFP") return `visibility при PFP в плане: ${visPfp.services}`;
+  const traffic = factorOf(card, "traffic");
+  if (traffic.top3_median !== 2500 || traffic.client !== 400 || traffic.gap !== "big" || traffic.services.length) return `traffic (справочно, без работ): ${JSON.stringify(traffic)}`;
+  if (card.competition.level !== "high") return `level ${card.competition.level} (из forecast_inputs.competition)`;
+  if (!/DR лидеров около 26/.test(card.competition.basis) || !/90 страниц под спрос/.test(card.competition.basis) || !/500 запросов в ТОП-10/.test(card.competition.basis)) {
+    return `basis: ${card.competition.basis}`;
+  }
+  if (nicheCard({ fi: { competition: "extreme" } }).competition.level !== "medium") return "неизвестный уровень конкуренции не сведен к medium";
+  return true;
+});
+
+await step("nicheCard: ссылки - разрыв DR от 8 пунктов big, 4-7 some, меньше 4 none без работ; LA при LA в Максимуме или плане, иначе LB; доноры - при данных у обеих сторон", () => {
+  const linksAt = (clientDr, sets = {}) => factorOf(nicheRun({ metrics: { top10: 40, dr: clientDr }, ...sets }), "links");
+  const noLa = { planIds: new Set(["SY", "KP", "PF"]), maxIds: new Set(["SY", "KP", "PFP", "LB"]) };
+  const big = linksAt(18, noLa); // 26 - 18 = 8
+  if (big.gap !== "big" || big.services.join(",") !== "LB" || !/3-4 мес/.test(big.note || "")) return `DR 26 против 18: ${JSON.stringify(big)}`;
+  const some = linksAt(19, noLa); // 7
+  if (some.gap !== "some" || some.services.join(",") !== "LB") return `DR 26 против 19: ${JSON.stringify(some)}`;
+  const edge = linksAt(22, noLa); // 4
+  if (edge.gap !== "some") return `DR 26 против 22: gap ${edge.gap} (ожидалось some)`;
+  const none = linksAt(23, noLa); // 3
+  if (none.gap !== "none" || none.services.length || !/сопоставим/.test(none.note || "")) return `DR 26 против 23: ${JSON.stringify(none)}`;
+  if (linksAt(14).services.join(",") !== "LA") return `LA в Максимуме - работа LA: ${linksAt(14).services}`;
+  const unknown = factorOf(nicheRun({ metrics: { top10: 40 } }), "links");
+  if (!unknown || unknown.gap !== "unknown") return `DR клиента нет: ${JSON.stringify(unknown)}`;
+  if (factorOf(nicheRun(), "ref_domains")) return "доноры без данных у конкурентов - строки быть не должно";
+  const comp = nicheComp();
+  comp.direct.forEach((c, i) => { c.ref_domains = [400, 100, 50, 250, 300, 0][i]; });
+  const ref = factorOf(nicheRun({ competitors: comp, metrics: { top10: 40, dr: 14, ref_domains: 40 } }), "ref_domains");
+  if (!ref || ref.top3_median !== 250 || ref.client !== 40 || ref.gap !== "big" || ref.services.length) return `доноры топ-3 100/300/250 против 40: ${JSON.stringify(ref)}`;
+  return true;
+});
+
+await step("nicheCard: элементы лидеров по leader_pages_summary.client_missing (5+ big, 2-4 some, 0-1 none; KP при разрыве; примеры до 4 строкой); блог лидеров -> статьи", () => {
+  const com = factorOf(nicheRun(), "commercial");
+  if (!com || com.client !== 5 || com.gap !== "big" || com.services.join(",") !== "KP") return `5 элементов: ${JSON.stringify(com)}`;
+  if (JSON.stringify(com.examples) !== JSON.stringify(["цены", "отзывы с фото", "калькулятор", "гарантия"])) return `примеры: ${JSON.stringify(com.examples)}`;
+  const withMissing = (list) => {
+    const comp = nicheComp();
+    comp.leader_pages_summary.client_missing = list;
+    return factorOf(nicheRun({ competitors: comp }), "commercial");
+  };
+  const some = withMissing(["цены", "отзывы"]);
+  if (some.gap !== "some" || some.services.join(",") !== "KP") return `2 элемента: ${JSON.stringify(some)}`;
+  const one = withMissing(["цены"]);
+  if (one.gap !== "none" || one.services.length) return `1 элемент: ${JSON.stringify(one)}`;
+  const comp = nicheComp();
+  delete comp.leader_pages_summary;
+  const card = nicheRun({ competitors: comp });
+  if (factorOf(card, "commercial")) return "без leader_pages_summary строки элементов быть не должно";
+  if (factorOf(card, "blog")) return "без упоминания блога строки статей быть не должно";
+  const blog = factorOf(nicheRun(), "blog");
+  if (!blog || blog.gap !== "some" || blog.services.join(",") !== "AR") return `блог лидеров: ${JSON.stringify(blog)}`;
+  const comp2 = nicheComp();
+  delete comp2.leader_pages_summary;
+  comp2.direct[1].growth_model = "растет статьями";
+  if (!factorOf(nicheRun({ competitors: comp2 }), "blog")) return "статьи в growth_model конкурента не распознаны";
+  return true;
+});
+
+await step("nicheCard: Карты только у локального бизнеса - карточки нет / не подтверждена / не проверена -> big, подтверждена -> some, работа YM", () => {
+  const mapsAt = (maps_card, local = true) => factorOf(nicheRun({ fi: { ...clone(NICHE_FI), local, maps_card } }), "maps");
+  const cases = [["none", "big", /карточки нет/], ["unverified", "big", /не подтверждена/], ["unknown", "big", /не проверен/], ["verified", "some", /нужна активность/]];
+  for (const [card, gap, note] of cases) {
+    const f = mapsAt(card);
+    if (!f || f.gap !== gap || f.services.join(",") !== "YM" || !note.test(f.note || "")) return `maps_card ${card}: ${JSON.stringify(f)}`;
+  }
+  if (factorOf(nicheRun({ fi: { ...clone(NICHE_FI), local: true, maps_card: undefined } }), "maps").gap !== "big") return "maps_card не задан - не big";
+  if (mapsAt("verified", false)) return "нелокальный бизнес - строки Карт быть не должно";
+  if (factorOf(nicheRun({ fi: { ...clone(NICHE_FI), local: false } }), "visibility").services.includes("YM")) return "нелокальный бизнес - YM в работах видимости";
+  return true;
+});
+
+await step("nicheCard: to_parity - работы из разрывов big/some (не none), одна работа собирает свои факторы, in_plan / in_max по составам", () => {
+  const card = nicheRun();
+  const ids = card.to_parity.map((p) => p.id).join(",");
+  if (ids !== "SY,KP,PF,YM,LA,AR") return `to_parity: ${ids} (ожидалось SY,KP,PF,YM,LA,AR)`;
+  const by = Object.fromEntries(card.to_parity.map((p) => [p.id, p]));
+  if (by.KP.factors.join(",") !== "pages,commercial") return `KP закрывает ${by.KP.factors} (ожидалось pages,commercial)`;
+  if (by.YM.factors.join(",") !== "visibility,maps") return `YM закрывает ${by.YM.factors} (ожидалось visibility,maps)`;
+  const flags = { SY: [true, true], KP: [true, true], PF: [true, false], YM: [true, true], LA: [false, true], AR: [false, true] };
+  for (const [id, [plan, max]] of Object.entries(flags)) {
+    if (by[id].in_plan !== plan || by[id].in_max !== max) return `${id}: in_plan ${by[id].in_plan}, in_max ${by[id].in_max} (ожидалось ${plan}/${max})`;
+  }
+  // разрывы none работ не требуют: DR вровень -> нет ссылок; элементы 1 -> KP только из-за страниц
+  const comp = nicheComp();
+  comp.leader_pages_summary.client_missing = ["цены"];
+  const even = nicheRun({ competitors: comp, metrics: { top10: 40, dr: 25 } });
+  if (even.to_parity.some((p) => p.id === "LA" || p.id === "LB")) return `ссылки в to_parity при DR вровень: ${even.to_parity.map((p) => p.id)}`;
+  const kp = even.to_parity.find((p) => p.id === "KP");
+  if (!kp || kp.factors.join(",") !== "pages") return `KP при одном недостающем элементе: ${JSON.stringify(kp)}`;
+  return true;
+});
+
+await step("nicheCard: пустые и битые входы - без падения (нет аргументов, пустые объекты, null в списках, нет planM12 / cap)", () => {
+  const variants = [
+    () => nicheCard(),
+    () => nicheCard({}),
+    () => nicheCard({ fi: {}, competitors: {}, metrics: {} }),
+    () => nicheCard({ fi: { demand: null, pages: null, competitors_traffic: null }, competitors: { direct: "нет", leader_pages_summary: { client_missing: "нет" } } }),
+    () => nicheCard({ competitors: { direct: [null, { domain: "a.ru" }, { traffic_month: 5 }], leader_pages_summary: { client_missing: [null, {}, "цены"] } } }),
+  ];
+  for (const [i, fn] of variants.entries()) {
+    let card;
+    try { card = fn(); } catch (e) { return `вариант ${i + 1}: упал (${e.message})`; }
+    if (!card || !card.volume || !card.competition || !Array.isArray(card.competition.factors) || !Array.isArray(card.to_parity)) {
+      return `вариант ${i + 1}: неполная форма ${JSON.stringify(card)}`;
+    }
+    const v = card.volume;
+    if (v.reachable_12 !== null || v.share_of_median_12 !== null || v.share_of_leader_12 !== null || v.ceiling !== null) return `вариант ${i + 1}: доли без planM12 / cap - ${JSON.stringify(v)}`;
+    if (card.competition.level !== "medium") return `вариант ${i + 1}: level ${card.competition.level}`;
+    // в варианте 5 есть недостающие элементы лидеров - там KP законно; в остальных разрывов нет
+    if (i < 4 && card.to_parity.length) return `вариант ${i + 1}: работы без разрывов ${JSON.stringify(card.to_parity)}`;
+  }
+  const empty = nicheCard();
+  if (empty.volume.top3.length || empty.volume.leader !== null || empty.volume.median_top3_traffic !== null || empty.volume.client_now !== 0) return `пустая карточка: ${JSON.stringify(empty.volume)}`;
+  if (empty.competition.basis !== null) return `basis без данных: ${empty.competition.basis}`;
+  const nulls = nicheCard({ competitors: { direct: [null, { domain: "a.ru" }], leader_pages_summary: { client_missing: [null, {}, "цены"] } } });
+  const com = factorOf(nulls, "commercial");
+  if (!com || JSON.stringify(com.examples) !== JSON.stringify(["цены"])) return `пустые элементы в примерах: ${JSON.stringify(com)}`;
+  return true;
+});
+
+await step("build-forecast: пишет niche в forecast.json - без competitors.json по forecast_inputs (медиана, лидер, достижимое к 12 мес = план), модель не меняется", () => {
+  const fc = readJsonFile(join(V2_BASE.dir, "forecast.json"));
+  const n = fc.niche;
+  if (!n || !n.volume || !n.competition || !Array.isArray(n.to_parity)) return `нет niche: ${JSON.stringify(n)}`;
+  const v = n.volume;
+  const plan = fc.tariffs[fc.plan_tariff];
+  if (v.client_now !== V2_FI.t0) return `client_now ${v.client_now} (t0 ${V2_FI.t0})`;
+  if (Math.abs(v.reachable_12 - plan.checkpoints.m12) > 1) return `reachable_12 ${v.reachable_12} != трафик плана к 12 мес ${plan.checkpoints.m12}`;
+  if (v.median_top3_traffic !== 1800 || !v.leader || v.leader.traffic !== 6000) return `медиана ${v.median_top3_traffic}, лидер ${JSON.stringify(v.leader)} (из competitors_traffic)`;
+  if (Math.abs(v.share_of_median_12 - Math.round((plan.checkpoints.m12 / 1800) * 100)) > 1) return `share_of_median_12 ${v.share_of_median_12}`;
+  if (v.ceiling !== Math.round(fc.traffic_cap)) return `ceiling ${v.ceiling} != traffic_cap ${fc.traffic_cap}`;
+  if (v.demand_exact !== V2_FI.demand.commercial_month) return `demand_exact ${v.demand_exact}`;
+  const maps = n.competition.factors.find((f) => f.key === "maps");
+  if (!maps || maps.gap !== "some") return `Карты (local, карточка подтверждена): ${JSON.stringify(maps)}`;
+  return true;
+});
+
+const BF_NICHE = (() => {
+  const dir = copyV2Dir(V2_BASE.dir, "bf-niche");
+  writeJson(join(dir, "competitors.json"), nicheComp());
+  writeJson(join(dir, "metrics.json"), { top10: 40, dr: 14, traffic_month: 380 });
+  return { dir, ...runScript("build-forecast.mjs", dir) };
+})();
+
+await step("build-forecast: niche читает competitors.json и metrics.json (топ-3, разрывы, работы плана Роста и Максимума), прогноз тот же", () => {
+  if (BF_NICHE.code !== 0) return `exit ${BF_NICHE.code}: ${BF_NICHE.stdout}`;
+  const fc = readJsonFile(join(BF_NICHE.dir, "forecast.json"));
+  const base = readJsonFile(join(V2_BASE.dir, "forecast.json"));
+  const n = fc.niche;
+  if (!n) return "нет niche";
+  if (n.volume.top3.map((c) => c.domain).join(",") !== "leader.ru,second.ru,mid.ru") return `топ-3: ${n.volume.top3.map((c) => c.domain)}`;
+  if (n.volume.median_top3_traffic !== 2500 || n.volume.leader.domain !== "leader.ru") return `медиана ${n.volume.median_top3_traffic}, лидер ${n.volume.leader.domain}`;
+  const pages = n.competition.factors.find((f) => f.key === "pages");
+  if (!pages || pages.client !== V2_FI.pages.existing_commercial || pages.gap !== "big") return `страницы (клиент из forecast_inputs.pages): ${JSON.stringify(pages)}`;
+  const by = Object.fromEntries(n.to_parity.map((p) => [p.id, p]));
+  // тариф плана - Рост (PA, SY, KP, PF, YM), Максимум - с PFP, LA, AR
+  if (!by.SY || !by.SY.in_plan || !by.SY.in_max) return `SY: ${JSON.stringify(by.SY)}`;
+  if (!by.PF || !by.PF.in_plan || by.PF.in_max) return `PF (в Росте, в Максимуме PFP): ${JSON.stringify(by.PF)}`;
+  if (!by.LA || by.LA.in_plan || !by.LA.in_max) return `LA (только в Максимуме): ${JSON.stringify(by.LA)}`;
+  if (!by.AR || by.AR.in_plan || !by.AR.in_max) return `AR (только в Максимуме): ${JSON.stringify(by.AR)}`;
+  for (const k of ["start", "growth", "max"]) {
+    if (fc.tariffs[k].year1.romi !== base.tariffs[k].year1.romi || fc.tariffs[k].checkpoints.m12 !== base.tariffs[k].checkpoints.m12) return `${k}: карточка ниши изменила прогноз`;
+  }
+  return true;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
 // 3.4. Смета v2 (build-smeta-xlsx.mjs при forecast.json)
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -2677,8 +2932,17 @@ await step("docx v2: старый forecast.json (без plan_tariff и lost_now.
 
 console.log("\n=== 3.6. v2: verify-strategy.mjs (format v2) ===");
 
+// Контракт писателя v2.2: маркер карточки ниши в competitors сразу после лида. v2Content() (фикстура docx) его не
+// содержит - это заодно content v2, написанный до карточки ниши: он обязан проходить гейт (warning, не блок).
+function withNicheCard(c) {
+  const comp = c.sections.find((s) => s.key === "competitors");
+  const lead = comp.blocks.findIndex((b) => b.type === "paragraph");
+  comp.blocks.splice(lead + 1, 0, { type: "niche_card" });
+  return c;
+}
+
 function verifyV2Case(name, mutate) {
-  const content = v2Content();
+  const content = withNicheCard(v2Content());
   if (mutate) mutate(content);
   return copyV2Dir(V2_BASE.dir, name, content);
 }
@@ -2801,8 +3065,63 @@ await step("verify v2: DEV в plan_item при site_dev.recommended = false -> �
   return true;
 });
 
+await step("verify v2: content без маркера niche_card (написан до карточки ниши) -> exit 0, СТРУКТУРА (warning) для strategy-writer, не блок", () => {
+  const r = runVerify(copyV2Dir(V2_BASE.dir, "verify-v2-no-niche", v2Content()));
+  if (r.code !== 0) return `exit ${r.code} (expect 0 - старый content v2 проходит): ${r.stdout}`;
+  if (!/СТРУКТУРА \(warning\) \(1\)/.test(r.stdout)) return `нет СТРУКТУРА (warning): ${r.stdout}`;
+  if (!/\[competitors\] нет маркера \{"type": "niche_card"\}/.test(r.stdout) || !/\(strategy-writer\)/.test(r.stdout)) return `предупреждение не называет niche_card / писателя: ${r.stdout}`;
+  if (/КОМУ ЧИНИТЬ|НЕ ПРОЙДЕНО/.test(r.stdout)) return `предупреждение ушло в блок: ${r.stdout}`;
+  if (!/OK: нарушений нет \(см\. предупреждения: структура \(карточка ниши\)\)/.test(r.stdout)) return `итог без пометки про карточку ниши: ${r.stdout}`;
+  return true;
+});
+
+await step("verify v2: маркер niche_card не на месте (после compare, второй раз, в разделе plan) -> СТРУКТУРА (warning) по каждому случаю, exit 0", () => {
+  const late = runVerify(verifyV2Case("verify-v2-niche-late", (c) => {
+    const comp = c.sections[1].blocks;
+    comp.splice(comp.findIndex((b) => b.type === "niche_card"), 1);
+    comp.splice(comp.findIndex((b) => b.type === "compare") + 1, 0, { type: "niche_card" });
+  }));
+  if (late.code !== 0) return `после compare: exit ${late.code}: ${late.stdout}`;
+  if (!/niche_card стоит после блока «bars»/.test(late.stdout)) return `не названо, что маркер не сразу после лида: ${late.stdout}`;
+  const twice = runVerify(verifyV2Case("verify-v2-niche-twice", (c) => {
+    c.sections[1].blocks.push({ type: "niche_card" });
+    c.sections[2].blocks.splice(1, 0, { type: "niche_card" });
+  }));
+  if (twice.code !== 0) return `дубли: exit ${twice.code}: ${twice.stdout}`;
+  if (!/\[competitors\] маркер niche_card 2 раза/.test(twice.stdout)) return `не пойман второй маркер в competitors: ${twice.stdout}`;
+  if (!/\[plan\] маркер niche_card вне раздела competitors/.test(twice.stdout)) return `не пойман маркер в plan: ${twice.stdout}`;
+  if (/нет маркера \{"type": "niche_card"\}/.test(twice.stdout)) return `ложное «нет маркера» при маркере в competitors: ${twice.stdout}`;
+  const moved = runVerify(verifyV2Case("verify-v2-niche-moved", (c) => {
+    c.sections[1].blocks = c.sections[1].blocks.filter((b) => b.type !== "niche_card");
+    c.sections[0].blocks.splice(1, 0, { type: "niche_card" });
+  }));
+  if (!/\[situation\] маркер niche_card вне раздела competitors/.test(moved.stdout)) return `не пойман маркер в situation: ${moved.stdout}`;
+  if (/нет маркера \{"type": "niche_card"\}/.test(moved.stdout)) return `двойное предупреждение (вне раздела + нет маркера): ${moved.stdout}`;
+  return true;
+});
+
+await step("verify v2: маркер niche_card есть, а forecast.json без niche (собран до карточки) -> СТРУКТУРА (warning) «перезапусти build-forecast» для оркестратора, ПРОГНОЗ: OK, exit 0", () => {
+  const dir = verifyV2Case("verify-v2-niche-old-forecast");
+  const fc = readJsonFile(join(dir, "forecast.json"));
+  delete fc.niche;
+  writeJson(join(dir, "forecast.json"), fc);
+  const r = runVerify(dir);
+  if (r.code !== 0) return `exit ${r.code} (expect 0 - предупреждение): ${r.stdout}`;
+  if (!/ПРОГНОЗ: OK/.test(r.stdout)) return `карточка ниши повлияла на сверку прогноза: ${r.stdout}`;
+  if (!/СТРУКТУРА \(warning\)/.test(r.stdout) || !/в forecast\.json нет niche/.test(r.stdout) || !/перезапусти build-forecast\.mjs/.test(r.stdout) || !/оркестратор, не писатель/.test(r.stdout)) {
+    return `нет предупреждения про пересборку прогноза: ${r.stdout}`;
+  }
+  // forecast.json нет совсем - только блок ПРОГНОЗ, без второго предупреждения про niche
+  const dir2 = verifyV2Case("verify-v2-niche-no-forecast");
+  rmSync(join(dir2, "forecast.json"), { force: true });
+  const r2 = runVerify(dir2);
+  if (r2.code !== 2 || !/нет forecast\.json/.test(r2.stdout)) return `без forecast.json: exit ${r2.code}: ${r2.stdout}`;
+  if (/нет niche/.test(r2.stdout)) return `лишнее предупреждение про niche при отсутствии forecast.json: ${r2.stdout}`;
+  return true;
+});
+
 function verifyNewCase(name, mutate) {
-  const content = v2NewContent();
+  const content = withNicheCard(v2NewContent());
   if (mutate) mutate(content);
   return copyV2Dir(V2_NEW.dir, name, content);
 }
