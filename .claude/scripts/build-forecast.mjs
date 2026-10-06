@@ -214,6 +214,24 @@ function tariffRuleViolations(byKey, fiResolved) {
   if (promoKeys.length && promoKeys.length !== withPf.length) {
     out.push(`акция «ПФ 1=2» есть в ${promoKeys.map((k) => NAME[k]).join(", ")}, но нет в ${withPf.filter((k) => !hasPf2for1[k]).map((k) => NAME[k]).join(", ")} - во всех тарифах с ПФ или ни в одном`);
   }
+  // v2.4: экспертная оценка трафика к 12-му мес (forecast_m12 {traffic, basis}) - если задана хоть у одного тарифа,
+  // то у всех: число не ниже текущего трафика, Старт <= Рост <= Максимум, basis - откуда оценка.
+  const t0r = Math.max(0, Number(fiResolved && fiResolved.t0) || 0);
+  const withTarget = TARIFF_KEYS.filter((k) => byKey[k] && byKey[k].forecast_m12 != null);
+  if (withTarget.length) {
+    const tv = {};
+    for (const k of TARIFF_KEYS) {
+      if (!byKey[k]) continue;
+      const f = byKey[k].forecast_m12;
+      const v = f != null && typeof f === "object" ? Number(f.traffic) : NaN;
+      if (!(Number.isFinite(v) && v > 0)) { out.push(`${NAME[k]}: нет forecast_m12.traffic (оценка трафика к 12-му мес числом > 0)`); continue; }
+      if (v < t0r) out.push(`${NAME[k]}: forecast_m12.traffic ${v} ниже текущего трафика ${t0r}`);
+      if (!(f.basis && String(f.basis).trim())) out.push(`${NAME[k]}: forecast_m12.basis пуст - откуда оценка (лидеры, разрывы, кейсы)`);
+      tv[k] = v;
+    }
+    if (tv.start != null && tv.growth != null && tv.growth < tv.start) out.push(`forecast_m12: Рост ${tv.growth} ниже Старта ${tv.start}`);
+    if (tv.growth != null && tv.max != null && tv.max < tv.growth) out.push(`forecast_m12: Максимум ${tv.max} ниже Роста ${tv.growth}`);
+  }
   return out;
 }
 
@@ -263,6 +281,8 @@ function tariffOut(r) {
     launch_month: r.launch_month,
     cap: r.cap,
     capped_from_month: r.capped_from_month,
+    target_m12: r.target_m12,
+    target_basis: r.target_basis,
     checkpoints: Object.fromEntries(Object.entries(r.checkpoints).map(([k, v]) => [k, rnd(v)])),
     drivers_m12: r.drivers_m12,
     year1: r.year1,
@@ -335,6 +355,7 @@ const out = {
     assumptionsNote +
     (econ.ltv_factor > 1 ? `Повторные покупки одного клиента за год: x${String(Math.round(econ.ltv_factor * 10) / 10).replace(".", ",")}. ` : "") +
     (econ.sales_lag_months > 0 ? `Обращение становится продажей в среднем через ${econ.sales_lag_months} мес (цикл сделки). ` : "") +
+    (econ.capacity_sales_month ? `Мощность бизнеса - не больше ${String(Math.round(econ.capacity_sales_month * 10) / 10).replace(".", ",")} продаж в мес: прогноз продаж выше нее не поднимается. ` : "") +
     (pt.launch_month > 1 ? `Новый сайт выходит в поиск к ${pt.launch_month}-му мес: ежемесячные работы оплачиваются с этого месяца. ` : "") +
     `Деньги считаются только с прироста к текущему трафику. ROMI - от валовой прибыли (выручка x маржа). Оценка, не гарантия.`,
   baseline: {
@@ -351,7 +372,7 @@ const out = {
     pf_mult_max: CAL.pf_mult_max,
     vpp: CAL.vpp[econ.business_type],
     kp_conv_mult: CAL.kp_conv_mult,
-    source: "кейсы cases.timur-seo.ru (13) + портфель Monstro/Метрика (ПФ, 13 сайтов), модель v2.1",
+    source: "кейсы cases.timur-seo.ru (13) + портфель Monstro/Метрика (ПФ, 13 сайтов) + практика владельца, модель v2.4 (уровень - экспертная оценка forecast_m12)",
   },
 };
 

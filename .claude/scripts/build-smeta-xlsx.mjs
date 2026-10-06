@@ -36,7 +36,7 @@ import {
   DEV, devPrice, DEV_BASE_ITEMS, DEV_OPTIONS, timelineFor,
 } from "./_services.mjs";
 import {
-  HORIZON, CAL, computeTariff, trafficSeries, tariffServiceIds, costSeries, resolveEconomics,
+  HORIZON, CAL, computeTariff, trafficSeries, tariffServiceIds, tariffTarget, costSeries, resolveEconomics,
   applyClientEconomics, launchMonth, ECON_DEFAULTS,
 } from "./_forecast-model.mjs";
 
@@ -973,7 +973,7 @@ function buildModel(fc, data, tariffsByKey) {
   for (const k of TARIFF_KEYS) {
     const t = tariffsByKey[k];
     if (!t) continue;
-    const ts = trafficSeries(fi, tariffServiceIds(t), HORIZON);
+    const ts = trafficSeries(fi, tariffServiceIds(t), HORIZON, tariffTarget(t));
     models[k] = { ts, cost: costSeries(t, HORIZON, launch), res: computeTariff(fi, t, HORIZON) };
   }
   return { fi, econ: resolveEconomics(fi), models, launch, fiSource: fiSrc ? "forecast_inputs" : "forecast.json inputs" };
@@ -1026,6 +1026,8 @@ function evalBlock(bi, p) {
   for (const r of rows) {
     const src = r.m - lag >= 1 ? rows[r.m - lag - 1] : null;
     r.sales = (src ? src.leads : 0) * p.close;
+    // мощность бизнеса (v2.3): дополнительных продаж не больше, чем бизнес обслужит сверх текущих (как в модели)
+    if (p.cap > 0) r.sales = Math.min(Math.max(0, p.cap - p.m0 * p.conv * p.close), r.sales);
     r.revenue = r.sales * p.check * p.ltv;
     r.profit = r.revenue * p.margin;
     r.hm = (src ? src.maps : 0) * p.close * p.check * p.ltv * p.margin;
@@ -1144,10 +1146,12 @@ function writePaybackSheet(ws, ctx) {
   for (let m = 1; m <= H; m++) {
     const col = ws.getColumn(COL_M(m));
     col.width = 11;
-    if (m > 12) { col.outlineLevel = 1; col.hidden = true; }
+    // v2.4 (владелец: «про второй год не пишем»): мес 13-24 и итог 2-го года - скрытые тех. колонки без кнопки «+»
+    // (на них держатся формулы цикла сделки и окупаемости), клиенту виден только первый год
+    if (m > 12) col.hidden = true;
   }
-  ws.properties.outlineLevelCol = 1;
   ws.getColumn(ZC).width = 15;
+  ws.getColumn(AAC).hidden = true;
   ws.getColumn(AAC).width = 17;
 
   let row = writeSheetTitle(ws, "ОКУПАЕМОСТЬ ПО ТАРИФАМ", LAST);
@@ -1155,7 +1159,6 @@ function writePaybackSheet(ws, ctx) {
     "Желтые ячейки - параметры экономики: поменяйте их, и пересчитается весь лист и вкладка «Сравнение тарифов».",
     `Прирост трафика, ${V.mapsShort} и затраты по месяцам - из прогноза по составу каждого тарифа; ${V.leads}, продажи, выручка и прибыль считаются формулами.`,
     launch > 1 ? `Новый сайт выходит в поиск к ${launch}-му месяцу: ежемесячные работы оплачиваются с него, акция «ПФ 1=2» - в ${launch + 1}-м месяце.` : "",
-    `Месяцы 13-${H} свернуты: раскройте их кнопкой «+» над колонкой «Итого год 1».`,
   ].filter(Boolean).join(" ");
   writeNote(ws, row, intro, LAST, 200);
   row += 2;
@@ -1193,6 +1196,13 @@ function writePaybackSheet(ws, ctx) {
     { key: "k", label: "Множитель конверсии трафика статей", value: CAL.info_conv_factor, fmt: FMT.mult,
       source: "методика: читатели статей обращаются реже, чем посетители страниц услуг" },
   ];
+  // Мощность бизнеса (v2.3, одиночка или малая бригада): продаж в мес не больше нее - строка только когда она задана
+  const capacity = Number(econ.capacity_sales_month) > 0 ? Number(econ.capacity_sales_month) : null;
+  if (capacity) {
+    params.splice(5, 0, { key: "cap", label: V.oneStep ? "Мощность бизнеса, заказов в мес" : "Мощность бизнеса, продаж в мес", value: capacity, fmt: "0.0",
+      source: "оценка по сайту (сколько бизнес физически обслужит): дополнительные продажи не поднимаются выше нее; наймете помощников - впишите больше",
+      validation: { type: "decimal", min: 0.1, max: 100000, error: "Мощность - число продаж в месяц больше 0" } });
+  }
   const P = {}, PV = {};
   for (const p of params) {
     const lc = ws.getCell(row, 1);
@@ -1320,7 +1330,11 @@ function writePaybackSheet(ws, ctx) {
           case "mult": v = x.mult; break;
           case "maps": v = x.maps; break;
           case "leads": v = { formula: `MAX(0,((${P.m0}+${L}${R.kg})*${L}${R.mult}-${P.m0})*${P.conv}+${L}${R.info}*${P.conv}*${P.k}+${L}${R.maps})`, result: x.leads }; break;
-          case "sales": v = { formula: `IF(${LAGX(m)}>=1,INDEX(${leadsRng},1,MAX(1,${LAGX(m)})),0)*${P.close}`, result: x.sales }; break;
+          case "sales": {
+            const raw = `IF(${LAGX(m)}>=1,INDEX(${leadsRng},1,MAX(1,${LAGX(m)})),0)*${P.close}`;
+            v = { formula: P.cap ? `MIN(MAX(0,${P.cap}-${P.m0}*${P.conv}*${P.close}),${raw})` : raw, result: x.sales };
+            break;
+          }
           case "revenue": v = { formula: `${L}${R.sales}*${P.check}*${P.ltv}`, result: x.revenue }; break;
           case "profit": v = { formula: `${L}${R.revenue}*${P.margin}`, result: x.profit }; break;
           case "cost": v = x.cost; break;
@@ -1364,7 +1378,7 @@ function writePaybackSheet(ws, ctx) {
       { key: "payback", label: "Окупаемость, мес", formula: `IF(COUNT(${FIRST}${R.help}:${MH}${R.help})>0,MIN(${FIRST}${R.help}:${MH}${R.help}),"> ${H} мес")`, result: ev.payback, fmt: FMT.months,
         note: "первый месяц, когда результат нарастающим итогом стал не меньше нуля" },
       { key: "romi24", label: `ROMI за ${H} мес`, formula: `IF(${Z}${R.cost}+${AA}${R.cost}>0,(${Z}${R.profit}+${AA}${R.profit}-${Z}${R.cost}-${AA}${R.cost})/(${Z}${R.cost}+${AA}${R.cost}),0)`, result: ev.romi24, fmt: FMT.pct,
-        note: "второй год: работы продолжаются, сделанное за первый год держится" },
+        note: "тех. строка (скрыта): сверка с прогнозом", hidden: true },
     ];
     if (dev) {
       summary.push({
@@ -1390,6 +1404,7 @@ function writePaybackSheet(ws, ctx) {
       nc.font = { name: FONT_FAMILY, size: FONT_SIZE, italic: true, color: { argb: COLORS.muted } };
       nc.alignment = { horizontal: "left", vertical: "middle" };
       sref[s.key] = row;
+      if (s.hidden) ws.getRow(row).hidden = true;
       row++;
     }
     // ROMI 12 мес <= 0 - не голый минус, а условие окупаемости: при каком чеке или конверсии тариф выходит в ноль
@@ -1661,8 +1676,8 @@ function writeComparisonSheet(ws, ctx) {
     const paid = keys.filter((k) => payback.evals[k].paybackMonth != null)
       .sort((a, b) => payback.evals[a].paybackMonth - payback.evals[b].paybackMonth);
     recoText = "Рекомендацию по тарифу дадим после уточнения среднего чека и маржи: " + (paid.length
-      ? `при текущих допущениях за 12 месяцев не окупается ни один тариф, вложения возвращаются только на втором году (быстрее всего - тариф «${TARIFF_NAMES[paid[0]]}», к ${payback.evals[paid[0]].paybackMonth}-му месяцу).`
-      : `при текущих допущениях ни один тариф не окупается и за ${HORIZON} месяца.`);
+      ? `при текущих допущениях за 12 месяцев не окупается ни один тариф (ближе всех к окупаемости - тариф «${TARIFF_NAMES[paid[0]]}»).`
+      : "при текущих допущениях за 12 месяцев не окупается ни один тариф.");
   }
   const nowText = noSite
     ? "Сайта пока нет."
@@ -1755,7 +1770,6 @@ function writeComparisonSheet(ws, ctx) {
   }
   defs.push(
     { label: "Окупаемость, мес", fmt: FMT.months, get: (k) => ({ formula: `${PB}!B${payback.refs[k].payback}`, result: payback.evals[k].payback }) },
-    { label: `ROMI за ${HORIZON} мес`, fmt: FMT.pct, get: (k) => ({ formula: `${PB}!B${payback.refs[k].romi24}`, result: payback.evals[k].romi24 }) },
   );
 
   defs.forEach((d, i) => {

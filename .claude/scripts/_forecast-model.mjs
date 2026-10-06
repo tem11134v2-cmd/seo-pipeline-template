@@ -18,7 +18,7 @@
 // Конверсия визит -> обращение по умолчанию 5% для услуг: в кейсах медиана 9,1% (Q1 7,2%, цели Метрики,
 // включая клики по телефону и мессенджерам), берем с запасом. ROMI - от валовой прибыли (выручка x маржа).
 
-export const MODEL_VERSION = "v2.2";
+export const MODEL_VERSION = "v2.4";
 export const TARIFF_KEYS = ["start", "growth", "max"];
 export const HORIZON = 24;
 
@@ -28,8 +28,15 @@ export const CAL = {
   // (кадровый-элемент, spk-nhs, medkomissii89, sinestet, работа-эскорт, ti-o-ty); x0,8 на отбор.
   // Для магазина это категории и посадочные фильтров; карточки товаров - отдельно (vpp_card):
   // 0,6-2 визита на карточку (vivarent, garmin).
-  vpp: { services: 7, medical: 7, b2b: 6, high_ticket: 5, ecommerce: 4, info: 5 },
+  // v2.3 (приемка владельца 06.10, второй раз «слишком скептично»): у нового сайта Рост с ПФ и полным комплектом
+  // давал ~250 переходов к 12-му мес у всех тарифов - уровень = страниц x 7, а ПФ и Карты меняли только скорость.
+  // Практика владельца: Рост на целиком оптимизированном сайте (~35-40 страниц под спрос) выходит на ~600 переходов -
+  // без ПФ за 12+ мес, с ПФ за ~6 мес; с ПФ и Картами 250+ к 3-4 мес. Кейсы (7-9 визитов) сняты в моменте, часть
+  // страниц не созрела. Уровень зрелой страницы без ПФ - x2 к кейсам; ПФ поднимает его еще (pf_new_level_mult).
+  vpp: { services: 15, medical: 15, b2b: 12, high_ticket: 10, ecommerce: 8, info: 10 },
   vpp_card: 0.8,
+  // Существующие страницы клиента без нашей доработки: доля уровня зрелой оптимизированной страницы.
+  vpp_existing_share: 0.6,
   // Новые страницы сильного сайта наследуют доверие домена: визитов на новую страницу не меньше
   // 0,6 x (текущий трафик / коммерческих страниц), но не больше 4 x vpp.
   vpp_inherit_share: 0.6,
@@ -43,6 +50,9 @@ export const CAL = {
   // Теперь потолок МЯГКИЙ (softCap) и берется как максимум из: точный спрос x доля (ниже), трафик лидера прямых
   // конкурентов x leader_share, медиана прямых x median_mult, текущий трафик x t0_mult.
   demand_share_cap: { low: 1.0, medium: 0.8, high: 0.6 },
+  // v2.3: точный спрос маркеров - без хвостов, форм с городом и пригородов (реальный спрос в 5-10 раз больше, см. выше);
+  // потолок по спросу считаем с хвостами x2,5 (у потолков Сочи 347 точных давали потолок 311 при лидере ~200 по Keys.so).
+  demand_tail_mult: 2.5,
   // Keys.so занижает трафик примерно вдвое против Метрики (медиана 0,6 по 9 сайтам, добор критика) - поэтому
   // лидер x1,5: новый сайт с полной структурой может догнать и обогнать местного лидера по его оценке Keys.so.
   cap_competitors: { leader_share: 1.5, median_mult: 1.5 },
@@ -70,20 +80,34 @@ export const CAL = {
   // v2.2 (практика владельца, 06.10): ПФ не только дает быстрый старт, но и ускоряет выход новых страниц в топ -
   // уровень, на который Рост без ПФ выходит за 12+ мес, с ПФ достижим за ~6 мес. С ПФ: 86% уровня через 4 мес после
   // лага (к m6); без ПФ: 90% только к ~13-му мес.
-  new_pages_ramp_pf: { lag: 2, tau: 2.0 },
-  new_pages_ramp_nopf: { lag: 2.5, tau: 4.5 },
+  // v2.3: lag - когда выходят новые страницы. Живой сайт: PA -> SY -> KP ~1,2 мес + внедрение разработчиком клиента
+  // -> ~2,5 мес. Новый сайт: страницы выходят с запуском, разгон от запуск + live_lag. tau с ПФ 2,0 (с Картами 1,33 -
+  // x1,5 быстрее; новый домен без Карт - x1,3 медленнее и на полмесяца позже), без ПФ 5,0.
+  // Ориентиры владельца (~40 страниц, Рост, уровень с ПФ ~720, с ПФ и Картами ~780): живой сайт с ПФ - ~600 к 6-му мес
+  // (83%), с ПФ и Картами - ~250 к 3-му и ~530 к 4-му; без ПФ - ~45% к 6-му и ~84% к 12-му («600 только за 12+ мес»);
+  // новый сайт с ПФ и Картами - 100+ в 1-й мес после запуска, с ПФ без Карт на новом домене - меньше 100.
+  new_pages_ramp_pf: { lag: 2.5, tau: 2.0, live_lag: 0.7 },
+  new_pages_ramp_nopf: { lag: 3, tau: 5.0, live_lag: 1.0 },
+  // ПФ поднимает и уровень новых страниц (держит их в топе): x1,2; Карты усиливают этот эффект x1,5 (-> x1,3),
+  // ПФ Продвинутый - x1,3 к эффекту ПФ.
+  pf_new_level_mult: 1.2,
+  // ПФ Продвинутый (PFP, 45 000 ₽/мес - больший объем запросов для высокой конкуренции): эффект ПФ x1,3 (прирост
+  // множителя существующих страниц и уровня новых) и разгон в 1,15 раза быстрее. До v2.3 PFP считался как PF -
+  // Максимум платил +20 000 ₽/мес без эффекта и уходил в минус.
+  pfp_strength: 1.3,
+  pfp_speed: 1.15,
   // Карты (YM) повышают суммарную эффективность ПФ в среднем в 1,5 раза (практика владельца): эффект ПФ на
   // существующих страницах x1,5 и разгон в 1,5 раза быстрее (и существующих, и новых страниц).
   pf_ym_synergy: 1.5,
   // Новый сайт на новом домене без ссылочного веса: ПФ без Карт почти не выводит даже первые 100 переходов в первый
-  // месяц - разгон новых страниц на полмесяца позже и в 1,5 раза медленнее (в 1-й мес после запуска < 100 переходов);
-  // ПФ вместе с Картами - обычный разгон.
-  new_domain_no_ym: { extra_lag: 0.5, tau_mult: 1.5 },
+  // месяц - разгон новых страниц позже и медленнее (в 1-й мес после запуска десятки переходов, < 100); ПФ вместе с
+  // Картами - обычный разгон. v2.3: 0,2 мес и x1,3 (раньше 0,5 и x1,5 - вместе с новым live_lag давало ровный 0).
+  new_domain_no_ym: { extra_lag: 0.2, tau_mult: 1.3 },
   // Без ПФ в конкурентной нише новые страницы добирают меньше (кейсы: ПФ определяет скорость, а в
   // высокой конкуренции и уровень).
   // v2.2: по практике владельца без ПФ сайт выходит на тот же уровень, только вдвое дольше (12+ мес против 6) -
   // штраф уровня без ПФ мягкий, главное отличие - скорость (new_pages_ramp_nopf).
-  nopf_level_factor: { low: 1.0, medium: 0.9, high: 0.75 },
+  nopf_level_factor: { low: 1.0, medium: 0.95, high: 0.8 },
   // Качество текстов новых страниц: есть KP (тексты в прототипе) или FQ (n-граммы) - 1,0;
   // только структура (тексты пишет клиент) - 0,75.
   content_q_with_texts: 1.0,
@@ -164,6 +188,10 @@ export const ECON_DEFAULTS = {
 };
 
 // ═══ Утилиты ═══
+function posOrNull(v) {
+  const n = typeof v === "number" ? v : parseFloat(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 function num(v, dflt = 0) {
   const n = typeof v === "number" ? v : parseFloat(v);
   return Number.isFinite(n) ? n : dflt;
@@ -198,7 +226,7 @@ export function trafficCap(fi = {}) {
   const median = Math.max(0, num(ct.median, 0));
   if (!(demandCommercial > 0) && !(leader > 0) && !(median > 0)) return Infinity;
   return Math.max(
-    demandCommercial * CAL.demand_share_cap[comp],
+    demandCommercial * CAL.demand_tail_mult * CAL.demand_share_cap[comp],
     leader * CAL.cap_competitors.leader_share,
     median * CAL.cap_competitors.median_mult,
     t0 * CAL.cap_t0_mult,
@@ -290,6 +318,11 @@ export function resolveEconomics(fi = {}) {
     ltv_factor: Math.max(1, num(e.ltv_factor, d.ltv_factor || 1)),
     ltv_source: e.ltv_factor != null ? (e.ltv_source || "estimated") : "default",
     sales_lag_months: CAL.sales_lag_months[type] || 0,
+    // Мощность бизнеса, продаж в мес (всего, вместе с текущими): forecast_inputs.capacity_sales_month, иначе
+    // economics.scale.capacity_month (v2.3: growth-strategist пишет мощность в scale, а модель ее не видела - дизайнеру-
+    // одиночке прогноз давал 6-7 проектов в мес при мощности 3). null - без ограничения.
+    // e.capacity_sales_month - уже разрешенная экономика (forecast.json inputs.economics -> смета)
+    capacity_sales_month: posOrNull(fi.capacity_sales_month) ?? posOrNull(e.capacity_sales_month) ?? posOrNull(e.scale && e.scale.capacity_month),
     basis: e.basis || "",
   };
 }
@@ -323,7 +356,17 @@ function sumPrices(list) {
 
 // ═══ Ядро: кривая трафика тарифа ═══
 // fi - forecast_inputs (см. strategy_data_schema.json), ids - Set ID услуг тарифа.
-export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
+// Экспертная оценка трафика к 12-му мес (v2.4, решение владельца 06.10): tariff-architect ставит каждому тарифу
+// forecast_m12 {traffic, basis} - свою оценку по всем данным (трафик прямых лидеров в Keys.so, разрывы карточки ниши,
+// состав тарифа, калибровка по кейсам), а не сумму вкладов услуг. Модель дает только ФОРМУ кривой (быстрый старт ПФ,
+// запуск нового сайта, разгон страниц), уровень к 12-му мес = оценка. Нет оценки - уровень по формуле модели (легаси).
+export function tariffTarget(tariff) {
+  const f = tariff && tariff.forecast_m12;
+  const v = f != null && typeof f === "object" ? Number(f.traffic) : Number(f);
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
+export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON, target = null) {
   const t0 = Math.max(0, num(fi.t0, 0));
   const type = CAL.vpp[fi.business_type] != null ? fi.business_type : "services";
   const comp = ["low", "medium", "high"].includes(fi.competition) ? fi.competition : "medium";
@@ -347,6 +390,9 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
   const launch = launchMonth(fi);
 
   const hasPF = ids.has("PF") || ids.has("PFP");
+  const hasPFP = ids.has("PFP");
+  const pfStrength = hasPFP ? CAL.pfp_strength : 1;              // ПФ Продвинутый - эффект ПФ сильнее
+  const pfSpeed = hasPFP ? CAL.pfp_speed : 1;
   const hasSY = ids.has("SY");
   // Метатеги входят в SY (TARIFFS.md; RULES.md: пара SY/MT - MT при SY не ставится). Эффект MT дает и SY,
   // иначе обязательная замена MT -> SY в тарифе выше роняла бы его кривую ниже тарифа ниже на 2-3 мес.
@@ -362,27 +408,30 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
   // 1) Существующие страницы.
   const f = Math.min(1, Math.max(CAL.mult_floor, Math.pow(CAL.mult_ref_t0 / Math.max(t0, 1), 0.25)));
   const multMax = hasPF
-    ? 1 + (CAL.pf_mult_max - 1) * synergy * f
+    ? 1 + (CAL.pf_mult_max - 1) * synergy * pfStrength * f
     : 1 + (CAL.nopf_mult_max - 1) * f;
-  const pageTarget = (existingPages * vpp + cards * CAL.vpp_card) * (hasPF ? 1 : CAL.nopf_level_factor[comp]);
+  // существующие страницы без нашей доработки - доля уровня зрелой оптимизированной страницы (vpp_existing_share)
+  const pageTarget = (existingPages * vpp * CAL.vpp_existing_share + cards * CAL.vpp_card) * (hasPF ? 1 : CAL.nopf_level_factor[comp]);
   const existTarget = Math.max(t0 * multMax, pageTarget, t0);
-  const existRamp = hasPF ? { lag: CAL.pf_ramp.lag, tau: CAL.pf_ramp.tau / synergy } : CAL.nopf_ramp;
+  const existRamp = hasPF ? { lag: CAL.pf_ramp.lag, tau: CAL.pf_ramp.tau / (synergy * pfSpeed) } : CAL.nopf_ramp;
 
   // 2) Новые страницы (только при SY).
   const contentQ = ids.has("KP") && ids.has("FQ") ? CAL.content_q_kp_fq : hasTexts ? CAL.content_q_with_texts : CAL.content_q_structure_only;
-  const newLevel = hasSY
-    ? plannedNew * vppNew * contentQ * (hasPF ? 1 : CAL.nopf_level_factor[comp])
-    : 0;
+  // v2.3: ПФ поднимает и уровень новых страниц (x1,2; с Картами x1,3; ПФ Продвинутый - сильнее), а не только скорость
+  const pfNewLevel = hasPF ? 1 + (CAL.pf_new_level_mult - 1) * synergy * pfStrength : CAL.nopf_level_factor[comp];
+  const newLevel = hasSY ? plannedNew * vppNew * contentQ * pfNewLevel : 0;
   const newRampBase = hasPF ? CAL.new_pages_ramp_pf : CAL.new_pages_ramp_nopf;
-  let newLag = Math.max(newRampBase.lag, launch), newTau = newRampBase.tau;
+  // живой сайт - страницы выходят через newRampBase.lag; новый сайт - с запуском (запуск + live_lag)
+  let newLag = launch > 1 ? launch + newRampBase.live_lag : newRampBase.lag, newTau = newRampBase.tau;
   if (hasPF) {
-    newTau = newTau / synergy;
+    newTau = newTau / (synergy * pfSpeed);
     if (newDomain && !hasYM) { newLag += CAL.new_domain_no_ym.extra_lag; newTau *= CAL.new_domain_no_ym.tau_mult; }
   }
   const newRamp = { lag: newLag, tau: newTau };
 
   // Потолок коммерческого трафика (мягкий, см. trafficCap/softCap).
-  const cap = trafficCap(fi);
+  // экспертная оценка уровня заменяет потолок (оценщик уже учел трафик лидеров) - кривая без среза, потом масштаб
+  const cap = target != null ? Infinity : trafficCap(fi);
 
   const series = [];
   for (let m = 0; m <= H; m++) {
@@ -461,7 +510,39 @@ export function trafficSeries(fi = {}, ids = new Set(), H = HORIZON) {
       boosts: parts,
     });
   }
+  if (target != null) scaleToTarget(series, t0, target, launch);
   return series;
+}
+
+// Масштаб прироста кривой к экспертной оценке m12: форма (скорость, запуск, ПФ-старт) - модели, уровень - оценки.
+// Прирост коммерческого и инфо-трафика умножается на один k; модель не дала прироста - типовой разгон от запуска.
+function scaleToTarget(series, t0, target, launch) {
+  const goal = Math.max(t0, target);
+  const raw12 = series[Math.min(12, series.length - 1)].total;
+  const gain12 = raw12 - t0;
+  if (gain12 > 1) {
+    const k = (goal - t0) / gain12;
+    for (const p of series) {
+      if (p.m === 0) continue;
+      p.commercial = t0 + (p.commercial - t0) * k;
+      p.info *= k;
+      p.total = p.commercial + p.info;
+      p.exist_part = t0 + (p.exist_part - t0) * k;
+      p.new_part *= k;
+      p.capped = false;
+    }
+  } else {
+    const r12 = ramp(12, launch - 0.5, 3);
+    for (const p of series) {
+      if (p.m === 0) continue;
+      const add = (goal - t0) * (r12 > 0 ? ramp(p.m, launch - 0.5, 3) / r12 : 0);
+      p.commercial = t0 + add;
+      p.total = p.commercial + p.info;
+      p.exist_part = t0 + add;
+      p.new_part = 0;
+      p.capped = false;
+    }
+  }
 }
 
 // ═══ Деньги по тарифу ═══
@@ -469,7 +550,8 @@ export function computeTariff(fi, tariff, H = HORIZON) {
   const econ = resolveEconomics(fi);
   const ids = tariffServiceIds(tariff);
   const t0 = Math.max(0, num(fi.t0, 0));
-  const traffic = trafficSeries(fi, ids, H);
+  const target = tariffTarget(tariff);
+  const traffic = trafficSeries(fi, ids, H, target);
   const launch = launchMonth(fi);
   const cost = costSeries(tariff, H, launch);
   const cr = econ.conversion_rate;
@@ -479,7 +561,7 @@ export function computeTariff(fi, tariff, H = HORIZON) {
   const salesLag = econ.sales_lag_months;               // обращения месяца m -> продажи месяца m + lag
   // Мощность бизнеса (самозанятый, мастер-одиночка, малая бригада): дополнительных продаж в мес не больше, чем
   // бизнес физически обслужит сверх текущих (приемка 06.10: дизайнер-одиночка получал 6 проектов в мес).
-  const capacity = num(fi.capacity_sales_month, NaN);
+  const capacity = num(econ.capacity_sales_month, NaN);
   const baseSales = t0 * cr * close;
   const extraSalesCap = Number.isFinite(capacity) && capacity > 0 ? Math.max(0, capacity - baseSales) : Infinity;
   const baseLeads = t0 * cr;
@@ -533,6 +615,8 @@ export function computeTariff(fi, tariff, H = HORIZON) {
     t0,
     launch_month: launch,
     cap: Number.isFinite(trafficCap(fi)) ? Math.round(trafficCap(fi)) : null,
+    target_m12: target != null ? Math.round(target) : null,
+    target_basis: target != null && tariff.forecast_m12 && typeof tariff.forecast_m12 === "object" ? String(tariff.forecast_m12.basis || "") : null,
     capped_from_month: (traffic.find((x) => x.capped) || {}).m || null,
     checkpoints: {
       m0: t0,
@@ -573,6 +657,7 @@ export function computeAll(fi, tariffsByKey, H = HORIZON) {
 }
 
 // Проверки экономики (гейт шага прогноза). hard - блок (переделать тарифы), soft - предупреждение.
+export const START_HARD_PREFIX = "Старт:";
 export function economicsChecks(res) {
   const hard = [], soft = [];
   const s = res.start, g = res.growth, x = res.max;
@@ -586,7 +671,11 @@ export function economicsChecks(res) {
     if (g.checkpoints.m12 + 0.5 < s.checkpoints.m12) hard.push(`трафик Роста к 12 мес (${Math.round(g.checkpoints.m12)}) ниже Старта (${Math.round(s.checkpoints.m12)}) - состав Роста не шире Старта`);
     if (g.year1.net < s.year1.net) hard.push(`чистый результат Роста за 12 мес (${g.year1.net}) меньше Старта (${s.year1.net})`);
     if (g.year1.romi < s.year1.romi) soft.push(`ROMI Роста (${g.year1.romi}%) ниже Старта (${s.year1.romi}%) за 12 мес`);
-    if (s.year1.romi <= 0) soft.push(`ROMI Старта за 12 мес ${s.year1.romi}% <= 0`);
+    // v2.3 (владелец: «ROMI всегда положительный»): Старт в минусе при окупаемом Росте - состав Старта, а не экономика
+    // клиента (RULES раздел 10: добавить структуру под спрос, снять неокупаемое). Рост тоже в минусе - это экономика
+    // клиента (блок про Рост выше), Старт отдельно не блокируем.
+    if (s.year1.romi <= 0 && g.year1.romi > 0) hard.push(`${START_HARD_PREFIX} ROMI Старта за 12 мес ${s.year1.romi}% <= 0 при окупаемом Росте - Старт не окупается: добавить структуру под спрос (PA + SY), снять неокупаемое`);
+    else if (s.year1.romi <= 0) soft.push(`ROMI Старта за 12 мес ${s.year1.romi}% <= 0`);
   }
   if (g && g.capped_from_month && g.capped_from_month <= 4) {
     soft.push(`прогноз Роста уперся в потолок (${g.cap}) уже к ${g.capped_from_month}-му мес - проверь спрос (формы с городом и областью, общие запросы) и трафик конкурентов в forecast_inputs`);
@@ -611,7 +700,8 @@ export function economicsChecks(res) {
 // Единая точка для build-forecast.mjs и verify-strategy.mjs.
 export function recommendOffer(res, checks = economicsChecks(res)) {
   let offer = "growth";
-  if (checks.hard.length) {
+  // блок про Старт (START_HARD_PREFIX) рекомендацию Роста не меняет - Рост окупается
+  if (checks.hard.some((h) => !h.startsWith(START_HARD_PREFIX))) {
     const best = TARIFF_KEYS.filter((k) => res[k]).sort((a, b) => res[b].year1.net - res[a].year1.net)[0];
     offer = best && res[best].year1.net > 0 ? best : null;
   }

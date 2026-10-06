@@ -1,0 +1,520 @@
+{
+ "meta": {
+  "generated": "2026-10-06",
+  "source_cases": "https://cases.timur-seo.ru/ (13 кейсов, данные по август 2026)",
+  "keyso": "Keys.so organic traffic (domains_batch / domain_competitors) в базе города кейса; если базы нет - msk. Сейчас = октябрь 2026.",
+  "pf_note": "На сайте кейсов ПФ называется внешнее продвижение в Яндексе; здесь принято как ПФ.",
+  "caveats": [
+   "Кейсы отобраны агентством как удачные (survivorship bias).",
+   "Keys.so сейчас не совпадает по дате с замером Метрики кейса (особенно ltenergy, замер фев 2025).",
+   "Прямые конкуренты подобраны по пересечению ключей Keys.so и названию домена, ниши верифицированы не везде.",
+   "Keys.so traffic - модельная оценка по Яндексу выбранной базы, Метрика - факт по всем поисковикам."
+  ]
+ },
+ "cases": [
+  {
+   "id": "kadrovy-element",
+   "domain": "кадровый-элемент.рф",
+   "niche": "Рекрутинг/помощь с контрактом на СВО (в кейсе: кадровое агентство), Россия",
+   "city": "РФ",
+   "base": "msk",
+   "start": "новый",
+   "works_group": "полный комплекс",
+   "works": "анализ спроса+структура (сотни стр.), метатеги, SEO-тексты, статьи, техаудит до запуска, внешнее продвижение в Яндексе после запуска",
+   "months": 2,
+   "metrika": "0 -> 1773 визитов/мес (август 2026, 1-й полный месяц; 196 стр. в индексе; бренд 3,5%)",
+   "metrika_now": 1773,
+   "keyso_site": 2618,
+   "directs": {
+    "защитник.рф": 695,
+    "contractarmy.ru": 466,
+    "доброволец-центр.рф": 163
+   },
+   "note": "prizyvanet.ru (1959) исключен как неясный по нише (не проверен)",
+   "confidence": "medium",
+   "keyso_directs_median_top3": 466,
+   "keyso_leader": 695,
+   "share_vs_median": 5.618,
+   "share_vs_leader": 3.767,
+   "metrika_over_keyso": 0.68
+  },
+  {
+   "id": "vivarent",
+   "domain": "vivarent.ru",
+   "niche": "Аренда оборудования для мероприятий, СПб",
+   "city": "СПб",
+   "base": "spb",
+   "start": "живой (домен с историей: весной 2025 было 710-799, к лету упало до 55; сайт пересобран)",
+   "works_group": "полный комплекс + ПФ-разгон 3 мес",
+   "works": "предпроектный анализ+семантика, пересборка на Tilda, тексты+раздел инструкций, внешнее продвижение (разгон окт-дек 2025, затем завершено)",
+   "months": 11,
+   "metrika": "55 -> 948 (3-й мес, декабрь, сезон) -> 653 (среднее июнь-авг 2026, 11 мес; x11,9 к базе)",
+   "metrika_now": 653,
+   "keyso_site": 1681,
+   "directs": {
+    "spb.rentaphoto.ru": 111,
+    "spb.aura-rent.ru": 105,
+    "spb.pauri.ru": 68
+   },
+   "note": "агрегатор spb.gorko.ru и маркетплейсы исключены; прямые у Keys.so мелкие",
+   "confidence": "medium",
+   "keyso_directs_median_top3": 105,
+   "keyso_leader": 111,
+   "share_vs_median": 16.01,
+   "share_vs_leader": 15.144,
+   "metrika_over_keyso": 0.39
+  },
+  {
+   "id": "ti-o-ty",
+   "domain": "ti-o-ty.ru",
+   "niche": "Ремонт обуви, сумок, кожи, СПб",
+   "city": "СПб",
+   "base": "spb",
+   "start": "живой (лендинг на 1 страницу, 20 виз./мес)",
+   "works_group": "полный комплекс",
+   "works": "многостраничник вместо лендинга (19 стр. в индексе), структура+тексты, внешнее продвижение параллельно",
+   "months": 3,
+   "metrika": "20 -> 146 (x7,2), август 2026; обращений 26/мес",
+   "metrika_now": 146,
+   "keyso_site": 462,
+   "directs": {
+    "apetta.ru": 425,
+    "masterminutka.ru": 147,
+    "rematelier.ru": 133
+   },
+   "note": "lenremont.ru (1915) исключен, ниша не подтверждена (сайт отдал антибот)",
+   "confidence": "medium",
+   "keyso_directs_median_top3": 147,
+   "keyso_leader": 425,
+   "share_vs_median": 3.143,
+   "share_vs_leader": 1.087,
+   "metrika_over_keyso": 0.32
+  },
+  {
+   "id": "lp-teh",
+   "domain": "lp-teh.ru",
+   "niche": "Складская и строительная техника, интернет-магазин, Екатеринбург (поставки по РФ)",
+   "city": "Екатеринбург",
+   "base": "ekb",
+   "start": "живой (40 виз./мес из поиска, основной трафик из рекламы)",
+   "works_group": "только ПФ (+ техаудит с передачей правок)",
+   "works": "технический аудит (список правок передан) + внешнее продвижение в Яндексе с июня 2026; параллельно клиент расширял каталог",
+   "months": 3,
+   "metrika": "40 -> 466 (x11,7), август 2026",
+   "metrika_now": 466,
+   "keyso_site": 11,
+   "directs": {
+    "advanta-ekb.ru": 1203,
+    "ryvok.ru": 651,
+    "kiit.ru": 469
+   },
+   "note": "ryvok.ru - маркетплейс, kiit.ru - федеральная компания: включены только из-за нехватки прямых, оценка конкурентов завышена. База ekb не видит трафик сайта (11); в msk сайт 843 vs advanta-ekb 1327 (одна прямая; ryvok 254928 и kiit 61540 - гиганты, исключены)",
+   "alt": {
+    "base": "msk",
+    "keyso_site": 843,
+    "directs": {
+     "advanta-ekb.ru": 1327
+    },
+    "leader": 1327,
+    "median_top3": null,
+    "share_vs_leader": 0.635,
+    "share_vs_median": null
+   },
+   "confidence": "low",
+   "keyso_directs_median_top3": 651,
+   "keyso_leader": 1203,
+   "share_vs_median": 0.017,
+   "share_vs_leader": 0.009,
+   "metrika_over_keyso": 42.36
+  },
+  {
+   "id": "spk-nhs",
+   "domain": "spk-nhs.ru",
+   "niche": "Нефтехимическое/емкостное оборудование, сосуды под давлением (Краснокамск), РФ",
+   "city": "РФ",
+   "base": "msk",
+   "start": "новый (старый сайт 2008 г. без трафика и без счетчика, замена целиком)",
+   "works_group": "полный комплекс (+ разработка сайта)",
+   "works": "анализ спроса+структура, разработка сайта, тексты и статьи, техаудит параллельно, внешнее продвижение",
+   "months": 1.5,
+   "metrika": "0 -> 470 (август 2026, 1-й полный месяц; 58 стр. в индексе; 309 из 470 - статьи)",
+   "metrika_now": 470,
+   "keyso_site": 1926,
+   "directs": {
+    "alamak.su": 434,
+    "sp-stm.ru": 77,
+    "kotlotech.ru": 6
+   },
+   "note": "прямые подобраны по пересечению ключей, ниша не верифицирована - низкая уверенность",
+   "confidence": "low",
+   "keyso_directs_median_top3": 77,
+   "keyso_leader": 434,
+   "share_vs_median": 25.013,
+   "share_vs_leader": 4.438,
+   "metrika_over_keyso": 0.24
+  },
+  {
+   "id": "massazh-omsk",
+   "domain": "массаж-омск.рф",
+   "niche": "Спа-салон и массаж, Омск",
+   "city": "Омск",
+   "base": "oms",
+   "start": "живой (42 стр. в индексе, ~362-374 виз./мес)",
+   "works_group": "полный комплекс, но внедрено мало (+2 стр.), без разработки",
+   "works": "структура+тексты (внедрено 2 новые страницы и несколько блоков), внешнее продвижение с декабря 2025",
+   "months": 4,
+   "metrika": "362 -> 671 (x1,85), год к году янв-март; Яндекс x1,45, Google x2,55; небренд 29->91",
+   "metrika_now": 671,
+   "keyso_site": 2842,
+   "directs": {
+    "omsk.bonodono.ru": 828,
+    "omsk.moremotions.ru": 272,
+    "pride55.ru": 197
+   },
+   "note": "safari55.ru (1048) исключен: ниша не подтверждена",
+   "confidence": "medium",
+   "keyso_directs_median_top3": 272,
+   "keyso_leader": 828,
+   "share_vs_median": 10.449,
+   "share_vs_leader": 3.432,
+   "metrika_over_keyso": 0.24
+  },
+  {
+   "id": "medkomissii89",
+   "domain": "medkomissii89.ru",
+   "niche": "Медсправки, медкнижки, профосмотры, Новый Уренгой",
+   "city": "Новый Уренгой",
+   "base": "msk",
+   "start": "новый (запуск апрель 2025)",
+   "works_group": "структура+метатеги без ПФ и без текстов (разовая работа)",
+   "works": "анализ спроса+структура (19 стр.), метатеги, ТЗ на разработку; сайт на Tilda собран по ТЗ и не дорабатывался 17 мес",
+   "months": 17,
+   "metrika": "157 -> 173 виз./мес (апр-июнь 2025 vs июль-авг 2026), ~14 обращений/мес, потолок 19 страниц",
+   "metrika_now": 173,
+   "keyso_site": 91,
+   "directs": {
+    "cgsen89.ru": 228,
+    "novy-urengoy.rzd-medicine.ru": 65,
+    "scaner.pro": 47
+   },
+   "note": "msk-база не видит локальный спрос. В базе tmn (ближе к ЯНАО): сайт 7; scaner.pro 4051, семейныйдоктор89.рф 3546, novy-urengoy.rzd-medicine.ru 3000 (cgsen89.ru 13370 - гос. центр, исключен)",
+   "alt": {
+    "base": "tmn",
+    "keyso_site": 7,
+    "directs": {
+     "scaner.pro": 4051,
+     "семейныйдоктор89.рф": 3546,
+     "novy-urengoy.rzd-medicine.ru": 3000
+    },
+    "leader": 4051,
+    "median_top3": 3546,
+    "share_vs_leader": 0.002,
+    "share_vs_median": 0.002
+   },
+   "confidence": "low",
+   "keyso_directs_median_top3": 65,
+   "keyso_leader": 228,
+   "share_vs_median": 1.4,
+   "share_vs_leader": 0.399,
+   "metrika_over_keyso": 1.9
+  },
+  {
+   "id": "ltenergy",
+   "domain": "ltenergy.ru",
+   "niche": "Портативные электростанции и солнечные модули, интернет-магазин, РФ",
+   "city": "РФ",
+   "base": "msk",
+   "start": "живой (готовый магазин, 145 виз./мес)",
+   "works_group": "только ПФ",
+   "works": "только внешнее продвижение в Яндексе (структуру, тексты, карточки не трогали)",
+   "months": 6,
+   "metrika": "145 -> 663 (x4,6); Яндекс 123 -> 594 (x4,8); Google 16 -> 66; замер февраль 2025",
+   "metrika_now": 663,
+   "keyso_site": 5045,
+   "directs": {
+    "e-solarpower.ru": 1197,
+    "wattico.ru": 1085,
+    "realsolar.ru": 780
+   },
+   "note": "Keys.so сейчас снят в окт 2026, т.е. через ~19 мес после замера кейса (фев 2025); маркетплейсы исключены",
+   "confidence": "medium",
+   "keyso_directs_median_top3": 1085,
+   "keyso_leader": 1197,
+   "share_vs_median": 4.65,
+   "share_vs_leader": 4.215,
+   "metrika_over_keyso": 0.13
+  },
+  {
+   "id": "cn-exclusive",
+   "domain": "cn-exclusive.by",
+   "niche": "Агентство недвижимости, Беларусь",
+   "city": "Минск/Беларусь",
+   "base": "mns",
+   "start": "живой (Tilda, 8 стр. с трафиком, вход почти весь на главную)",
+   "works_group": "полный комплекс без разработки (сайт нельзя переделывать)",
+   "works": "структура по городам и услугам (+метатеги), тексты, внешнее продвижение часть периода (замер после отключения)",
+   "months": 5,
+   "metrika": "148 -> 343 (x2,3), Яндекс 29->97, Google 115->244; обращения 7->29",
+   "metrika_now": 343,
+   "metrika_yandex_now": 97,
+   "keyso_site": 477,
+   "directs": {},
+   "note": "в базе mns domain_competitors дал только 6 случайных доменов с 1 общим ключом - прямых конкурентов нет, доли не считаются",
+   "confidence": "insufficient",
+   "keyso_directs_median_top3": null,
+   "keyso_leader": null,
+   "share_vs_median": null,
+   "share_vs_leader": null,
+   "metrika_over_keyso": 0.72,
+   "metrika_yandex_over_keyso": 0.2
+  },
+  {
+   "id": "prostoevent",
+   "domain": "prostoevent.ru",
+   "niche": "Организация мероприятий, тимбилдинг, СПб",
+   "city": "СПб",
+   "base": "spb",
+   "start": "живой (38 стр., блог давал 93 из 145 виз.)",
+   "works_group": "структура+метатеги+тексты, без ПФ",
+   "works": "разделение блог/коммерция, структура, метатеги, новые посадочные, тексты (в процессе); внешнего продвижения нет",
+   "months": 14,
+   "metrika": "услуги 52 -> 83 виз./мес (+59% г/г, июнь-авг), вся органика 145 -> 145 (блог 93->62); обращения 9->16",
+   "metrika_now": 145,
+   "keyso_site": 697,
+   "directs": {
+    "organizator.ru": 226,
+    "comandante-event.ru": 82,
+    "fortreef.ru": 54
+   },
+   "note": "arina-tour.ru (1038) исключен - турфирма; kudago - агрегатор. organizator.ru московское ивент-агентство",
+   "confidence": "medium",
+   "keyso_directs_median_top3": 82,
+   "keyso_leader": 226,
+   "share_vs_median": 8.5,
+   "share_vs_leader": 3.084,
+   "metrika_over_keyso": 0.21
+  },
+  {
+   "id": "sinestet",
+   "domain": "sinestet.pro",
+   "niche": "Медсправки и медкомиссии, Бузулук (Оренбургская обл.)",
+   "city": "Бузулук",
+   "base": "msk",
+   "start": "новый (домен декабрь 2025, первый показ 22.12.2025)",
+   "works_group": "структура+метатеги+тексты, без ПФ",
+   "works": "14 страниц, метатеги, по 2 блока текста на страницу; внешнего продвижения не было (был рекламный всплеск в феврале)",
+   "months": 9,
+   "metrika": "0 -> 231 виз./мес (июнь-авг 2026; август 286; 12,7% конверсия; бренд ~половина)",
+   "metrika_now": 231,
+   "keyso_site": 52,
+   "directs": {
+    "buzuluk.rzd-medicine.ru": 10
+   },
+   "note": "базы Бузулука/Оренбурга нет; msk не видит локальный спрос. В sam: buzuluk.rzd-medicine.ru 146, сайта в базе нет. Прямых меньше 3 - доли ненадежны",
+   "confidence": "insufficient",
+   "keyso_directs_median_top3": null,
+   "keyso_leader": 10,
+   "share_vs_median": null,
+   "share_vs_leader": 5.2,
+   "metrika_over_keyso": 4.44
+  },
+  {
+   "id": "rabota-eskort",
+   "domain": "работа-эскорт.рф",
+   "niche": "Подбор персонала, закрытая ниша, Москва и регионы",
+   "city": "Москва+РФ",
+   "base": "msk",
+   "start": "новый (индекс с 1.10.2025, сразу 28 стр., к замеру 66)",
+   "works_group": "полный комплекс + ПФ (с паузой)",
+   "works": "анализ спроса+структура, региональные страницы, техаудит, переезд Tilda->своя сборка, статьи, внешнее продвижение двумя отрезками (пауза апр-май: Яндекс 317 -> 91)",
+   "months": 11,
+   "metrika": "0 -> 526 (июнь-авг 2026; Яндекс 385; база окт-дек 2025 = 192 всего); 45 заявок/мес",
+   "metrika_now": 526,
+   "metrika_yandex_now": 385,
+   "keyso_site": 590,
+   "directs": {
+    "workgirl-24.com": 20,
+    "elite-work.info": 19,
+    "boss-club.work": 15
+   },
+   "note": "альтернативный набор (модельные агентства): getmodel.com 132, agency-caramel.com 126, model-party.com 56 -> медиана 126, лидер 132 (доля x4,7 / x4,5). Результат держится только на ПФ (пауза стоила 3/4 яндекс-трафика); Google обнулился",
+   "alt_directs": {
+    "getmodel.com": 132,
+    "agency-caramel.com": 126,
+    "model-party.com": 56
+   },
+   "confidence": "medium",
+   "keyso_directs_median_top3": 19,
+   "keyso_leader": 20,
+   "share_vs_median": 31.053,
+   "share_vs_leader": 29.5,
+   "metrika_over_keyso": 0.89,
+   "metrika_yandex_over_keyso": 0.65
+  },
+  {
+   "id": "garmin",
+   "domain": "garmin.moscow",
+   "niche": "Магазин часов и навигаторов Garmin, Москва",
+   "city": "Москва",
+   "base": "msk",
+   "start": "новый (домен сентябрь 2025, первый визит 29.09.2025)",
+   "works_group": "полный комплекс + ПФ окнами (выключено в апр 2026)",
+   "works": "домен, структура каталога, тексты, техаудит, запуск на Tilda (207 стр.), внешнее продвижение окт 2025 - апр 2026; после выключения - откат ниже старта, потом рост на карточках",
+   "months": 11,
+   "metrika": "0 -> 130 (июнь-авг 2026); база окт-дек 2025 = 29; страниц с трафиком 19->56",
+   "metrika_now": 130,
+   "keyso_site": 7,
+   "directs": {
+    "garminy.ru": 1789,
+    "garminco.ru": 1563,
+    "magazin-sportlife.ru": 1321
+   },
+   "note": "garmin.ru (1894) - официальный сайт бренда, исключен; в msk Keys.so почти не видит сайт (top10=4)",
+   "confidence": "medium",
+   "keyso_directs_median_top3": 1563,
+   "keyso_leader": 1789,
+   "share_vs_median": 0.004,
+   "share_vs_leader": 0.004,
+   "metrika_over_keyso": 18.57
+  }
+ ],
+ "stats_medium_confidence": {
+  "all": {
+   "vs_median": {
+    "n": 8,
+    "min": 0.004,
+    "median": 7.059,
+    "max": 31.053
+   },
+   "vs_leader": {
+    "n": 8,
+    "min": 0.004,
+    "median": 3.6,
+    "max": 29.5
+   },
+   "cases": [
+    "kadrovy-element",
+    "vivarent",
+    "ti-o-ty",
+    "massazh-omsk",
+    "ltenergy",
+    "prostoevent",
+    "rabota-eskort",
+    "garmin"
+   ]
+  },
+  "full_complex": {
+   "vs_median": {
+    "n": 6,
+    "min": 0.004,
+    "median": 8.034,
+    "max": 31.053
+   },
+   "vs_leader": {
+    "n": 6,
+    "min": 0.004,
+    "median": 3.6,
+    "max": 29.5
+   },
+   "cases": [
+    "kadrovy-element",
+    "vivarent",
+    "ti-o-ty",
+    "massazh-omsk",
+    "rabota-eskort",
+    "garmin"
+   ]
+  },
+  "only_pf": {
+   "vs_median": {
+    "n": 1,
+    "min": 4.65,
+    "median": 4.65,
+    "max": 4.65
+   },
+   "vs_leader": {
+    "n": 1,
+    "min": 4.215,
+    "median": 4.215,
+    "max": 4.215
+   },
+   "cases": [
+    "ltenergy"
+   ]
+  },
+  "no_pf_structure_texts": {
+   "vs_median": {
+    "n": 1,
+    "min": 8.5,
+    "median": 8.5,
+    "max": 8.5
+   },
+   "vs_leader": {
+    "n": 1,
+    "min": 3.084,
+    "median": 3.084,
+    "max": 3.084
+   },
+   "cases": [
+    "prostoevent"
+   ]
+  },
+  "new_site": {
+   "vs_median": {
+    "n": 3,
+    "min": 0.004,
+    "median": 5.618,
+    "max": 31.053
+   },
+   "vs_leader": {
+    "n": 3,
+    "min": 0.004,
+    "median": 3.767,
+    "max": 29.5
+   },
+   "cases": [
+    "kadrovy-element",
+    "rabota-eskort",
+    "garmin"
+   ]
+  },
+  "living_site": {
+   "vs_median": {
+    "n": 5,
+    "min": 3.143,
+    "median": 8.5,
+    "max": 16.01
+   },
+   "vs_leader": {
+    "n": 5,
+    "min": 1.087,
+    "median": 3.432,
+    "max": 15.144
+   },
+   "cases": [
+    "vivarent",
+    "ti-o-ty",
+    "massazh-omsk",
+    "ltenergy",
+    "prostoevent"
+   ]
+  }
+ },
+ "metrika_over_keyso_excl_base_mismatch": {
+  "n": 9,
+  "min": 0.13,
+  "median": 0.32,
+  "max": 18.57
+ },
+ "conclusions": [
+  "Keys.so-доля: в 8 кейсах средней уверенности сайт сейчас выше медианы топ-3 прямых в 3-31 раза (медиана ~7x) и выше лидера в 1,1-29,5 раза (медиана ~3,6x); исключение - garmin (0,4% от лидера). Прямые лидеры у Keys.so в этих нишах мелкие, поэтому потолка вида X% от лидера данные не показывают (кейсы отобраны удачные).",
+  "Полный комплекс, 11+ мес (vivarent, работа-эскорт, garmin): доля лидера 15,1x / 29,5x (4,5x по альт. набору) / 0,004x - устойчивой доли нет, разброс определяет ниша; 1,5-5 мес (кадровый-элемент, spk-nhs, ti-o-ty, массаж-омск): 3,8x / 4,4x (низкая уверенность) / 1,1x / 3,4x к лидеру.",
+  "Только ПФ: ltenergy 6 мес x4,6 по Метрике (Яндекс x4,8), сейчас 4,2x лидера по Keys.so (Keys.so снят через ~19 мес после замера); lp-teh 3 мес x11,7 (40 -> 466, но с техаудитом и расширением каталога, база мизерная, доля по Keys.so ненадежна: ekb видит 11).",
+  "За 3 мес на малой базе (20-55 виз.): ti-o-ty x7,2 (+126), lp-teh x11,7 (+426, ПФ+техаудит), vivarent x17 (+893, полный комплекс + ПФ, декабрьский сезон). Помесячных данных за 1-2 мес в кейсах нет, кроме новых сайтов: кадровый-элемент 2 мес -> 1773, spk-nhs 1,5 мес -> 470.",
+  "Эффект ПФ держится, пока идет ПФ: работа-эскорт пауза стоила 3/4 яндекс-трафика (317 -> 91); garmin после выключения упал ниже старта, затем вернулся к 130 на структуре и текстах; vivarent после окончания разгона 948 -> 653 (-31%); у cn-exclusive и массаж-омск рост в основном от сайта (после отключения 343 держится; Яндекс x1,45 против Google x2,55).",
+  "Новый vs живой: новый сайт дает быстрый абсолют при большом спросе и числе страниц (196 стр. -> 1773 за 2 мес; 58 стр. -> 470 за 1,5 мес), но в узких местных нишах упирается в потолок (medkomissii89: 19 стр., ~173 виз. ровно 17 мес; sinestet: 14 стр., 231 за 9 мес). Живой сайт: x1,85-x17, зависит от базы.",
+  "Что влияет: размер ниши и города (для Нового Уренгоя и Бузулука баз Keys.so нет), число страниц в индексе, конкурентность (недвижимость: ВЧ в топ выходили, но не закрепились, x2,3), наличие и непрерывность ПФ, реальное внедрение рекомендаций (массаж-омск внедрено 2 страницы).",
+  "Метрика/Keys.so: для сайтов с видимостью в нужной базе Keys.so ЗАВЫШАЕТ - медиана 0,28 (0,13-0,89, n=8 без garmin); для новых/хвостовых сайтов вне топ-10 или в неподходящей базе ЗАНИЖАЕТ: garmin 18,6x, sinestet (msk) 4,4x, medkomissii89 (msk) 1,9x, lp-teh (ekb) 42x. Поправка занижения применима только ко второй группе.",
+  "Не хватает: cn-exclusive (нет прямых конкурентов в базе mns), sinestet (нет базы города, <3 прямых); low-confidence: lp-teh, spk-nhs, medkomissii89 (расхождение баз msk и tmn)."
+ ]
+}

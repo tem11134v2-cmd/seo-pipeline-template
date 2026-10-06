@@ -39,6 +39,7 @@ import { computeScenarioTariff, resolveActiveMonths, interpCheckpoints } from ".
 import {
   computeAll, computeTariff, economicsChecks, costSeries, trafficSeries, CAL, HORIZON, MODEL_VERSION,
   ECON_DEFAULTS, softCap, trafficCap, launchMonth, resolveEconomics, recommendOffer, lostNowCalc, applyClientEconomics,
+  START_HARD_PREFIX,
 } from "../../scripts/_forecast-model.mjs";
 import {
   devPrice, devSubpagesPrice, timelineFor, serviceMeta, canonicalId, DEV_OPTIONS, TIMELINE, DEV_TIMELINE,
@@ -1198,6 +1199,75 @@ await step("модель v2.2: новый сайт на новом домене 
   return true;
 });
 
+// ── v2.3 (приемка владельца 06.10: «на полном комплекте те же 200 переходов через год») ──
+
+await step("модель v2.3: новый сайт ~40 страниц, Рост с ПФ и Картами - 100+ в 1-й мес после запуска, 250+ ко 2-му, 500+ к 12-му; ПФ поднимает уровень новых страниц, а не только скорость", () => {
+  const fiNew = v2Fi({ t0: 0, local: true, maps_card: "none", pages: { existing_commercial: 0, planned_new: 40, catalog_cards: 0 }, demand: { commercial_month: 3000, info_month: 0 }, site_age_months: 0 });
+  const L = launchMonth(fiNew);
+  const full = trafficSeries(fiNew, new Set(["PA", "SY", "KP", "FQ", "PF", "YM", "RP"]));
+  if (!(full[L + 1].commercial >= 100)) return `мес ${L + 1} (1-й после запуска): ${Math.round(full[L + 1].commercial)} (< 100)`;
+  if (!(full[L + 2].commercial >= 250)) return `мес ${L + 2}: ${Math.round(full[L + 2].commercial)} (< 250)`;
+  if (!(full[12].commercial >= 500)) return `мес 12: ${Math.round(full[12].commercial)} (< 500 - «те же 200 через год»)`;
+  // ПФ поднимает уровень: зрелость с ПФ выше, чем без него (раньше ПФ на новых страницах менял только скорость)
+  const pf = trafficSeries(fiNew, new Set(["PA", "SY", "KP", "FQ", "PF", "RP"]));
+  const nopf = trafficSeries(fiNew, new Set(["PA", "SY", "KP", "FQ"]));
+  if (!(pf[24].commercial > nopf[24].commercial * 1.15)) return `зрелость: с ПФ ${Math.round(pf[24].commercial)}, без ПФ ${Math.round(nopf[24].commercial)} (ПФ не поднял уровень)`;
+  if (!(full[24].commercial > pf[24].commercial)) return "Карты не усилили ПФ на зрелости";
+  return true;
+});
+
+await step("модель v2.3: новый сайт - Старт (структура + ПФ) < Рост (+ тексты и n-граммы) < Максимум (+ ПФ Продвинутый) к 12-му мес; PFP сильнее PF на существующих и новых страницах", () => {
+  const fiNew = v2Fi({ t0: 0, local: false, pages: { existing_commercial: 0, planned_new: 35, catalog_cards: 0 }, demand: { commercial_month: 5000, info_month: 0 }, site_age_months: 0 });
+  const s = trafficSeries(fiNew, new Set(["PA", "SY", "PF", "RP"]))[12].commercial;
+  const g = trafficSeries(fiNew, new Set(["PA", "SY", "KP", "FQ", "PF", "RP"]))[12].commercial;
+  const x = trafficSeries(fiNew, new Set(["PA", "SY", "KP", "FQ", "PFP", "RP"]))[12].commercial;
+  if (!(g > s * 1.3)) return `Рост ${Math.round(g)} / Старт ${Math.round(s)} < 1,3 - тексты не дают разницы`;
+  if (!(x > g * 1.03)) return `Максимум с PFP ${Math.round(x)} / Рост ${Math.round(g)} < 1,03 - PFP не добавил`;
+  const ex = v2Fi({ local: false });
+  const pf = trafficSeries(ex, new Set(["PF", "RP"]))[6].commercial, pfp = trafficSeries(ex, new Set(["PFP", "RP"]))[6].commercial;
+  if (!(pfp > pf * 1.05)) return `существующие страницы к 6-му мес: PFP ${Math.round(pfp)}, PF ${Math.round(pf)}`;
+  return true;
+});
+
+await step("модель v2.3: гейт - Старт в минусе при окупаемом Росте дает блок «Старт:», рекомендация остается Рост; Рост тоже в минусе - блок про Рост, Старт - предупреждение", () => {
+  const mk = (s1, g1) => ({ start: { year1: { romi: s1, net: s1, sales: 50 }, year2: { net: 0, romi: 10 }, checkpoints: { m12: 100 }, ids: ["PF"] }, growth: { year1: { romi: g1, net: g1 * 10, sales: 50 }, year2: { net: 0, romi: 10 }, checkpoints: { m12: 200 }, ids: ["PF", "SY"] } });
+  const a = economicsChecks(mk(-20, 120));
+  if (!a.hard.some((h) => h.startsWith(START_HARD_PREFIX))) return `Старт -20%, Рост +120%: нет блока Старта (${a.hard.join("; ") || "hard пуст"})`;
+  const off = recommendOffer(mk(-20, 120), a);
+  if (off.recommended_offer !== "growth") return `рекомендация ${off.recommended_offer} (ожидался Рост)`;
+  const b = economicsChecks(mk(-30, -10));
+  if (b.hard.some((h) => h.startsWith(START_HARD_PREFIX))) return "Рост в минусе: блок Старта не должен дублировать блок Роста";
+  if (!b.soft.some((h) => /ROMI Старта за 12 мес/.test(h))) return "Рост в минусе: нет предупреждения про Старт";
+  return true;
+});
+
+await step("модель v2.4: экспертная оценка forecast_m12 - трафик 12-го мес = оценка, форма кривой от модели (новый сайт: до запуска 0), без оценки - формула; build-forecast блокирует Рост ниже Старта и оценку ниже t0", () => {
+  const t = v2Tariffs();
+  t.start.forecast_m12 = { traffic: 900, basis: "тест" };
+  t.growth.forecast_m12 = { traffic: 2000, basis: "тест" };
+  t.max.forecast_m12 = { traffic: 2600, basis: "тест" };
+  const res = computeAll(V2_FI, t);
+  for (const [k, v] of [["start", 900], ["growth", 2000], ["max", 2600]]) {
+    if (Math.abs(res[k].checkpoints.m12 - v) > 0.5) return `${k}: m12 ${res[k].checkpoints.m12.toFixed(1)} != оценка ${v}`;
+    if (res[k].target_m12 !== v) return `${k}: target_m12 ${res[k].target_m12}`;
+  }
+  const g = res.growth.months.map((x) => x.traffic);
+  for (let m = 1; m < 12; m++) if (g[m] + 1e-9 < g[m - 1]) return `Рост: кривая не монотонна на мес ${m + 1}`;
+  const plain = computeTariff(V2_FI, v2Tariffs().growth);
+  if (plain.target_m12 !== null) return "без оценки target_m12 не null";
+  const nt = v2NewTariffs();
+  nt.growth.forecast_m12 = { traffic: 400, basis: "тест" };
+  const ng = computeTariff(V2_NEW_FI, nt.growth);
+  if (ng.months.slice(0, 2).some((x) => x.traffic !== 0) || Math.abs(ng.checkpoints.m12 - 400) > 0.5) return `новый сайт: мес 1-2 ${ng.months.slice(0, 2).map((x) => x.traffic).join(",")}, m12 ${ng.checkpoints.m12}`;
+  const bad = v2Tariffs();
+  bad.start.forecast_m12 = { traffic: 2000, basis: "тест" };
+  bad.growth.forecast_m12 = { traffic: 1500, basis: "тест" };
+  bad.max.forecast_m12 = { traffic: 100, basis: "" };
+  const r = writeV2Dir("bf-target-bad", { tariffs: bad, content: null });
+  if (r.code !== 3 || !/ПРАВИЛА ТАРИФОВ/.test(r.stdout) || !/Рост 1500 ниже Старта 2000/.test(r.stdout) || !/ниже текущего трафика/.test(r.stdout) || !/basis пуст/.test(r.stdout)) return `build-forecast: exit ${r.code}: ${r.stdout.slice(0, 400)}`;
+  return true;
+});
+
 await step("модель v2.2: техаудит дает буст только при серьезных ошибках (tech_critical), ссылки - не раньше 4-го мес", () => {
   const fi = v2Fi({ local: false });
   const ids = new Set(["FA", "PF", "RP"]);
@@ -1291,7 +1361,7 @@ await step("модель: экономический гейт - ROMI Роста 
 
 // ── v2.1: потолок, запуск нового сайта, цикл сделки, повторные покупки, рекомендация, потери ──
 
-await step("модель v2.1: softCap - до колена (0,6 x потолка) без изменений, дальше монотонно и ниже потолка; trafficCap = max(спрос x доля, лидер x1,5, медиана x1,5, t0 x2,5), без данных - без потолка", () => {
+await step("модель v2.1: softCap - до колена (0,6 x потолка) без изменений, дальше монотонно и ниже потолка; trafficCap = max(спрос x хвосты x доля, лидер x1,5, медиана x1,5, t0 x2,5), без данных - без потолка", () => {
   const cap = 1000;
   const knee = CAL.soft_cap_knee * cap;
   for (const x of [0, 100, knee]) if (softCap(x, cap) !== x) return `softCap(${x}) = ${softCap(x, cap)} (до колена значение не меняется)`;
@@ -1305,9 +1375,9 @@ await step("модель v2.1: softCap - до колена (0,6 x потолка
   }
   if (softCap(5000, Infinity) !== 5000 || softCap(5000, 0) !== 5000) return "без потолка (Infinity / 0) значение меняется";
   const cases = [
-    ["спрос x 0,8 (medium)", V2_FI, 20000 * CAL.demand_share_cap.medium],
-    ["спрос x 0,6 (high)", v2Fi({ competition: "high" }), 20000 * CAL.demand_share_cap.high],
-    ["лидер прямых x1,5 (точный спрос мал)", V2_NEW_FI, 207 * CAL.cap_competitors.leader_share],
+    ["спрос x 2,5 x 0,8 (medium)", V2_FI, 20000 * CAL.demand_tail_mult * CAL.demand_share_cap.medium],
+    ["спрос x 2,5 x 0,6 (high)", v2Fi({ competition: "high" }), 20000 * CAL.demand_tail_mult * CAL.demand_share_cap.high],
+    ["лидер прямых x1,5 (точный спрос мал)", { ...V2_NEW_FI, demand: { commercial_month: 100 } }, 207 * CAL.cap_competitors.leader_share],
     ["медиана x1,5", { t0: 0, demand: { commercial_month: 10 }, competitors_traffic: { median: 400, leader: 300 } }, 400 * CAL.cap_competitors.median_mult],
     ["t0 x2,5 (спрос ниже трафика)", CAP_FI, 1000 * CAL.cap_t0_mult],
     ["нет ни спроса, ни конкурентов", { t0: 500, demand: { commercial_month: 0 } }, Infinity],
@@ -1319,17 +1389,19 @@ await step("модель v2.1: softCap - до колена (0,6 x потолка
   return true;
 });
 
-await step("модель v2.1: мягкий потолок - новый сайт с малым точным спросом (178) растет до 12-го мес (не плоско с m3-m4), потолок по лидеру прямых конкурентов, новые страницы не обнулены срезом", () => {
+await step("модель v2.1: мягкий потолок - новый сайт с малым точным спросом (178) растет до 12-го мес (не плоско с m3-m4), потолок - большее из спроса с хвостами и лидера прямых конкурентов, новые страницы не обнулены срезом", () => {
   const r = computeTariff(V2_NEW_FI, v2NewTariffs().growth);
   const cap = trafficCap(V2_NEW_FI);
-  if (r.cap !== Math.round(207 * CAL.cap_competitors.leader_share)) return `cap ${r.cap} (ожидался лидер 207 x 1,5)`;
+  const wantCap = Math.round(Math.max(178 * CAL.demand_tail_mult * CAL.demand_share_cap.medium, 207 * CAL.cap_competitors.leader_share));
+  if (r.cap !== wantCap) return `cap ${r.cap} (ожидалось ${wantCap}: спрос 178 x 2,5 x 0,8 или лидер 207 x 1,5)`;
   if (!r.capped_from_month) return "кривая не дошла до колена потолка - фикстура не проверяет срез";
   const tr = r.months.map((x) => x.traffic);
   for (let m = r.launch_month + 1; m < 12; m++) {
     if (!(tr[m] > tr[m - 1] + 0.1)) return `мес ${m + 1}: ${tr[m].toFixed(1)} не выше мес ${m}: ${tr[m - 1].toFixed(1)} - плато (жесткий потолок)`;
   }
   const c = r.checkpoints;
-  if (!(c.m12 > c.m6 * 1.1)) return `m12 ${c.m12.toFixed(1)} / m6 ${c.m6.toFixed(1)} < 1,1 - кривая плоская после разгона`;
+  // v2.3: уровень новых страниц выше (ПФ поднимает уровень) - к 6-му мес кривая уже у колена потолка, дальше растет медленнее
+  if (!(c.m12 > c.m6 * 1.05)) return `m12 ${c.m12.toFixed(1)} / m6 ${c.m6.toFixed(1)} < 1,05 - кривая плоская после разгона`;
   if (!(c.m12 < cap)) return `m12 ${c.m12.toFixed(1)} не ниже потолка ${cap}`;
   const demandLevel = V2_NEW_FI.demand.commercial_month * CAL.demand_share_cap.medium;
   if (!(c.m12 > demandLevel * 1.5)) return `m12 ${c.m12.toFixed(1)} у уровня точного спроса ${demandLevel} - потолок взят по спросу, а не по конкурентам`;
@@ -2560,6 +2632,30 @@ await step("смета v2: листы тарифов - «Почему этот �
   return true;
 });
 
+await step("v2.3: мощность бизнеса - economics.scale.capacity_month ограничивает продажи модели и формулы сметы (желтая ячейка), ROMI сметы = прогноз", async () => {
+  const e0 = resolveEconomics(V2_FI);
+  const base = V2_FI.t0 * e0.conversion_rate * e0.close_rate;
+  const cap = Math.ceil(base) + 2;
+  const fi = v2Fi({ economics: { ...V2_FI.economics, scale: { sales_month: null, capacity_month: cap, basis: "тест: мастер-одиночка" } } });
+  const free = computeTariff(V2_FI, v2Tariffs().growth), capped = computeTariff(fi, v2Tariffs().growth);
+  if (capped.economics.capacity_sales_month !== cap) return `economics.capacity_sales_month ${capped.economics.capacity_sales_month} (ожидалось ${cap})`;
+  if (capped.months.some((x) => x.sales > cap - base + 1e-9)) return `продажи выше мощности: ${Math.max(...capped.months.map((x) => x.sales)).toFixed(2)} > ${(cap - base).toFixed(2)}`;
+  if (!(capped.year1.sales < free.year1.sales)) return `мощность не ограничила продажи: ${capped.year1.sales} vs ${free.year1.sales}`;
+  const r = writeV2Dir("cap-smeta", { fi, content: null });
+  if (r.code !== 0 && r.code !== 3) return `build-forecast exit ${r.code}: ${r.stdout}`;
+  const fc = readJsonFile(join(r.dir, "forecast.json"));
+  if (!/Мощность бизнеса - не больше/.test(fc.assumptions_note)) return `методика без мощности: ${fc.assumptions_note}`;
+  const S = await loadSmeta(r.dir, V2_INPUTS.slug);
+  const bad = smetaProblem(S);
+  if (bad) return bad;
+  if (!findCell(S.wb.getWorksheet(PB), /^Мощность бизнеса, продаж в мес$/)) return "на «Окупаемости» нет желтой ячейки мощности";
+  for (const k of TKEYS) {
+    const romi = S.ev.value(PB, `B${S.blocks[k].romi12}`) * 100;
+    if (Math.abs(romi - fc.tariffs[k].year1.romi) > 1) return `${k}: ROMI сметы ${romi.toFixed(1)}% != прогноз ${fc.tariffs[k].year1.romi}%`;
+  }
+  return true;
+});
+
 // ── Смета нового сайта (v2.1): запуск к 3-му мес, гейт не пройден (рекомендуем Старт), Рост и Максимум за 12 мес
 // в минусе, разработку рекомендуем ──
 const SMETA_NEW = await loadSmeta(copyV2Dir(V2_NEW.dir, "smeta-v2-new"), V2_NEW_INPUTS.slug);
@@ -2635,12 +2731,18 @@ await step("смета v2 (новый сайт): ROMI 12 мес <= 0 - стро�
   } finally {
     S.ev.reset();
   }
-  if (losers < 2) return `фикстура: тарифов с ROMI <= 0 - ${losers} (ожидались Рост и Максимум)`;
+  // v2.3: у Максимума (PFP + LA сверх Роста при потолке спроса) ROMI <= 0; Рост в плюсе, но хуже Старта по чистому
+  // результату - гейт не пройден, рекомендован Старт
+  if (losers < 1) return `фикстура: тарифов с ROMI <= 0 - ${losers} (ожидался хотя бы Максимум)`;
   const cmp = S.wb.getWorksheet("Сравнение тарифов");
   const row = findCell(cmp, /^Окупится за 12 мес, если$/);
   if (!row) return "нет строки «Окупится за 12 мес, если» на «Сравнении тарифов»";
-  const startTxt = S.ev.value("Сравнение тарифов", `B${row.row}`), growthTxt = S.ev.value("Сравнение тарифов", `C${row.row}`);
-  if (startTxt !== "окупается при текущих допущениях" || !/^чек от \d[\d ]* ₽/.test(growthTxt)) return `«Окупится за 12 мес, если»: Старт «${startTxt}», Рост «${growthTxt}»`;
+  const colOf = { start: "B", growth: "C", max: "D" };
+  for (const k of TKEYS) {
+    const txt = S.ev.value("Сравнение тарифов", `${colOf[k]}${row.row}`);
+    const romi = S.ev.value(PB, `B${S.blocks[k].romi12}`);
+    if (romi > 0 ? txt !== "окупается при текущих допущениях" : !/^чек от \d[\d ]* ₽/.test(txt)) return `«Окупится за 12 мес, если», ${k} (ROMI ${(romi * 100).toFixed(0)}%): «${txt}»`;
+  }
   const a3 = cellText(cmp.getCell(3, 1));
   if (/дольше 12 месяцев/.test(a3) || !/Рекомендуем тариф «Старт»/.test(a3)) return `подпись «Сравнения»: ${a3.slice(0, 200)}`;
   return true;
